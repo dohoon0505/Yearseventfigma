@@ -31,7 +31,7 @@ function SectionCard({ title, icon, children, extra }: {
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#e8e8e8] bg-[#fafafa]">
         <div className="flex items-center gap-2">
           <span className="text-[#4169e1]">{icon}</span>
-          <span className="text-[13px] text-[#222] font-bold">{title}</span>
+          <span className="text-[15px] text-[#222] font-bold">{title}</span>
         </div>
         {extra}
       </div>
@@ -47,7 +47,7 @@ function InputField({ label, value, onChange, placeholder, icon, required }: {
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="flex items-center gap-1 text-[12px] text-[#555] font-medium">
+      <label className="flex items-center gap-1 text-[14px] text-[#555] font-medium">
         {label}{required && <span className="text-[#f15a2a]">*</span>}
       </label>
       <div className="relative">
@@ -55,7 +55,7 @@ function InputField({ label, value, onChange, placeholder, icon, required }: {
         <input
           type="text" value={value} onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full border border-[#d0d0d0] rounded-[4px] py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all placeholder:text-[#ccc] ${icon ? "pl-9 pr-3" : "px-3"}`}
+          className={`w-full border border-[#d0d0d0] rounded-[4px] py-2.5 text-[14px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all placeholder:text-[#ccc] ${icon ? "pl-9 pr-3" : "px-3"}`}
         />
       </div>
     </div>
@@ -77,19 +77,19 @@ function ContactSelector({ contacts, onSelect }: {
             <Users size={28} className="text-[#4169e1]" />
           </div>
           <h2 className="text-[20px] text-[#222] font-bold mb-1.5">담당자를 선택해 주세요</h2>
-          <p className="text-[13px] text-[#888]">주문을 진행할 담당자를 선택하면 주문서 작성이 시작됩니다.</p>
+          <p className="text-[15px] text-[#888]">주문을 진행할 담당자를 선택하면 주문서 작성이 시작됩니다.</p>
         </div>
 
         {contacts.length === 0 ? (
           <div className="bg-white border border-[#e0e0e0] rounded-[10px] p-8 text-center flex flex-col items-center gap-4">
             <AlertCircle size={32} className="text-[#bbb]" />
             <div>
-              <p className="text-[14px] text-[#555] font-medium">등록된 담당자가 없습니다</p>
-              <p className="text-[13px] text-[#999] mt-1">프로필 저장공간에서 담당자를 먼저 등록해 주세요.</p>
+              <p className="text-[15px] text-[#555] font-medium">등록된 담당자가 없습니다</p>
+              <p className="text-[15px] text-[#999] mt-1">프로필 저장공간에서 담당자를 먼저 등록해 주세요.</p>
             </div>
             <button
               onClick={() => navigate("/app/profile")}
-              className="px-5 py-2.5 bg-[#4169e1] text-white rounded-[4px] text-[13px] font-medium hover:bg-[#3558c4] transition-colors"
+              className="px-5 py-2.5 bg-[#4169e1] text-white rounded-[4px] text-[15px] font-medium hover:bg-[#3558c4] transition-colors"
             >
               담당자 등록하러 가기
             </button>
@@ -109,9 +109,9 @@ function ContactSelector({ contacts, onSelect }: {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-[15px] text-[#222] font-bold">{c.name}</span>
-                      <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[11px] font-medium">{c.role}</span>
+                      <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[13px] font-medium">{c.role}</span>
                     </div>
-                    <p className="text-[12px] text-[#999] mt-0.5">{c.phone}</p>
+                    <p className="text-[14px] text-[#999] mt-0.5">{c.phone}</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-[#bbb] group-hover:text-[#4169e1] transition-colors" />
@@ -123,7 +123,7 @@ function ContactSelector({ contacts, onSelect }: {
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate("/app/profile")}
-            className="text-[12px] text-[#4169e1] hover:underline"
+            className="text-[14px] text-[#4169e1] hover:underline"
           >
             + 새 담당자 등록하기
           </button>
@@ -706,12 +706,12 @@ function OrderForm({ contact, onChangeContact }: {
         <div className="w-7 h-7 rounded-full bg-[#eef1fd] flex items-center justify-center">
           <User size={14} className="text-[#4169e1]" />
         </div>
-        <span className="text-[13px] text-[#555]">담당자:</span>
-        <span className="text-[13px] text-[#222] font-bold">{contact.name}</span>
-        <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[11px] font-medium">{contact.role}</span>
-        <span className="text-[12px] text-[#999]">{contact.phone}</span>
-        <button onClick={onChangeContact} className="ml-auto text-[12px] text-[#4169e1] hover:underline flex items-center gap-0.5">
-          <Pencil size={11} /> 변경
+        <span className="text-[15px] text-[#555]">담당자:</span>
+        <span className="text-[15px] text-[#222] font-bold">{contact.name}</span>
+        <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[13px] font-medium">{contact.role}</span>
+        <span className="text-[14px] text-[#999]">{contact.phone}</span>
+        <button onClick={onChangeContact} className="ml-auto text-[14px] text-[#4169e1] hover:underline flex items-center gap-0.5">
+          <Pencil size={13} /> 변경
         </button>
       </div>
 
@@ -725,8 +725,8 @@ function OrderForm({ contact, onChangeContact }: {
           >
             <span className="text-[18px]">🌸</span>
             <div className="text-left">
-              <p className="text-[13px] font-bold">부고장 간편접수</p>
-              <p className="text-[11px] text-white/60 mt-0.5">근조화환 빠른 주문</p>
+              <p className="text-[15px] font-bold">부고장 간편접수</p>
+              <p className="text-[13px] text-white/60 mt-0.5">근조화환 빠른 주문</p>
             </div>
             <ChevronRight size={16} className="ml-auto opacity-50" />
           </button>
@@ -736,8 +736,8 @@ function OrderForm({ contact, onChangeContact }: {
           >
             <span className="text-[18px]">💍</span>
             <div className="text-left">
-              <p className="text-[13px] font-bold">청첩장 간편접수</p>
-              <p className="text-[11px] text-white/60 mt-0.5">결혼 축하화환 빠른 주문</p>
+              <p className="text-[15px] font-bold">청첩장 간편접수</p>
+              <p className="text-[13px] text-white/60 mt-0.5">결혼 축하화환 빠른 주문</p>
             </div>
             <ChevronRight size={16} className="ml-auto opacity-50" />
           </button>
@@ -746,7 +746,7 @@ function OrderForm({ contact, onChangeContact }: {
         {/* 구분선 */}
         <div className="flex items-center gap-3 mb-5">
           <div className="flex-1 h-px bg-[#e0e0e0]" />
-          <span className="text-[12px] text-[#bbb] font-medium">일반 주문서 작성</span>
+          <span className="text-[14px] text-[#bbb] font-medium">일반 주문서 작성</span>
           <div className="flex-1 h-px bg-[#e0e0e0]" />
         </div>
 
@@ -755,19 +755,19 @@ function OrderForm({ contact, onChangeContact }: {
           <div className="flex-1 min-w-0 flex flex-col gap-4">
 
             {/* 상품 선택 */}
-            <SectionCard title="상품 선택" icon={<Package size={14} />} extra={
+            <SectionCard title="상품 선택" icon={<Package size={16} />} extra={
               favProducts.length === 0 ? null : (
-                <span className="text-[11px] text-[#4169e1] cursor-pointer hover:underline" onClick={() => navigate("/app/products")}>즐겨찾기 관리</span>
+                <span className="text-[13px] text-[#4169e1] cursor-pointer hover:underline" onClick={() => navigate("/app/products")}>즐겨찾기 관리</span>
               )
             }>
               {favProducts.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 py-4 text-center">
                   <Star size={24} className="text-[#ddd]" />
                   <div>
-                    <p className="text-[13px] text-[#777] font-medium">즐겨찾기 상품이 없습니다</p>
-                    <p className="text-[12px] text-[#999] mt-0.5">상품 규격 안내 페이지에서 즐겨찾기를 설정해 주세요.</p>
+                    <p className="text-[15px] text-[#777] font-medium">즐겨찾기 상품이 없습니다</p>
+                    <p className="text-[14px] text-[#999] mt-0.5">상품 규격 안내 페이지에서 즐겨찾기를 설정해 주세요.</p>
                   </div>
-                  <button onClick={() => navigate("/app/products")} className="px-4 py-2 bg-[#f15a2a] text-white rounded-[4px] text-[12px] font-medium hover:bg-[#d94e24] transition-colors">
+                  <button onClick={() => navigate("/app/products")} className="px-4 py-2 bg-[#f15a2a] text-white rounded-[4px] text-[14px] font-medium hover:bg-[#d94e24] transition-colors">
                     상품 규격 안내 보기
                   </button>
                 </div>
@@ -791,18 +791,18 @@ function OrderForm({ contact, onChangeContact }: {
                         />
                         <span className="text-[18px] shrink-0">{p.icon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-[#222] font-medium truncate">{p.product}</p>
-                          <p className="text-[11px] text-[#999]">{p.category}</p>
+                          <p className="text-[15px] text-[#222] font-medium truncate">{p.product}</p>
+                          <p className="text-[13px] text-[#999]">{p.category}</p>
                         </div>
-                        <span className={`text-[13px] font-bold shrink-0 ${isSelected ? "text-[#4169e1]" : "text-[#888]"}`}>{p.price}</span>
+                        <span className={`text-[15px] font-bold shrink-0 ${isSelected ? "text-[#4169e1]" : "text-[#888]"}`}>{p.price}</span>
                         {isSelected && <CheckCircle size={15} className="text-[#4169e1] shrink-0" />}
                       </label>
                     );
                   })}
                   {selectedItem && (
                     <div className="mt-1 flex justify-between items-center pt-2 border-t border-[#e8e8e8]">
-                      <span className="text-[12px] text-[#888]">선택 상품: {selectedItem.product}</span>
-                      <span className="text-[13px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
+                      <span className="text-[14px] text-[#888]">선택 상품: {selectedItem.product}</span>
+                      <span className="text-[15px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
                     </div>
                   )}
                 </div>
@@ -810,7 +810,7 @@ function OrderForm({ contact, onChangeContact }: {
             </SectionCard>
 
             {/* 배송지 정보 */}
-            <SectionCard title="배송지 정보" icon={<Truck size={14} />}>
+            <SectionCard title="배송지 정보" icon={<Truck size={16} />}>
               <div className="flex flex-col gap-3">
                 <InputField label="배송지 주소" value={address} onChange={setAddress} placeholder="배송지 주소를 입력해 주세요" icon={<MapPin size={14} />} required />
                 <div className="grid grid-cols-2 gap-3">
@@ -821,8 +821,8 @@ function OrderForm({ contact, onChangeContact }: {
                 {/* 배송요청 일시 */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 text-[12px] text-[#555] font-medium">
-                      <CalendarDays size={13} className="text-[#4169e1]" />
+                    <label className="flex items-center gap-1 text-[14px] text-[#555] font-medium">
+                      <CalendarDays size={15} className="text-[#4169e1]" />
                       배송요청 일시<span className="text-[#f15a2a]">*</span>
                     </label>
                     <label className="flex items-center gap-1.5 ml-auto cursor-pointer select-none">
@@ -832,27 +832,27 @@ function OrderForm({ contact, onChangeContact }: {
                         onChange={(e) => setImmediateDelivery(e.target.checked)}
                         className="accent-[#4169e1] w-[14px] h-[14px]"
                       />
-                      <span className="text-[12px] text-[#4169e1] font-medium">즉시배송</span>
+                      <span className="text-[14px] text-[#4169e1] font-medium">즉시배송</span>
                     </label>
                   </div>
                   <div className={`flex items-center gap-2 transition-opacity ${immediateDelivery ? "opacity-40 pointer-events-none select-none" : "opacity-100"}`}>
                     <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"><CalendarDays size={13} /></span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"><CalendarDays size={15} /></span>
                       <input
                         type="date"
                         value={deliveryDate}
                         onChange={(e) => setDeliveryDate(e.target.value)}
                         disabled={immediateDelivery}
-                        className="w-full border border-[#d0d0d0] rounded-[4px] pl-9 pr-3 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all"
+                        className="w-full border border-[#d0d0d0] rounded-[4px] pl-9 pr-3 py-2.5 text-[14px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all"
                       />
                     </div>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#bbb]"><Clock size={13} /></span>
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#bbb]"><Clock size={15} /></span>
                       <select
                         value={deliveryHour}
                         onChange={(e) => setDeliveryHour(e.target.value)}
                         disabled={immediateDelivery}
-                        className="border border-[#d0d0d0] rounded-[4px] pl-8 pr-2 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
+                        className="border border-[#d0d0d0] rounded-[4px] pl-8 pr-2 py-2.5 text-[14px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
                       >
                         {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
                           <option key={h} value={h}>{h}시</option>
@@ -863,7 +863,7 @@ function OrderForm({ contact, onChangeContact }: {
                       value={deliveryMinute}
                       onChange={(e) => setDeliveryMinute(e.target.value)}
                       disabled={immediateDelivery}
-                      className="border border-[#d0d0d0] rounded-[4px] px-3 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
+                      className="border border-[#d0d0d0] rounded-[4px] px-3 py-2.5 text-[14px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
                     >
                       {["00", "10", "20", "30", "40", "50"].map((m) => (
                         <option key={m} value={m}>{m}분</option>
@@ -871,8 +871,8 @@ function OrderForm({ contact, onChangeContact }: {
                     </select>
                   </div>
                   {immediateDelivery && (
-                    <p className="text-[12px] text-[#4169e1] font-medium flex items-center gap-1">
-                      <CheckCircle size={12} /> 즉시배송으로 접수됩니다.
+                    <p className="text-[14px] text-[#4169e1] font-medium flex items-center gap-1">
+                      <CheckCircle size={14} /> 즉시배송으로 접수됩니다.
                     </p>
                   )}
                 </div>
@@ -880,19 +880,19 @@ function OrderForm({ contact, onChangeContact }: {
             </SectionCard>
 
             {/* 리본문구 & 보내는분 */}
-            <SectionCard title="리본 정보" icon={<Tag size={14} />}>
+            <SectionCard title="리본 정보" icon={<Tag size={16} />}>
               <div className="flex flex-col gap-3">
                 {/* 리본문구 */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[12px] text-[#555] font-medium flex items-center gap-1">리본 문구<span className="text-[#f15a2a]">*</span></label>
-                    <button onClick={() => setRibbonOpen(true)} className="flex items-center gap-1 text-[11px] text-[#4169e1] hover:underline">
-                      <Pencil size={11} /> {ribbonPhrase ? "수정" : "작성하기"}
+                    <label className="text-[14px] text-[#555] font-medium flex items-center gap-1">리본 문구<span className="text-[#f15a2a]">*</span></label>
+                    <button onClick={() => setRibbonOpen(true)} className="flex items-center gap-1 text-[13px] text-[#4169e1] hover:underline">
+                      <Pencil size={13} /> {ribbonPhrase ? "수정" : "작성하기"}
                     </button>
                   </div>
                   <div
                     onClick={() => setRibbonOpen(true)}
-                    className={`w-full border rounded-[4px] px-3 py-2.5 text-[13px] cursor-pointer transition-all ${ribbonPhrase ? "border-[#4169e1] bg-[#f8f9ff] text-[#333] font-medium" : "border-dashed border-[#ccc] text-[#bbb] hover:border-[#4169e1]"}`}
+                    className={`w-full border rounded-[4px] px-3 py-2.5 text-[14px] cursor-pointer transition-all ${ribbonPhrase ? "border-[#4169e1] bg-[#f8f9ff] text-[#333] font-medium" : "border-dashed border-[#ccc] text-[#bbb] hover:border-[#4169e1]"}`}
                   >
                     {ribbonPhrase || "리본 문구를 작성해 주세요"}
                   </div>
@@ -901,9 +901,9 @@ function OrderForm({ contact, onChangeContact }: {
                 {/* 보내는분 */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[12px] text-[#555] font-medium flex items-center gap-1">보내는분<span className="text-[#f15a2a]">*</span></label>
-                    <button onClick={() => setSenderOpen(true)} className="flex items-center gap-1 text-[11px] text-[#4169e1] hover:underline">
-                      <User size={11} /> {sender ? "변경" : "선택하기"}
+                    <label className="text-[14px] text-[#555] font-medium flex items-center gap-1">보내는분<span className="text-[#f15a2a]">*</span></label>
+                    <button onClick={() => setSenderOpen(true)} className="flex items-center gap-1 text-[13px] text-[#4169e1] hover:underline">
+                      <User size={13} /> {sender ? "변경" : "선택하기"}
                     </button>
                   </div>
                   {sender ? (
@@ -912,15 +912,15 @@ function OrderForm({ contact, onChangeContact }: {
                       className="w-full border border-[#4169e1] bg-[#f8f9ff] rounded-[4px] px-3 py-2.5 cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] text-[#222] font-bold">{sender.name}</span>
-                        <span className="text-[11px] text-[#888]">{sender.role}</span>
+                        <span className="text-[14px] text-[#222] font-bold">{sender.name}</span>
+                        <span className="text-[13px] text-[#888]">{sender.role}</span>
                       </div>
-                      <p className="text-[12px] text-[#4169e1] mt-0.5 truncate">{sender.greeting}</p>
+                      <p className="text-[14px] text-[#4169e1] mt-0.5 truncate">{sender.greeting}</p>
                     </div>
                   ) : (
                     <div
                       onClick={() => setSenderOpen(true)}
-                      className="w-full border border-dashed border-[#ccc] rounded-[4px] px-3 py-2.5 text-[13px] text-[#bbb] cursor-pointer hover:border-[#4169e1] transition-colors"
+                      className="w-full border border-dashed border-[#ccc] rounded-[4px] px-3 py-2.5 text-[14px] text-[#bbb] cursor-pointer hover:border-[#4169e1] transition-colors"
                     >
                       프로필에서 보내는분을 선택해 주세요
                     </div>
@@ -933,12 +933,12 @@ function OrderForm({ contact, onChangeContact }: {
             <button
               onClick={handleSubmit}
               disabled={!isReady}
-              className={`w-full py-3.5 rounded-[8px] text-[14px] font-bold transition-colors ${isReady ? "bg-[#f15a2a] text-white hover:bg-[#d94e24]" : "bg-[#e0e0e0] text-[#aaa] cursor-not-allowed"}`}
+              className={`w-full py-3.5 rounded-[8px] text-[15px] font-bold transition-colors ${isReady ? "bg-[#f15a2a] text-white hover:bg-[#d94e24]" : "bg-[#e0e0e0] text-[#aaa] cursor-not-allowed"}`}
             >
               {isReady ? "🌸 주문 접수하기" : "필수 항목을 모두 입력해 주세요"}
             </button>
             {!isReady && (
-              <p className="text-center text-[12px] text-[#bbb] -mt-2">
+              <p className="text-center text-[14px] text-[#bbb] -mt-2">
                 상품선택 · 배송지 · 리본문구 · 보내는분 필수
               </p>
             )}
@@ -950,11 +950,11 @@ function OrderForm({ contact, onChangeContact }: {
             {/* 주문 시 참고사항 */}
             <div className="bg-[#fffbf0] border border-[#f2e0a0] rounded-[8px] overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#f2e0a0]">
-                <FileText size={13} className="text-[#e6a817]" />
-                <span className="text-[12px] text-[#8a6d00] font-bold">주문 시 참고사항</span>
+                <FileText size={15} className="text-[#e6a817]" />
+                <span className="text-[14px] text-[#8a6d00] font-bold">주문 시 참고사항</span>
               </div>
               <div className="px-4 py-3">
-                <p className="text-[12px] text-[#7a5c00] leading-[1.8]">
+                <p className="text-[14px] text-[#7a5c00] leading-[1.8]">
                   • 당일 오전 11:00 이전 주문 건 당일 배송 가능합니다.<br />
                   • 주말 및 공휴일은 배송이 제한됩니다.<br />
                   • 이른 아침·저녁 시간대 배송은 사전 협의가 필요합니다.<br />
@@ -967,8 +967,8 @@ function OrderForm({ contact, onChangeContact }: {
             {/* 배송완료 메세지 수신 */}
             <div className="bg-white border border-[#e0e0e0] rounded-[8px] overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e8e8e8] bg-[#fafafa]">
-                <Bell size={13} className="text-[#4169e1]" />
-                <span className="text-[12px] text-[#222] font-bold">배송완료 알림 수신</span>
+                <Bell size={15} className="text-[#4169e1]" />
+                <span className="text-[14px] text-[#222] font-bold">배송완료 알림 수신</span>
               </div>
               <div className="px-4 py-3 flex flex-col gap-3">
                 {[
@@ -978,20 +978,20 @@ function OrderForm({ contact, onChangeContact }: {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <div>
-                      <p className="text-[12px] text-[#333] font-medium">{item.label}</p>
-                      <p className="text-[11px] text-[#aaa]">{item.sub}</p>
+                      <p className="text-[14px] text-[#333] font-medium">{item.label}</p>
+                      <p className="text-[13px] text-[#aaa]">{item.sub}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.on
-                        ? <Bell size={11} className="text-[#4169e1]" />
-                        : <BellOff size={11} className="text-[#bbb]" />}
+                        ? <Bell size={13} className="text-[#4169e1]" />
+                        : <BellOff size={13} className="text-[#bbb]" />}
                       <Toggle on={item.on} onChange={item.set} />
                     </div>
                   </div>
                 ))}
               </div>
               <div className="px-4 py-2.5 border-t border-[#f0f0f0] bg-[#f8f9ff]">
-                <p className="text-[11px] text-[#999]">배송 완료 시 ON 설정된 분께<br />문자 메세지가 자동 발송됩니다.</p>
+                <p className="text-[13px] text-[#999]">배송 완료 시 ON 설정된 분께<br />문자 메세지가 자동 발송됩니다.</p>
               </div>
             </div>
 
@@ -999,17 +999,17 @@ function OrderForm({ contact, onChangeContact }: {
             {selectedItem && (
               <div className="bg-white border border-[#e0e0e0] rounded-[8px] overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e8e8e8] bg-[#fafafa]">
-                  <Package size={13} className="text-[#555]" />
-                  <span className="text-[12px] text-[#222] font-bold">주문 상품 요약</span>
+                  <Package size={15} className="text-[#555]" />
+                  <span className="text-[14px] text-[#222] font-bold">주문 상품 요약</span>
                 </div>
                 <div className="px-4 py-3 flex flex-col gap-1.5">
                   <div className="flex justify-between items-center">
-                    <span className="text-[12px] text-[#555] truncate flex-1 mr-2">{selectedItem.product}</span>
-                    <span className="text-[11px] text-[#aaa] shrink-0">{selectedItem.category}</span>
+                    <span className="text-[14px] text-[#555] truncate flex-1 mr-2">{selectedItem.product}</span>
+                    <span className="text-[13px] text-[#aaa] shrink-0">{selectedItem.category}</span>
                   </div>
                   <div className="pt-2 mt-1 border-t border-[#e8e8e8] flex justify-between">
-                    <span className="text-[12px] text-[#555] font-medium">금액</span>
-                    <span className="text-[13px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
+                    <span className="text-[14px] text-[#555] font-medium">금액</span>
+                    <span className="text-[15px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
                   </div>
                 </div>
               </div>
