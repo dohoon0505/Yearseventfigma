@@ -702,21 +702,23 @@ function OrderForm({ contact, onChangeContact }: {
   return (
     <div className="flex flex-col h-full">
       {/* 담당자 표시 바 */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-white border-b border-[#e0e0e0]">
-        <div className="w-7 h-7 rounded-full bg-[#eef1fd] flex items-center justify-center">
-          <User size={14} className="text-[#4169e1]" />
+      <div className="px-6 py-3 bg-white border-b border-[#e0e0e0]">
+        <div className="flex items-center gap-3 max-w-[1300px]">
+          <div className="w-7 h-7 rounded-full bg-[#eef1fd] flex items-center justify-center">
+            <User size={14} className="text-[#4169e1]" />
+          </div>
+          <span className="text-[15px] text-[#555]">담당자:</span>
+          <span className="text-[15px] text-[#222] font-bold">{contact.name}</span>
+          <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[13px] font-medium">{contact.role}</span>
+          <span className="text-[14px] text-[#999]">{contact.phone}</span>
+          <button onClick={onChangeContact} className="ml-auto text-[14px] text-[#4169e1] hover:underline flex items-center gap-0.5">
+            <Pencil size={13} /> 변경
+          </button>
         </div>
-        <span className="text-[15px] text-[#555]">담당자:</span>
-        <span className="text-[15px] text-[#222] font-bold">{contact.name}</span>
-        <span className="px-2 py-0.5 bg-[#f0f3fd] text-[#4169e1] rounded-[3px] text-[13px] font-medium">{contact.role}</span>
-        <span className="text-[14px] text-[#999]">{contact.phone}</span>
-        <button onClick={onChangeContact} className="ml-auto text-[14px] text-[#4169e1] hover:underline flex items-center gap-0.5">
-          <Pencil size={13} /> 변경
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-[1100px] mr-auto">
+        <div className="max-w-[1300px]">
         {/* 간편접수 버튼 */}
         <div className="flex gap-3 mb-6">
           <button
@@ -752,7 +754,7 @@ function OrderForm({ contact, onChangeContact }: {
 
         <div className="flex gap-5 items-start">
           {/* ─── 좌측 폼 ── */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
+          <div className="w-[760px] shrink-0 flex flex-col gap-4">
 
             {/* 상품 선택 */}
             <SectionCard title="상품 선택" icon={<Package size={16} />} extra={
@@ -945,7 +947,7 @@ function OrderForm({ contact, onChangeContact }: {
           </div>
 
           {/* ─── 우측 패널 ── */}
-          <div className="w-[260px] shrink-0 flex flex-col gap-4">
+          <div className="flex-1 min-w-[300px] flex flex-col gap-4">
 
             {/* 주문 시 참고사항 */}
             <div className="bg-[#fffbf0] border border-[#f2e0a0] rounded-[8px] overflow-hidden">
