@@ -718,6 +718,7 @@ function OrderForm({ contact, onChangeContact }: {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-[1100px] mr-auto">
         {/* 간편접수 버튼 */}
         <div className="flex gap-3 mb-6">
           <button
@@ -952,6 +953,7 @@ function OrderForm({ contact, onChangeContact }: {
             )}
           </div>
         </div>
+        </div>{/* max-w wrapper */}
       </div>
 
       {/* Modals */}
