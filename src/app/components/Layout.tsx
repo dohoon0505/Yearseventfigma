@@ -8,7 +8,6 @@ import imgRealtime from "figma:asset/b0533b3229ad4950f3b043b3ae8667081710f64b.pn
 import imgInvoice from "figma:asset/ee2ff27ff07231dd3da62b67b66ec977af5f6f69.png";
 import imgAccounting from "figma:asset/89f44e86951b9673b222bf64d04181d919c190b3.png";
 import imgProfile from "figma:asset/fab737052638e076fb0189281951c841b72f5549.png";
-import imgMessage from "figma:asset/e6dcd9f44bb0c3ff0c5e8a8d6dcb5c780f04eb1d.png";
 import imgProduct from "figma:asset/97a27d229243f9058487e5c0c95bdffcbc1d2c18.png";
 import imgLogout from "figma:asset/7bbdafe5ba0b00fdbb02e5303a951c414bab68a8.png";
 
@@ -31,7 +30,6 @@ const menuItems = [
     group: "회사관련메뉴",
     items: [
       { label: "프로필 저장공간", path: "/app/profile", icon: imgProfile },
-      { label: "메세지 수신설정", path: "/app/messages", icon: imgMessage },
       { label: "상품 규격 안내", path: "/app/products", icon: imgProduct },
     ],
   },
@@ -49,55 +47,60 @@ export function Layout() {
   return (
     <div className="flex flex-col h-screen bg-white">
       {/* Header */}
-      <header className="flex items-center h-[55px] border-b border-[#e0e0e0] px-4 shrink-0 bg-white">
-        <div className="flex items-center gap-4">
-          <div className="w-[156px] h-[30px] relative">
+      <header className="flex items-center justify-between h-[62px] border-b border-[#e0e0e0] px-6 shrink-0 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        {/* Left: Logo + Badges */}
+        <div className="flex items-center gap-5">
+          <div className="h-[32px]">
             <img src={imgLogo} alt="올해의 경조사" className="h-full object-contain" />
           </div>
-          <div className="flex items-center gap-2 ml-4">
+          <div className="h-5 w-px bg-[#e8e8e8]" />
+          <div className="flex items-center gap-2">
             {/* Company badge */}
-            <div className="flex items-center gap-2 px-[14px] py-[10px] bg-[#f2f2f2] rounded-[3px] border border-[#8b8c92]">
-              <img src={imgCompany} alt="" className="w-[20px] h-[20px] object-cover" />
-              <span className="text-[#555] text-[14px] whitespace-nowrap" style={{ fontWeight: 500 }}>(주)진양코퍼레이션</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#f5f5f5] rounded-[5px] border border-[#d8d8d8]">
+              <img src={imgCompany} alt="" className="w-[18px] h-[18px] object-contain" />
+              <span className="text-[#444] text-[14px] whitespace-nowrap font-medium">(주)진양코퍼레이션</span>
             </div>
             {/* User badge */}
-            <div className="flex items-center gap-2 px-[14px] py-[10px] bg-[#f6f7ff] rounded-[3px] border border-[#939dff]">
-              <img src={imgUser} alt="" className="w-[20px] h-[20px] object-cover" />
-              <span className="text-[#555] text-[14px] whitespace-nowrap" style={{ fontWeight: 500 }}>총무팀 김사원</span>
-            </div>
-            {/* Warning badge */}
-            <div className="flex items-center justify-between px-[14px] py-[10px] bg-[#fffae6] rounded-[3px] border border-[#f2b117] w-[240px]">
-              <img src={imgWarning} alt="" className="w-[20px] h-[20px] object-cover" />
-              <span className="text-[#555] text-[14px] whitespace-nowrap" style={{ fontWeight: 500 }}>연간 상품 누락 및 오배송: 0건</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#f0f3ff] rounded-[5px] border border-[#c5cdff]">
+              <img src={imgUser} alt="" className="w-[18px] h-[18px] object-contain" />
+              <span className="text-[#4169e1] text-[14px] whitespace-nowrap font-semibold">총무팀 김사원</span>
             </div>
           </div>
+        </div>
+
+        {/* Right: Warning */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-[#fffae6] rounded-[5px] border border-[#f0c040]">
+          <img src={imgWarning} alt="" className="w-[18px] h-[18px] object-contain" />
+          <span className="text-[14px] text-[#555] whitespace-nowrap">
+            연간 상품 누락 및 오배송: <strong className="text-[#c87000]">0건</strong>
+          </span>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-[218px] bg-white border-r border-[#e0e0e0] flex flex-col shrink-0 overflow-y-auto">
-          <nav className="flex flex-col gap-[24px] p-3 flex-1">
+        <aside className="w-[220px] bg-white border-r border-[#e0e0e0] flex flex-col shrink-0 overflow-y-auto">
+          <nav className="flex flex-col gap-[22px] p-3 flex-1">
             {menuItems.map((group) => (
-              <div key={group.group} className="flex flex-col gap-[10px]">
-                <div className="px-[2px]">
-                  <span className="text-[#444] text-[13px]" style={{ fontWeight: 400 }}>{group.group}</span>
+              <div key={group.group} className="flex flex-col gap-[8px]">
+                <div className="px-[4px]">
+                  <span className="text-[#888] text-[12px] font-semibold tracking-wide uppercase">{group.group}</span>
                 </div>
-                <div className="flex flex-col gap-[3px]">
+                <div className="flex flex-col gap-[2px]">
                   {group.items.map((item) => (
                     <button
                       key={item.path}
                       onClick={() => navigate(item.path)}
-                      className={`flex items-center gap-[6px] px-[12px] py-[8px] rounded-[5px] w-full text-left transition-colors ${
+                      className={`flex items-center gap-[8px] px-[12px] py-[9px] rounded-[6px] w-full text-left transition-colors ${
                         isActive(item.path)
                           ? "bg-[#ffe9e9]"
-                          : "hover:bg-[#f0f0f0]"
+                          : "hover:bg-[#f4f4f4]"
                       }`}
                     >
-                      <img src={item.icon} alt="" className="w-[23px] h-[23px] object-cover shrink-0" />
+                      <img src={item.icon} alt="" className="w-[22px] h-[22px] object-contain shrink-0" />
                       <span
-                        className={`text-[14px] font-medium whitespace-nowrap ${
-                          isActive(item.path) ? "text-[#222]" : "text-[#555]"
+                        className={`text-[15px] font-medium whitespace-nowrap ${
+                          isActive(item.path) ? "text-[#d94000]" : "text-[#444]"
                         }`}
                       >
                         {item.label}
@@ -113,10 +116,10 @@ export function Layout() {
           <div className="p-3 border-t border-[#e0e0e0]">
             <button
               onClick={() => navigate("/login")}
-              className="flex items-center gap-[6px] px-[12px] py-[8px] w-full"
+              className="flex items-center gap-[8px] px-[12px] py-[9px] w-full rounded-[6px] hover:bg-[#f4f4f4] transition-colors"
             >
-              <img src={imgLogout} alt="" className="w-[23px] h-[23px] object-cover shrink-0" />
-              <span className="text-[#333] text-[14px] font-medium opacity-70 whitespace-nowrap">
+              <img src={imgLogout} alt="" className="w-[22px] h-[22px] object-contain shrink-0" />
+              <span className="text-[#888] text-[15px] font-medium whitespace-nowrap">
                 서비스 로그아웃
               </span>
             </button>

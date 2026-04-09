@@ -7,7 +7,6 @@ import { RealTimeOrders } from "./pages/RealTimeOrders";
 import { InvoiceView } from "./pages/InvoiceView";
 import { SettlementView } from "./pages/SettlementView";
 import { ProfileStorage } from "./pages/ProfileStorage";
-import { MessageSettings } from "./pages/MessageSettings";
 import { ProductGuide } from "./pages/ProductGuide";
 
 export const router = createBrowserRouter([
@@ -18,7 +17,6 @@ export const router = createBrowserRouter([
     },
     Component: Login,
   },
-
   {
     path: "/login",
     Component: Login,
@@ -36,7 +34,6 @@ export const router = createBrowserRouter([
       { path: "invoice", Component: InvoiceView },
       { path: "settlement", Component: SettlementView },
       { path: "profile", Component: ProfileStorage },
-      { path: "messages", Component: MessageSettings },
       { path: "products", Component: ProductGuide },
     ],
   },
