@@ -109,7 +109,7 @@ export function ProductGuide() {
     { label: "상품금액", width: "120px", align: "right", render: (r) => <span className="font-medium text-[#444]">{r.price}</span> },
     { label: "상품설명 및 비고(규격)", width: "1fr", render: (r) => r.description },
     {
-      label: "샘플사진", width: "max-content", align: "center",
+      label: "샘플사진", width: "96px", align: "center",
       render: (r) => (
         <button
           onClick={() => setSampleProduct(r)}
