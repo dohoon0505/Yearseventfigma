@@ -1,14 +1,38 @@
+import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { PageTitle } from "../components/ui/PageTitle";
-import { FileText, ExternalLink } from "lucide-react";
+import { Modal } from "../components/ui/Modal";
+import { FileText, ExternalLink, Building2, Hash, User, Mail, Phone, MapPin, Pencil, CheckCircle } from "lucide-react";
 import imgAccounting from "figma:asset/89f44e86951b9673b222bf64d04181d919c190b3.png";
 
+// ─── Company Info State ────────────────────────────────────────────────────────
+type CompanyInfo = {
+  회사명: string;
+  사업자번호: string;
+  대표자명: string;
+  계산서이메일: string;
+  담당자명: string;
+  담당자연락처: string;
+  사업장주소: string;
+};
+
+const DEFAULT_COMPANY: CompanyInfo = {
+  회사명: "주식회사 싱크플로",
+  사업자번호: "680-87-02988",
+  대표자명: "홍길동",
+  계산서이메일: "admin@thinkflow.info",
+  담당자명: "홍길동",
+  담당자연락처: "010-7615-2699",
+  사업장주소: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사",
+};
+
+// ─── Settlement Data ───────────────────────────────────────────────────────────
 type Settlement = {
   id: string;
   발행일: string;
   정산기한: string;
   청구내역: string;
-  청구년월: string;   // "2026년 04월"
+  청구년월: string;
   정산금액: string;
   입금자: string;
   계산서발급: "동의하기" | "발급완료";
@@ -42,6 +66,151 @@ function InfoRow({ fields }: { fields: InfoField[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ─── Edit Modal Field ──────────────────────────────────────────────────────────
+function EditField({
+  label, value, onChange, placeholder, icon, required,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; icon?: React.ReactNode; required?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex items-center gap-1 text-[13px] text-[#555] font-medium">
+        {label}{required && <span className="text-[#f15a2a]">*</span>}
+      </label>
+      <div className="relative">
+        {icon && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]">{icon}</span>
+        )}
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full border border-[#d0d0d0] rounded-[4px] py-2.5 text-[14px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all placeholder:text-[#bbb] ${icon ? "pl-9 pr-3" : "px-3"}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Company Edit Modal ────────────────────────────────────────────────────────
+function CompanyEditModal({
+  open, onClose, initial, onSave,
+}: {
+  open: boolean; onClose: () => void;
+  initial: CompanyInfo; onSave: (info: CompanyInfo) => void;
+}) {
+  const [form, setForm] = useState<CompanyInfo>(initial);
+  const [saved, setSaved] = useState(false);
+
+  // sync when modal opens
+  const handleOpen = () => { setForm(initial); setSaved(false); };
+
+  const set = (key: keyof CompanyInfo) => (v: string) =>
+    setForm((f) => ({ ...f, [key]: v }));
+
+  const isValid = !!(
+    form.회사명 && form.사업자번호 && form.대표자명 &&
+    form.계산서이메일 && form.담당자명 && form.담당자연락처 && form.사업장주소
+  );
+
+  const handleSave = () => {
+    if (!isValid) return;
+    onSave(form);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); onClose(); }, 900);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} maxWidth="max-w-[560px]">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-6 pb-5 border-b border-[#e0e0e0]">
+        <div className="w-9 h-9 rounded-[8px] bg-[#eef1fd] flex items-center justify-center shrink-0">
+          <Building2 size={18} className="text-[#4169e1]" />
+        </div>
+        <div>
+          <h2 className="text-[16px] text-[#222] font-bold">회사정보 수정</h2>
+          <p className="text-[13px] text-[#999] mt-0.5">정산에 사용될 회사 정보를 수정합니다.</p>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="px-6 py-5 flex flex-col gap-4" onMouseEnter={handleOpen}>
+        {/* 회사 기본정보 */}
+        <div className="flex items-center gap-2 pb-1 border-b border-[#f0f0f0]">
+          <span className="text-[12px] text-[#999] font-medium tracking-wide">회사 기본정보</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <EditField
+            label="회사명" value={form.회사명} onChange={set("회사명")}
+            placeholder="예) 주식회사 싱크플로" icon={<Building2 size={14} />} required
+          />
+          <EditField
+            label="사업자번호" value={form.사업자번호} onChange={set("사업자번호")}
+            placeholder="예) 000-00-00000" icon={<Hash size={14} />} required
+          />
+        </div>
+        <EditField
+          label="대표자명" value={form.대표자명} onChange={set("대표자명")}
+          placeholder="예) 홍길동" icon={<User size={14} />} required
+        />
+
+        {/* 계산서 정보 */}
+        <div className="flex items-center gap-2 pb-1 border-b border-[#f0f0f0] mt-1">
+          <span className="text-[12px] text-[#999] font-medium tracking-wide">계산서 및 담당자 정보</span>
+        </div>
+        <EditField
+          label="계산서 이메일" value={form.계산서이메일} onChange={set("계산서이메일")}
+          placeholder="예) billing@company.com" icon={<Mail size={14} />} required
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <EditField
+            label="담당자명" value={form.담당자명} onChange={set("담당자명")}
+            placeholder="예) 홍길동" icon={<User size={14} />} required
+          />
+          <EditField
+            label="담당자 연락처" value={form.담당자연락처} onChange={set("담당자연락처")}
+            placeholder="예) 010-0000-0000" icon={<Phone size={14} />} required
+          />
+        </div>
+
+        {/* 사업장 주소 */}
+        <div className="flex items-center gap-2 pb-1 border-b border-[#f0f0f0] mt-1">
+          <span className="text-[12px] text-[#999] font-medium tracking-wide">사업장 주소</span>
+        </div>
+        <EditField
+          label="사업장주소" value={form.사업장주소} onChange={set("사업장주소")}
+          placeholder="예) 서울 중구 퇴계로 100" icon={<MapPin size={14} />} required
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#e0e0e0] shrink-0">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 border border-[#d0d0d0] rounded-[4px] text-[14px] text-[#555] hover:bg-[#f5f5f5] transition-colors"
+        >
+          취소
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!isValid || saved}
+          className={`flex items-center gap-2 px-5 py-2 rounded-[4px] text-[14px] font-semibold transition-colors ${
+            saved
+              ? "bg-[#4caf50] text-white"
+              : isValid
+              ? "bg-[#4169e1] text-white hover:bg-[#3558c4]"
+              : "bg-[#e0e0e0] text-[#aaa] cursor-not-allowed"
+          }`}
+        >
+          {saved ? <><CheckCircle size={15} /> 저장 완료!</> : <><Pencil size={14} /> 저장</>}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -137,6 +306,8 @@ function TableRow({ row, onInvoiceClick }: { row: Settlement; onInvoiceClick: (i
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function SettlementView() {
   const navigate = useNavigate();
+  const [company, setCompany] = useState<CompanyInfo>(DEFAULT_COMPANY);
+  const [editOpen, setEditOpen] = useState(false);
 
   const handleInvoiceClick = (_id: string) => {
     navigate("/app/invoice");
@@ -148,7 +319,11 @@ export function SettlementView() {
 
         <div className="flex items-center justify-between">
           <PageTitle imgSrc={imgAccounting} title="정산회계 간편조회" />
-          <button className="px-4 py-2 border border-[#d0d0d0] rounded-[4px] text-[14px] text-[#555] font-medium hover:bg-[#f5f5f5] transition-colors mb-6 ml-4 shrink-0">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 border border-[#d0d0d0] rounded-[4px] text-[14px] text-[#555] font-medium hover:bg-[#f5f5f5] transition-colors mb-6 ml-4 shrink-0"
+          >
+            <Pencil size={13} />
             회사정보수정
           </button>
         </div>
@@ -156,17 +331,17 @@ export function SettlementView() {
         {/* Company info */}
         <div className="bg-white border border-[#e0e0e0] rounded-[6px] overflow-hidden">
           <InfoRow fields={[
-            { label: "회사명", value: "주식회사 싱크플로" },
-            { label: "사업자번호", value: "680-87-02988" },
-            { label: "대표자명", value: "홍길동" },
+            { label: "회사명", value: company.회사명 },
+            { label: "사업자번호", value: company.사업자번호 },
+            { label: "대표자명", value: company.대표자명 },
           ]} />
           <InfoRow fields={[
-            { label: "계산서 이메일", value: "admin@thinkflow.info" },
-            { label: "담당자명", value: "홍길동" },
-            { label: "담당자 연락처", value: "010-7615-2699" },
+            { label: "계산서 이메일", value: company.계산서이메일 },
+            { label: "담당자명", value: company.담당자명 },
+            { label: "담당자 연락처", value: company.담당자연락처 },
           ]} />
           <InfoRow fields={[
-            { label: "사업장주소", value: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사", flex: 3 },
+            { label: "사업장주소", value: company.사업장주소, flex: 3 },
           ]} />
         </div>
 
@@ -185,7 +360,15 @@ export function SettlementView() {
           ))}
         </div>
 
-      </div>{/* /w-fit wrapper */}
+      </div>
+
+      {/* Company Edit Modal */}
+      <CompanyEditModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        initial={company}
+        onSave={(info) => setCompany(info)}
+      />
     </div>
   );
 }
