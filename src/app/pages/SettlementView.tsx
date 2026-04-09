@@ -144,7 +144,7 @@ export function SettlementView() {
 
   return (
     <div className="p-6">
-      <div className="w-fit flex flex-col gap-4">
+      <div className="w-[1300px] flex flex-col gap-4">
 
         <div className="flex items-center justify-between">
           <PageTitle imgSrc={imgAccounting} title="정산회계 간편조회" />

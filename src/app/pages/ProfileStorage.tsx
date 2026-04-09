@@ -281,7 +281,7 @@ function ProfileSection() {
   ];
 
   return (
-    <div className="w-fit">
+    <div className="w-[1300px]">
       <SectionTitle icon="📋" title="프로필 저장공간" action={
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#4169e1] text-white rounded-[4px] text-[14px] font-medium hover:bg-[#3558c4] transition-colors">
           <UserPlus size={14} /> 신규 프로필 등록
@@ -344,7 +344,7 @@ function ContactSection() {
   ];
 
   return (
-    <div className="w-fit">
+    <div className="w-[1300px]">
       <SectionTitle icon="📋" title="담당자 저장공간" action={
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#4169e1] text-white rounded-[4px] text-[14px] font-medium hover:bg-[#3558c4] transition-colors">
           <UserPlus size={14} /> 신규 담당자 등록

@@ -271,10 +271,11 @@ export function RealTimeOrders() {
 
   return (
     <div className="p-6">
+      <div className="w-[1300px] flex flex-col gap-4">
       <PageTitle imgSrc={imgRealtime} title="실시간 주문처리 내역" />
 
       {/* ── Filter panel ── */}
-      <div className="bg-white border border-[#e0e0e0] rounded-[6px] mb-4 overflow-hidden">
+      <div className="bg-white border border-[#e0e0e0] rounded-[6px] overflow-hidden">
 
         {/* Row 1: Status + Image filters */}
         <div className="flex items-center gap-0 border-b border-[#e0e0e0]">
@@ -395,6 +396,8 @@ export function RealTimeOrders() {
       </div>
 
       <DataTable columns={columns} data={filtered} rowKey={(r) => r.id} />
+
+      </div>{/* /w-[1300px] */}
 
       {/* Order detail modal */}
       <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />

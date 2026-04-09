@@ -126,7 +126,7 @@ export function ProductGuide() {
     <div className="p-6">
       <PageTitle imgSrc={imgProduct} title="상품 규격 안내" />
 
-      <div className="w-fit flex flex-col gap-3">
+      <div className="w-[1300px] flex flex-col gap-3">
 
       {/* Filters */}
       <div className="bg-white border border-[#e0e0e0] rounded-[6px] p-4 flex flex-col gap-3">
