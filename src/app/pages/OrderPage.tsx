@@ -703,7 +703,7 @@ function OrderForm({ contact, onChangeContact }: {
     <div className="flex flex-col h-full">
       {/* 담당자 표시 바 */}
       <div className="px-6 py-3 bg-white border-b border-[#e0e0e0]">
-        <div className="flex items-center gap-3 max-w-[1300px]">
+        <div className="flex items-center gap-3 max-w-[1200px]">
           <div className="w-7 h-7 rounded-full bg-[#eef1fd] flex items-center justify-center">
             <User size={14} className="text-[#4169e1]" />
           </div>
@@ -718,30 +718,36 @@ function OrderForm({ contact, onChangeContact }: {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-[1300px]">
+        <div className="max-w-[1200px]">
         {/* 간편접수 버튼 */}
         <div className="flex gap-3 mb-6">
           <button
             onClick={() => setQuickType("부고")}
-            className="flex-1 flex items-center justify-center gap-2.5 py-3.5 bg-[#4a4a55] hover:bg-[#333] text-white rounded-[8px] transition-colors"
+            className="flex-1 relative flex items-center justify-center h-[80px] bg-[#3c3c48] hover:bg-[#2e2e38] text-white rounded-[8px] transition-colors overflow-hidden"
           >
-            <span className="text-[18px]">🌸</span>
-            <div className="text-left">
-              <p className="text-[15px] font-bold">부고장 간편접수</p>
-              <p className="text-[13px] text-white/60 mt-0.5">근조화환 빠른 주문</p>
+            {/* 배경 장식 */}
+            <div className="absolute left-0 top-0 h-full w-[6px] bg-[#6c6c88]" />
+            <div className="absolute right-0 top-0 h-full w-1/3 bg-white/[0.03]" />
+            {/* 콘텐츠 */}
+            <div className="text-center px-10">
+              <p className="text-[17px] font-bold tracking-tight leading-tight">부고장으로 간편접수</p>
+              <p className="text-[13px] text-white/50 mt-1">근조화환 빠른주문</p>
             </div>
-            <ChevronRight size={16} className="ml-auto opacity-50" />
+            <ChevronRight size={20} className="absolute right-5 top-1/2 -translate-y-1/2 opacity-40" />
           </button>
           <button
             onClick={() => setQuickType("청첩")}
-            className="flex-1 flex items-center justify-center gap-2.5 py-3.5 bg-[#c2185b] hover:bg-[#a0134d] text-white rounded-[8px] transition-colors"
+            className="flex-1 relative flex items-center justify-center h-[80px] bg-[#b01254] hover:bg-[#94104a] text-white rounded-[8px] transition-colors overflow-hidden"
           >
-            <span className="text-[18px]">💍</span>
-            <div className="text-left">
-              <p className="text-[15px] font-bold">청첩장 간편접수</p>
-              <p className="text-[13px] text-white/60 mt-0.5">결혼 축하화환 빠른 주문</p>
+            {/* 배경 장식 */}
+            <div className="absolute left-0 top-0 h-full w-[6px] bg-[#e05090]" />
+            <div className="absolute right-0 top-0 h-full w-1/3 bg-white/[0.03]" />
+            {/* 콘텐츠 */}
+            <div className="text-center px-10">
+              <p className="text-[17px] font-bold tracking-tight leading-tight">청첩장으로 간편접수</p>
+              <p className="text-[13px] text-white/50 mt-1">축하화환 빠른주문</p>
             </div>
-            <ChevronRight size={16} className="ml-auto opacity-50" />
+            <ChevronRight size={20} className="absolute right-5 top-1/2 -translate-y-1/2 opacity-40" />
           </button>
         </div>
 
@@ -993,7 +999,7 @@ function OrderForm({ contact, onChangeContact }: {
                 ))}
               </div>
               <div className="px-4 py-2.5 border-t border-[#f0f0f0] bg-[#f8f9ff]">
-                <p className="text-[13px] text-[#999]">배송 완료 시 ON 설정된 분께<br />문자 메세지가 자동 발송됩니다.</p>
+                <p className="text-[13px] text-[#999]">배송 완료 시 ON 설정된 분께 문자 메세지가 자동 발송됩니다.</p>
               </div>
             </div>
 
