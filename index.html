@@ -6,6 +6,12 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>사이트 퍼블리싱</title>
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+      <script>
+        (function() {
+          var p = new URLSearchParams(location.search).get('p');
+          if (p) history.replaceState(null, null, '/' + p.replace(/~and~/g, '&') + location.hash);
+        })();
+      </script>
     </head>
 
     <body>

@@ -18,6 +18,7 @@ export const router = createBrowserRouter([
     },
     Component: Login,
   },
+
   {
     path: "/login",
     Component: Login,
@@ -39,4 +40,4 @@ export const router = createBrowserRouter([
       { path: "products", Component: ProductGuide },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });
