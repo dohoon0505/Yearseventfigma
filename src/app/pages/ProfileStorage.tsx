@@ -281,13 +281,13 @@ function ProfileSection() {
   ];
 
   return (
-    <div>
+    <div className="w-fit">
       <SectionTitle icon="📋" title="프로필 저장공간" action={
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#4169e1] text-white rounded-[4px] text-[14px] font-medium hover:bg-[#3558c4] transition-colors">
           <UserPlus size={14} /> 신규 프로필 등록
         </button>
       } />
-      <DataTable columns={columns} data={profiles} rowKey={(r) => r.no} compact fitContent />
+      <DataTable columns={columns} data={profiles} rowKey={(r) => r.no} compact />
 
       <NewProfileModal open={showNew} onClose={() => setShowNew(false)} onAdd={(p) => setProfiles((prev) => [...prev, p])} nextNo={nextNo} />
 
@@ -344,13 +344,13 @@ function ContactSection() {
   ];
 
   return (
-    <div>
+    <div className="w-fit">
       <SectionTitle icon="📋" title="담당자 저장공간" action={
         <button onClick={() => setShowNew(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#4169e1] text-white rounded-[4px] text-[14px] font-medium hover:bg-[#3558c4] transition-colors">
           <UserPlus size={14} /> 신규 담당자 등록
         </button>
       } />
-      <DataTable columns={columns} data={contacts} rowKey={(r) => r.no} compact fitContent />
+      <DataTable columns={columns} data={contacts} rowKey={(r) => r.no} compact />
 
       <NewContactModal open={showNew} onClose={() => setShowNew(false)} onAdd={(c) => setContacts((prev) => [...prev, c])} nextNo={nextNo} />
 

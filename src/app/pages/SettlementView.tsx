@@ -144,47 +144,48 @@ export function SettlementView() {
 
   return (
     <div className="p-6">
-      <PageTitle
-        imgSrc={imgAccounting}
-        title="정산회계 간편조회"
-        action={
-          <button className="px-4 py-2 border border-[#d0d0d0] rounded-[4px] text-[14px] text-[#555] font-medium hover:bg-[#f5f5f5] transition-colors">
+      <div className="w-fit flex flex-col gap-4">
+
+        <div className="flex items-center justify-between">
+          <PageTitle imgSrc={imgAccounting} title="정산회계 간편조회" />
+          <button className="px-4 py-2 border border-[#d0d0d0] rounded-[4px] text-[14px] text-[#555] font-medium hover:bg-[#f5f5f5] transition-colors mb-6 ml-4 shrink-0">
             회사정보수정
           </button>
-        }
-      />
+        </div>
 
-      {/* Company info */}
-      <div className="bg-white border border-[#e0e0e0] rounded-[6px] mb-4 overflow-hidden w-fit">
-        <InfoRow fields={[
-          { label: "회사명", value: "주식회사 싱크플로" },
-          { label: "사업자번호", value: "680-87-02988" },
-          { label: "대표자명", value: "홍길동" },
-        ]} />
-        <InfoRow fields={[
-          { label: "계산서 이메일", value: "admin@thinkflow.info" },
-          { label: "담당자명", value: "홍길동" },
-          { label: "담당자 연락처", value: "010-7615-2699" },
-        ]} />
-        <InfoRow fields={[
-          { label: "사업장주소", value: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사", flex: 3 },
-        ]} />
-      </div>
+        {/* Company info */}
+        <div className="bg-white border border-[#e0e0e0] rounded-[6px] overflow-hidden">
+          <InfoRow fields={[
+            { label: "회사명", value: "주식회사 싱크플로" },
+            { label: "사업자번호", value: "680-87-02988" },
+            { label: "대표자명", value: "홍길동" },
+          ]} />
+          <InfoRow fields={[
+            { label: "계산서 이메일", value: "admin@thinkflow.info" },
+            { label: "담당자명", value: "홍길동" },
+            { label: "담당자 연락처", value: "010-7615-2699" },
+          ]} />
+          <InfoRow fields={[
+            { label: "사업장주소", value: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사", flex: 3 },
+          ]} />
+        </div>
 
-      {/* Notice */}
-      <div className="bg-[#fffbf0] border border-[#f2e0a0] rounded-[4px] px-4 py-3 mb-4">
-        <p className="text-[13px] text-[#777] leading-[1.7]">
-          📌 매월 1일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong>
-        </p>
-      </div>
+        {/* Notice */}
+        <div className="bg-[#fffbf0] border border-[#f2e0a0] rounded-[4px] px-4 py-3">
+          <p className="text-[13px] text-[#777] leading-[1.7]">
+            📌 매월 1일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong>
+          </p>
+        </div>
 
-      {/* Table */}
-      <div className="bg-white border border-[#e0e0e0] rounded-[6px] overflow-hidden w-fit">
-        <TableHeader />
-        {settlementData.map((row) => (
-          <TableRow key={row.id} row={row} onInvoiceClick={handleInvoiceClick} />
-        ))}
-      </div>
+        {/* Table */}
+        <div className="bg-white border border-[#e0e0e0] rounded-[6px] overflow-hidden">
+          <TableHeader />
+          {settlementData.map((row) => (
+            <TableRow key={row.id} row={row} onInvoiceClick={handleInvoiceClick} />
+          ))}
+        </div>
+
+      </div>{/* /w-fit wrapper */}
     </div>
   );
 }
