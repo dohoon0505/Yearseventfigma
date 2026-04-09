@@ -126,8 +126,10 @@ export function ProductGuide() {
     <div className="p-6">
       <PageTitle imgSrc={imgProduct} title="상품 규격 안내" />
 
+      <div className="w-fit flex flex-col gap-3">
+
       {/* Filters */}
-      <div className="bg-white border border-[#e0e0e0] rounded-[6px] p-4 mb-4 flex flex-col gap-3">
+      <div className="bg-white border border-[#e0e0e0] rounded-[6px] p-4 flex flex-col gap-3">
         <div className="flex items-center gap-4">
           <span className="text-[14px] text-[#555] font-medium w-[90px]">상품조회구분</span>
           <div className="flex items-center gap-4">
@@ -146,7 +148,7 @@ export function ProductGuide() {
       </div>
 
       {/* Save bar */}
-      <div className="mb-3 flex items-center justify-between bg-white border border-[#e0e0e0] rounded-[6px] px-5 py-3">
+      <div className="flex items-center justify-between bg-white border border-[#e0e0e0] rounded-[6px] px-5 py-3">
         <span className="text-[14px] text-[#666]">
           즐겨찾기 선택 항목: <strong className="text-[#f15a2a]">{favorites.size}개</strong>
         </span>
@@ -166,7 +168,9 @@ export function ProductGuide() {
         </button>
       </div>
 
-      <DataTable columns={columns} data={filtered} rowKey={(r) => productKey(r)} compact fitContent />
+      <DataTable columns={columns} data={filtered} rowKey={(r) => productKey(r)} compact />
+
+      </div>{/* /w-fit */}
 
       <SampleModal product={sampleProduct} onClose={() => setSampleProduct(null)} />
     </div>
