@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import {
   User, Phone, MapPin, ChevronRight,
-  MessageSquare, Pencil, CheckCircle, X, Star,
+  Pencil, CheckCircle, X, Star,
   Package, Truck, Bell, BellOff, FileText, Users,
-  AlertCircle, Tag,
+  AlertCircle, Tag, CalendarDays, Clock,
 } from "lucide-react";
 import { useAppStore, ALL_PRODUCTS, productKey, Contact, Profile, Product } from "../store/AppContext";
 import { PageTitle } from "../components/ui/PageTitle";
@@ -654,20 +654,19 @@ function OrderForm({ contact, onChangeContact }: {
   // 즐겨찾기 상품
   const favProducts: Product[] = ALL_PRODUCTS.filter((p) => favorites.has(productKey(p)));
 
-  // 상품 선택 (수량)
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const changeQty = (key: string, delta: number) => {
-    setQuantities((prev) => {
-      const next = { ...prev, [key]: Math.max(0, (prev[key] ?? 0) + delta) };
-      if (next[key] === 0) delete next[key];
-      return next;
-    });
-  };
+  // 상품 선택 (단일)
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 배송지
   const [address, setAddress] = useState("");
   const [toName, setToName]   = useState("");
   const [toPhone, setToPhone] = useState("");
+
+  // 배송요청 일시
+  const [immediateDelivery, setImmediateDelivery] = useState(false);
+  const [deliveryDate,   setDeliveryDate]   = useState("");
+  const [deliveryHour,   setDeliveryHour]   = useState("09");
+  const [deliveryMinute, setDeliveryMinute] = useState("00");
 
   // 리본
   const [ribbonPhrase, setRibbonPhrase] = useState("");
@@ -684,17 +683,16 @@ function OrderForm({ contact, onChangeContact }: {
   const [quickType,  setQuickType]  = useState<QuickType | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
 
-  const orderedItems = Object.entries(quantities).map(([key, qty]) => {
-    const p = favProducts.find((fp) => productKey(fp) === key);
-    return p ? { ...p, qty } : null;
-  }).filter(Boolean) as (Product & { qty: number })[];
+  const selectedItem = selectedProduct
+    ? favProducts.find((p) => productKey(p) === selectedProduct) ?? null
+    : null;
 
-  const totalAmount = orderedItems.reduce((sum, item) => {
-    const price = parseInt(item.price.replace(/[^0-9]/g, ""), 10);
-    return sum + price * item.qty;
-  }, 0);
+  const totalAmount = selectedItem
+    ? parseInt(selectedItem.price.replace(/[^0-9]/g, ""), 10)
+    : 0;
 
-  const isReady = address && toName && toPhone && orderedItems.length > 0 && ribbonPhrase && sender;
+  const deliveryTimeReady = immediateDelivery || !!deliveryDate;
+  const isReady = address && toName && toPhone && selectedItem && ribbonPhrase && sender && deliveryTimeReady;
 
   const handleSubmit = () => {
     if (!isReady) return;
@@ -777,25 +775,33 @@ function OrderForm({ contact, onChangeContact }: {
                 <div className="flex flex-col gap-2">
                   {favProducts.map((p) => {
                     const key = productKey(p);
-                    const qty = quantities[key] ?? 0;
+                    const isSelected = selectedProduct === key;
                     return (
-                      <div key={key} className={`flex items-center gap-3 border rounded-[6px] px-3 py-2.5 transition-all ${qty > 0 ? "border-[#4169e1] bg-[#f8f9ff]" : "border-[#e8e8e8] bg-white"}`}>
+                      <label
+                        key={key}
+                        className={`flex items-center gap-3 border rounded-[6px] px-3 py-2.5 cursor-pointer transition-all ${isSelected ? "border-[#4169e1] bg-[#f8f9ff]" : "border-[#e8e8e8] bg-white hover:border-[#a0a8d9]"}`}
+                      >
+                        <input
+                          type="radio"
+                          name="product"
+                          value={key}
+                          checked={isSelected}
+                          onChange={() => setSelectedProduct(key)}
+                          className="accent-[#4169e1] shrink-0"
+                        />
                         <span className="text-[18px] shrink-0">{p.icon}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] text-[#222] font-medium truncate">{p.product}</p>
-                          <p className="text-[11px] text-[#999]">{p.category} · {p.price}</p>
+                          <p className="text-[11px] text-[#999]">{p.category}</p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => changeQty(key, -1)} disabled={qty === 0} className="w-6 h-6 rounded-full border border-[#d0d0d0] flex items-center justify-center text-[#555] hover:border-[#4169e1] disabled:opacity-30 transition-colors text-[14px]">−</button>
-                          <span className={`w-5 text-center text-[13px] font-bold ${qty > 0 ? "text-[#4169e1]" : "text-[#ccc]"}`}>{qty}</span>
-                          <button onClick={() => changeQty(key, 1)} className="w-6 h-6 rounded-full border border-[#d0d0d0] flex items-center justify-center text-[#555] hover:border-[#4169e1] transition-colors text-[14px]">+</button>
-                        </div>
-                      </div>
+                        <span className={`text-[13px] font-bold shrink-0 ${isSelected ? "text-[#4169e1]" : "text-[#888]"}`}>{p.price}</span>
+                        {isSelected && <CheckCircle size={15} className="text-[#4169e1] shrink-0" />}
+                      </label>
                     );
                   })}
-                  {orderedItems.length > 0 && (
+                  {selectedItem && (
                     <div className="mt-1 flex justify-between items-center pt-2 border-t border-[#e8e8e8]">
-                      <span className="text-[12px] text-[#888]">{orderedItems.reduce((s, i) => s + i.qty, 0)}개 상품</span>
+                      <span className="text-[12px] text-[#888]">선택 상품: {selectedItem.product}</span>
                       <span className="text-[13px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
                     </div>
                   )}
@@ -810,6 +816,65 @@ function OrderForm({ contact, onChangeContact }: {
                 <div className="grid grid-cols-2 gap-3">
                   <InputField label="받는분 성함" value={toName} onChange={setToName} placeholder="예) 홍길동" icon={<User size={14} />} required />
                   <InputField label="받는분 연락처" value={toPhone} onChange={setToPhone} placeholder="010-0000-0000" icon={<Phone size={14} />} required />
+                </div>
+
+                {/* 배송요청 일시 */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1 text-[12px] text-[#555] font-medium">
+                      <CalendarDays size={13} className="text-[#4169e1]" />
+                      배송요청 일시<span className="text-[#f15a2a]">*</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 ml-auto cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={immediateDelivery}
+                        onChange={(e) => setImmediateDelivery(e.target.checked)}
+                        className="accent-[#4169e1] w-[14px] h-[14px]"
+                      />
+                      <span className="text-[12px] text-[#4169e1] font-medium">즉시배송</span>
+                    </label>
+                  </div>
+                  <div className={`flex items-center gap-2 transition-opacity ${immediateDelivery ? "opacity-40 pointer-events-none select-none" : "opacity-100"}`}>
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"><CalendarDays size={13} /></span>
+                      <input
+                        type="date"
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
+                        disabled={immediateDelivery}
+                        className="w-full border border-[#d0d0d0] rounded-[4px] pl-9 pr-3 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] focus:ring-1 focus:ring-[#4169e1]/20 transition-all"
+                      />
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#bbb]"><Clock size={13} /></span>
+                      <select
+                        value={deliveryHour}
+                        onChange={(e) => setDeliveryHour(e.target.value)}
+                        disabled={immediateDelivery}
+                        className="border border-[#d0d0d0] rounded-[4px] pl-8 pr-2 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
+                      >
+                        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
+                          <option key={h} value={h}>{h}시</option>
+                        ))}
+                      </select>
+                    </div>
+                    <select
+                      value={deliveryMinute}
+                      onChange={(e) => setDeliveryMinute(e.target.value)}
+                      disabled={immediateDelivery}
+                      className="border border-[#d0d0d0] rounded-[4px] px-3 py-2.5 text-[13px] text-[#333] outline-none focus:border-[#4169e1] transition-all appearance-none bg-white cursor-pointer"
+                    >
+                      {["00", "10", "20", "30", "40", "50"].map((m) => (
+                        <option key={m} value={m}>{m}분</option>
+                      ))}
+                    </select>
+                  </div>
+                  {immediateDelivery && (
+                    <p className="text-[12px] text-[#4169e1] font-medium flex items-center gap-1">
+                      <CheckCircle size={12} /> 즉시배송으로 접수됩니다.
+                    </p>
+                  )}
                 </div>
               </div>
             </SectionCard>
@@ -931,21 +996,19 @@ function OrderForm({ contact, onChangeContact }: {
             </div>
 
             {/* 주문 요약 */}
-            {orderedItems.length > 0 && (
+            {selectedItem && (
               <div className="bg-white border border-[#e0e0e0] rounded-[8px] overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e8e8e8] bg-[#fafafa]">
                   <Package size={13} className="text-[#555]" />
                   <span className="text-[12px] text-[#222] font-bold">주문 상품 요약</span>
                 </div>
                 <div className="px-4 py-3 flex flex-col gap-1.5">
-                  {orderedItems.map((item) => (
-                    <div key={productKey(item)} className="flex justify-between items-center">
-                      <span className="text-[12px] text-[#555] truncate flex-1 mr-2">{item.product}</span>
-                      <span className="text-[12px] text-[#888] shrink-0">×{item.qty}</span>
-                    </div>
-                  ))}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[12px] text-[#555] truncate flex-1 mr-2">{selectedItem.product}</span>
+                    <span className="text-[11px] text-[#aaa] shrink-0">{selectedItem.category}</span>
+                  </div>
                   <div className="pt-2 mt-1 border-t border-[#e8e8e8] flex justify-between">
-                    <span className="text-[12px] text-[#555] font-medium">합계</span>
+                    <span className="text-[12px] text-[#555] font-medium">금액</span>
                     <span className="text-[13px] text-[#f15a2a] font-bold">{totalAmount.toLocaleString()}원</span>
                   </div>
                 </div>
