@@ -107,9 +107,9 @@ export function ProductGuide() {
     { label: "구분", width: "90px", render: (r) => r.category },
     { label: "상세상품", width: "170px", render: (r) => r.product },
     { label: "상품금액", width: "120px", align: "right", render: (r) => <span className="font-medium text-[#444]">{r.price}</span> },
-    { label: "상품설명 및 비고(규격)", width: "320px", render: (r) => r.description },
+    { label: "상품설명 및 비고(규격)", width: "1fr", render: (r) => r.description },
     {
-      label: "샘플사진", width: "84px", align: "center",
+      label: "샘플사진", width: "max-content", align: "center",
       render: (r) => (
         <button
           onClick={() => setSampleProduct(r)}

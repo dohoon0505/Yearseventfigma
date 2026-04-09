@@ -275,9 +275,9 @@ function ProfileSection() {
     { label: "성함", width: "80px", align: "center", render: (r) => r.name },
     { label: "직위", width: "100px", align: "center", render: (r) => r.role },
     { label: "배송완료 수신번호", width: "160px", align: "center", render: (r) => r.phone },
-    { label: "고정문구", width: "260px", render: (r) => r.greeting },
-    { label: "수정", width: "60px", align: "center", render: (r) => <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-[#e8edff] transition-colors"><Pencil size={14} className="text-[#4169e1]" /></button> },
-    { label: "삭제", width: "60px", align: "center", render: (r) => <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded hover:bg-[#ffeded] transition-colors"><Trash2 size={14} className="text-[#f44336]" /></button> },
+    { label: "고정문구", width: "1fr", render: (r) => r.greeting },
+    { label: "수정", width: "max-content", align: "center", render: (r) => <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-[#e8edff] transition-colors"><Pencil size={14} className="text-[#4169e1]" /></button> },
+    { label: "삭제", width: "max-content", align: "center", render: (r) => <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded hover:bg-[#ffeded] transition-colors"><Trash2 size={14} className="text-[#f44336]" /></button> },
   ];
 
   return (
@@ -338,9 +338,9 @@ function ContactSection() {
     { label: "성함", width: "80px", align: "center", render: (r) => r.name },
     { label: "부서·직위", width: "110px", align: "center", render: (r) => r.role },
     { label: "배송완료 수신번호", width: "160px", align: "center", render: (r) => r.phone },
-    { label: "메세지 수신여부", width: "300px", render: (r) => r.message },
-    { label: "수정", width: "60px", align: "center", render: (r) => <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-[#e8edff] transition-colors"><Pencil size={14} className="text-[#4169e1]" /></button> },
-    { label: "삭제", width: "60px", align: "center", render: (r) => <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded hover:bg-[#ffeded] transition-colors"><Trash2 size={14} className="text-[#f44336]" /></button> },
+    { label: "메세지 수신여부", width: "1fr", render: (r) => r.message },
+    { label: "수정", width: "max-content", align: "center", render: (r) => <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-[#e8edff] transition-colors"><Pencil size={14} className="text-[#4169e1]" /></button> },
+    { label: "삭제", width: "max-content", align: "center", render: (r) => <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded hover:bg-[#ffeded] transition-colors"><Trash2 size={14} className="text-[#f44336]" /></button> },
   ];
 
   return (
