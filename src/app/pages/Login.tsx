@@ -39,8 +39,8 @@ export function Login() {
       </div>
 
       {/* Right: Login form */}
-      <div className="w-[380px] bg-white flex flex-col items-center justify-center px-10 shrink-0">
-        <div className="w-full max-w-[320px]">
+      <div className="w-[520px] bg-white flex flex-col items-center justify-center px-14 shrink-0">
+        <div className="w-full max-w-[420px]">
           {/* Logo */}
           <div className="mb-6 flex flex-col items-start gap-1">
             <img src={imgLogo} alt="올해의 경조사" className="h-[36px] object-contain mb-2" />
