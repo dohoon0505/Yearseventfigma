@@ -986,17 +986,12 @@ function OrderForm({ contact, onChangeContact }: {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between py-3 border-b border-[#f3f3f3] last:border-none">
                     <div className="flex flex-col gap-[3px]">
-                      <p className="text-[13px] text-[#111] font-semibold">{item.label}</p>
-                      <p className="text-[12px] leading-snug">
+                      <p className="text-[12px] text-[#aaa] font-medium">{item.label}</p>
+                      <p className="text-[14px] text-[#333] font-semibold leading-snug">
                         {item.name ? (
-                          <>
-                            <span className="text-[#444] font-medium">{item.name}</span>
-                            {item.phone && (
-                              <span className="text-[#aaa]">({item.phone})</span>
-                            )}
-                          </>
+                          <>{item.name}{item.phone && `(${item.phone})`}</>
                         ) : (
-                          <span className="text-[#ccc]">{item.fallback}</span>
+                          <span className="text-[#ccc] font-normal">{item.fallback}</span>
                         )}
                       </p>
                     </div>
