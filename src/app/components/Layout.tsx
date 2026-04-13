@@ -91,7 +91,7 @@ export function Layout() {
                     <button
                       key={item.path}
                       onClick={() => navigate(item.path)}
-                      className={`flex items-center gap-[8px] px-[12px] py-[9px] rounded-[6px] w-full text-left transition-colors ${
+                      className={`flex items-center gap-[8px] px-[12px] py-[9px] rounded-[6px] w-full text-left transition-colors cursor-pointer ${
                         isActive(item.path)
                           ? "bg-[#ffe9e9]"
                           : "hover:bg-[#f4f4f4]"
