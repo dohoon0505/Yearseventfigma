@@ -978,16 +978,27 @@ function OrderForm({ contact, onChangeContact }: {
                 <Bell size={15} className="text-[#4169e1]" />
                 <span className="text-[14px] text-[#222] font-bold">배송완료 알림 수신</span>
               </div>
-              <div className="px-4 py-3 flex flex-col gap-3">
+              <div className="px-4 flex flex-col">
                 {[
-                  { label: "받는분", sub: toName || "미입력", on: notifyRecipient, set: setNotifyRecipient },
-                  { label: "보내는분", sub: sender?.name || "미선택", on: notifySender, set: setNotifySender },
-                  { label: "담당자", sub: contact.name, on: notifyManager, set: setNotifyManager },
+                  { label: "받는분",  name: toName || null,        phone: toPhone || null,    fallback: "미입력",  on: notifyRecipient, set: setNotifyRecipient },
+                  { label: "보내는분", name: sender?.name || null,  phone: sender?.phone || null, fallback: "미선택", on: notifySender,    set: setNotifySender },
+                  { label: "담당자",  name: contact.name,          phone: contact.phone,      fallback: null,     on: notifyManager,   set: setNotifyManager },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[14px] text-[#333] font-medium">{item.label}</p>
-                      <p className="text-[13px] text-[#aaa]">{item.sub}</p>
+                  <div key={item.label} className="flex items-center justify-between py-3 border-b border-[#f3f3f3] last:border-none">
+                    <div className="flex flex-col gap-[3px]">
+                      <p className="text-[13px] text-[#111] font-semibold">{item.label}</p>
+                      <p className="text-[12px] leading-snug">
+                        {item.name ? (
+                          <>
+                            <span className="text-[#444] font-medium">{item.name}</span>
+                            {item.phone && (
+                              <span className="text-[#aaa]">({item.phone})</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-[#ccc]">{item.fallback}</span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.on
