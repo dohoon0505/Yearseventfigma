@@ -878,11 +878,20 @@ function OrderForm({ contact, onChangeContact }: {
                       ))}
                     </select>
                   </div>
-                  {immediateDelivery && (
-                    <p className="text-[14px] text-[#4169e1] font-medium flex items-center gap-1">
-                      <CheckCircle size={14} /> 즉시배송으로 접수됩니다.
-                    </p>
-                  )}
+                  {immediateDelivery && (() => {
+                    const d = new Date(Date.now() + 4 * 60 * 60 * 1000);
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                    const dd = String(d.getDate()).padStart(2, "0");
+                    const hh = String(d.getHours()).padStart(2, "0");
+                    const min = String(d.getMinutes()).padStart(2, "0");
+                    return (
+                      <p className="text-[14px] text-[#4169e1] font-medium flex items-center gap-1">
+                        <CheckCircle size={14} />
+                        {yyyy}년 {mm}월 {dd}일 {hh}시 {min}분 전으로 배송됩니다.
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
             </SectionCard>
