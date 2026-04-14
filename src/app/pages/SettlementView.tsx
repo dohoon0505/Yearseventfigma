@@ -246,7 +246,7 @@ function SettleBadge({ type }: { type: "정산완료" | "정산필요" }) {
 }
 
 // ─── Table ─────────────────────────────────────────────────────────────────────
-const COL = "118px 120px 120px 200px 120px 70px 200px 100px 100px";
+const COL = "118px 120px 120px 1fr 120px 70px 200px 100px 100px";
 
 function TableHeader() {
   const headers = ["문서 번호", "청구서 발행일", "정산 기한", "청구 내역", "정산금액", "입금자", "거래명세서", "계산서발급", "정산확인"];
