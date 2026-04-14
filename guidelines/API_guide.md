@@ -1,541 +1,642 @@
 # 올해의경조사 — API 연동 가이드
 
-> 본 서비스는 **바로빌(Barobill)** 플랫폼의 3가지 API를 사용합니다.
-> 공식 레퍼런스: https://dev.barobill.co.kr/docs/references
+> 바로빌(Barobill) SDK (`BaroService_Nodejs`) 기반으로 작성된 실제 연동 가이드입니다.
+> SDK 파일 위치: `BaroService_Nodejs/` (Node.js SOAP 방식)
 >
+> **공식 레퍼런스**: https://dev.barobill.co.kr/docs/references
 > **최종 업데이트**: 2026-04-14
 
 ---
 
 ## 목차
 
-1. [공통 인증 · 환경 설정](#1-공통-인증--환경-설정)
+1. [공통 환경 설정](#1-공통-환경-설정)
 2. [세금계산서 API](#2-세금계산서-api)
 3. [계좌조회 API](#3-계좌조회-api)
 4. [카카오톡전송 API](#4-카카오톡전송-api)
-5. [프로젝트 연동 포인트](#5-프로젝트-연동-포인트)
-6. [에러 코드 공통 처리](#6-에러-코드-공통-처리)
+5. [프로젝트 연동 흐름](#5-프로젝트-연동-흐름)
+6. [에러 처리](#6-에러-처리)
 
 ---
 
-## 1. 공통 인증 · 환경 설정
+## 1. 공통 환경 설정
 
-### 1.1 공식 문서
+### 1.1 패키지 설치
 
-| API | 공식 레퍼런스 URL |
-|-----|-----------------|
-| 세금계산서 | https://dev.barobill.co.kr/docs/references/세금계산서-API |
-| 계좌조회 | https://dev.barobill.co.kr/docs/references/계좌조회-API |
-| 카카오톡전송 | https://dev.barobill.co.kr/docs/references/카카오톡전송-API |
-
-### 1.2 인증 방식
-
-바로빌 API는 **SOAP (XML Web Service)** 기반이며, 모든 요청에 인증키(`CERT_KEY`)가 필요합니다.
-
-```
-프로토콜: SOAP 1.1 / SOAP 1.2
-인증:     CERT_KEY (바로빌 관리자 콘솔에서 발급)
+```bash
+npm install soap
 ```
 
-### 1.3 엔드포인트 (테스트 / 운영)
+### 1.2 서버 엔드포인트
 
 | 구분 | 도메인 |
 |------|--------|
-| 테스트(개발) | `https://testbarobill.co.kr` |
-| 운영(프로덕션) | `https://barobill.co.kr` |
+| **테스트** | `https://testws.baroservice.com` |
+| **운영** | `https://ws.baroservice.com` |
 
-> **주의**: 테스트 환경과 운영 환경의 `CERT_KEY`는 별도로 발급됩니다.
+### 1.3 인증 방식
 
-### 1.4 환경 변수 설정 (예정)
+모든 API 호출 시 `CERTKEY` (바로빌 인증키) + `CorpNum` (사업자번호) 필수.
 
-백엔드 연동 시 아래 환경 변수를 사용할 것을 권장합니다.
+```javascript
+const certKey = process.env.BAROBILL_CERT_KEY   // 바로빌 관리자 콘솔에서 발급
+const corpNum = process.env.BAROBILL_CORP_NUM    // 사업자번호 (하이픈 없이 10자리)
+```
+
+### 1.4 환경 변수 (.env)
 
 ```env
-# .env
 BAROBILL_CERT_KEY=발급받은_인증키
-BAROBILL_CORP_NUM=사업자번호_10자리
-BAROBILL_API_ENV=test   # test | production
-BAROBILL_BASE_URL=https://testbarobill.co.kr
+BAROBILL_CORP_NUM=사업자번호10자리
+BAROBILL_ENV=test           # test | production
+```
+
+### 1.5 인증키 유효성 확인 (`CheckCERTIsValid`)
+
+> SDK: `바로빌-공통/CheckCERTIsValid.js`
+
+```javascript
+const soap = require('soap');
+
+const client = await soap.createClientAsync(
+  'https://testws.baroservice.com/TI.asmx?WSDL'
+  // 운영: 'https://ws.baroservice.com/TI.asmx?WSDL'
+);
+
+const response = await client.CheckCERTIsValidAsync({
+  CERTKEY: certKey,
+  CorpNum: corpNum,
+});
+
+const result = response[0].CheckCERTIsValidResult;
+// result >= 1 : 유효
+// result  < 0 : 오류 (에러 코드)
 ```
 
 ---
 
 ## 2. 세금계산서 API
 
-> **공식 문서**: https://dev.barobill.co.kr/docs/references/세금계산서-API
-> **사용 목적**: 정산 완료 후 거래처에 전자 세금계산서를 자동 발행
+> **공식 레퍼런스**: https://dev.barobill.co.kr/docs/references/세금계산서-API
+> **WSDL (테스트)**: `https://testws.baroservice.com/TI.asmx?WSDL`
+> **WSDL (운영)**: `https://ws.baroservice.com/TI.asmx?WSDL`
+> **사용 목적**: 정산 완료 후 제휴기업에 전자 세금계산서 자동 발행
 
-### 2.1 WSDL 주소
+---
 
+### 2.1 `RegistAndIssueTaxInvoice` — 세금계산서 즉시 발행
+
+> SDK: `세금계산서/RegistAndIssueTaxInvoice.js`
+> 레퍼런스: `…/세금계산서-API#RegistAndIssueTaxInvoice`
+
+세금계산서를 등록하고 즉시 국세청으로 전송합니다.
+
+#### 요청
+
+```javascript
+const client = await soap.createClientAsync('https://testws.baroservice.com/TI.asmx?WSDL');
+
+const taxInvoice = {
+  // ── 문서 기본 정보 ──────────────────────────────
+  IssueDirection : 1,      // 발행 방향 (1: 정발행, 2: 역발행)
+  TaxInvoiceType : 1,      // 계산서 유형 (1: 세금계산서, 2: 수정세금계산서)
+  ModifyCode     : '',     // 수정 사유 코드 (수정 시만 사용)
+  TaxType        : 1,      // 과세 유형 (1: 과세, 2: 영세, 3: 면세)
+  TaxCalcType    : 1,      // 세액 계산 방식 (1: 직접입력, 2: 자동계산)
+  PurposeType    : 2,      // 영수/청구 구분 (1: 영수, 2: 청구)
+  WriteDate      : '20260414',  // 작성일자 (YYYYMMDD)
+
+  // ── 금액 정보 ──────────────────────────────────
+  AmountTotal    : '100000',   // 공급가액 합계
+  TaxTotal       : '10000',    // 세액 합계
+  TotalAmount    : '110000',   // 합계금액
+  Cash           : '',
+  ChkBill        : '',
+  Note           : '',
+  Credit         : '',
+  Remark1        : '2026년 04월 꽃배달 이용금 청구',
+  Remark2        : '',
+  Remark3        : '',
+  Kwon           : '',
+  Ho             : '',
+  SerialNum      : '',
+
+  // ── 공급자 (올해의경조사) ───────────────────────
+  InvoicerParty: {
+    MgtNum     : 'YEVENT-20260414-001', // 자체 관리번호
+    CorpNum    : '1234567890',          // 공급자 사업자번호
+    TaxRegID   : '',
+    CorpName   : '올해의경조사',
+    CEOName    : '대표자명',
+    Addr       : '서울시 강남구 ...',
+    BizClass   : '서비스업',
+    BizType    : '꽃배달',
+    ContactID  : '',
+    ContactName: '담당자명',
+    TEL        : '02-0000-0000',
+    HP         : '',
+    Email      : 'admin@yevent.co.kr',
+  },
+
+  // ── 공급받는자 (제휴기업) ──────────────────────
+  InvoiceeParty: {
+    MgtNum     : '',
+    CorpNum    : '9876543210',     // 제휴기업 사업자번호
+    TaxRegID   : '',
+    CorpName   : '제휴기업명',
+    CEOName    : '대표자명',
+    Addr       : '사업장 소재지',
+    BizClass   : '',
+    BizType    : '',
+    ContactID  : '',
+    ContactName: '경조사 담당자명',
+    TEL        : '',
+    HP         : '01012345678',
+    Email      : 'invoice@company.com',  // users.invoice_email 값
+  },
+
+  BrokerParty: { MgtNum:'', CorpNum:'', TaxRegID:'', CorpName:'', CEOName:'',
+                  Addr:'', BizClass:'', BizType:'', ContactID:'', ContactName:'',
+                  TEL:'', HP:'', Email:'' },
+
+  // ── 품목 ────────────────────────────────────
+  TaxInvoiceTradeLineItems: {
+    TaxInvoiceTradeLineItem: [
+      {
+        PurchaseExpiry: '20260430',   // 공급 기간 (YYYYMMDD)
+        Name          : '꽃배달 서비스',
+        Information   : '2026년 04월',
+        ChargeableUnit: '1',
+        UnitPrice     : '100000',
+        Amount        : '100000',
+        Tax           : '10000',
+        Description   : '',
+      },
+    ]
+  },
+};
+
+const response = await client.RegistAndIssueTaxInvoiceAsync({
+  CERTKEY   : certKey,
+  CorpNum   : taxInvoice.InvoicerParty.CorpNum,
+  Invoice   : taxInvoice,
+  SendSMS   : true,    // 발행 알림 SMS 전송 여부
+  ForceIssue: false,   // 지연 발행 강제 처리 여부
+  MailTitle : '',      // 이메일 제목 (빈값이면 기본 제목 사용)
+});
 ```
-https://barobill.co.kr/TaxInvoice/TaxInvoice_v3.4.asmx?WSDL
-```
 
-### 2.2 주요 메서드
+#### 응답
 
-#### `RegistIssue` — 즉시 발행
+```javascript
+const result = response[0].RegistAndIssueTaxInvoiceResult;
 
-세금계산서를 작성하고 즉시 국세청에 전송합니다.
-
-**요청 파라미터**
-
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 공급자 사업자번호 (하이픈 없이 10자리) |
-| `UserID` | string | ✅ | 바로빌 회원 ID |
-| `TaxinvoiceXML` | string | ✅ | 세금계산서 정보 (XML) |
-| `WriteDate` | string | ✅ | 작성일자 (YYYYMMDD) |
-| `ForceIssue` | boolean | - | 지연 발행 여부 (기본 false) |
-| `MemoForIssue` | string | - | 발행 메모 |
-
-**TaxinvoiceXML 주요 필드**
-
-```xml
-<TaxInvoice>
-  <!-- 공급자 정보 -->
-  <InvoicerCorpNum>1234567890</InvoicerCorpNum>       <!-- 공급자 사업자번호 -->
-  <InvoicerCorpName>올해의경조사</InvoicerCorpName>    <!-- 공급자 상호 -->
-  <InvoicerCEOName>대표자명</InvoicerCEOName>
-  <InvoicerAddr>사업장 주소</InvoicerAddr>
-
-  <!-- 공급받는자 정보 -->
-  <InvoiceeCorpNum>9876543210</InvoiceeCorpNum>       <!-- 수신 사업자번호 -->
-  <InvoiceeCorpName>제휴기업명</InvoiceeCorpName>
-  <InvoiceeCEOName>대표자명</InvoiceeCEOName>
-  <InvoiceeEmail1>invoice@company.com</InvoiceeEmail1> <!-- 계산서 수신 이메일 -->
-
-  <!-- 공급가액 정보 -->
-  <TaxType>과세</TaxType>                              <!-- 과세/영세/면세 -->
-  <TotalAmount>110000</TotalAmount>                   <!-- 합계금액 -->
-  <TaxAmount>10000</TaxAmount>                        <!-- 세액 -->
-  <SupplyAmount>100000</SupplyAmount>                 <!-- 공급가액 -->
-
-  <!-- 품목 -->
-  <DetailList>
-    <TaxInvoiceDetail>
-      <Seria>1</Seria>
-      <ItemName>꽃배달 서비스</ItemName>
-      <Qty>1</Qty>
-      <UnitCost>100000</UnitCost>
-      <Spec>2026년 04월</Spec>
-      <Supply>100000</Supply>
-      <Tax>10000</Tax>
-    </TaxInvoiceDetail>
-  </DetailList>
-</TaxInvoice>
-```
-
-**응답**
-
-```xml
-<RegistIssueResult>
-  <Code>1</Code>             <!-- 1: 성공, 음수: 오류 -->
-  <Message>정상처리</Message>
-  <MgtKey>관리번호</MgtKey>  <!-- 이후 조회/취소에 사용 -->
-</RegistIssueResult>
+if (result < 0) {
+  // 오류 (에러 코드 섹션 참고)
+  console.error('발행 실패:', result);
+} else {
+  // 성공: result = 바로빌 문서 고유번호 (MgtKey로 이후 조회에 사용)
+  console.log('발행 성공, MgtKey:', result);
+}
 ```
 
 ---
 
-#### `GetInfo` — 세금계산서 단건 조회
+### 2.2 `GetTaxInvoiceStateEX` — 세금계산서 상태 조회
 
-발행된 세금계산서의 상태를 조회합니다.
+> SDK: `세금계산서/GetTaxInvoiceStateEX.js`
 
-**요청 파라미터**
+발행된 세금계산서의 처리 상태를 조회합니다.
 
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 사업자번호 |
-| `UserID` | string | ✅ | 바로빌 회원 ID |
-| `MgtKey` | string | ✅ | 관리번호 (`RegistIssue` 응답값) |
+```javascript
+const response = await client.GetTaxInvoiceStateEXAsync({
+  CERTKEY: certKey,
+  CorpNum: corpNum,
+  MgtKey : mgtKey,   // RegistAndIssueTaxInvoice 응답값
+});
 
-**응답 주요 필드**
+const result = response[0].GetTaxInvoiceStateEXResult;
 
-| 필드 | 설명 |
-|------|------|
-| `ItemKey` | 바로빌 문서 고유 키 |
-| `StateCode` | 상태코드 (100: 발행, 200: 승인, 300: 취소) |
-| `StateDT` | 상태 변경 일시 |
-| `NTSConfirmNum` | 국세청 승인번호 |
+if (result.BarobillState < 0) {
+  console.error('조회 실패:', result.BarobillState);
+} else {
+  console.log(result); // 상태 정보 (레퍼런스 참고)
+}
+```
+
+**`BarobillState` 주요 값**
+
+| 값 | 상태 |
+|----|------|
+| `100` | 등록 |
+| `200` | 발행 완료 (국세청 전송 전) |
+| `300` | 국세청 전송 완료 |
+| `400` | 국세청 승인 |
+| `-` 음수 | 오류 |
 
 ---
 
-#### `Cancel` — 세금계산서 취소
+### 2.3 프로젝트 적용 위치 (세금계산서)
 
-```
-메서드: Cancel
-파라미터: CERT_KEY, CorpNum, UserID, MgtKey, Memo(취소사유)
-```
-
----
-
-### 2.3 프로젝트 적용 위치
-
-| 화면 | 트리거 | 호출 메서드 |
-|------|--------|------------|
-| `SettlementView` — 계산서발급 "동의하기" 클릭 | 사용자 동의 확인 후 | `RegistIssue` |
-| `SettlementView` — 발급 상태 조회 | 페이지 로드 시 | `GetInfo` |
-| `InvoiceView` — 거래명세서 페이지 | 발급완료 뱃지 표시 | `GetInfo` |
+| 화면 | 트리거 | 호출 API |
+|------|--------|---------|
+| `SettlementView` → "동의하기" 클릭 | 사용자 동의 확인 후 | `RegistAndIssueTaxInvoice` |
+| `SettlementView` → 목록 로드 | 페이지 진입 시 | `GetTaxInvoiceStateEX` |
+| `InvoiceView` → 발급 상태 뱃지 | 페이지 진입 시 | `GetTaxInvoiceStateEX` |
 
 ---
 
 ## 3. 계좌조회 API
 
-> **공식 문서**: https://dev.barobill.co.kr/docs/references/계좌조회-API
-> **사용 목적**: 제휴기업의 결제 입금 여부를 자동으로 확인
+> **공식 레퍼런스**: https://dev.barobill.co.kr/docs/references/계좌조회-API
+> **WSDL (테스트)**: `https://testws.baroservice.com/BANKACCOUNT.asmx?WSDL`
+> **WSDL (운영)**: `https://ws.baroservice.com/BANKACCOUNT.asmx?WSDL`
+> **사용 목적**: 정산 기한 내 제휴기업의 입금 여부 자동 확인
 
-### 3.1 WSDL 주소
+---
 
+### 3.1 `RegistBankAccountEx` — 계좌 등록
+
+> SDK: `계좌조회/RegistBankAccountEx.js`
+
+조회할 계좌를 바로빌에 사전 등록합니다. **최초 1회만 실행.**
+
+```javascript
+const client = await soap.createClientAsync(
+  'https://testws.baroservice.com/BANKACCOUNT.asmx?WSDL'
+);
+
+const response = await client.RegistBankAccountExAsync({
+  CERTKEY        : certKey,
+  CorpNum        : corpNum,
+  CollectCycle   : 1,             // 수집 주기 (1: 1시간, 3: 3시간, 6: 6시간, 12: 12시간, 24: 24시간)
+  Bank           : '088',         // 은행코드 (아래 표 참고)
+  BankAccountType: 1,             // 계좌 유형 (1: 입출금, 2: 적금, 3: 외화)
+  BankAccountNum : '123456789012',// 계좌번호 (하이픈 없이)
+  BankAccountPwd : '****',        // 인터넷뱅킹 비밀번호
+  WebId          : '',            // 인터넷뱅킹 ID (일부 은행 필요)
+  WebPwd         : '',            // 인터넷뱅킹 비밀번호 (일부 은행 필요)
+  IdentityNum    : '',            // 주민번호 / 사업자번호 (일부 은행 필요)
+  foreignCurrencyCodes: ['', ''], // 외화 코드 (외화계좌만 입력)
+  Alias          : '올해의경조사 수납계좌',
+  Usage          : 1,             // 사용 여부 (1: 사용)
+});
+
+const result = response[0].RegistBankAccountExResult;
+// result >= 1 : 성공
+// result  < 0 : 오류
 ```
-https://barobill.co.kr/AccountCheck/AccountCheck.asmx?WSDL
-```
 
-### 3.2 주요 메서드
+**은행 코드 주요 목록**
 
-#### `GetBalance` — 계좌 잔액 조회
+| 코드 | 은행명 | 코드 | 은행명 |
+|------|--------|------|--------|
+| `002` | KDB산업은행 | `081` | KEB하나은행 |
+| `004` | KB국민은행 | `088` | 신한은행 |
+| `011` | NH농협은행 | `089` | K뱅크 |
+| `020` | 우리은행 | `090` | 카카오뱅크 |
+| `023` | SC제일은행 | `092` | 토스뱅크 |
+| `027` | 씨티은행 | `031` | 대구은행 |
+| `032` | 부산은행 | `039` | 경남은행 |
 
-**요청 파라미터**
+---
 
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 사업자번호 |
-| `BankCode` | string | ✅ | 은행코드 (아래 표 참고) |
-| `AccountNum` | string | ✅ | 계좌번호 (하이픈 없이) |
+### 3.2 `GetBankAccountEx` — 등록 계좌 목록 조회
 
-**은행코드 주요 목록**
+> SDK: `계좌조회/GetBankAccountEx.js`
 
-| 코드 | 은행명 |
-|------|--------|
-| `004` | KB국민은행 |
-| `011` | NH농협은행 |
-| `020` | 우리은행 |
-| `023` | SC제일은행 |
-| `027` | 씨티은행 |
-| `032` | 부산은행 |
-| `039` | 경남은행 |
-| `081` | KEB하나은행 |
-| `088` | 신한은행 |
-| `090` | 카카오뱅크 |
-| `092` | 토스뱅크 |
+```javascript
+const response = await client.GetBankAccountExAsync({
+  CERTKEY  : certKey,
+  CorpNum  : corpNum,
+  AvailOnly: 1,   // 1: 사용 계좌만 조회, 0: 전체 조회
+});
 
-**응답**
+const result = response[0].GetBankAccountExResult;
+const accounts = result ? result.BankAccount : [];
 
-```xml
-<GetBalanceResult>
-  <Code>1</Code>
-  <Message>정상처리</Message>
-  <Balance>1500000</Balance>     <!-- 잔액 (원) -->
-  <UpdateDT>20260414133700</UpdateDT>  <!-- 잔액 업데이트 일시 -->
-</GetBalanceResult>
+for (const account of accounts) {
+  console.log(account); // 계좌 정보 (레퍼런스 참고)
+}
 ```
 
 ---
 
-#### `GetTransactionList` — 거래 내역 조회
+### 3.3 `GetPeriodBankAccountTransLog` — 기간별 거래 내역 조회
 
-특정 기간의 입출금 내역을 조회합니다.
+> SDK: `계좌조회/GetPeriodBankAccountTransLog.js`
 
-**요청 파라미터**
+특정 기간의 입출금 내역을 페이지네이션으로 조회합니다.
 
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 사업자번호 |
-| `BankCode` | string | ✅ | 은행코드 |
-| `AccountNum` | string | ✅ | 계좌번호 |
-| `SDate` | string | ✅ | 조회 시작일 (YYYYMMDD) |
-| `EDate` | string | ✅ | 조회 종료일 (YYYYMMDD) |
-| `TranType` | string | - | 거래유형 (`0`: 전체, `1`: 입금, `2`: 출금) |
-| `Page` | int | - | 페이지 번호 (기본 1) |
-| `PerPage` | int | - | 페이지당 건수 (기본 100, 최대 500) |
+```javascript
+const response = await client.GetPeriodBankAccountTransLogAsync({
+  CERTKEY       : certKey,
+  CorpNum       : corpNum,
+  ID            : '',              // 바로빌에서 부여한 계좌 ID
+  BankAccountNum: '123456789012',  // 계좌번호
+  StartDate     : '20260401',      // 조회 시작일 (YYYYMMDD)
+  EndDate       : '20260430',      // 조회 종료일 (YYYYMMDD)
+  TransDirection: 1,               // 거래 방향 (0: 전체, 1: 입금, 2: 출금)
+  CountPerPage  : 100,             // 페이지당 건수 (최대 500)
+  CurrentPage   : 1,               // 현재 페이지
+  OrderDirection: 1,               // 정렬 방향 (0: 오름차순, 1: 내림차순)
+});
 
-**응답 주요 필드**
+const result = response[0].GetPeriodBankAccountTransLogResult;
 
-```xml
-<GetTransactionListResult>
-  <Code>1</Code>
-  <TotalCount>3</TotalCount>
-  <TransactionList>
-    <Transaction>
-      <TranDT>20260414120000</TranDT>   <!-- 거래일시 -->
-      <TranType>1</TranType>            <!-- 1: 입금, 2: 출금 -->
-      <TranAmt>350000</TranAmt>         <!-- 거래금액 (원) -->
-      <BalanceAmt>1850000</BalanceAmt>  <!-- 거래 후 잔액 -->
-      <TranRemark>올해의경조사</TranRemark>  <!-- 적요 -->
-      <BranchName>강남지점</BranchName>
-    </Transaction>
-  </TransactionList>
-</GetTransactionListResult>
+if (result.CurrentPage < 0) {
+  console.error('조회 실패:', result.CurrentPage);
+} else {
+  console.log('전체 건수:', result.MaxIndex);
+  console.log('전체 페이지:', result.MaxPageNum);
+
+  const logs = result.BankAccountLogList
+    ? result.BankAccountLogList.BankAccountTransLog
+    : [];
+
+  for (const log of logs) {
+    console.log(log); // 거래 내역 (레퍼런스 참고)
+  }
+}
 ```
+
+**응답 필드 요약**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `CurrentPage` | int | 현재 페이지 (음수 = 오류) |
+| `CountPerPage` | int | 페이지당 건수 |
+| `MaxPageNum` | int | 전체 페이지 수 |
+| `MaxIndex` | int | 전체 거래 건수 |
+| `BankAccountLogList.BankAccountTransLog[]` | array | 거래 내역 목록 |
 
 ---
 
-#### `RegistAccountCheck` — 계좌 등록
+### 3.4 프로젝트 적용 위치 (계좌조회)
 
-조회할 계좌를 바로빌에 사전 등록합니다.
-
-```
-메서드: RegistAccountCheck
-파라미터: CERT_KEY, CorpNum, BankCode, AccountNum, AccountName(예금주), AccountPwd(인터넷뱅킹 비밀번호)
-```
-
-> ⚠️ `AccountPwd`는 암호화 전송이 필요합니다. 바로빌 SDK의 암호화 유틸 사용 권장.
-
----
-
-### 3.3 프로젝트 적용 위치
-
-| 화면 | 트리거 | 호출 메서드 |
-|------|--------|------------|
-| `SettlementView` — 정산확인 상태 갱신 | 정산 기한 도래 시 자동 | `GetTransactionList` |
-| `SettlementView` — 입금자 자동 확인 | 정산 목록 로드 시 | `GetTransactionList` |
+| 화면 | 트리거 | 호출 API |
+|------|--------|---------|
+| `SettlementView` → 정산확인 상태 갱신 | 정산 기한 도래 시 (배치) | `GetPeriodBankAccountTransLog` |
+| `SettlementView` → 입금자 자동 확인 | 목록 로드 시 | `GetPeriodBankAccountTransLog` |
+| 초기 설정 (1회) | 계좌 사전 등록 | `RegistBankAccountEx` |
 
 ---
 
 ## 4. 카카오톡전송 API
 
-> **공식 문서**: https://dev.barobill.co.kr/docs/references/카카오톡전송-API
-> **사용 목적**: 배송완료 시 담당자·받는분·보내는분에게 알림톡(KakaoTalk) 자동 발송
-
-### 4.1 WSDL 주소
-
-```
-https://barobill.co.kr/KakaoTalk/KakaoTalk.asmx?WSDL
-```
-
-### 4.2 메시지 유형
-
-| 유형 | 설명 | 용도 |
-|------|------|------|
-| **알림톡** (ATMessage) | 카카오 공식 채널 템플릿 메시지 | 배송완료 알림, 주문접수 확인 |
-| **친구톡** (FTMessage) | 채널 친구에게 자유 형식 메시지 | 마케팅, 이벤트 안내 |
-
-> 본 프로젝트는 **알림톡(ATMessage)** 만 사용합니다.
+> **공식 레퍼런스**: https://dev.barobill.co.kr/docs/references/카카오톡전송-API
+> **WSDL (테스트)**: `https://testws.baroservice.com/Kakaotalk.asmx?WSDL`
+> **WSDL (운영)**: `https://ws.baroservice.com/Kakaotalk.asmx?WSDL`
+> **사용 목적**: 배송완료 시 담당자·받는분·보내는분에게 알림톡(AT) 자동 발송
 
 ---
 
-### 4.3 주요 메서드
+### 4.1 `SendATKakaotalk` — 알림톡 단건 전송
 
-#### `SendATM` — 알림톡 단건 전송
-
-**요청 파라미터**
-
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 사업자번호 |
-| `UserID` | string | ✅ | 바로빌 회원 ID |
-| `SenderKey` | string | ✅ | 카카오 채널 발신프로필 키 |
-| `TemplateCode` | string | ✅ | 사전 승인된 템플릿 코드 |
-| `Receiver` | string | ✅ | 수신자 휴대폰번호 (하이픈 없이) |
-| `ReceiverName` | string | - | 수신자명 |
-| `Message` | string | ✅ | 템플릿 변수 치환된 본문 |
-| `AltSendType` | string | - | 전송 실패 시 대체문자 유형 (`0`: 없음, `1`: SMS, `2`: LMS) |
-| `AltMessage` | string | - | 대체 문자 내용 |
-| `ReserveDT` | string | - | 예약 전송 일시 (YYYYMMDDHHMMSS, 빈 값이면 즉시) |
-
-**예시 요청 (배송완료 알림)**
+> SDK: `카카오톡전송/SendATKakaotalk.js`
 
 ```javascript
-const params = {
-  CERT_KEY: process.env.BAROBILL_CERT_KEY,
-  CorpNum: process.env.BAROBILL_CORP_NUM,
-  UserID: "올해의경조사_ID",
-  SenderKey: "카카오채널_발신프로필키",
-  TemplateCode: "DELIVERY_COMPLETE_01",   // 사전 등록된 템플릿
-  Receiver: "01012345678",
-  ReceiverName: "홍길동",
-  Message: `[올해의경조사] 안녕하세요, 홍길동님.\n주문하신 상품이 배송 완료되었습니다.\n\n■ 상품명: 3단화환(기본형)\n■ 배송지: 서울시 강남구 ...\n■ 완료일시: 2026-04-14 13:37`,
-  AltSendType: "1",   // SMS로 대체 발송
-  AltMessage: "[올해의경조사] 배송이 완료되었습니다.",
-};
-```
+const client = await soap.createClientAsync(
+  'https://testws.baroservice.com/Kakaotalk.asmx?WSDL'
+);
 
-**응답**
+const response = await client.SendATKakaotalkAsync({
+  CERTKEY     : certKey,
+  CorpNum     : corpNum,
+  SenderID    : 'barobill_sender_id',   // 바로빌 카카오 채널 발신 프로필 ID
+  TemplateName: 'DELIVERY_COMPLETE',    // 사전 승인된 템플릿 코드
+  SendDT      : '',                     // 예약 전송 일시 (YYYYMMDDHHMMSS, 빈값=즉시)
+  SmsReply    : 0,                      // SMS 대체 발송 여부 (0: 미사용, 1: SMS, 2: LMS)
+  SmsSenderNum: '0200000000',           // SMS 대체 발송 시 발신번호
+  KakaotalkMessage: {
+    ReceiverNum : '01012345678',        // 수신자 휴대폰번호 (하이픈 없이)
+    ReceiverName: '홍길동',              // 수신자명
+    Title       : '배송완료 안내',       // 알림톡 제목 (일부 템플릿 사용)
+    Message     : '[올해의경조사] 배송이 완료되었습니다.\n\n■ 상품명: 3단화환(기본형)\n■ 완료일시: 2026-04-14 13:37',
+    SmsSubject  : '[올해의경조사] 배송완료',   // SMS 대체 발송 제목 (LMS 시)
+    SmsMessage  : '[올해의경조사] 배송이 완료되었습니다.',  // SMS 대체 발송 본문
+  },
+});
 
-```xml
-<SendATMResult>
-  <Code>1</Code>
-  <Message>정상처리</Message>
-  <MsgID>메시지고유ID</MsgID>   <!-- 전송 결과 조회에 사용 -->
-</SendATMResult>
-```
+const result = response[0].SendATKakaotalkResult;
 
----
-
-#### `SendATM_Multi` — 알림톡 대량 전송
-
-여러 수신자에게 동시 전송 (배열 형태).
-
-```
-메서드: SendATM_Multi
-파라미터: 위 SendATM 파라미터와 동일하나 Receiver, ReceiverName, Message를 배열로 전달
-최대 건수: 1,000건/1회
+if (/^-[0-9]{5}$/.test(result)) {
+  console.error('전송 실패:', result);  // -XXXXX 형태 에러코드
+} else {
+  console.log('전송 성공, SendKey:', result);  // 이후 결과 조회에 사용
+}
 ```
 
 ---
 
-#### `GetATMResult` — 전송 결과 조회
+### 4.2 `SendATKakaotalks` — 알림톡 대량 전송
 
-**요청 파라미터**
+> SDK: `카카오톡전송/SendATKakaotalks.js`
 
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| `CERT_KEY` | string | ✅ | 바로빌 인증키 |
-| `CorpNum` | string | ✅ | 사업자번호 |
-| `MsgID` | string | ✅ | `SendATM` 응답의 MsgID |
+여러 수신자에게 동시 전송. 배송완료 시 ON 설정된 모든 대상에게 한 번에 발송합니다.
 
-**응답 주요 필드**
+```javascript
+const kakaotalkMessages = [
+  // 받는분 (notifyRecipient = true)
+  {
+    ReceiverNum : '01011111111',
+    ReceiverName: '홍길동',
+    Title       : '배송완료 안내',
+    Message     : '[올해의경조사] 안녕하세요, 홍길동님.\n주문하신 상품이 배송 완료되었습니다.',
+    SmsSubject  : '[올해의경조사] 배송완료',
+    SmsMessage  : '[올해의경조사] 배송이 완료되었습니다.',
+  },
+  // 보내는분 (notifySender = true)
+  {
+    ReceiverNum : '01022222222',
+    ReceiverName: '(주)올해의경조사 대표이사 홍길동',
+    Title       : '배송완료 안내',
+    Message     : '[올해의경조사] 발송하신 상품이 배송 완료되었습니다.',
+    SmsSubject  : '[올해의경조사] 배송완료',
+    SmsMessage  : '[올해의경조사] 발송하신 상품이 배송 완료되었습니다.',
+  },
+  // 담당자 (notifyManager = true)
+  {
+    ReceiverNum : '01033333333',
+    ReceiverName: '오임찬',
+    Title       : '배송완료 안내',
+    Message     : '[올해의경조사] 담당자님, 주문하신 상품이 배송 완료되었습니다.',
+    SmsSubject  : '[올해의경조사] 배송완료',
+    SmsMessage  : '[올해의경조사] 배송이 완료되었습니다.',
+  },
+];
 
-| 필드 | 설명 |
-|------|------|
-| `State` | 전송 상태 (`0`: 대기, `1`: 전송 중, `2`: 완료, `3`: 실패) |
-| `ResultCode` | 결과 코드 (`0`: 성공) |
-| `ResultMessage` | 결과 메시지 |
-| `ReceiveDT` | 수신 완료 일시 |
+const response = await client.SendATKakaotalksAsync({
+  CERTKEY          : certKey,
+  CorpNum          : corpNum,
+  SenderID         : 'barobill_sender_id',
+  TemplateName     : 'DELIVERY_COMPLETE',
+  SendDT           : '',
+  SmsReply         : 1,
+  SmsSenderNum     : '0200000000',
+  KakaotalkMessages: { KakaotalkATMessage: kakaotalkMessages },
+});
 
----
+const result = response[0].SendATKakaotalksResult.string;
 
-### 4.4 알림톡 템플릿 목록 (사전 등록 필요)
-
-카카오 비즈니스 채널에서 템플릿을 미리 승인받아야 합니다.
-
-| 템플릿코드 | 제목 | 발송 시점 | 수신 대상 |
-|-----------|------|----------|----------|
-| `ORDER_RECEIVED` | 주문 접수 확인 | 주문 접수 완료 시 | 담당자 |
-| `DELIVERY_COMPLETE` | 배송완료 알림 | 배송완료 상태 변경 시 | 받는분 / 보내는분 / 담당자 (ON 설정된 대상) |
-| `INVOICE_ISSUED` | 세금계산서 발행 안내 | 계산서 발급 완료 시 | 담당자 |
-| `SETTLEMENT_DUE` | 정산 기한 안내 | 정산 기한 D-3 | 담당자 |
-
-**`DELIVERY_COMPLETE` 템플릿 본문 예시**
-
-```
-[올해의경조사] 배송완료 안내
-
-안녕하세요, #{수신자명}님.
-#{보내는분}에서 보내드린 상품이 배송 완료되었습니다.
-
-■ 상품명: #{상품명}
-■ 배송지: #{배송지}
-■ 완료일시: #{완료일시}
-
-감사합니다.
-```
-
----
-
-### 4.5 프로젝트 적용 위치
-
-| 화면 / 이벤트 | 수신 대상 | 호출 메서드 | 템플릿 |
-|--------------|----------|------------|--------|
-| `OrderPage` — 주문 접수하기 클릭 | 담당자 | `SendATM` | `ORDER_RECEIVED` |
-| `RealTimeOrders` — 상태를 "배송완료"로 변경 | 받는분 (ON) / 보내는분 (ON) / 담당자 (ON) | `SendATM_Multi` | `DELIVERY_COMPLETE` |
-| `SettlementView` — 계산서발급 완료 | 담당자 | `SendATM` | `INVOICE_ISSUED` |
-
-> 수신 대상은 `OrderPage`의 **배송완료 알림 수신 패널** 토글 ON 여부에 따라 결정됩니다.
-
----
-
-## 5. 프로젝트 연동 포인트
-
-### 5.1 API 호출 흐름 (배송완료 시나리오)
-
-```
-[관리자] RealTimeOrders 페이지에서 주문 상태 → "배송완료" 변경
-    │
-    ▼
-[계좌조회 API] GetTransactionList 호출
-    → 해당 정산 건의 입금 여부 확인
-    → 입금 확인 시 SettlementView 정산확인 → "정산완료" 업데이트
-    │
-    ▼
-[카카오톡전송 API] SendATM_Multi 호출
-    → notifyRecipient=ON  → 받는분 연락처로 알림톡 전송
-    → notifySender=ON     → 보내는분 연락처로 알림톡 전송
-    → notifyManager=ON    → 담당자 연락처로 알림톡 전송
-```
-
-### 5.2 API 호출 흐름 (정산 완료 → 계산서 발급 시나리오)
-
-```
-[관리자] SettlementView 페이지 → "동의하기" 클릭
-    │
-    ▼
-[세금계산서 API] RegistIssue 호출
-    → 공급받는자 이메일(users.invoice_email)로 계산서 발송
-    → MgtKey 저장 (이후 상태 조회용)
-    │
-    ▼
-[카카오톡전송 API] SendATM 호출
-    → 담당자에게 발급 완료 알림톡 전송
-    │
-    ▼
-계산서발급 뱃지 → "발급완료" 로 업데이트
-```
-
----
-
-## 6. 에러 코드 공통 처리
-
-바로빌 API는 응답 `<Code>` 값으로 성공/실패를 구분합니다.
-
-| Code | 의미 | 처리 방법 |
-|------|------|----------|
-| `1` 이상 | 성공 | 정상 처리 |
-| `0` | 시스템 오류 | 재시도 또는 관리자 알림 |
-| `-1` | 인증키 오류 | `CERT_KEY` 확인 |
-| `-2` | 잔여 건수 부족 | 바로빌 포인트 충전 |
-| `-10` ~ `-19` | 요청 파라미터 오류 | 입력값 검증 |
-| `-100` ~ `-199` | 사업자 정보 오류 | `CorpNum` 확인 |
-| `-200` ~ `-299` | 계좌/수신 정보 오류 | 계좌번호 · 수신번호 확인 |
-| `-9000` | 서비스 점검 중 | 바로빌 공지 확인 |
-
-### 권장 에러 핸들링 패턴
-
-```typescript
-async function callBarobillAPI(method: string, params: object) {
-  try {
-    const response = await soapClient[method](params);
-    const code = parseInt(response.Code);
-
-    if (code >= 1) {
-      return { success: true, data: response };
-    }
-
-    // 인증키 오류
-    if (code === -1) {
-      console.error("[Barobill] 인증키가 유효하지 않습니다.");
-      throw new Error("API_AUTH_FAILED");
-    }
-
-    // 잔여 건수 부족
-    if (code === -2) {
-      console.error("[Barobill] 바로빌 포인트가 부족합니다.");
-      throw new Error("API_INSUFFICIENT_POINTS");
-    }
-
-    throw new Error(`API_ERROR_${Math.abs(code)}: ${response.Message}`);
-
-  } catch (err) {
-    // 카카오톡 전송 실패 시 SMS 대체 발송 (AltSendType: "1" 설정 시 자동)
-    console.error("[Barobill API Error]", method, err);
-    throw err;
+if (/^-[0-9]{5}$/.test(result[0])) {
+  console.error('전송 실패:', result[0]);
+} else {
+  // 각 수신자별 SendKey 반환
+  for (const sendKey of result) {
+    console.log('전송 성공, SendKey:', sendKey);
   }
 }
 ```
 
 ---
 
-## 7. 참고 사항
+### 4.3 `GetSendKakaotalk` — 전송 결과 조회
 
-| 항목 | 내용 |
+> SDK: `카카오톡전송/GetSendKakaotalk.js`
+
+```javascript
+const response = await client.GetSendKakaotalkAsync({
+  CERTKEY: certKey,
+  CorpNum: corpNum,
+  SendKey: sendKey,   // SendATKakaotalk / SendATKakaotalks 응답값
+});
+
+const result = response[0].GetSendKakaotalkResult;
+
+if (result.SendStatus < 0) {
+  console.error('조회 실패:', result.SendStatus);
+} else {
+  console.log(result); // 전송 결과 상세 (레퍼런스 참고)
+}
+```
+
+**`SendStatus` 주요 값**
+
+| 값 | 상태 |
+|----|------|
+| `0` | 전송 대기 |
+| `1` | 전송 중 |
+| `2` | 전송 완료 |
+| `3` | 전송 실패 (SMS 대체 발송 시도) |
+| `4` | SMS 대체 발송 완료 |
+| 음수 | 오류 |
+
+---
+
+### 4.4 알림톡 템플릿 목록
+
+> 카카오 비즈니스 채널 검수 후 바로빌에 등록 필요 (검수 2~3 영업일 소요)
+
+| TemplateName | 발송 시점 | 수신 대상 |
+|-------------|----------|----------|
+| `ORDER_RECEIVED` | 주문 접수 완료 | 담당자 |
+| `DELIVERY_COMPLETE` | 배송완료 상태 변경 | 받는분 / 보내는분 / 담당자 (ON 설정된 대상) |
+| `INVOICE_ISSUED` | 세금계산서 발급 완료 | 담당자 |
+
+---
+
+### 4.5 프로젝트 적용 위치 (카카오톡)
+
+| 화면 / 이벤트 | 수신 대상 결정 기준 | 호출 API |
+|-------------|------------------|---------|
+| `OrderPage` → "주문 접수하기" 클릭 | 담당자 (고정) | `SendATKakaotalk` |
+| `RealTimeOrders` → 상태 "배송완료" 변경 | `notifyRecipient` / `notifySender` / `notifyManager` 토글 ON 여부 | `SendATKakaotalks` |
+| `SettlementView` → 계산서 발급 완료 | 담당자 (고정) | `SendATKakaotalk` |
+
+> 수신 대상은 `OrderPage` **배송완료 알림 수신** 패널의 토글 상태로 결정됩니다.
+
+---
+
+## 5. 프로젝트 연동 흐름
+
+### 5.1 배송완료 시나리오
+
+```
+[관리자] RealTimeOrders → 주문 상태 "배송완료"로 변경
+    │
+    ├─► [계좌조회 API] GetPeriodBankAccountTransLog
+    │       → 해당 정산 건 입금 확인
+    │       → 입금 확인 시: SettlementView 정산확인 "정산완료"로 업데이트
+    │
+    └─► [카카오톡 API] SendATKakaotalks
+            → notifyRecipient=ON  → 받는분(toPhone) 알림톡
+            → notifySender=ON     → 보내는분(sender.phone) 알림톡
+            → notifyManager=ON    → 담당자(contact.phone) 알림톡
+            TemplateName: 'DELIVERY_COMPLETE'
+```
+
+### 5.2 계산서 발급 시나리오
+
+```
+[관리자] SettlementView → "동의하기" 클릭
+    │
+    ├─► [세금계산서 API] RegistAndIssueTaxInvoice
+    │       → InvoiceeParty.Email = users.invoice_email
+    │       → 응답 MgtKey 저장
+    │       → 계산서발급 뱃지 "발급완료"로 업데이트
+    │
+    └─► [카카오톡 API] SendATKakaotalk
+            → 담당자(contact.phone)에게 발급 완료 알림
+            TemplateName: 'INVOICE_ISSUED'
+```
+
+---
+
+## 6. 에러 처리
+
+### 6.1 응답 코드 체계
+
+| 범위 | 의미 |
 |------|------|
-| SDK | Node.js: `node-soap` 패키지 사용 권장 (`npm i soap`) |
-| 테스트 계정 | 바로빌 개발자 콘솔(dev.barobill.co.kr)에서 테스트 인증키 발급 |
-| 카카오 채널 | 카카오 비즈니스 채널 개설 후 바로빌에 `SenderKey` 등록 필요 |
-| 알림톡 템플릿 | 카카오 검수 승인까지 평균 2~3 영업일 소요 |
-| 세금계산서 의무 | 공급가액 합계 기준, 전자세금계산서 의무 발행 대상 확인 필요 |
-| 계좌조회 이용료 | 조회 건수당 과금 (바로빌 요금표 확인) |
+| `1` 이상 (양수) | **성공** |
+| `0` | 시스템 일시 오류, 재시도 |
+| `-1` | 인증키(`CERTKEY`) 오류 |
+| `-2` | 잔여 건수 부족 (바로빌 포인트 충전 필요) |
+| `-10 ~ -19` | 요청 파라미터 오류 |
+| `-100 ~ -199` | 사업자 정보 오류 |
+| `-200 ~ -299` | 계좌/수신 정보 오류 |
+| `-XXXXX` (5자리) | 카카오톡 전송 실패 코드 |
+| `-9000` | 서비스 점검 중 |
+
+### 6.2 공통 에러 핸들러 패턴
+
+```javascript
+// utils/barobill.js
+const soap = require('soap');
+
+const WSDL = {
+  TI         : process.env.BAROBILL_ENV === 'production'
+                 ? 'https://ws.baroservice.com/TI.asmx?WSDL'
+                 : 'https://testws.baroservice.com/TI.asmx?WSDL',
+  BANKACCOUNT: process.env.BAROBILL_ENV === 'production'
+                 ? 'https://ws.baroservice.com/BANKACCOUNT.asmx?WSDL'
+                 : 'https://testws.baroservice.com/BANKACCOUNT.asmx?WSDL',
+  KAKAOTALK  : process.env.BAROBILL_ENV === 'production'
+                 ? 'https://ws.baroservice.com/Kakaotalk.asmx?WSDL'
+                 : 'https://testws.baroservice.com/Kakaotalk.asmx?WSDL',
+};
+
+async function createClient(type) {
+  return await soap.createClientAsync(WSDL[type]);
+}
+
+function handleResult(result) {
+  const code = typeof result === 'object' ? result.BarobillState ?? result.CurrentPage ?? result : result;
+  const num  = Number(code);
+
+  if (num >= 1) return { success: true };
+
+  const messages = {
+    '-1'  : '인증키(CERTKEY)가 유효하지 않습니다.',
+    '-2'  : '바로빌 포인트가 부족합니다. 충전 후 다시 시도해주세요.',
+    '-9000': '바로빌 서비스 점검 중입니다. 잠시 후 다시 시도해주세요.',
+  };
+
+  const msg = messages[String(num)] ?? `API 오류 (코드: ${num})`;
+  console.error('[Barobill]', msg);
+  throw new Error(msg);
+}
+
+module.exports = { createClient, handleResult, WSDL };
+```
