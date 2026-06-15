@@ -154,11 +154,36 @@
 .textarea::placeholder {
   color: var(--c-text-faint);
 }
+.input:hover:not(:focus):not(:disabled),
+.textarea:hover:not(:focus):not(:disabled),
+.select:hover:not(:focus):not(:disabled) {
+  border-color: var(--c-border-input-2);
+}
 .input:focus,
 .textarea:focus,
 .select:focus {
   border-color: var(--c-orange);
   box-shadow: var(--ring);
+}
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  background: var(--c-surface-3);
+  color: var(--c-text-faint);
+  cursor: not-allowed;
+}
+.input.is-error,
+.textarea.is-error,
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--c-danger);
+}
+.input.is-error:focus,
+.textarea.is-error:focus,
+.input[aria-invalid="true"]:focus,
+.textarea[aria-invalid="true"]:focus {
+  border-color: var(--c-danger-ink);
+  box-shadow: var(--ring-error);
 }
 .textarea {
   resize: vertical;
