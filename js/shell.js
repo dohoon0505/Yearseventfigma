@@ -4,6 +4,7 @@
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "./dom.js";
 import { nav } from "./router.js";
+import { clearRole } from "./session.js";
 
 const MENU = [
   {
@@ -29,10 +30,41 @@ const MENU = [
   },
 ];
 
+// Admin console menu — reuses existing nav PNG icons (no new assets).
+const ADMIN_MENU = [
+  {
+    group: "거래처 관리",
+    items: [{ label: "거래처 정보관리", hash: "#/admin", icon: "nav-profile.png" }],
+  },
+  {
+    group: "정산 관리",
+    items: [{ label: "거래처 정산회계", hash: "#/admin/settlement", icon: "nav-accounting.png" }],
+  },
+  {
+    group: "주문 조회",
+    items: [{ label: "거래처 주문조회", hash: "#/admin/orders", icon: "nav-realtime.png" }],
+  },
+];
+
 let shellEl = null; // <div class="shell">
 let offClick = null;
+let currentVariant = null;
 
-function buildShell() {
+function buildShell(variant = "enterprise") {
+  const menu = variant === "admin" ? ADMIN_MENU : MENU;
+  const brand =
+    variant === "admin"
+      ? {
+          company: "관리자 콘솔",
+          user: "admin",
+          banner: html`<span>관리자 모드 · <strong>DEMO 인증</strong></span>`,
+        }
+      : {
+          company: "(주)진양코퍼레이션",
+          user: "총무팀 김사원",
+          banner: html`<span>연간 상품 누락 및 오배송: <strong>0건</strong></span>`,
+        };
+
   const wrap = document.createElement("div");
   wrap.className = "shell";
   setHTML(
@@ -44,23 +76,23 @@ function buildShell() {
           <span class="shell__sep"></span>
           <div class="badge badge--company">
             <img src="./assets/company.png" alt="" />
-            <span>(주)진양코퍼레이션</span>
+            <span>${brand.company}</span>
           </div>
           <div class="badge badge--user">
             <img src="./assets/user.png" alt="" />
-            <span>총무팀 김사원</span>
+            <span>${brand.user}</span>
           </div>
         </div>
         <div class="warning-banner" role="status">
           <img src="./assets/warning.png" alt="" />
-          <span>연간 상품 누락 및 오배송: <strong>0건</strong></span>
+          ${brand.banner}
         </div>
       </header>
 
       <div class="shell__body">
         <aside class="shell__sidebar">
           <nav class="shell__nav" aria-label="주 메뉴">
-            ${MENU.map(
+            ${menu.map(
               (g) => html`
                 <div class="shell__group">
                   <p class="shell__group-title">${g.group}</p>
@@ -95,15 +127,21 @@ function buildShell() {
     `
   );
 
-  offClick = on(wrap, "click", "[data-action='logout']", () => nav("#/login"));
+  offClick = on(wrap, "click", "[data-action='logout']", () => {
+    clearRole();
+    nav("#/login");
+  });
   return wrap;
 }
 
-/** Ensure the shell exists in appRoot; return the <main> content slot. */
-export function mountShell(appRoot) {
-  if (!shellEl || !appRoot.contains(shellEl)) {
+/** Ensure the shell exists in appRoot for the given variant; return the
+ *  <main> content slot. Rebuilds when the variant changes (admin↔enterprise). */
+export function mountShell(appRoot, variant = "enterprise") {
+  if (!shellEl || !appRoot.contains(shellEl) || currentVariant !== variant) {
+    if (offClick) { offClick(); offClick = null; }
     appRoot.innerHTML = "";
-    shellEl = buildShell();
+    shellEl = buildShell(variant);
+    currentVariant = variant;
     appRoot.appendChild(shellEl);
   }
   return qs(shellEl, ".shell__main");
@@ -115,6 +153,7 @@ export function unmountShell() {
     offClick = null;
   }
   shellEl = null;
+  currentVariant = null;
 }
 
 /** Highlight the active sidebar link by its canonical nav hash. */
