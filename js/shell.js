@@ -37,7 +37,7 @@ const ADMIN_MENU = [
     items: [
       { label: "거래처 정보관리", hash: "#/admin", icon: "nav-profile.png" },
       { label: "거래처 정산회계", hash: "#/admin/settlement", icon: "nav-accounting.png" },
-      { label: "기업별 상품단가 설정", hash: "#/admin/pricing", icon: "nav-product.png" },
+      { label: "기업별 상품단가", hash: "#/admin/pricing", icon: "nav-product.png" },
     ],
   },
 ];
