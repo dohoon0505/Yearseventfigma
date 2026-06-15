@@ -59,6 +59,7 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+  border: none; /* strip the user-agent border; components set their own */
 }
 
 img {
