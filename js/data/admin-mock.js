@@ -1,7 +1,7 @@
 /* ============================================================
    admin-mock.js — ADMIN console mock datasets.
    - INITIAL_CLIENTS: 거래처(client companies) — persisted/editable via store.
-   - CLIENT_ORDERS / CLIENT_SETTLEMENTS: static read-only mock, keyed by client id.
+   - CLIENT_SETTLEMENTS: static read-only mock, keyed by client id.
    Dates are generated RELATIVE TO NOW so the date / year-month filters
    always have current data regardless of when the demo is viewed.
    ============================================================ */
@@ -10,11 +10,6 @@ const NOW = new Date();
 const pad = (n) => String(n).padStart(2, "0");
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
-// "YYYY/MM/DD HH:mm" for `daysAgo` before today
-const dOffset = (daysAgo, hh = 10, mm = 0) => {
-  const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - daysAgo);
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(hh)}:${pad(mm)}`;
-};
 // "YYYY년 MM월" for `monthsAgo` before this month
 const ymLabel = (monthsAgo) => {
   const d = new Date(NOW.getFullYear(), NOW.getMonth() - monthsAgo, 1);
@@ -32,49 +27,6 @@ export const INITIAL_CLIENTS = [
   { id: "C006", accountId: "miraelaw",  password: "ml$5050",  companyName: "미래법무법인",       bizNumber: "201-85-71239", ceoName: "서민준", managerName: "한실장", department: "사무국",   contact: "010-5050-6767", email: "office@miraelaw.kr",   address: "서울 종로구 종로 33 그랑서울 타워1 12층",        status: "정지",    joinDate: "2024-05-19" },
   { id: "C007", accountId: "sejong",    password: "sj^2424",  companyName: "세종산업개발",       bizNumber: "514-87-90183", ceoName: "남기훈", managerName: "조과장", department: "관리부",   contact: "010-2424-8989", email: "admin@sejongdev.com",  address: "대전 유성구 대학로 99 세종빌딩 5층",            status: "활성",    joinDate: "2025-09-30" },
 ];
-
-/* ── per-client ORDERS (orders.js row shape, relative dates) ── */
-const ADDR_POOL = [
-  "서울 강남구 테헤란로 152 강남파이낸스센터 3층 그랜드볼룸",
-  "경기 성남시 분당구 판교로 289 삼환하이펙스 컨벤션홀",
-  "부산 해운대구 센텀중앙로 79 센텀사이언스파크 대강당",
-  "대구 수성구 동대구로 357 대구은행 본점 1층 로비",
-  "인천 연수구 송도과학로 32 송도컨벤시아 프리미어볼룸",
-  "광주 서구 상무중앙로 110 김대중컨벤션센터 다목적홀",
-];
-const PRODUCT_POOL = [
-  { product: "근조화환(기본형)", amount: "50,000원" },
-  { product: "축하화환(고급형)", amount: "75,000원" },
-  { product: "3단화환(특대형)",  amount: "95,000원" },
-  { product: "근조오브제(2단형)", amount: "120,000원" },
-  { product: "서양란(고급형)",   amount: "80,000원" },
-];
-const STATUS_POOL = [
-  { status: "배송완료", statusColor: "#4caf50" },
-  { status: "주문접수", statusColor: "#4169e1" },
-  { status: "접수대기", statusColor: "#9e9e9e" },
-];
-const TIMES = [["09", "30"], ["11", "00"], ["14", "30"], ["10", "15"], ["16", "45"]];
-const DAY_OFFSETS = [0, 2, 6, 18, 33]; // today · this week · this month · last month
-
-function ordersFor(client, ci) {
-  return DAY_OFFSETS.map((days, oi) => {
-    const p = PRODUCT_POOL[(ci + oi) % PRODUCT_POOL.length];
-    const s = STATUS_POOL[(ci + oi) % STATUS_POOL.length];
-    const [hh, mm] = TIMES[oi];
-    return {
-      manager: client.managerName,
-      date: dOffset(days, hh, mm),
-      address: ADDR_POOL[(ci + oi) % ADDR_POOL.length],
-      profile: `${client.companyName} ${client.department} ${client.managerName}`,
-      product: p.product,
-      amount: p.amount,
-      status: s.status,
-      statusColor: s.statusColor,
-      hasPhoto: (ci + oi) % 2 === 0,
-    };
-  });
-}
 
 /* ── per-client SETTLEMENTS (settlement.js fields + 3 checks) ── */
 function settlementsFor(client, ci) {
@@ -99,10 +51,8 @@ function settlementsFor(client, ci) {
   });
 }
 
-export const CLIENT_ORDERS = {};
 export const CLIENT_SETTLEMENTS = {};
 INITIAL_CLIENTS.forEach((c, ci) => {
-  CLIENT_ORDERS[c.id] = ordersFor(c, ci);
   CLIENT_SETTLEMENTS[c.id] = settlementsFor(c, ci);
 });
 

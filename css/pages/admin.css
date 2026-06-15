@@ -64,8 +64,8 @@
 /* ── Top filter panel (clients + settlement) ────────────────
    Reuses the orders.css filter-panel skeleton (.orders-filters /
    .orders-frow / .orders-fgroup / .orders-flabel / .orders-search)
-   so the admin filters match 거래처 주문조회 exactly. Only the
-   admin-specific bits live here. */
+   so the admin filters match the 실시간 주문내역 filter panel exactly.
+   Only the admin-specific bits live here. */
 .orders-fgroup .select {
   width: auto;
   min-width: 120px;

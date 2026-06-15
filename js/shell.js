@@ -30,14 +30,13 @@ const MENU = [
   },
 ];
 
-// Admin console menu — single category (3 items), reuses existing nav PNG icons.
+// Admin console menu — single category, reuses existing nav PNG icons.
 const ADMIN_MENU = [
   {
     group: "거래처 관리",
     items: [
       { label: "거래처 정보관리", hash: "#/admin", icon: "nav-profile.png" },
       { label: "거래처 정산회계", hash: "#/admin/settlement", icon: "nav-accounting.png" },
-      { label: "거래처 주문조회", hash: "#/admin/orders", icon: "nav-realtime.png" },
     ],
   },
 ];
