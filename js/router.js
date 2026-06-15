@@ -20,7 +20,6 @@ const routes = [
   // ── Admin (requires admin role; admin shell variant) ──
   { hash: "#/admin",            load: () => import("./pages/admin-clients.js"),    shell: true, nav: "#/admin",            variant: "admin", requiresRole: "admin" },
   { hash: "#/admin/settlement", load: () => import("./pages/admin-settlement.js"), shell: true, nav: "#/admin/settlement", variant: "admin", requiresRole: "admin" },
-  { hash: "#/admin/orders",     load: () => import("./pages/admin-orders.js"),     shell: true, nav: "#/admin/orders",     variant: "admin", requiresRole: "admin" },
 ];
 
 let appRoot = null;
