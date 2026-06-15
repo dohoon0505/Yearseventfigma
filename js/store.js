@@ -34,6 +34,10 @@ export const ALL_PRODUCTS = [
 ];
 
 export const productKey = (r) => `${r.category}__${r.product}`;
+/** "50,000원" → 50000 */
+export const priceNum = (str) => parseInt(String(str).replace(/[^0-9]/g, ""), 10) || 0;
+/** 50000 → "50,000원" */
+export const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 /* ── Initial mock data ──────────────────────────────────── */
 const INITIAL_PROFILES = [
@@ -59,6 +63,7 @@ let state = {
   contacts: INITIAL_CONTACTS.map((c) => ({ ...c })),
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
+  clientPrices: {}, // { [clientId]: { [productKey]: number } } — per-client price overrides
 };
 
 function persist() {
@@ -70,6 +75,7 @@ function persist() {
         contacts: state.contacts,
         favorites: [...state.favorites], // Set → array
         clients: state.clients,
+        clientPrices: state.clientPrices,
       })
     );
   } catch {
@@ -87,6 +93,7 @@ function hydrate() {
       contacts: Array.isArray(data.contacts) ? data.contacts : state.contacts,
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
       clients: Array.isArray(data.clients) ? data.clients : state.clients,
+      clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
     };
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
@@ -144,5 +151,21 @@ export const store = {
   },
   removeClient(id) {
     this.setClients((prev) => prev.filter((x) => x.id !== id));
+    if (state.clientPrices[id]) {
+      const cp = { ...state.clientPrices };
+      delete cp[id];
+      state = { ...state, clientPrices: cp };
+      persist();
+      emit();
+    }
+  },
+  // ── 기업별 상품단가 (admin) ─────────────────────────────
+  setClientPrices(clientId, map) {
+    state = { ...state, clientPrices: { ...state.clientPrices, [clientId]: { ...map } } };
+    persist();
+    emit();
+  },
+  clientPriceFor(clientId, key) {
+    return state.clientPrices?.[clientId]?.[key];
   },
 };

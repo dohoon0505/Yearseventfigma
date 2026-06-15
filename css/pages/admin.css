@@ -6,7 +6,8 @@
   padding: 24px;
 }
 .admin-inner {
-  width: 1300px;
+  width: 100%;
+  max-width: 1300px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -209,4 +210,96 @@
 @keyframes toastIn {
   from { opacity: 0; transform: translate(-50%, 12px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── 기업별 상품단가 설정 (admin-pricing) ────────────────── */
+.prc-default {
+  color: var(--c-text-muted);
+}
+.prc-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.prc-input input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  font-size: var(--fs-13);
+  text-align: right;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.prc-input input:focus {
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
+}
+.prc-input input::placeholder {
+  color: var(--c-text-faint);
+}
+.prc-won {
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+  flex-shrink: 0;
+}
+.prc-reset {
+  flex-shrink: 0;
+  padding: 5px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  transition: all 0.15s;
+}
+.prc-reset:hover {
+  border-color: var(--c-border-strong);
+  color: var(--c-text-3);
+}
+.prc-dash {
+  color: var(--c-text-faint);
+}
+.prc-savebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+.prc-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+}
+.prc-savebar__btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prc-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--r-md);
+  background: var(--c-orange);
+  color: #fff;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  transition: background 0.15s;
+}
+.prc-save:hover {
+  background: #d94e24;
 }

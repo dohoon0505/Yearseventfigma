@@ -3,7 +3,8 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { resolveRole, setRole } from "../session.js";
+import { resolveRole, setRole, setClientId, clearClientId } from "../session.js";
+import { store } from "../store.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -168,6 +169,14 @@ export function mount(root, { nav }) {
     clearError();
     const role = resolveRole(id, pw); // "admin" | "enterprise" (DEMO gate)
     setRole(role);
+    // Map an enterprise login to its 거래처 when the credentials match a
+    // client account → drives per-client pricing in 상품 규격 안내.
+    if (role === "enterprise") {
+      const c = store.get().clients.find((x) => x.accountId === id && x.password === pw);
+      setClientId(c ? c.id : null);
+    } else {
+      clearClientId();
+    }
     nav(role === "admin" ? "#/admin" : "#/app");
   });
 

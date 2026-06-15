@@ -15,6 +15,7 @@
    ephemeral (cleared on tab close and on logout).
    ============================================================ */
 const KEY = "yeop.session.v1";
+const CKEY = "yeop.session.client.v1"; // which 거래처 the enterprise user is (drives per-client pricing)
 const VALID = new Set(["admin", "enterprise"]);
 
 // DEMO credential — replace with a server authentication call in production.
@@ -31,10 +32,23 @@ export function setRole(role) {
 
 export function clearRole() {
   sessionStorage.removeItem(KEY);
+  sessionStorage.removeItem(CKEY);
 }
 
 export function isAuthed() {
   return getRole() !== null;
+}
+
+/** The 거래처(client) id the logged-in enterprise user maps to, or null. */
+export function getClientId() {
+  return sessionStorage.getItem(CKEY) || null;
+}
+export function setClientId(id) {
+  if (id) sessionStorage.setItem(CKEY, id);
+  else sessionStorage.removeItem(CKEY);
+}
+export function clearClientId() {
+  sessionStorage.removeItem(CKEY);
 }
 
 /** DEMO role resolution. admin/0324 → "admin", anything else → "enterprise". */

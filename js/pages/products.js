@@ -4,7 +4,8 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { store, ALL_PRODUCTS, productKey } from "../store.js";
+import { store, ALL_PRODUCTS, productKey, won } from "../store.js";
+import { getClientId } from "../session.js";
 import { pageTitle, tableGrid, openModal } from "../ui.js";
 
 const sampleImages = {
@@ -21,6 +22,14 @@ export function mount(root, { nav }) {
   let saveTimer = null;
   const closeModal = () => { if (activeModal) { activeModal.close(); activeModal = null; } };
 
+  // Per-client price override (set in admin '기업별 상품단가 설정'). Falls back
+  // to the catalog default when this company has no custom price for the item.
+  const clientId = getClientId();
+  const priceFor = (p) => {
+    const ov = store.get().clientPrices[clientId]?.[productKey(p)];
+    return typeof ov === "number" && ov > 0 ? won(ov) : p.price;
+  };
+
   const columns = [
     {
       label: "즐겨찾기", width: "64px", align: "center",
@@ -33,7 +42,7 @@ export function mount(root, { nav }) {
     },
     { label: "구분", width: "90px", render: (r) => r.category },
     { label: "상세상품", width: "170px", render: (r) => r.product },
-    { label: "상품금액", width: "120px", align: "right", render: (r) => html`<span class="prod-price">${r.price}</span>` },
+    { label: "상품금액", width: "120px", align: "right", render: (r) => html`<span class="prod-price">${priceFor(r)}</span>` },
     { label: "상품설명 및 비고(규격)", width: "1fr", render: (r) => r.description },
     {
       label: "샘플사진", width: "96px", align: "center",
@@ -105,7 +114,7 @@ export function mount(root, { nav }) {
         </div>
         <div class="psample__imgwrap"><img src="${imgUrl}" alt="${product.product}" /></div>
         <div class="psample__body">
-          <div class="psample__price-row"><span>상품금액</span><span class="psample__price">${product.price}</span></div>
+          <div class="psample__price-row"><span>상품금액</span><span class="psample__price">${priceFor(product)}</span></div>
           <p class="psample__desc">${product.description}</p>
           <div class="psample__note"><p>※ 실제 상품은 사진과 다를 수 있으며, 계절 및 산지 사정에 따라 품종이 변경될 수 있습니다.</p></div>
         </div>
