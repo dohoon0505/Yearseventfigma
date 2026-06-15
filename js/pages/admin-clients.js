@@ -130,11 +130,18 @@ export function mount(root, { nav }) {
               title: "거래처 정보관리",
               action: html`<button class="btn btn-secondary" data-action="new">${icon("user-plus", { size: 14 })} 신규 거래처 등록</button>`,
             })}
-            <div class="admin-filterbar">
-              <div class="admin-tabs" data-slot="tabs">${tabsBody()}</div>
-              <div class="admin-search">
-                ${icon("search", { size: 14 })}
-                <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자 검색" />
+            <div class="orders-filters">
+              <div class="orders-frow orders-frow--1">
+                <div class="orders-fgroup">
+                  <span class="orders-flabel">거래처 상태</span>
+                  <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
+                </div>
+              </div>
+              <div class="orders-frow orders-frow--3">
+                <div class="orders-search">
+                  <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>거래처 검색</span></div>
+                  <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자 검색" />
+                </div>
               </div>
             </div>
             <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
