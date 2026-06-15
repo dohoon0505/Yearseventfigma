@@ -84,7 +84,7 @@ export function mount(root, { nav }) {
       html`
         <div class="page-admin">
           <div class="admin-inner">
-            ${pageTitle({ imgSrc: "./assets/nav-product.png", title: "기업별 상품단가 설정" })}
+            ${pageTitle({ imgSrc: "./assets/nav-product.png", title: "기업별 상품단가" })}
             <div class="orders-filters">
               <div class="orders-frow orders-frow--1">
                 <div class="orders-fgroup">
