@@ -2,10 +2,12 @@
    store.js — global state (profiles / contacts / favorites)
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
+import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
 /** @typedef {{no:string,name:string,role:string,phone:string,message:string}} Contact */
+/** @typedef {{id:string,accountId:string,password:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string}} Client */
 
 /* ── Static product catalog (immutable) ─────────────────── */
 export const ALL_PRODUCTS = [
@@ -56,6 +58,7 @@ let state = {
   profiles: INITIAL_PROFILES.map((p) => ({ ...p })),
   contacts: INITIAL_CONTACTS.map((c) => ({ ...c })),
   favorites: new Set(),
+  clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
 };
 
 function persist() {
@@ -66,6 +69,7 @@ function persist() {
         profiles: state.profiles,
         contacts: state.contacts,
         favorites: [...state.favorites], // Set → array
+        clients: state.clients,
       })
     );
   } catch {
@@ -82,6 +86,7 @@ function hydrate() {
       profiles: Array.isArray(data.profiles) ? data.profiles : state.profiles,
       contacts: Array.isArray(data.contacts) ? data.contacts : state.contacts,
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
+      clients: Array.isArray(data.clients) ? data.clients : state.clients,
     };
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
@@ -124,5 +129,20 @@ export const store = {
     state = { ...state, favorites: f };
     persist();
     emit();
+  },
+  // ── 거래처 (admin) ──────────────────────────────────────
+  setClients(next) {
+    state = { ...state, clients: resolve(next, state.clients) };
+    persist();
+    emit();
+  },
+  addClient(c) {
+    this.setClients((prev) => [...prev, c]);
+  },
+  updateClient(c) {
+    this.setClients((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+  },
+  removeClient(id) {
+    this.setClients((prev) => prev.filter((x) => x.id !== id));
   },
 };

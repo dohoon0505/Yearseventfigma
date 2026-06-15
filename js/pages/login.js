@@ -3,6 +3,7 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
+import { resolveRole, setRole } from "../session.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -165,7 +166,9 @@ export function mount(root, { nav }) {
       return;
     }
     clearError();
-    nav("#/app");
+    const role = resolveRole(id, pw); // "admin" | "enterprise" (DEMO gate)
+    setRole(role);
+    nav(role === "admin" ? "#/admin" : "#/app");
   });
 
   const offInput = on(form, "input", "input", () => clearError());

@@ -4,17 +4,23 @@
    Page module contract:  export function mount(container, ctx) -> cleanup
    ============================================================ */
 import { mountShell, unmountShell, setActiveNav } from "./shell.js";
+import { getRole } from "./session.js";
 
 const routes = [
   { hash: "#/", redirect: "#/login" },
   { hash: "#/login",          load: () => import("./pages/login.js"),      shell: false },
   { hash: "#/register",       load: () => import("./pages/register.js"),   shell: false },
+  // ── Enterprise (no role guard — keeps current deep-link behavior) ──
   { hash: "#/app",            load: () => import("./pages/order.js"),      shell: true, nav: "#/app" },
   { hash: "#/app/orders",     load: () => import("./pages/orders.js"),     shell: true, nav: "#/app/orders" },
   { hash: "#/app/invoice",    load: () => import("./pages/invoice.js"),    shell: true, nav: "#/app/invoice" },
   { hash: "#/app/settlement", load: () => import("./pages/settlement.js"), shell: true, nav: "#/app/settlement" },
   { hash: "#/app/profile",    load: () => import("./pages/profile.js"),    shell: true, nav: "#/app/profile" },
   { hash: "#/app/products",   load: () => import("./pages/products.js"),   shell: true, nav: "#/app/products" },
+  // ── Admin (requires admin role; admin shell variant) ──
+  { hash: "#/admin",            load: () => import("./pages/admin-clients.js"),    shell: true, nav: "#/admin",            variant: "admin", requiresRole: "admin" },
+  { hash: "#/admin/settlement", load: () => import("./pages/admin-settlement.js"), shell: true, nav: "#/admin/settlement", variant: "admin", requiresRole: "admin" },
+  { hash: "#/admin/orders",     load: () => import("./pages/admin-orders.js"),     shell: true, nav: "#/admin/orders",     variant: "admin", requiresRole: "admin" },
 ];
 
 let appRoot = null;
@@ -44,6 +50,12 @@ async function render() {
     return;
   }
 
+  // Role guard (DEMO gate — see session.js). Only admin routes are gated.
+  if (route.requiresRole && getRole() !== route.requiresRole) {
+    location.replace("#/login");
+    return;
+  }
+
   const my = ++token;
 
   // Tear down the previous page (timers, listeners, modals).
@@ -58,7 +70,7 @@ async function render() {
 
   let target;
   if (route.shell) {
-    target = mountShell(appRoot);
+    target = mountShell(appRoot, route.variant || "enterprise");
     setActiveNav(route.nav);
   } else {
     unmountShell();

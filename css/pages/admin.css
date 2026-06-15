@@ -1,0 +1,62 @@
+/* ============================================================
+   admin.css — ADMIN console pages (거래처 관리/정산/주문)
+   Reuses the enterprise design system; only admin-specific bits here.
+   ============================================================ */
+.page-admin {
+  padding: 24px;
+}
+.admin-inner {
+  width: 1300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* selector row (settlement year/month + client pickers) */
+.admin-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-controls .select {
+  width: auto;
+  min-width: 160px;
+}
+.admin-controls__label {
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+  font-weight: var(--fw-medium);
+}
+.admin-summary {
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+}
+.admin-summary strong {
+  color: var(--c-text-strong);
+}
+.admin-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--c-text-ghost);
+  font-size: var(--fs-14);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+/* read-only field (e.g. accountId when editing a client) */
+.ofield__input.is-readonly {
+  background: var(--c-surface-3);
+  color: var(--c-text-muted);
+  cursor: not-allowed;
+}
+
+/* 3-check column header help row (settlement) */
+.admin-checkhdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
