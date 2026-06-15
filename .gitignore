@@ -1,0 +1,6 @@
+# Local-only React archive (originals also preserved in git history @ bace7c9d)
+React-Backup/
+
+# Tooling / test artifacts
+.playwright-mcp/
+node_modules/
