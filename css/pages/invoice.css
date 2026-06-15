@@ -1,0 +1,282 @@
+/* ============================================================
+   invoice.css — InvoiceView outer page + control panel + modals
+   (A4 document itself is inline-styled for print fidelity)
+   ============================================================ */
+.page-invoice {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  background: #f0f2f5;
+  min-height: 100%;
+  overflow-x: auto;
+  align-items: flex-start;
+}
+.invoice-card {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.invoice-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+}
+
+.invoice-dl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--c-blue);
+  color: #fff;
+  border-radius: var(--r-md);
+  padding: 16px 20px;
+  transition: background 0.15s, opacity 0.15s;
+}
+.invoice-dl:hover {
+  background: #3558c4;
+}
+.invoice-dl__txt {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.invoice-info {
+  background: var(--c-surface);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.invoice-info__title {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+.invoice-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.invoice-period__chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--c-blue);
+  background: #f0f3ff;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+.invoice-period__chip span {
+  font-size: var(--fs-13);
+  color: var(--c-blue);
+  font-weight: var(--fw-semibold);
+}
+.invoice-period__btn {
+  padding: 8px 12px;
+  background: var(--c-text-3);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.invoice-period__btn:hover {
+  background: var(--c-text-strong);
+}
+.invoice-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+}
+.invoice-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.invoice-stat > span:first-child {
+  font-size: var(--fs-12);
+  color: var(--c-text-4);
+}
+.invoice-stat__v {
+  font-size: var(--fs-14);
+  color: var(--c-text);
+  font-weight: var(--fw-semibold);
+}
+.invoice-stat__due {
+  font-size: var(--fs-12);
+  color: var(--c-orange);
+  font-weight: var(--fw-bold);
+}
+.invoice-stat__done {
+  font-size: var(--fs-12);
+  color: var(--c-success);
+  font-weight: var(--fw-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.invoice-stat__need {
+  font-size: var(--fs-12);
+  color: var(--c-orange);
+  font-weight: var(--fw-medium);
+}
+.invoice-agree {
+  border: 1px solid var(--c-border-input-2);
+  background: var(--c-bg);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: var(--fs-12);
+  transition: background 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.invoice-agree:hover:not(.is-agreed) {
+  background: #f0f3ff;
+  border-color: var(--c-blue);
+}
+.invoice-agree.is-agreed {
+  border-color: var(--c-success);
+  background: #f0fff4;
+  cursor: default;
+}
+.invoice-agree__need {
+  color: var(--c-text-3);
+  display: block;
+  text-align: center;
+}
+.invoice-agree__done {
+  color: var(--c-success);
+  font-weight: var(--fw-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* ── Period modal ───────────────────────────────────────── */
+.pmodal {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.pmodal__selects {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.pmodal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.pmodal__field label {
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
+}
+.pmodal__field .select {
+  padding: 10px 12px;
+  font-size: var(--fs-14);
+}
+.pmodal__preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0f3ff;
+  border: 1px solid #c5ceff;
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.pmodal__preview span {
+  font-size: var(--fs-13);
+  color: var(--c-blue);
+}
+.pmodal__foot,
+.amodal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.pmodal__ok {
+  padding: 8px 16px;
+  background: var(--c-blue);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.pmodal__ok:hover {
+  background: #3558c4;
+}
+
+/* ── Agreement modal ────────────────────────────────────── */
+.amodal {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.amodal__summary {
+  background: #f9f9fb;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.amodal__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-13);
+}
+.amodal__row > span:first-child {
+  color: var(--c-text-4);
+}
+.amodal__val {
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+.amodal__warn {
+  background: #fffbf0;
+  border: 1px solid #f2e0a0;
+  border-radius: 4px;
+  padding: 12px 16px;
+}
+.amodal__warn p {
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+  line-height: 1.7;
+}
+.amodal__ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--c-success);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  transition: background 0.15s;
+}
+.amodal__ok:hover {
+  background: #388e3c;
+}

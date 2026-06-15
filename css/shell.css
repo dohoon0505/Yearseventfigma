@@ -1,0 +1,153 @@
+/* ============================================================
+   shell.css — header + sidebar + main (ports Layout.tsx)
+   ============================================================ */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--c-surface);
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-h);
+  flex-shrink: 0;
+  padding: 0 var(--sp-7);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  box-shadow: var(--sh-header);
+}
+
+.shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.shell__logo {
+  height: 32px;
+  object-fit: contain;
+}
+
+.shell__sep {
+  width: 1px;
+  height: 20px;
+  background: var(--c-divider);
+}
+
+/* ── Sidebar ────────────────────────────────────────────── */
+.shell__body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.shell__sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
+  overflow-y: auto;
+}
+
+.shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  padding: var(--sp-4);
+  flex: 1;
+}
+
+.shell__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.shell__group-title {
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.shell__group-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.shell__link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px var(--sp-4);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.shell__link img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.shell__link span {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  color: var(--c-text-2);
+}
+.shell__link:hover {
+  background: var(--c-surface-hover-2);
+}
+.shell__link.is-active {
+  background: var(--c-sidebar-active-bg);
+}
+.shell__link.is-active span {
+  color: var(--c-sidebar-active-fg);
+}
+
+.shell__logout-wrap {
+  padding: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+}
+.shell__logout {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 9px var(--sp-4);
+  border-radius: var(--r-md);
+  transition: background-color 0.15s;
+}
+.shell__logout img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.shell__logout span {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-muted);
+  white-space: nowrap;
+}
+.shell__logout:hover {
+  background: var(--c-surface-hover-2);
+}
+
+/* ── Main content ───────────────────────────────────────── */
+.shell__main {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--c-bg);
+  outline: none;
+}
