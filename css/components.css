@@ -208,6 +208,10 @@
   background: var(--c-blue-soft);
   color: var(--c-blue);
 }
+.pill--gray {
+  background: var(--c-surface-3);
+  color: var(--c-text-muted);
+}
 
 /* ── Modal (ports Modal.tsx) ────────────────────────────── */
 .modal-overlay {
