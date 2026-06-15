@@ -104,6 +104,13 @@
   --ring: 0 0 0 3px rgba(241, 90, 42, 0.09);
   --ring-blue: 0 0 0 3px rgba(65, 105, 225, 0.12);
   --ring-error: 0 0 0 3px rgba(244, 67, 54, 0.1);
+  --ring-field: 0 0 0 3px rgba(79, 70, 229, 0.14); /* indigo focus ring */
+
+  /* ── Text field (design-system Text Field component) ───── */
+  --c-indigo: #4f46e5;          /* interactive-brand — field focus */
+  --c-indigo-hover: #4338ca;
+  --c-border-field: #e6e9f0;    /* neutral-30 — field rest border */
+  --c-border-field-strong: #cdd3e0; /* field hover border */
 
   /* ── Layout ────────────────────────────────────────────── */
   --header-h: 62px;

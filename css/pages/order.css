@@ -451,26 +451,26 @@
 }
 .ofield__input {
   width: 100%;
-  border: 1px solid var(--c-border-input);
-  border-radius: var(--r-md);
-  padding: 10px 12px;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-xl);
+  padding: 11px 13px;
   font-size: var(--fs-14);
   color: var(--c-text);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .ofield__input.has-icon {
-  padding-left: 36px;
+  padding-left: 38px;
 }
 .ofield__input::placeholder {
   color: var(--c-text-faint);
 }
 .ofield__input:hover:not(:focus):not(:disabled):not(.is-readonly) {
-  border-color: var(--c-border-input-2);
+  border-color: var(--c-border-field-strong);
 }
 .ofield__input:focus {
-  border-color: var(--c-orange);
-  box-shadow: var(--ring);
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
 }
 .ofield__input.is-error {
   border-color: var(--c-danger);
@@ -1025,20 +1025,22 @@
 }
 .rib-textarea {
   width: 100%;
-  border: 1px solid var(--c-border-input-2);
-  border-radius: 4px;
-  padding: 10px 12px;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-xl);
+  padding: 11px 13px;
   font-size: var(--fs-13);
-  color: var(--c-text-2);
+  color: var(--c-text);
   outline: none;
   resize: none;
   font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .rib-textarea:focus {
-  border-color: var(--c-blue);
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
 }
 .rib-textarea::placeholder {
-  color: #bbb;
+  color: var(--c-text-faint);
 }
 .rib-count {
   font-size: var(--fs-11);
@@ -1201,12 +1203,13 @@
 }
 .quick-url-input input {
   width: 100%;
-  border: 1px solid var(--c-border-input-2);
-  border-radius: 4px;
-  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-xl);
+  padding: 11px 13px 11px 38px;
   font-size: var(--fs-13);
-  color: var(--c-text-2);
+  color: var(--c-text);
   outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .quick-url-input.error input {
   border-color: var(--c-danger);
@@ -1218,8 +1221,8 @@
 }
 .quick-url-input.idle input:focus,
 .quick-url-input.loading input:focus {
-  border-color: var(--c-blue);
-  box-shadow: var(--ring-blue);
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
 }
 .quick-lookup {
   flex-shrink: 0;
