@@ -1,22 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>올해의경조사 — Enterprise Service</title>
+    <link rel="icon" href="./assets/logo.png" />
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>사이트 퍼블리싱</title>
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      <script>
-        (function() {
-          var p = new URLSearchParams(location.search).get('p');
-          if (p) history.replaceState(null, null, '/' + p.replace(/~and~/g, '&') + location.hash);
-        })();
-      </script>
-    </head>
+    <!-- Pretendard (CDN) -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+    <!-- App styles (global → page-scoped) -->
+    <link rel="stylesheet" href="./css/tokens.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/shell.css" />
+    <link rel="stylesheet" href="./css/pages/auth.css" />
+    <link rel="stylesheet" href="./css/pages/order.css" />
+    <link rel="stylesheet" href="./css/pages/orders.css" />
+    <link rel="stylesheet" href="./css/pages/invoice.css" />
+    <link rel="stylesheet" href="./css/pages/settlement.css" />
+    <link rel="stylesheet" href="./css/pages/profile.css" />
+    <link rel="stylesheet" href="./css/pages/products.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>

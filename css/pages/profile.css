@@ -1,0 +1,339 @@
+/* ============================================================
+   profile.css — ProfileStorage (프로필/담당자 저장공간)
+   ============================================================ */
+.page-profile {
+  padding: 24px;
+}
+.profile-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.psec {
+  width: 1300px;
+}
+.psec-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.psec-title__l {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.psec-bar {
+  width: 3px;
+  height: 18px;
+  background: var(--c-blue);
+  border-radius: 999px;
+  display: inline-block;
+}
+.psec-titletext {
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+.psec-addbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--c-blue);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.psec-addbtn:hover {
+  background: #3558c4;
+}
+
+/* table action buttons */
+.ptbl-edit,
+.ptbl-del {
+  display: inline-flex;
+  padding: 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ptbl-edit {
+  color: var(--c-blue);
+}
+.ptbl-edit:hover {
+  background: #e8edff;
+}
+.ptbl-del {
+  color: var(--c-danger);
+}
+.ptbl-del:hover {
+  background: #ffeded;
+}
+
+/* ── form divider ───────────────────────────────────────── */
+.pform-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.pform-divider span:first-child {
+  font-size: var(--fs-12);
+  color: var(--c-text-ghost);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.pform-divider__line {
+  flex: 1;
+  height: 1px;
+  background: #eeeeee;
+}
+
+/* ── New profile/contact modal ──────────────────────────── */
+.modal-panel--pnew {
+  max-width: 520px;
+}
+.pnew__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+.pnew__head-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-lg);
+  background: var(--c-blue-soft-2);
+  color: var(--c-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pnew__head h2 {
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+.pnew__head p {
+  font-size: var(--fs-13);
+  color: var(--c-text-ghost);
+  margin-top: 2px;
+}
+.pnew__body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.pnew__preview:empty {
+  display: none;
+}
+.pnew__preview {
+  border-radius: var(--r-md);
+  background: #f8f9ff;
+  border: 1px solid #dce2fb;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pnew__preview-lbl {
+  font-size: var(--fs-12);
+  color: var(--c-blue);
+  font-weight: var(--fw-medium);
+}
+.pnew__preview-val {
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+  font-weight: var(--fw-medium);
+}
+.pnew__info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fffbf0;
+  border: 1px solid #f2e0a0;
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.pnew__info .icon {
+  color: #e6a817;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.pnew__info p {
+  font-size: var(--fs-13);
+  color: var(--c-text-muted);
+  line-height: 1.6;
+}
+.pnew__info strong {
+  color: var(--c-text-4);
+}
+.pnew__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid var(--c-border);
+  background: var(--c-surface-hover);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.pnew__req {
+  font-size: var(--fs-13);
+  color: var(--c-text-faint);
+}
+.pnew__foot-btns {
+  display: flex;
+  gap: 8px;
+}
+.pnew__ok {
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  background: var(--c-border);
+  color: var(--c-text-faint);
+  cursor: not-allowed;
+  transition: background 0.15s;
+}
+.pnew__ok.is-on {
+  background: var(--c-blue);
+  color: #fff;
+  cursor: pointer;
+}
+.pnew__ok.is-on:hover {
+  background: #3558c4;
+}
+
+/* message receive radio cards */
+.pmsg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--c-border-input-2);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pmsg.is-sel {
+  border-color: var(--c-blue);
+  background: var(--c-blue-soft);
+}
+.pmsg:not(.is-sel):hover {
+  border-color: #a0a8d9;
+}
+.pmsg input {
+  accent-color: var(--c-blue);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.pmsg__t {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+}
+.pmsg.is-sel .pmsg__t {
+  color: var(--c-blue);
+}
+.pmsg__d {
+  font-size: var(--fs-12);
+  color: var(--c-text-ghost);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+.pmsg-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px;
+  padding: 10px 12px;
+  border: 1px solid;
+}
+.pmsg-status span {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+.pmsg-status.on {
+  background: var(--c-success-bg);
+  border-color: #a5d6a7;
+  color: var(--c-success-ink);
+}
+.pmsg-status.off {
+  background: var(--c-surface-3);
+  border-color: var(--c-border);
+  color: var(--c-text-ghost);
+}
+
+/* ── Edit modal ─────────────────────────────────────────── */
+.modal-panel--pedit {
+  max-width: 512px;
+}
+.pedit {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pedit__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+.pedit__save {
+  padding: 8px 16px;
+  background: var(--c-blue);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.pedit__save:hover {
+  background: #3558c4;
+}
+
+/* ── Delete modal ───────────────────────────────────────── */
+.pdel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.pdel__msg p {
+  font-size: var(--fs-15);
+  color: var(--c-text-2);
+}
+.pdel__msg strong {
+  color: var(--c-text);
+}
+.pdel__sub {
+  font-size: var(--fs-14);
+  color: var(--c-text-ghost);
+  margin-top: 8px;
+}
+.pdel__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.pdel__del {
+  padding: 8px 16px;
+  background: var(--c-danger);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.pdel__del:hover {
+  background: #d32f2f;
+}

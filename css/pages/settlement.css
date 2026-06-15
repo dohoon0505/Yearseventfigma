@@ -1,0 +1,268 @@
+/* ============================================================
+   settlement.css — SettlementView (정산회계 간편조회)
+   ============================================================ */
+.page-settlement {
+  padding: 24px;
+}
+.settle-inner {
+  width: 1300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settle-head .page-title {
+  margin-bottom: 0;
+}
+.settle-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--c-border-input-2);
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.settle-edit-btn:hover {
+  background: var(--c-surface-3);
+}
+
+/* ── Company info ───────────────────────────────────────── */
+.settle-company {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.settle-inforow {
+  display: flex;
+  border-bottom: 1px solid var(--c-border);
+}
+.settle-inforow:last-child {
+  border-bottom: none;
+}
+.settle-infocell {
+  display: flex;
+}
+.settle-infocell.has-border {
+  border-left: 1px solid var(--c-border);
+}
+.settle-infolabel {
+  width: 120px;
+  flex-shrink: 0;
+  background: var(--c-surface-3);
+  padding: 10px 12px;
+  font-size: var(--fs-14);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
+  border-right: 1px solid var(--c-border);
+}
+.settle-infoval {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+}
+
+/* ── Notice ─────────────────────────────────────────────── */
+.settle-notice {
+  background: #fffbf0;
+  border: 1px solid #f2e0a0;
+  border-radius: 4px;
+  padding: 12px 16px;
+}
+.settle-notice p {
+  font-size: var(--fs-13);
+  color: #777;
+  line-height: 1.7;
+}
+
+/* ── Table ──────────────────────────────────────────────── */
+.settle-table {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.settle-thead {
+  display: grid;
+  background: var(--c-surface-3);
+  border-bottom: 1px solid var(--c-border);
+}
+.settle-th {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: var(--fs-14);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
+  border-right: 1px solid var(--c-border);
+}
+.settle-th:last-child {
+  border-right: 0;
+}
+.settle-trow {
+  display: grid;
+  border-bottom: 1px solid var(--c-border);
+  transition: background 0.15s;
+}
+.settle-trow:last-child {
+  border-bottom: 0;
+}
+.settle-trow:hover {
+  background: var(--c-surface-hover);
+}
+.settle-td {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-right: 1px solid var(--c-border);
+  min-width: 0;
+}
+.settle-td:last-child {
+  border-right: 0;
+}
+.settle-td--muted {
+  font-size: var(--fs-14);
+  color: var(--c-text-4);
+  white-space: nowrap;
+}
+.settle-td--clip {
+  overflow: hidden;
+}
+.settle-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--c-blue);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.settle-link:hover {
+  text-decoration: underline;
+}
+.settle-amount {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+.settle-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.settle-badge--warn {
+  background: var(--c-warn-soft-bg);
+  color: var(--c-warn-soft-ink);
+}
+.settle-badge--ok {
+  background: var(--c-success-bg);
+  color: var(--c-success-ink);
+}
+.settle-badge--danger {
+  background: var(--c-danger-bg);
+  color: var(--c-danger-ink);
+}
+
+/* ── Company edit modal ─────────────────────────────────── */
+.modal-panel--cedit {
+  max-width: 560px;
+}
+.cedit__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+.cedit__head-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-lg);
+  background: var(--c-blue-soft-2);
+  color: var(--c-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cedit__head h2 {
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+.cedit__head p {
+  font-size: var(--fs-13);
+  color: var(--c-text-ghost);
+  margin-top: 2px;
+}
+.cedit__body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.cedit__section {
+  display: flex;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.cedit__section span {
+  font-size: var(--fs-12);
+  color: var(--c-text-ghost);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+}
+.cedit__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cedit__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--c-border);
+}
+.cedit__save {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  background: var(--c-border);
+  color: var(--c-text-faint);
+  cursor: not-allowed;
+  transition: background 0.15s;
+}
+.cedit__save.is-on {
+  background: var(--c-blue);
+  color: #fff;
+  cursor: pointer;
+}
+.cedit__save.is-on:hover {
+  background: #3558c4;
+}
+.cedit__save.is-saved {
+  background: var(--c-success);
+  color: #fff;
+  cursor: default;
+}
