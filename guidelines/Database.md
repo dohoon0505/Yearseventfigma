@@ -1,9 +1,9 @@
 # 올해의경조사 — 데이터 구조 명세
 
-> 현재 시스템은 백엔드 없이 React Context(`AppContext.tsx`)에 목업 데이터를 보관합니다.
+> 현재 시스템은 백엔드 없이 경량 스토어(`js/store.js`) + `localStorage`에 목업 데이터를 보관합니다.
 > 이 문서는 현재 목업 구조와, 실제 DB로 전환 시 권장 스키마를 함께 기술합니다.
 >
-> **최종 업데이트**: 2026-04-14
+> **최종 업데이트**: 2026-06-15
 
 ---
 
@@ -11,7 +11,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    AppContext.tsx                        │
+│              js/store.js  (localStorage 영속)             │
 │                                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │   profiles   │  │   contacts   │  │  favorites   │  │
@@ -20,11 +20,12 @@
 │                                                          │
 │  ALL_PRODUCTS: Product[]  (정적 상수, 변경 불가)          │
 └──────────────────────────────────────────────────────────┘
-         ↕ useAppStore() hook으로 전 페이지에서 접근
+         ↕ store.get() / store.subscribe() 로 전 페이지에서 접근
+         ↕ localStorage 키: yeop.store.v1
 ```
 
-- **영속성 없음**: 페이지 새로고침 시 초기값으로 리셋됨
-- **API 없음**: 모든 CRUD는 `useState` setter로 메모리 내에서만 처리
+- **영속성**: profiles/contacts/favorites는 `localStorage`(`yeop.store.v1`)에 저장 — 새로고침 후 유지. 손상 JSON은 기본값으로 자가복구.
+- **API 없음**: CRUD는 store mutator(`setProfiles`/`setContacts`/`toggleFavorite`)로 처리하며 변경 즉시 persist + 구독자에 emit.
 
 ---
 
@@ -147,8 +148,8 @@ type Contact = {
 
 ```
 [ProfileStorage 페이지]
-  → 프로필 추가/수정/삭제 → setProfiles() → AppContext 업데이트
-  → 연락처 추가/수정/삭제 → setContacts() → AppContext 업데이트
+  → 프로필 추가/수정/삭제 → store.setProfiles() → localStorage 영속
+  → 연락처 추가/수정/삭제 → store.setContacts() → localStorage 영속
 
 [OrderPage]
   → contacts 읽기 → 담당자 선택
@@ -324,9 +325,9 @@ invoices ── settlements   (1:1)
 
 | 항목 | 현재 | 전환 후 |
 |------|------|---------|
-| 프로필 저장 | `useState` (메모리) | `POST /api/profiles` |
-| 연락처 저장 | `useState` (메모리) | `POST /api/managers` |
-| 즐겨찾기 저장 | `Set<string>` (메모리) | `POST /api/favorites` |
+| 프로필 저장 | `store` + localStorage | `POST /api/profiles` |
+| 연락처 저장 | `store` + localStorage | `POST /api/managers` |
+| 즐겨찾기 저장 | `Set<string>` + localStorage | `POST /api/favorites` |
 | 상품 목록 | 정적 상수 배열 | `GET /api/products` |
 | 주문 접수 | 로컬 상태만 변경 | `POST /api/orders` |
 | 인증 | 없음 (바로 이동) | JWT + refresh token |
