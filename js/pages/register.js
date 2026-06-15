@@ -3,6 +3,7 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
+import { store } from "../store.js";
 
 const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
 const BENEFITS = [
@@ -266,8 +267,26 @@ export function mount(root, { nav }) {
   function goNext() {
     if (state.step === 1 && check({ userId: "아이디를 입력해주세요", password: "비밀번호를 입력해주세요", passwordConfirm: "비밀번호를 확인해주세요" })) state.step = 2;
     else if (state.step === 2 && check({ managerName: "담당자명을 입력해주세요", department: "부서·직위를 입력해주세요", contact: "연락처를 입력해주세요" })) state.step = 3;
-    else if (state.step === 3 && check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" })) state.step = "done";
+    else if (state.step === 3 && check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" })) {
+      registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
+      state.step = "done";
+    }
     renderWizard();
+  }
+
+  function registerClient() {
+    const f = state.form;
+    const clients = store.get().clients;
+    const max = clients.reduce((m, c) => Math.max(m, parseInt(String(c.id).replace(/\D/g, ""), 10) || 0), 0);
+    const id = "C" + String(max + 1).padStart(3, "0");
+    const d = new Date();
+    const joinDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    store.addClient({
+      id, accountId: f.userId, password: f.password,
+      companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
+      managerName: f.managerName, department: f.department, contact: f.contact,
+      email: f.email, address: f.address, status: "승인대기", joinDate,
+    });
   }
 
   function goPrev() {

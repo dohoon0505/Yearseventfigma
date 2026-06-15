@@ -1,16 +1,22 @@
 /* ============================================================
    admin-clients.js — 거래처 정보관리
-   거래처 리스트 + 상세/수정 모달(생성·수정) + 삭제. store.clients(영속).
-   settlement.js cedit/.ofield + profile.js CRUD 패턴 재사용.
+   상단 필터(상태 탭 + 검색) · 가입 승인/거부 워크플로 · 상세/수정/생성/삭제.
+   store.clients(영속). settlement cedit/.ofield + profile CRUD 패턴 재사용.
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal } from "../ui.js";
 
-const STATUS_OPTS = ["활성", "승인대기", "정지"];
+const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
+const TABS = [
+  { value: "all", label: "전체" },
+  { value: "활성", label: "활성" },
+  { value: "승인대기", label: "승인대기" },
+  { value: "정지", label: "정지" },
+  { value: "반려", label: "반려" },
+];
 
-// modal field config (grid:true 인접 2개는 2열로 묶임 — cedit 패턴)
 const FIELDS = [
   { section: "계정 정보" },
   { key: "accountId", label: "접속 아이디", icon: "user", grid: true, lockOnEdit: true, required: true },
@@ -31,10 +37,8 @@ const FIELDS = [
 ];
 const REQUIRED = FIELDS.filter((f) => f.required).map((f) => f.key);
 
-const statusPill = (s) => {
-  const cls = s === "활성" ? "pill--success" : s === "정지" ? "pill--danger" : "pill--warn";
-  return html`<span class="pill ${cls}">${s}</span>`;
-};
+const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
+const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s}</span>`;
 
 function nextId(clients) {
   const max = clients.reduce((m, c) => Math.max(m, parseInt(String(c.id).replace(/\D/g, ""), 10) || 0), 0);
@@ -46,28 +50,76 @@ function todayStr() {
 }
 
 export function mount(root, { nav }) {
+  const state = { tab: "all", search: "" };
   let activeModal = null;
   let saveTimer = null;
+  let toastEl = null;
+  let toastTimer = null;
+
   function closeModal() {
     if (activeModal) { activeModal.close(); activeModal = null; }
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  }
+  function toast(msg, kind = "ok") {
+    if (toastEl) toastEl.remove();
+    if (toastTimer) clearTimeout(toastTimer);
+    toastEl = el(html`<div class="admin-toast admin-toast--${kind}">${icon(kind === "warn" ? "alert-circle" : "check-circle", { size: 16 })}<span>${msg}</span></div>`);
+    document.body.appendChild(toastEl);
+    toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
+  }
+
+  function filtered() {
+    const q = state.search.trim();
+    return store.get().clients.filter((c) => {
+      if (state.tab !== "all" && c.status !== state.tab) return false;
+      if (q && !(c.companyName.includes(q) || c.bizNumber.includes(q) || c.managerName.includes(q))) return false;
+      return true;
+    });
   }
 
   const columns = [
     { label: "순번", width: "56px", align: "center", render: (r, i) => String(i + 1).padStart(2, "0") },
     { label: "회사명", width: "1fr", render: (r) => html`<div class="ellipsis">${r.companyName}</div>` },
-    { label: "사업자번호", width: "130px", align: "center", render: (r) => r.bizNumber },
-    { label: "대표자명", width: "90px", align: "center", render: (r) => r.ceoName },
-    { label: "담당자", width: "90px", align: "center", render: (r) => r.managerName },
-    { label: "연락처", width: "140px", align: "center", render: (r) => r.contact },
+    { label: "사업자번호", width: "128px", align: "center", render: (r) => r.bizNumber },
+    { label: "대표자명", width: "84px", align: "center", render: (r) => r.ceoName },
+    { label: "담당자", width: "84px", align: "center", render: (r) => r.managerName },
+    { label: "연락처", width: "136px", align: "center", render: (r) => r.contact },
     { label: "상태", width: "92px", align: "center", render: (r) => statusPill(r.status) },
-    { label: "가입일", width: "110px", align: "center", render: (r) => r.joinDate },
-    { label: "수정", width: "56px", align: "center", render: (r) => html`<button class="ptbl-edit" data-action="edit" data-id="${r.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>` },
-    { label: "삭제", width: "56px", align: "center", render: (r) => html`<button class="ptbl-del" data-action="del" data-id="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>` },
+    { label: "가입일", width: "108px", align: "center", render: (r) => r.joinDate },
+    {
+      label: "관리", width: "148px", align: "center",
+      render: (r) =>
+        r.status === "승인대기"
+          ? html`<div class="admin-rowact">
+              <button class="btn-approve" data-action="approve" data-id="${r.id}">승인</button>
+              <button class="btn-reject" data-action="reject" data-id="${r.id}">거부</button>
+            </div>`
+          : html`<div class="admin-rowact">
+              <button class="ptbl-edit" data-action="edit" data-id="${r.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
+              <button class="ptbl-del" data-action="del" data-id="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
+            </div>`,
+    },
   ];
 
-  function render() {
+  function tableBody() {
+    const rows = filtered();
+    if (rows.length === 0) return html`<div class="admin-empty">조건에 맞는 거래처가 없습니다.</div>`;
+    return tableGrid({ columns, rows, rowKey: (r) => r.id, compact: true });
+  }
+  function summaryBody() {
+    return html`조회 <strong>${filtered().length}</strong>개 거래처`;
+  }
+  function tabsBody() {
     const clients = store.get().clients;
+    return TABS.map((t) => {
+      const count = t.value === "all" ? clients.length : clients.filter((c) => c.status === t.value).length;
+      const active = state.tab === t.value;
+      const alert = t.value === "승인대기" && count > 0;
+      return html`<button class="chip ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}">${t.label}<span class="admin-tab-count ${alert ? "admin-tab-count--alert" : ""}">${count}</span></button>`;
+    });
+  }
+
+  function render() {
     setHTML(
       root,
       html`
@@ -78,15 +130,30 @@ export function mount(root, { nav }) {
               title: "거래처 정보관리",
               action: html`<button class="btn btn-secondary" data-action="new">${icon("user-plus", { size: 14 })} 신규 거래처 등록</button>`,
             })}
-            <p class="admin-summary">총 <strong>${clients.length}</strong>개 거래처</p>
-            ${tableGrid({ columns, rows: clients, rowKey: (r) => r.id, compact: true })}
+            <div class="admin-filterbar">
+              <div class="admin-tabs" data-slot="tabs">${tabsBody()}</div>
+              <div class="admin-search">
+                ${icon("search", { size: 14 })}
+                <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자 검색" />
+              </div>
+            </div>
+            <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
+            <div data-slot="table">${tableBody()}</div>
           </div>
         </div>
       `
     );
   }
+  const refreshList = () => {
+    const tabs = qs(root, "[data-slot='tabs']");
+    const sum = qs(root, "[data-slot='summary']");
+    const tbl = qs(root, "[data-slot='table']");
+    if (tabs) setHTML(tabs, tabsBody());
+    if (sum) setHTML(sum, summaryBody());
+    if (tbl) setHTML(tbl, tableBody());
+  };
 
-  // ── shared create/edit modal ───────────────────────────
+  // ── create/edit modal ──────────────────────────────────
   function field(f, form, isEdit) {
     if (f.type === "select") {
       return html`
@@ -104,15 +171,7 @@ export function mount(root, { nav }) {
         <label class="ofield__lbl" for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}</label>
         <div class="ofield__wrap">
           ${icon(f.icon, { size: 14, cls: "ofield__icon" })}
-          <input
-            class="ofield__input has-icon ${ro ? "is-readonly" : ""}"
-            id="cf-${f.key}"
-            data-cf="${f.key}"
-            type="text"
-            value="${form[f.key] ?? ""}"
-            placeholder="${f.placeholder ?? f.label}"
-            ${ro ? "readonly" : ""}
-          />
+          <input class="ofield__input has-icon ${ro ? "is-readonly" : ""}" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.placeholder ?? f.label}" ${ro ? "readonly" : ""} />
         </div>
       </div>
     `;
@@ -149,6 +208,9 @@ export function mount(root, { nav }) {
             <p>${isEdit ? "거래처 계정·회사·담당자 정보를 수정합니다." : "신규 거래처 계정과 정보를 등록합니다."}</p>
           </div>
         </div>
+        ${isEdit && form.status === "반려" && form.rejectReason
+          ? html`<div class="cedit__rejectnote">거부 사유: ${form.rejectReason}</div>`
+          : ""}
         <div class="cedit__body">${fieldsHtml()}</div>
         <div class="cedit__foot">
           <button class="btn-cancel" data-action="close">취소</button>
@@ -179,6 +241,42 @@ export function mount(root, { nav }) {
     });
   }
 
+  // ── approve / reject ───────────────────────────────────
+  function approve(client) {
+    store.updateClient({ ...client, status: "활성", rejectReason: undefined });
+    refreshList();
+    toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
+  }
+
+  function openReject(client) {
+    closeModal();
+    const body = html`
+      <div class="areject">
+        <p class="areject__msg"><strong>${client.companyName}</strong> 거래처의 가입을 거부합니다.</p>
+        <div class="ofield">
+          <label class="ofield__lbl">거부 사유<span class="req">*</span></label>
+          <textarea class="textarea" data-reason rows="3" placeholder="거부 사유를 입력하세요. 담당자에게 통보됩니다."></textarea>
+        </div>
+        <div class="areject__foot">
+          <button class="btn-cancel" data-action="close">취소</button>
+          <button class="areject__confirm" data-action="do-reject" disabled>거부 처리</button>
+        </div>
+      </div>
+    `;
+    activeModal = simpleModal({ title: "가입 거부", body, onClose: () => {} });
+    const ta = qs(activeModal.panel, "[data-reason]");
+    const btn = qs(activeModal.panel, "[data-action='do-reject']");
+    on(activeModal.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
+    on(activeModal.panel, "click", "[data-action='do-reject']", () => {
+      const reason = ta.value.trim();
+      if (!reason) return;
+      store.updateClient({ ...client, status: "반려", rejectReason: reason });
+      closeModal();
+      refreshList();
+      toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
+    });
+  }
+
   function openDelete(client) {
     closeModal();
     const body = html`
@@ -197,19 +295,38 @@ export function mount(root, { nav }) {
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       store.removeClient(client.id);
       closeModal();
-      render();
+      refreshList();
+      toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
     });
   }
 
   render();
 
-  const off = on(root, "click", "[data-action]", (e, t) => {
+  const findClient = (id) => store.get().clients.find((c) => c.id === id);
+  const offClick = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
+    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
     if (a === "new") return openClientModal(null);
-    const client = store.get().clients.find((c) => c.id === t.dataset.id);
-    if (a === "edit" && client) openClientModal(client);
-    else if (a === "del" && client) openDelete(client);
+    const c = findClient(t.dataset.id);
+    if (!c) return;
+    if (a === "edit") openClientModal(c);
+    else if (a === "del") openDelete(c);
+    else if (a === "approve") approve(c);
+    else if (a === "reject") openReject(c);
+  });
+  const offSearch = on(root, "input", "[data-search]", (e, t) => {
+    state.search = t.value;
+    const sum = qs(root, "[data-slot='summary']");
+    const tbl = qs(root, "[data-slot='table']");
+    if (sum) setHTML(sum, summaryBody());
+    if (tbl) setHTML(tbl, tableBody());
   });
 
-  return () => { off(); closeModal(); };
+  return () => {
+    offClick();
+    offSearch();
+    closeModal();
+    if (toastEl) toastEl.remove();
+    if (toastTimer) clearTimeout(toastTimer);
+  };
 }

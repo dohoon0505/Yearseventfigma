@@ -60,3 +60,182 @@
   font-size: var(--fs-13);
   color: var(--c-text-3);
 }
+
+/* ── Top filter bar (clients + settlement) ──────────────── */
+.admin-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+  color: var(--c-text-muted);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+}
+.chip.is-active .admin-tab-count {
+  background: rgba(241, 90, 42, 0.15);
+  color: var(--c-orange-ink);
+}
+.admin-tab-count--alert {
+  background: var(--c-warn-soft-bg);
+  color: var(--c-warn-soft-ink);
+}
+.admin-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--c-border-input);
+  border-radius: var(--r-md);
+  padding: 7px 12px;
+  background: var(--c-surface);
+  min-width: 260px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.admin-search:focus-within {
+  border-color: var(--c-orange);
+  box-shadow: var(--ring);
+}
+.admin-search .icon {
+  color: var(--c-text-faint);
+}
+.admin-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: var(--fs-14);
+  color: var(--c-text);
+}
+.admin-search input::placeholder {
+  color: var(--c-text-faint);
+}
+
+/* ── Row actions (approve / reject) ─────────────────────── */
+.admin-rowact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-approve {
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
+  background: var(--c-success);
+  color: #fff;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  transition: background 0.15s;
+}
+.btn-approve:hover {
+  background: var(--c-success-ink);
+}
+.btn-reject {
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-danger);
+  border: 1px solid var(--c-danger);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.btn-reject:hover {
+  background: var(--c-danger-bg);
+}
+
+/* ── Reject-reason modal ────────────────────────────────── */
+.areject {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.areject__msg {
+  font-size: var(--fs-15);
+  color: var(--c-text-2);
+}
+.areject__msg strong {
+  color: var(--c-text);
+}
+.areject__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.areject__confirm {
+  padding: 8px 16px;
+  background: var(--c-danger);
+  color: #fff;
+  border-radius: 4px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  transition: background 0.15s;
+}
+.areject__confirm:disabled {
+  background: var(--c-border);
+  color: var(--c-text-faint);
+  cursor: not-allowed;
+}
+.areject__confirm:not(:disabled):hover {
+  background: #d32f2f;
+}
+
+/* reject-reason banner in the edit modal */
+.cedit__rejectnote {
+  margin: 0 24px;
+  padding: 10px 14px;
+  background: var(--c-danger-bg);
+  border: 1px solid #f3c0c0;
+  border-radius: var(--r-md);
+  font-size: var(--fs-13);
+  color: var(--c-danger-ink);
+}
+
+/* ── Toast ──────────────────────────────────────────────── */
+.admin-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--r-lg);
+  background: var(--c-text-strong);
+  color: #fff;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--sh-modal);
+  z-index: 60;
+  max-width: 90vw;
+  animation: toastIn 0.2s ease;
+}
+.admin-toast--ok .icon {
+  color: #7be0a0;
+}
+.admin-toast--warn .icon {
+  color: #ffcf80;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
