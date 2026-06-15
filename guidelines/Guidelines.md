@@ -49,12 +49,8 @@ Yearseventfigma/
 │   │       ├── InvoiceView.tsx
 │   │       ├── SettlementView.tsx
 │   │       ├── ProfileStorage.tsx
-│   │       ├── MessageSettings.tsx
 │   │       └── ProductGuide.tsx
 │   ├── assets/                     # 이미지 (PNG, Figma 해시 기반)
-│   ├── imports/
-│   │   ├── Desktop.tsx             # Figma 생성 레이아웃 컴포넌트
-│   │   └── svg-*.ts               # SVG 경로 데이터 (아이콘)
 │   └── styles/
 │       ├── index.css               # 스타일 통합 (fonts → tailwind → theme)
 │       ├── fonts.css               # Pretendard CDN @import
@@ -84,14 +80,13 @@ Yearseventfigma/
   ├── invoice     → InvoiceView.tsx     거래명세서 조회
   ├── settlement  → SettlementView.tsx  정산회계 조회
   ├── profile     → ProfileStorage.tsx  프로필 저장공간
-  ├── messages    → MessageSettings.tsx 메시지 수신설정
   └── products    → ProductGuide.tsx    상품 규격 안내
 ```
 
 **사이드바 메뉴 그룹:**
 - 사용자 메뉴: 경조상품 주문, 실시간 주문내역
 - 정산 메뉴: 거래명세서 조회, 정산회계 조회
-- 관리 메뉴: 프로필 저장공간, 메시지 수신설정, 상품 규격 안내
+- 관리 메뉴: 프로필 저장공간, 상품 규격 안내
 
 ---
 
@@ -153,12 +148,7 @@ Yearseventfigma/
 - 연락처 섹션: 배송 알림 수신 설정 (수신/미수신)
 - `AppContext`의 `profiles`, `contacts` 상태와 연동
 
-### 4.8 MessageSettings (메시지 수신설정)
-
-- 고정 메시지 편집/삭제 기능
-- `DataTable` + `Modal` 기반 CRUD
-
-### 4.9 ProductGuide (상품 규격 안내)
+### 4.8 ProductGuide (상품 규격 안내)
 
 - 카테고리 필터: 전체/경조화환/관엽화분/동서양란/생화
 - 즐겨찾기 체크박스 → `AppContext`의 `favorites` 상태 저장
@@ -357,10 +347,6 @@ interface InfoRow {
 - `figma:asset/해시값.png` 형태로 import
 - Vite가 빌드 시 실제 경로로 변환
 - 원본 이미지는 `src/assets/` 에 해시 파일명으로 저장
-
-### SVG 아이콘
-- `src/imports/svg-*.ts` — 경로 데이터 객체로 export
-- `Desktop.tsx`에서 참조하여 아이콘 렌더링
 
 ### 외부 아이콘
 - **Lucide React**: 페이지 컴포넌트에서 주로 사용
