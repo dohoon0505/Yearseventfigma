@@ -139,13 +139,17 @@
   display: flex;
   align-items: center;
   flex: 1;
-  border: 1px solid var(--c-border-input-2);
-  border-radius: 4px;
+  border: 1px solid var(--c-border-input);
+  border-radius: var(--r-md);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.orders-search:hover:not(:focus-within) {
+  border-color: var(--c-border-input-2);
 }
 .orders-search:focus-within {
   border-color: var(--c-orange);
+  box-shadow: var(--ring);
 }
 .orders-search__lbl {
   display: flex;
@@ -171,7 +175,7 @@
   background: var(--c-surface);
 }
 .orders-search input::placeholder {
-  color: #bbb;
+  color: var(--c-text-faint);
 }
 
 /* ── Notice + count + table ─────────────────────────────── */
