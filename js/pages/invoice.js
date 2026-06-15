@@ -154,14 +154,24 @@ function downloadPDF(el, period) {
     body { display: flex; justify-content: center; background: #fff; }
   </style>
 </head>
-<body>${invoiceHTML}</body>
+<body>${invoiceHTML}
+  <script>
+    (function () {
+      var done = false;
+      function go() { if (done) return; done = true; try { window.focus(); window.print(); } catch (e) {} }
+      window.addEventListener('afterprint', function () { window.close(); });
+      var loaded = new Promise(function (r) {
+        if (document.readyState === 'complete') r();
+        else window.addEventListener('load', r, { once: true });
+      });
+      var fonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      Promise.all([loaded, fonts]).then(function () { setTimeout(go, 150); });
+      setTimeout(go, 2500); // fallback if load/fonts stall
+    })();
+  <\/script>
+</body>
 </html>`);
   printWindow.document.close();
-  printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-  };
 }
 
 export function mount(root, { nav }) {
