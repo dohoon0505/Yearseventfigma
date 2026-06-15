@@ -141,9 +141,9 @@
 .textarea,
 .select {
   width: 100%;
-  border: 1px solid var(--c-border-input);
+  border: 1px solid var(--c-border-field);
   background: var(--c-surface);
-  border-radius: var(--r-md);
+  border-radius: var(--r-xl);
   padding: 11px 14px;
   font-size: var(--fs-14);
   color: var(--c-text);
@@ -157,13 +157,13 @@
 .input:hover:not(:focus):not(:disabled),
 .textarea:hover:not(:focus):not(:disabled),
 .select:hover:not(:focus):not(:disabled) {
-  border-color: var(--c-border-input-2);
+  border-color: var(--c-border-field-strong);
 }
 .input:focus,
 .textarea:focus,
 .select:focus {
-  border-color: var(--c-orange);
-  box-shadow: var(--ring);
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
 }
 .input:disabled,
 .textarea:disabled,
