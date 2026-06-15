@@ -86,23 +86,30 @@ export function mount(root, { nav }) {
         <div class="page-admin">
           <div class="admin-inner">
             ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계" })}
-            <div class="admin-filterbar">
-              <div class="admin-controls">
-                <span class="admin-controls__label">조회 기간</span>
-                <select class="select" data-ctl="year">
-                  ${SETTLEMENT_YEARS.map((y) => html`<option value="${y}" ${state.year === y ? "selected" : ""}>${y}년</option>`)}
-                </select>
-                <select class="select" data-ctl="month">
-                  ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
-                </select>
-                <span class="admin-controls__label">정산 상태</span>
-                <div class="admin-tabs">
-                  ${STATUS_TABS.map((t) => html`<button class="chip ${state.statusFilter === t.value ? "is-active" : ""}" data-action="stab" data-v="${t.value}">${t.label}</button>`)}
+            <div class="orders-filters">
+              <div class="orders-frow orders-frow--1">
+                <div class="orders-fgroup">
+                  <span class="orders-flabel">조회 기간</span>
+                  <select class="select" data-ctl="year">
+                    ${SETTLEMENT_YEARS.map((y) => html`<option value="${y}" ${state.year === y ? "selected" : ""}>${y}년</option>`)}
+                  </select>
+                  <select class="select" data-ctl="month">
+                    ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
+                  </select>
+                </div>
+                <div class="orders-divider"></div>
+                <div class="orders-fgroup">
+                  <span class="orders-flabel">정산 상태</span>
+                  <div class="orders-chips">
+                    ${STATUS_TABS.map((t) => html`<button class="chip ${state.statusFilter === t.value ? "is-active" : ""}" data-action="stab" data-v="${t.value}">${t.label}</button>`)}
+                  </div>
                 </div>
               </div>
-              <div class="admin-search">
-                ${icon("search", { size: 14 })}
-                <input type="text" data-search value="${state.search}" placeholder="거래처명 검색" />
+              <div class="orders-frow orders-frow--3">
+                <div class="orders-search">
+                  <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>거래처 검색</span></div>
+                  <input type="text" data-search value="${state.search}" placeholder="거래처명 검색" />
+                </div>
               </div>
             </div>
             <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
