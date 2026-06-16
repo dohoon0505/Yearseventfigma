@@ -51,8 +51,8 @@ export function mount(root, { nav }) {
           <div class="invoice-card">${invoiceDoc(INVOICE_DATA)}</div>
           <div class="invoice-panel">
             <button class="invoice-dl" data-action="download">
-              ${icon("download", { size: 18 })}
-              <span class="invoice-dl__txt">${state.selectedPeriod} 거래명세서<br />PDF 다운로드</span>
+              ${icon("download", { size: 14 })}
+              <span>${state.selectedPeriod.replace("년 ", "_").replace("월", "")} 거래명세서 다운로드</span>
             </button>
             <button class="invoice-copylink" data-action="copy-link">
               ${icon("external-link", { size: 14 })}
