@@ -57,7 +57,7 @@ export function mount(root, { nav }) {
           <div class="profile-sections">
             <div class="psec">
               <div class="psec-title">
-                <div class="psec-title__l"><span class="psec-bar"></span><span class="psec-titletext">📋 프로필 저장공간</span></div>
+                <div class="psec-title__l"><span class="psec-bar"></span><span class="psec-titletext">📋 발송인 프로필관리</span></div>
                 <button class="psec-addbtn" data-action="new-profile">${icon("user-plus", { size: 14 })} 신규 프로필 등록</button>
               </div>
               ${tableGrid({ columns: profileCols, rows: profiles, rowKey: (r) => r.no, compact: true })}
