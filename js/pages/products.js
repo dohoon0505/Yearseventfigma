@@ -57,7 +57,7 @@ export function mount(root, { nav }) {
       <span class="prod-savecount">즐겨찾기 선택 항목: <strong>${favs.size}개</strong></span>
       <button class="prod-savebtn ${saveCls}" data-action="save" ${favs.size === 0 ? "disabled" : ""}>
         ${state.saved ? icon("check-circle", { size: 15 }) : icon("save", { size: 15 })}
-        ${state.saved ? "저장 완료!" : "즐겨찾기 저장"}
+        ${state.saved ? "저장 완료!" : "저장"}
       </button>
     `;
   }

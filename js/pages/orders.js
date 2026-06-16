@@ -7,11 +7,27 @@ import { pageTitle, tableGrid, openModal } from "../ui.js";
 import { getDateRange, parseOrderDate, formatDateLabel } from "../util/date.js";
 
 const orderData = [
-  { id: 1, manager: "김총무", date: "2026/04/08 14:30", address: "대구 수성구 유니버시마트로 180 대구스타디움 스타디움컨벤션", profile: "올해표현(유) 미래변호사 상징이", product: "축하화환(기본형)", amount: "50,000원", status: "주문접수", statusColor: "#4169e1", hasPhoto: true },
-  { id: 2, manager: "김총무", date: "2026/04/07 09:00", address: "서울 강서구 공항대로 260 이음관더뷰목서울병원 항에식장 특6호", profile: "올해표현(유) 미래변호사 상징이", product: "근조화환(기본형)", amount: "50,000원", status: "접수대기", statusColor: "#9e9e9e", hasPhoto: false },
-  { id: 3, manager: "박사원", date: "2026/04/05 11:00", address: "경기 광주시 실마 소시오 327 가통대학교와 고전선도병원 부속동", profile: "올해표현(유) 총무팀 박사원", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
-  { id: 4, manager: "김총무", date: "2026/03/30 14:30", address: "수원전자화잠경사이(경기도 수원시 영동구 공교로 278)", profile: "올해표현(유) 미래변호사 상징이", product: "근조화환(기본형)", amount: "50,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
-  { id: 5, manager: "이대리", date: "2026/03/25 10:00", address: "부산 부산진구 법전동 839-19 부산 시민 항에식장 3층 304호", profile: "올해표현(유) 영업팀 이대리", product: "근조화환(기본형)", amount: "50,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  // 오늘 (2026/06/16)
+  { id: 1, manager: "김총무", date: "2026/06/16 14:30", address: "서울 종로구 대학로 101 서울대학교병원 장례식장 5호실", profile: "주식회사 싱크플로 대표이사 홍길동", product: "근조화환(고급형)", amount: "100,000원", status: "주문접수", statusColor: "#4169e1", hasPhoto: true },
+  { id: 2, manager: "박사원", date: "2026/06/16 10:15", address: "경기 성남시 분당구 야탑로 59 분당차병원 장례식장 특실", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(기본형)", amount: "70,000원", status: "접수대기", statusColor: "#9e9e9e", hasPhoto: false },
+  // 내일 (2026/06/17) — 예약 발송
+  { id: 3, manager: "이대리", date: "2026/06/17 09:00", address: "부산 해운대구 센텀중앙로 90 벡스코 제2전시장 그랜드볼룸", profile: "주식회사 싱크플로 영업본부", product: "축하화환(고급형)", amount: "100,000원", status: "접수대기", statusColor: "#9e9e9e", hasPhoto: false },
+  // 어제 (2026/06/15)
+  { id: 4, manager: "김총무", date: "2026/06/15 16:40", address: "인천 남동구 구월로 12 가천대길병원 장례식장 301호실", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 5, manager: "최과장", date: "2026/06/15 09:30", address: "대전 서구 둔산로 100 대전무역회관 4층 대강당", profile: "주식회사 싱크플로 대표이사 홍길동", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
+  // 이번 달 (2026/06/01 ~ 06/13)
+  { id: 6, manager: "박사원", date: "2026/06/13 11:20", address: "광주 북구 첨단과기로 123 광주과학기술원 오룡관 컨벤션홀", profile: "주식회사 싱크플로 영업1팀 이대리", product: "축하화환(고급형)", amount: "100,000원", status: "주문접수", statusColor: "#4169e1", hasPhoto: true },
+  { id: 7, manager: "오임찬", date: "2026/06/11 15:00", address: "울산 남구 삼산로 200 울산롯데호텔 3층 크리스탈볼룸", profile: "주식회사 싱크플로 재경팀 오임찬", product: "동양란(중)", amount: "120,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 8, manager: "김총무", date: "2026/06/09 13:10", address: "경남 창원시 의창구 중앙대로 250 창원컨벤션센터 2층 컨벤션홀", profile: "주식회사 싱크플로 경영지원팀", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
+  { id: 9, manager: "이대리", date: "2026/06/06 10:00", address: "서울 강남구 테헤란로 152 강남파이낸스센터 지하1층 컨퍼런스홀", profile: "주식회사 싱크플로 영업본부", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 10, manager: "박사원", date: "2026/06/04 17:30", address: "전북 전주시 덕진구 백제대로 567 전북대학교병원 장례식장 특2호실", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
+  { id: 11, manager: "최과장", date: "2026/06/02 09:40", address: "경기 수원시 영통구 광교중앙로 140 수원컨벤션센터 3층 컨벤션홀", profile: "주식회사 싱크플로 대표이사 홍길동", product: "서양란(대)", amount: "150,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 12, manager: "김총무", date: "2026/06/01 11:00", address: "대구 수성구 동대구로 99 대구은행 본점 2층 대강당", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
+  // 지난 달 (2026/05)
+  { id: 13, manager: "오임찬", date: "2026/05/27 14:00", address: "서울 송파구 올림픽로 300 롯데월드타워 SKY31 컨벤션", profile: "주식회사 싱크플로 재경팀 오임찬", product: "축하화환(고급형)", amount: "100,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 14, manager: "이대리", date: "2026/05/20 10:30", address: "충북 청주시 흥덕구 1순환로 776 청주성모병원 장례식장 5호실", profile: "주식회사 싱크플로 영업1팀 이대리", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
+  { id: 15, manager: "박사원", date: "2026/05/13 16:20", address: "강원 춘천시 백령로 156 강원대학교병원 장례식장 특실", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: true },
+  { id: 16, manager: "김총무", date: "2026/05/06 09:00", address: "제주 제주시 첨단로 242 제주첨단과학기술단지 컨벤션홀", profile: "주식회사 싱크플로 경영지원팀", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", statusColor: "#4caf50", hasPhoto: false },
 ];
 
 const statusFilters = [
