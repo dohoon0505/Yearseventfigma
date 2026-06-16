@@ -1,0 +1,179 @@
+/* ============================================================
+   invoice-public.css — 공개 거래명세서 페이지 (/invoice/)
+   로그인 불필요 · 사업자번호 게이트 → invoice-doc + PDF
+   ============================================================ */
+.pubinv {
+  min-height: 100vh;
+  background: var(--c-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pubinv__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+.pubinv__logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.pubinv__brand {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+/* ── Gate / error card ──────────────────────────────────── */
+.pubinv__card {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-card);
+  padding: 40px 32px;
+  text-align: center;
+}
+.pubinv__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-orange-soft);
+  color: var(--c-orange);
+}
+.pubinv__icon--error {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+.pubinv__title {
+  font-size: var(--fs-22);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-strong);
+  margin-bottom: 8px;
+}
+.pubinv__sub {
+  font-size: var(--fs-14);
+  color: var(--c-text-muted);
+  line-height: 1.6;
+}
+.pubinv__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 24px 0 14px;
+}
+.pubinv__input {
+  width: 100%;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-xl);
+  padding: 13px 16px;
+  font-size: var(--fs-16);
+  text-align: center;
+  letter-spacing: 0.03em;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pubinv__input:focus {
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
+}
+.pubinv__input::placeholder {
+  color: var(--c-text-faint);
+  letter-spacing: normal;
+}
+.pubinv__err {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: var(--fs-13);
+  color: var(--c-danger);
+}
+.pubinv__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--r-md);
+  background: var(--c-orange);
+  color: #fff;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--sh-btn);
+  transition: background 0.15s;
+}
+.pubinv__btn:hover {
+  background: #d94e24;
+}
+.pubinv__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-12);
+  color: var(--c-text-faint);
+}
+
+/* ── Doc view ───────────────────────────────────────────── */
+.pubinv--doc {
+  align-items: stretch;
+}
+.pubinv__toolbar {
+  width: 100%;
+  max-width: 860px;
+  margin: 20px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+}
+.pubinv__toolbar-l {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--c-success-ink);
+}
+.pubinv__toolbar-l .icon {
+  color: var(--c-success);
+}
+.pubinv__dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: var(--r-md);
+  background: var(--c-orange);
+  color: #fff;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--sh-btn);
+  transition: background 0.15s;
+}
+.pubinv__dl:hover {
+  background: #d94e24;
+}
+.pubinv__docwrap {
+  display: flex;
+  justify-content: center;
+  padding: 20px 16px 48px;
+  overflow-x: auto;
+}
+.pubinv__docwrap .invoice-doc {
+  box-shadow: var(--sh-modal);
+}
