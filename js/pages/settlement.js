@@ -3,7 +3,6 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { store } from "../store.js";
 import { pageTitle, openModal } from "../ui.js";
 
 const DEFAULT_COMPANY = {
@@ -58,14 +57,6 @@ export function mount(root, { nav }) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   }
 
-  // 정산·회계 담당자(담당자 저장공간 지정) 연락처를 불러와 알림 수신자로 표시
-  const billtoText = () => {
-    const b = store.getBillingContact();
-    return b
-      ? html`<strong class="settle-billon">${b.name} (${b.role}) · ${b.phone}</strong>`
-      : html`<strong class="settle-billoff">미지정 — 담당자 저장공간에서 지정</strong>`;
-  };
-
   function infoRow(fields) {
     return html`<div class="settle-inforow">
       ${fields.map(
@@ -97,7 +88,6 @@ export function mount(root, { nav }) {
 
             <div class="settle-notice">
               <p>📌 매월 1일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong></p>
-              <p class="settle-notice__bill">${icon("bell", { size: 12 })} 명세서 발급·입금요청 알림톡 수신: ${billtoText()}</p>
             </div>
 
             <div class="settle-table">

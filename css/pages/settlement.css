@@ -84,24 +84,6 @@
   color: #777;
   line-height: 1.7;
 }
-.settle-notice__bill {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px solid #f2e0a0;
-}
-.settle-notice__bill .icon {
-  color: var(--c-blue);
-}
-.settle-billon {
-  color: var(--c-blue);
-}
-.settle-billoff {
-  color: var(--c-danger);
-}
-
 /* ── Table ──────────────────────────────────────────────── */
 .settle-table {
   background: var(--c-surface);
