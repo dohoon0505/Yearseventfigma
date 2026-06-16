@@ -52,12 +52,10 @@ function buildShell(variant = "enterprise") {
     variant === "admin"
       ? {
           company: "관리자 콘솔",
-          user: "admin",
           banner: html`<span>관리자 모드 · <strong>DEMO 인증</strong></span>`,
         }
       : {
           company: "(주)진양코퍼레이션",
-          user: "총무팀 김사원",
           banner: html`<span>연간 상품 누락 및 오배송: <strong>0건</strong></span>`,
         };
 
@@ -73,10 +71,6 @@ function buildShell(variant = "enterprise") {
           <div class="badge badge--company">
             <img src="./assets/company.png" alt="" />
             <span>${brand.company}</span>
-          </div>
-          <div class="badge badge--user">
-            <img src="./assets/user.png" alt="" />
-            <span>${brand.user}</span>
           </div>
         </div>
         <div class="warning-banner" role="status">

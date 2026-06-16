@@ -26,15 +26,6 @@
   font-weight: var(--fw-medium);
   color: var(--c-company-text);
 }
-.badge--user {
-  background: var(--c-user-bg);
-  border: 1px solid var(--c-user-border);
-}
-.badge--user span {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  color: var(--c-user-text);
-}
 
 .warning-banner {
   display: inline-flex;
