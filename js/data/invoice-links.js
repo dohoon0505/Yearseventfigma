@@ -7,8 +7,8 @@
    실서비스에서는 link 토큰 자체를 충분히 긴 무작위 비밀값(capability URL)으로
    발급하고, 서버에서 토큰↔명세서 매핑·만료·접근로그를 관리해야 합니다.
    ============================================================ */
-const SUPPLIER = { company: "도랑플라워", bizNumber: "321-99-01778", ceo: "김도훈", email: "ehgns335@naver.com", fax: "053-715-2699" };
-const ACCOUNT = "NH농협은행 352-2284-9916-83 예금주 김도훈(도랑플라워)";
+export const SUPPLIER = { company: "도랑플라워", bizNumber: "321-99-01778", ceo: "김도훈", email: "ehgns335@naver.com", fax: "053-715-2699" };
+export const ACCOUNT = "NH농협은행 352-2284-9916-83 예금주 김도훈(도랑플라워)";
 
 export const INVOICE_LINKS = {
   // (주)싱크플로 · 2026년 04월
@@ -66,3 +66,49 @@ export const INVOICE_LINKS = {
 
 /** 사업자번호 비교용: 숫자만 추출. */
 export const normalizeBiz = (s) => String(s || "").replace(/[^0-9]/g, "");
+
+/* ── 발급된 링크 레지스트리 (localStorage, SPA↔/invoice/ 동일 origin 공유) ──
+   정적 시드(INVOICE_LINKS) + 런타임 발급 링크를 합쳐 해석한다.
+   실서비스에서는 서버가 토큰을 발급·저장·만료 관리해야 한다. */
+const LKEY = "yeop.invoice-links.v1";
+const loadReg = () => { try { return JSON.parse(localStorage.getItem(LKEY)) || {}; } catch { return {}; } };
+const saveReg = (reg) => { try { localStorage.setItem(LKEY, JSON.stringify(reg)); } catch {} };
+
+/** 무작위 토큰 생성 (혼동 문자 제외, crypto 우선). */
+export function genToken(len = 10) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let t = "";
+  const rnd = (typeof crypto !== "undefined" && crypto.getRandomValues) ? crypto.getRandomValues(new Uint32Array(len)) : null;
+  for (let i = 0; i < len; i++) {
+    const r = rnd ? rnd[i] % chars.length : Math.floor(Math.random() * chars.length);
+    t += chars[r];
+  }
+  return t;
+}
+
+/** 토큰 → 명세서 레코드 ({bizNumber, doc}) 해석. 런타임 발급분 우선, 없으면 시드. */
+export function resolveLink(token) {
+  if (!token) return null;
+  return loadReg()[token] || INVOICE_LINKS[token] || null;
+}
+
+/** 명세서에 대한 공개 링크 토큰을 발급(동일 사업자번호·귀속월이면 기존 토큰 재사용). */
+export function issueLink(record) {
+  const period = record.doc.period;
+  const match = ([, r]) => r.bizNumber === record.bizNumber && r.doc.period === period;
+  const seed = Object.entries(INVOICE_LINKS).find(match);
+  if (seed) return seed[0];
+  const reg = loadReg();
+  const existing = Object.entries(reg).find(match);
+  if (existing) return existing[0];
+  const token = genToken();
+  reg[token] = record;
+  saveReg(reg);
+  return token;
+}
+
+/** 현재 배포 위치 기준 공개 명세서 URL ({origin}{base}invoice/?link=토큰). */
+export function publicInvoiceUrl(token) {
+  const dir = location.pathname.replace(/[^/]*$/, "");
+  return `${location.origin}${dir}invoice/?link=${token}`;
+}

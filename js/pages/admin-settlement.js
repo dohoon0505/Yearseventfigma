@@ -8,9 +8,10 @@ import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { CLIENT_SETTLEMENTS, SETTLEMENT_YEARS } from "../data/admin-mock.js";
+import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 
-const COL = "1fr 130px 120px 150px 140px 140px";
-const HEADERS = ["거래처", "청구금액", "입금자", "거래명세서 동의", "계산서 발급", "거래대금 입금"];
+const COL = "1fr 124px 104px 138px 128px 128px 126px";
+const HEADERS = ["거래처", "청구금액", "입금자", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
   { value: "pending", label: "미완료" },
@@ -25,6 +26,17 @@ const agreeBadge = (v) => (v === "동의완료" ? ok("동의완료") : warn("동
 const issueBadge = (v) => (v === "발급완료" ? ok("발급완료") : warn("동의하기"));
 const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : danger("미입금"));
 const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서발급 === "발급완료" && r.입금완료 === "입금완료";
+
+// 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 사업자번호·귀속월이면 issueLink가 시드 토큰 재사용.
+const buildDoc = (client, rec) => ({
+  title: `${rec.청구년월} 꽃배달 거래명세서`,
+  period: `${rec.청구년월} 귀속`,
+  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 },
+  supplier: SUPPLIER,
+  items: [{ date: rec.청구년월, sender: "-", address: "-", product: `${rec.청구년월} 꽃배달 이용료 합계`, amount: rec.정산금액 }],
+  account: ACCOUNT,
+  total: rec.정산금액,
+});
 
 export function mount(root, { nav }) {
   const now = new Date();
@@ -67,6 +79,7 @@ export function mount(root, { nav }) {
               <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
+              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
             </div>
           `
         )}
@@ -140,6 +153,16 @@ export function mount(root, { nav }) {
     state.search = t.value;
     refreshTable();
   });
+  const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
+    const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
+    if (!row) return;
+    const token = issueLink({ bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
+    const url = publicInvoiceUrl(token);
+    const span = t.querySelector("span");
+    const flash = () => { if (span) { span.textContent = "복사됨!"; setTimeout(() => { if (span) span.textContent = "링크 복사"; }, 1600); } };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(flash).catch(() => window.prompt("공개 링크", url));
+    else window.prompt("공개 링크", url);
+  });
 
-  return () => { offChange(); offClick(); offSearch(); };
+  return () => { offChange(); offClick(); offSearch(); offCopy(); };
 }

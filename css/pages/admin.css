@@ -303,3 +303,26 @@
 .prc-save:hover {
   background: #d94e24;
 }
+
+/* ── 정산회계: 공개 링크 복사 버튼 ──────────────────────── */
+.settle-linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-input-2);
+  background: var(--c-surface);
+  color: var(--c-blue);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.settle-linkbtn:hover {
+  border-color: var(--c-blue);
+  background: var(--c-blue-soft);
+}
+.settle-linkbtn .icon {
+  flex-shrink: 0;
+}
