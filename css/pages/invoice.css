@@ -28,26 +28,7 @@
   align-self: flex-start;
 }
 
-.invoice-dl {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--c-blue);
-  color: #fff;
-  border-radius: var(--r-md);
-  padding: 16px 20px;
-  transition: background 0.15s, opacity 0.15s;
-}
-.invoice-dl:hover {
-  background: #3558c4;
-}
-.invoice-dl__txt {
-  font-size: var(--fs-13);
-  font-weight: var(--fw-semibold);
-  text-align: center;
-  line-height: 1.5;
-}
+.invoice-dl,
 .invoice-copylink {
   display: flex;
   align-items: center;
@@ -62,10 +43,12 @@
   font-weight: var(--fw-medium);
   transition: all 0.15s;
 }
+.invoice-dl:hover,
 .invoice-copylink:hover {
   border-color: var(--c-blue);
   color: var(--c-blue);
 }
+.invoice-dl .icon,
 .invoice-copylink .icon {
   color: var(--c-blue);
   flex-shrink: 0;
