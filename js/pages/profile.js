@@ -16,6 +16,16 @@ export function mount(root, { nav }) {
 
   const editBtn = (kind, no) => html`<button class="ptbl-edit" data-action="edit" data-kind="${kind}" data-no="${no}" aria-label="수정">${icon("pencil", { size: 14 })}</button>`;
   const delBtn = (kind, no) => html`<button class="ptbl-del" data-action="del" data-kind="${kind}" data-no="${no}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
+  const billingCell = (r) =>
+    r.isBilling
+      ? html`<span class="pill pill--blue ptbl-billing">${icon("check-circle", { size: 12 })} 정산·회계 담당</span>`
+      : html`<button class="ptbl-setbilling" data-action="set-billing" data-no="${r.no}">정산담당 지정</button>`;
+  const billingSummary = () => {
+    const b = store.getBillingContact();
+    return b
+      ? html`현재 <strong class="psec-billnote__on">${b.name} (${b.role}) · ${b.phone}</strong>`
+      : html`<strong class="psec-billnote__off">미지정 — 담당자를 지정해 주세요</strong>`;
+  };
 
   const profileCols = [
     { label: "순번", width: "54px", align: "center", render: (r) => r.no },
@@ -29,9 +39,10 @@ export function mount(root, { nav }) {
   const contactCols = [
     { label: "순번", width: "54px", align: "center", render: (r) => r.no },
     { label: "성함", width: "80px", align: "center", render: (r) => r.name },
-    { label: "부서·직위", width: "110px", align: "center", render: (r) => r.role },
-    { label: "배송완료 수신번호", width: "160px", align: "center", render: (r) => r.phone },
+    { label: "부서·직위", width: "104px", align: "center", render: (r) => r.role },
+    { label: "연락처", width: "150px", align: "center", render: (r) => r.phone },
     { label: "메세지 수신여부", width: "1fr", render: (r) => r.message },
+    { label: "정산·회계 담당", width: "150px", align: "center", render: (r) => billingCell(r) },
     { label: "수정", width: "52px", align: "center", render: (r) => editBtn("contact", r.no) },
     { label: "삭제", width: "52px", align: "center", render: (r) => delBtn("contact", r.no) },
   ];
@@ -56,6 +67,7 @@ export function mount(root, { nav }) {
                 <div class="psec-title__l"><span class="psec-bar"></span><span class="psec-titletext">📋 담당자 저장공간</span></div>
                 <button class="psec-addbtn" data-action="new-contact">${icon("user-plus", { size: 14 })} 신규 담당자 등록</button>
               </div>
+              <div class="psec-billnote">${icon("info", { size: 13 })}<span>거래명세서 발급·입금요청 <strong>알림톡</strong>은 정산·회계 담당자에게 발송됩니다 (1명 지정). ${billingSummary()}</span></div>
               ${tableGrid({ columns: contactCols, rows: contacts, rowKey: (r) => r.no, compact: true })}
             </div>
           </div>
@@ -272,6 +284,7 @@ export function mount(root, { nav }) {
     const a = t.dataset.action;
     if (a === "new-profile") return openNewProfile();
     if (a === "new-contact") return openNewContact();
+    if (a === "set-billing") { store.setBillingContact(t.dataset.no); render(); return; }
     const kind = t.dataset.kind;
     const list = kind === "contact" ? store.get().contacts : store.get().profiles;
     const row = list.find((x) => x.no === t.dataset.no);
