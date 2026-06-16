@@ -48,6 +48,28 @@
   text-align: center;
   line-height: 1.5;
 }
+.invoice-copylink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--c-surface);
+  color: var(--c-text-3);
+  border: 1px solid var(--c-border-input-2);
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  transition: all 0.15s;
+}
+.invoice-copylink:hover {
+  border-color: var(--c-blue);
+  color: var(--c-blue);
+}
+.invoice-copylink .icon {
+  color: var(--c-blue);
+  flex-shrink: 0;
+}
 
 .invoice-info {
   background: var(--c-surface);

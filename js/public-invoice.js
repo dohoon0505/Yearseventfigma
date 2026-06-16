@@ -6,12 +6,12 @@
 import { html, setHTML, on, qs } from "./dom.js";
 import { icon } from "./icons.js";
 import { invoiceDoc, printInvoiceDoc } from "./invoice-doc.js";
-import { INVOICE_LINKS, normalizeBiz } from "./data/invoice-links.js";
+import { resolveLink, normalizeBiz } from "./data/invoice-links.js";
 
 const ASSET_BASE = "../assets/"; // 공개 페이지는 /invoice/ 하위 → 루트 assets는 ../
 const root = document.getElementById("app");
 const token = new URLSearchParams(location.search).get("link");
-const record = token ? INVOICE_LINKS[token] : null;
+const record = resolveLink(token);
 let error = "";
 
 const headerBar = () => html`

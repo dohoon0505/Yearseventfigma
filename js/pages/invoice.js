@@ -7,6 +7,7 @@ import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
+import { issueLink, publicInvoiceUrl } from "../data/invoice-links.js";
 import { pageTitle, simpleModal } from "../ui.js";
 
 // 거래명세서 데이터 (공유 invoice-doc 렌더러에 전달)
@@ -53,8 +54,12 @@ export function mount(root, { nav }) {
               ${icon("download", { size: 18 })}
               <span class="invoice-dl__txt">${state.selectedPeriod} 거래명세서<br />PDF 다운로드</span>
             </button>
+            <button class="invoice-copylink" data-action="copy-link">
+              ${icon("external-link", { size: 14 })}
+              <span data-slot="copylabel">공개 링크 복사 (로그인 없이 열람)</span>
+            </button>
             <div class="invoice-info">
-              <h3 class="invoice-info__title">💰 거래명세서 조회</h3>
+              <h3 class="invoice-info__title">거래명세서 조회</h3>
               <div class="invoice-period">
                 <div class="invoice-period__chip">${icon("calendar-days", { size: 13, cls: "tint-blue" })}<span>${state.selectedPeriod}</span></div>
                 <button class="invoice-period__btn" data-action="change-period">기간 변경</button>
@@ -161,6 +166,13 @@ export function mount(root, { nav }) {
       const doc = qs(root, ".invoice-doc");
       try { printInvoiceDoc(doc, "거래명세서_" + state.selectedPeriod); }
       catch (err) { console.error("PDF 생성 오류:", err); alert("PDF 생성 중 오류가 발생했습니다. 다시 시도해 주세요."); }
+    } else if (a === "copy-link") {
+      const token = issueLink({ bizNumber: INVOICE_DATA.buyer.bizNumber, doc: INVOICE_DATA });
+      const url = publicInvoiceUrl(token);
+      const label = qs(root, "[data-slot='copylabel']");
+      const flash = () => { if (label) { label.textContent = "링크가 복사되었습니다!"; setTimeout(() => { if (label) label.textContent = "공개 링크 복사 (로그인 없이 열람)"; }, 1800); } };
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(flash).catch(() => window.prompt("공개 링크 (복사하세요)", url));
+      else window.prompt("공개 링크 (복사하세요)", url);
     } else if (a === "change-period") openPeriodModal();
     else if (a === "agree") { if (!state.agreed) openAgreementModal(); }
   });
