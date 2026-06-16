@@ -72,6 +72,48 @@
   background: #ffeded;
 }
 
+/* ── 정산·회계 담당자 지정 ──────────────────────────────── */
+.ptbl-setbilling {
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-input-2);
+  background: var(--c-surface);
+  color: var(--c-text-4);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.ptbl-setbilling:hover {
+  border-color: var(--c-indigo);
+  color: var(--c-indigo);
+}
+.ptbl-billing {
+  gap: 4px;
+}
+.psec-billnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  background: var(--c-blue-soft);
+  border: 1px solid var(--c-user-border);
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.psec-billnote .icon {
+  color: var(--c-blue);
+  flex-shrink: 0;
+}
+.psec-billnote__on {
+  color: var(--c-blue);
+}
+.psec-billnote__off {
+  color: var(--c-danger);
+}
+
 /* ── form divider ───────────────────────────────────────── */
 .pform-divider {
   display: flex;

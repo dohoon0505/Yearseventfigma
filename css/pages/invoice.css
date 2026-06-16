@@ -135,6 +135,37 @@
   color: var(--c-orange);
   font-weight: var(--fw-medium);
 }
+.invoice-billto__in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--c-blue-soft);
+  border: 1px solid var(--c-user-border);
+}
+.invoice-billto__in.is-none {
+  background: var(--c-danger-bg);
+  border-color: #f3c0c0;
+}
+.invoice-billto__in .icon {
+  color: var(--c-blue);
+  flex-shrink: 0;
+}
+.invoice-billto__in.is-none .icon {
+  color: var(--c-danger);
+}
+.invoice-billto__lbl {
+  font-size: var(--fs-11);
+  color: var(--c-text-muted);
+}
+.invoice-billto__val {
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+.invoice-billto__val strong {
+  color: var(--c-blue);
+}
 .invoice-agree {
   border: 1px solid var(--c-border-input-2);
   background: var(--c-bg);

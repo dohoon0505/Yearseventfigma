@@ -6,7 +6,7 @@ import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
-/** @typedef {{no:string,name:string,role:string,phone:string,message:string}} Contact */
+/** @typedef {{no:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
 /** @typedef {{id:string,accountId:string,password:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string}} Client */
 
 /* ── Static product catalog (immutable) ─────────────────── */
@@ -49,9 +49,9 @@ const INITIAL_PROFILES = [
 ];
 
 const INITIAL_CONTACTS = [
-  { no: "01", name: "할다운", role: "비서",   phone: "010-0000-0000", message: "모든 배송완료 마다에 메세지를 수신합니다" },
-  { no: "02", name: "오임찬", role: "재경부", phone: "010-0000-0000", message: "메세지를 수신하지 않습니다." },
-  { no: "03", name: "김현수", role: "경리",   phone: "010-0000-0000", message: "모든 배송완료 마다에 메세지를 수신합니다" },
+  { no: "01", name: "할다운", role: "비서",   phone: "010-1111-2222", message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false },
+  { no: "02", name: "오임찬", role: "재경부", phone: "010-3333-4444", message: "메세지를 수신하지 않습니다.",        isBilling: true },
+  { no: "03", name: "김현수", role: "경리",   phone: "010-5555-6666", message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false },
 ];
 
 /* ── Reactive store ─────────────────────────────────────── */
@@ -90,7 +90,7 @@ function hydrate() {
     const data = JSON.parse(raw);
     state = {
       profiles: Array.isArray(data.profiles) ? data.profiles : state.profiles,
-      contacts: Array.isArray(data.contacts) ? data.contacts : state.contacts,
+      contacts: Array.isArray(data.contacts) ? data.contacts.map((c) => ({ isBilling: false, ...c })) : state.contacts,
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
       clients: Array.isArray(data.clients) ? data.clients : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
@@ -124,6 +124,14 @@ export const store = {
     state = { ...state, contacts: resolve(next, state.contacts) };
     persist();
     emit();
+  },
+  /** Designate a single 정산/회계 담당자 (거래명세서·입금 알림 수신). */
+  setBillingContact(no) {
+    this.setContacts((prev) => prev.map((c) => ({ ...c, isBilling: c.no === no })));
+  },
+  /** The contact who receives settlement/billing 알림톡, or null. */
+  getBillingContact() {
+    return state.contacts.find((c) => c.isBilling) || null;
   },
   setFavorites(next) {
     state = { ...state, favorites: resolve(next, state.favorites) };
