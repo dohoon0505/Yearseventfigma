@@ -287,6 +287,15 @@ export function mount(root, { nav }) {
       managerName: f.managerName, department: f.department, contact: f.contact,
       email: f.email, address: f.address, status: "승인대기", joinDate,
     });
+    // 최초 정산·회계 담당자 = 회원가입 시 작성한 담당자 (담당자 저장공간에 등록 후 지정)
+    const contacts = store.get().contacts;
+    const maxNo = contacts.reduce((m, c) => Math.max(m, parseInt(String(c.no), 10) || 0), 0);
+    const no = String(maxNo + 1).padStart(2, "0");
+    store.setContacts((prev) => [...prev, {
+      no, name: f.managerName, role: f.department, phone: f.contact,
+      message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false,
+    }]);
+    store.setBillingContact(no); // 정산·회계 담당자는 무조건 존재해야 하므로 가입 담당자로 지정
   }
 
   function goPrev() {

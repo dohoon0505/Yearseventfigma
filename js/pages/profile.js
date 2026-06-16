@@ -257,6 +257,23 @@ export function mount(root, { nav }) {
   // ── Delete ─────────────────────────────────────────────
   function openDelete(kind, row) {
     closeModal();
+    // 정산·회계 담당자는 무조건 1명 존재해야 하므로 바로 삭제 불가 (먼저 다른 담당자 지정)
+    if (kind === "contact" && row.isBilling) {
+      const body = html`
+        <div class="pdel">
+          <div class="pdel__msg">
+            <p><strong>${row.name}</strong>님은 현재 <strong class="psec-billnote__on">정산·회계 담당자</strong>입니다.</p>
+            <p class="pdel__sub">정산·회계 담당자는 항상 1명이 지정되어 있어야 합니다.<br />다른 담당자를 정산담당으로 먼저 지정한 뒤 삭제해 주세요.</p>
+          </div>
+          <div class="pdel__foot">
+            <button class="btn-cancel" data-action="close">확인</button>
+          </div>
+        </div>
+      `;
+      activeModal = simpleModal({ title: "삭제 불가", body, onClose: () => {} });
+      on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
+      return;
+    }
     const body = html`
       <div class="pdel">
         <div class="pdel__msg">

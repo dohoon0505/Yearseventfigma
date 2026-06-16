@@ -95,6 +95,10 @@ function hydrate() {
       clients: Array.isArray(data.clients) ? data.clients : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
     };
+    // 불변식 보정: 로드된 담당자 중 정산담당이 없으면 첫 담당자로 지정
+    if (state.contacts.length > 0 && !state.contacts.some((c) => c.isBilling)) {
+      state.contacts = state.contacts.map((c, i) => ({ ...c, isBilling: i === 0 }));
+    }
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
   }
@@ -121,7 +125,12 @@ export const store = {
     emit();
   },
   setContacts(next) {
-    state = { ...state, contacts: resolve(next, state.contacts) };
+    let arr = resolve(next, state.contacts);
+    // 불변식: 정산·회계 담당자는 항상 1명 존재해야 한다 (없으면 첫 담당자로 자동 지정)
+    if (arr.length > 0 && !arr.some((c) => c.isBilling)) {
+      arr = arr.map((c, i) => ({ ...c, isBilling: i === 0 }));
+    }
+    state = { ...state, contacts: arr };
     persist();
     emit();
   },
