@@ -44,9 +44,16 @@ export function html(strings, ...values) {
   return new Html(out);
 }
 
-/** Set innerHTML from an Html instance (or string). */
+/** Set innerHTML from an Html instance, string, or array thereof.
+ *  Arrays are joined with "" (not the default ","), matching how the
+ *  html`` tag serializes interpolated arrays. */
 export function setHTML(el, h) {
-  el.innerHTML = h == null ? "" : h.toString();
+  el.innerHTML =
+    h == null
+      ? ""
+      : Array.isArray(h)
+      ? h.map((x) => (x == null ? "" : x.toString())).join("")
+      : h.toString();
   return el;
 }
 
