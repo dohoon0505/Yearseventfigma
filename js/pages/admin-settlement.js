@@ -3,21 +3,22 @@
    상단 필터: 년/월 + 정산 상태(전체/미완료/정산완료) + 거래처 검색.
    거래처별 정산 종합(거래명세서 동의 / 계산서 발급 / 입금) 조회 (읽기전용).
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { CLIENT_SETTLEMENTS, SETTLEMENT_YEARS } from "../data/admin-mock.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 
-const COL = "1fr 124px 104px 138px 128px 128px 126px";
-const HEADERS = ["거래처", "청구금액", "입금자", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크"];
+const COL = "1fr 124px 138px 128px 128px 126px";
+const HEADERS = ["거래처", "청구금액", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
   { value: "pending", label: "미완료" },
   { value: "done", label: "정산완료" },
 ];
 const pad = (n) => String(n).padStart(2, "0");
+const wonToNum = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
 
 const ok = (t) => html`<span class="settle-badge settle-badge--ok">${t}</span>`;
 const warn = (t) => html`<span class="settle-badge settle-badge--warn">${t}</span>`;
@@ -41,6 +42,9 @@ const buildDoc = (client, rec) => ({
 export function mount(root, { nav }) {
   const now = new Date();
   const state = { year: now.getFullYear(), month: now.getMonth() + 1, statusFilter: "all", search: "" };
+  const curY = now.getFullYear(), curM = now.getMonth() + 1;
+  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastY = lastDate.getFullYear(), lastM = lastDate.getMonth() + 1;
 
   function rowsForPeriod() {
     const label = `${state.year}년 ${pad(state.month)}월`;
@@ -75,7 +79,6 @@ export function mount(root, { nav }) {
             <div class="settle-trow" style="grid-template-columns:${COL}">
               <div class="settle-td"><span class="ellipsis">${client.companyName}</span></div>
               <div class="settle-td"><span class="settle-amount">${rec.정산금액}</span></div>
-              <div class="settle-td settle-td--muted">${rec.입금자}</div>
               <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
@@ -90,6 +93,37 @@ export function mount(root, { nav }) {
     const rows = visibleRows();
     const done = rows.filter(({ rec }) => isDone(rec)).length;
     return html`총 <strong>${rows.length}</strong>개 거래처 · 정산완료 <strong>${done}</strong>건`;
+  }
+
+  // 조회 기간(선택한 년/월) 전체 거래처의 정산액 종합 — 상태탭/검색과 무관.
+  function periodStats() {
+    let total = 0, paid = 0, unpaid = 0;
+    rowsForPeriod().forEach(({ rec }) => {
+      const amt = wonToNum(rec.정산금액);
+      total += amt;
+      if (rec.입금완료 === "입금완료") paid += amt;
+      else unpaid += amt;
+    });
+    return { total, paid, unpaid };
+  }
+  function summaryCards() {
+    const s = periodStats();
+    return html`
+      <div class="settle-sum">
+        <div class="settle-sumcard">
+          <span class="settle-sumcard__lbl">총 정산액</span>
+          <span class="settle-sumcard__val">${won(s.total)}</span>
+        </div>
+        <div class="settle-sumcard settle-sumcard--ok">
+          <span class="settle-sumcard__lbl">입금완료 정산액</span>
+          <span class="settle-sumcard__val">${won(s.paid)}</span>
+        </div>
+        <div class="settle-sumcard settle-sumcard--warn">
+          <span class="settle-sumcard__lbl">미입금 정산액</span>
+          <span class="settle-sumcard__val">${won(s.unpaid)}</span>
+        </div>
+      </div>
+    `;
   }
 
   function render() {
@@ -109,6 +143,10 @@ export function mount(root, { nav }) {
                   <select class="select" data-ctl="month">
                     ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
                   </select>
+                  <div class="orders-chips settle-quickmonth">
+                    <button class="orders-datebtn ${state.year === curY && state.month === curM ? "is-active" : ""}" data-action="qmonth" data-v="this">이번달</button>
+                    <button class="orders-datebtn ${state.year === lastY && state.month === lastM ? "is-active" : ""}" data-action="qmonth" data-v="last">저번달</button>
+                  </div>
                 </div>
                 <div class="orders-divider"></div>
                 <div class="orders-fgroup">
@@ -125,6 +163,7 @@ export function mount(root, { nav }) {
                 </div>
               </div>
             </div>
+            <div data-slot="sumcards">${summaryCards()}</div>
             <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
             <div data-slot="table">${tableBody()}</div>
           </div>
@@ -135,19 +174,27 @@ export function mount(root, { nav }) {
   const refreshTable = () => {
     const tbl = qs(root, "[data-slot='table']");
     const sum = qs(root, "[data-slot='summary']");
+    const cards = qs(root, "[data-slot='sumcards']");
     if (tbl) setHTML(tbl, tableBody());
     if (sum) setHTML(sum, summaryBody());
+    if (cards) setHTML(cards, summaryCards());
   };
 
   render();
 
   const offChange = on(root, "change", "[data-ctl]", (e, t) => {
     state[t.dataset.ctl] = Number(t.value);
-    refreshTable();
+    render(); // re-render so 이번달/저번달 active state stays in sync
   });
   const offClick = on(root, "click", "[data-action='stab']", (e, t) => {
     state.statusFilter = t.dataset.v;
     render(); // re-render to update active chip
+  });
+  const offQuick = on(root, "click", "[data-action='qmonth']", (e, t) => {
+    const base = new Date(now.getFullYear(), now.getMonth() - (t.dataset.v === "last" ? 1 : 0), 1);
+    state.year = base.getFullYear();
+    state.month = base.getMonth() + 1;
+    render();
   });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state.search = t.value;
@@ -164,5 +211,5 @@ export function mount(root, { nav }) {
     else window.prompt("공개 링크", url);
   });
 
-  return () => { offChange(); offClick(); offSearch(); offCopy(); };
+  return () => { offChange(); offClick(); offQuick(); offSearch(); offCopy(); };
 }
