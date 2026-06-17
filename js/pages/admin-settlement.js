@@ -11,7 +11,7 @@ import { CLIENT_SETTLEMENTS, SETTLEMENT_YEARS } from "../data/admin-mock.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 
-const COL = "minmax(140px,1fr) 116px 132px 122px 122px 118px 124px";
+const COL = "minmax(140px,1fr) 112px 128px 118px 118px 112px 140px";
 const HEADERS = ["거래처", "청구금액", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크", "명세서 다운로드"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
@@ -84,7 +84,7 @@ export function mount(root, { nav }) {
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
               <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
-              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF</span></button></div>
+              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
             </div>
           `
         )}
