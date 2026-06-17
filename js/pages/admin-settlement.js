@@ -9,9 +9,10 @@ import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { CLIENT_SETTLEMENTS, SETTLEMENT_YEARS } from "../data/admin-mock.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
+import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 
-const COL = "1fr 124px 138px 128px 128px 126px";
-const HEADERS = ["거래처", "청구금액", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크"];
+const COL = "minmax(140px,1fr) 116px 132px 122px 122px 118px 124px";
+const HEADERS = ["거래처", "청구금액", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크", "명세서 다운로드"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
   { value: "pending", label: "미완료" },
@@ -83,6 +84,7 @@ export function mount(root, { nav }) {
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
               <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
+              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF</span></button></div>
             </div>
           `
         )}
@@ -210,6 +212,17 @@ export function mount(root, { nav }) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(flash).catch(() => window.prompt("공개 링크", url));
     else window.prompt("공개 링크", url);
   });
+  // 명세서 PDF 즉시 다운로드: doc을 off-DOM으로 렌더 → printInvoiceDoc(새 창 인쇄 → PDF 저장)
+  const offDownload = on(root, "click", "[data-action='download']", (e, t) => {
+    const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
+    if (!row) return;
+    const holder = document.createElement("div");
+    setHTML(holder, invoiceDoc(buildDoc(row.client, row.rec)));
+    const docEl = holder.querySelector(".invoice-doc");
+    if (!docEl) return;
+    try { printInvoiceDoc(docEl, `${row.client.companyName}_${row.rec.청구년월}_거래명세서`); }
+    catch (err) { console.error("PDF 생성 오류:", err); alert("PDF 생성 중 오류가 발생했습니다. 다시 시도해 주세요."); }
+  });
 
-  return () => { offChange(); offClick(); offQuick(); offSearch(); offCopy(); };
+  return () => { offChange(); offClick(); offQuick(); offSearch(); offCopy(); offDownload(); };
 }

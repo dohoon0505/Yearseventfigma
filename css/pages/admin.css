@@ -372,3 +372,26 @@
 .settle-linkbtn .icon {
   flex-shrink: 0;
 }
+
+/* ── 정산회계: 명세서 PDF 다운로드 버튼 ─────────────────── */
+.settle-dlbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-input-2);
+  background: var(--c-surface);
+  color: var(--c-orange);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.settle-dlbtn:hover {
+  border-color: var(--c-orange);
+  background: var(--c-orange-soft);
+}
+.settle-dlbtn .icon {
+  flex-shrink: 0;
+}
