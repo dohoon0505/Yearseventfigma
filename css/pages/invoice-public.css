@@ -131,32 +131,12 @@
 .pubinv--doc {
   align-items: stretch;
 }
-.pubinv__toolbar {
-  width: 100%;
-  max-width: 860px;
-  margin: 20px auto 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 16px;
-}
-.pubinv__toolbar-l {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  color: var(--c-success-ink);
-}
-.pubinv__toolbar-l .icon {
-  color: var(--c-success);
-}
 .pubinv__dl {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 10px 18px;
+  margin-left: auto;
+  padding: 9px 16px;
   border-radius: var(--r-md);
   background: var(--c-orange);
   color: #fff;

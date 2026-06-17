@@ -14,10 +14,13 @@ const token = new URLSearchParams(location.search).get("link");
 const record = resolveLink(token);
 let error = "";
 
-const headerBar = () => html`
+const headerBar = (withDownload = false) => html`
   <header class="pubinv__header">
-    <img class="pubinv__logo" src="../assets/logo.png" alt="올해의경조사" />
+    <img class="pubinv__logo" src="../assets/Black_Logo_Simbol.png" alt="올해의경조사" />
     <span class="pubinv__brand">올해의경조사 · 거래명세서</span>
+    ${withDownload
+      ? html`<button class="pubinv__dl" data-action="download">${icon("download", { size: 16 })} PDF 다운로드</button>`
+      : ""}
   </header>
 `;
 
@@ -79,11 +82,7 @@ function renderDoc() {
     root,
     html`
       <div class="pubinv pubinv--doc">
-        ${headerBar()}
-        <div class="pubinv__toolbar">
-          <div class="pubinv__toolbar-l">${icon("check-circle", { size: 16 })}<span>${record.doc.buyer.company} · ${record.doc.period}</span></div>
-          <button class="pubinv__dl" data-action="download">${icon("download", { size: 16 })} PDF 다운로드</button>
-        </div>
+        ${headerBar(true)}
         <div class="pubinv__docwrap">${invoiceDoc(record.doc, ASSET_BASE)}</div>
       </div>
     `

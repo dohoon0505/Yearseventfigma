@@ -35,14 +35,6 @@ export function mount(root, { nav }) {
   let activeModal = null;
   const closeModal = () => { if (activeModal) { activeModal.close(); activeModal = null; } };
 
-  // 정산·회계 담당자(담당자 저장공간 지정)를 불러와 명세서 발급/입금 알림 수신자로 표시
-  const billtoBody = () => {
-    const b = store.getBillingContact();
-    return b
-      ? html`<div class="invoice-billto__in">${icon("bell", { size: 14 })}<div><p class="invoice-billto__lbl">정산·회계 알림 수신</p><p class="invoice-billto__val">${b.name} (${b.role}) · <strong>${b.phone}</strong></p></div></div>`
-      : html`<div class="invoice-billto__in is-none">${icon("alert-circle", { size: 14 })}<div><p class="invoice-billto__lbl">정산·회계 담당자 미지정</p><p class="invoice-billto__val">담당자 저장공간에서 지정해 주세요.</p></div></div>`;
-  };
-
   function render() {
     setHTML(
       root,
@@ -71,7 +63,6 @@ export function mount(root, { nav }) {
                   ? html`<span class="invoice-stat__done">${icon("check-circle", { size: 12 })}동의완료</span>`
                   : html`<span class="invoice-stat__need">동의 필요</span>`}</div>
               </div>
-              <div class="invoice-billto">${billtoBody()}</div>
               <button class="invoice-agree ${state.agreed ? "is-agreed" : ""}" data-action="agree">
                 ${state.agreed
                   ? html`<span class="invoice-agree__done">${icon("check-circle", { size: 13 })}계산서 발급 동의 완료</span>`
