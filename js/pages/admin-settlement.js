@@ -11,7 +11,7 @@ import { CLIENT_SETTLEMENTS, SETTLEMENT_YEARS } from "../data/admin-mock.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 
-const COL = "minmax(140px,1fr) 112px 128px 118px 118px 112px 140px";
+const COL = "minmax(180px,1fr) 110px 110px 110px 110px 116px 128px";
 const HEADERS = ["거래처", "청구금액", "거래명세서", "계산서 발급", "거래대금", "공개 링크", "명세서 다운로드"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
