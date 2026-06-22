@@ -12,7 +12,7 @@ import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 
 const COL = "minmax(140px,1fr) 112px 128px 118px 118px 112px 140px";
-const HEADERS = ["거래처", "청구금액", "거래명세서 동의", "계산서 발급", "거래대금 입금", "공개 링크", "명세서 다운로드"];
+const HEADERS = ["거래처", "청구금액", "거래명세서", "계산서 발급", "거래대금", "공개 링크", "명세서 다운로드"];
 const STATUS_TABS = [
   { value: "all", label: "전체" },
   { value: "pending", label: "미완료" },
