@@ -55,7 +55,7 @@ const INITIAL_CONTACTS = [
 ];
 
 /* ── Reactive store ─────────────────────────────────────── */
-const KEY = "yeop.store.v1";
+const KEY = "yeop.store.v2"; // v2: 거래처 시드 교체(실제 거래처 20곳)로 재시드
 const subs = new Set();
 
 let state = {
