@@ -25,7 +25,7 @@ const ok = (t) => html`<span class="settle-badge settle-badge--ok">${t}</span>`;
 const warn = (t) => html`<span class="settle-badge settle-badge--warn">${t}</span>`;
 const danger = (t) => html`<span class="settle-badge settle-badge--danger">${t}</span>`;
 const agreeBadge = (v) => (v === "동의완료" ? ok("동의완료") : warn("동의대기"));
-const issueBadge = (v) => (v === "발급완료" ? ok("발급완료") : warn("동의하기"));
+const issueBadge = (v) => (v === "발급완료" ? ok("발급완료") : warn("동의필요"));
 const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : danger("미입금"));
 const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서발급 === "발급완료" && r.입금완료 === "입금완료";
 
