@@ -211,22 +211,16 @@ export function mount(root, { nav }) {
             <button class="modal-close" data-action="close" aria-label="닫기">${icon("x", { size: 18 })}</button>
           </div>
         </div>
-        <div class="odetail__body">
-          <div class="odetail__imgs">
-            ${order.hasPhoto
-              ? html`
-                  <div class="odetail__photo"><div class="odetail__photo-in">${icon("camera", { size: 34 })}<span>상품 사진</span></div></div>
-                  <div class="odetail__photo"><div class="odetail__photo-in">${icon("camera", { size: 34 })}<span>배송완료 사진</span></div></div>`
-              : html`<div class="odetail__nophoto"><div class="odetail__nophoto-in">${icon("camera", { size: 22 })}<span>등록된 사진이 없습니다</span></div></div>`}
-          </div>
-          <div class="odetail__info">
-            ${rows.map(
-              ([label, value]) => html`<div class="odetail__row">
-                <div class="odetail__row-l">${label}</div>
-                <div class="odetail__row-v ${label === "주문금액" ? "is-amount" : ""}">${value}</div>
-              </div>`
-            )}
-          </div>
+        ${order.hasPhoto
+          ? html`<div class="odetail__photo"><div class="odetail__photo-in">${icon("camera", { size: 40 })}<span>주문 사진</span></div></div>`
+          : html`<div class="odetail__nophoto"><div class="odetail__nophoto-in">${icon("camera", { size: 18 })}<span>등록된 사진이 없습니다</span></div></div>`}
+        <div class="odetail__rows">
+          ${rows.map(
+            ([label, value]) => html`<div class="odetail__row">
+              <div class="odetail__row-l">${label}</div>
+              <div class="odetail__row-v ${label === "주문금액" ? "is-amount" : ""}">${value}</div>
+            </div>`
+          )}
         </div>
         <div class="odetail__foot"><button class="odetail__close-btn" data-action="close">닫기</button></div>
       </div>

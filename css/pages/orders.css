@@ -247,7 +247,7 @@
 
 /* ── Detail modal ───────────────────────────────────────── */
 .modal-panel--detail {
-  max-width: 720px;
+  max-width: 440px;
   overflow: hidden;
 }
 .odetail__head {
@@ -282,61 +282,36 @@
   font-size: var(--fs-12);
   font-weight: var(--fw-semibold);
 }
-/* horizontal body: 좌 이미지 스택 + 우 주문정보 스택 */
-.odetail__body {
-  display: flex;
-  align-items: stretch;
-}
-.odetail__imgs {
-  width: 192px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  background: var(--c-surface-hover);
-  border-right: 1px solid var(--c-border);
-}
-.odetail__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
 .odetail__photo {
   width: 100%;
-  aspect-ratio: 2 / 3;
+  height: 160px;
   background: var(--c-surface-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
   display: flex;
   align-items: center;
   justify-content: center;
+  border-bottom: 1px solid var(--c-border);
 }
 .odetail__photo-in {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: #bbb;
+  color: #ccc;
 }
 .odetail__photo-in span {
   font-size: var(--fs-13);
 }
 .odetail__nophoto {
   width: 100%;
-  aspect-ratio: 2 / 3;
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  height: 80px;
+  background: var(--c-surface-hover);
   display: flex;
   align-items: center;
   justify-content: center;
+  border-bottom: 1px solid var(--c-border);
 }
 .odetail__nophoto-in {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 8px;
   color: #bbb;
@@ -349,15 +324,10 @@
   align-items: stretch;
   border-bottom: 1px solid #f0f0f0;
 }
-.odetail__row:last-child {
-  border-bottom: 0;
-}
 .odetail__row-l {
-  width: 110px;
+  width: 120px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 11px 16px;
+  padding: 10px 16px;
   background: #f8f8f8;
   font-size: var(--fs-13);
   color: var(--c-text-4);
@@ -366,12 +336,9 @@
 }
 .odetail__row-v {
   flex: 1;
-  display: flex;
-  align-items: center;
-  padding: 11px 16px;
+  padding: 10px 16px;
   font-size: var(--fs-14);
   color: var(--c-text-2);
-  word-break: break-word;
 }
 .odetail__row-v.is-amount {
   color: var(--c-orange);
@@ -392,16 +359,4 @@
 }
 .odetail__close-btn:hover {
   background: #d94e24;
-}
-/* 좁은 화면: 가로형 → 세로 스택 폴백 */
-@media (max-width: 600px) {
-  .odetail__body {
-    flex-direction: column;
-  }
-  .odetail__imgs {
-    width: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--c-border);
-    flex-direction: row;
-  }
 }
