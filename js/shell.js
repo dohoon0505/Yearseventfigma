@@ -50,14 +50,8 @@ function buildShell(variant = "enterprise") {
   const menu = variant === "admin" ? ADMIN_MENU : MENU;
   const brand =
     variant === "admin"
-      ? {
-          company: "관리자 콘솔",
-          banner: html`<span>관리자 모드 · <strong>DEMO 인증</strong></span>`,
-        }
-      : {
-          company: "(주)진양코퍼레이션",
-          banner: html`<span>연간 상품 누락 및 오배송: <strong>0건</strong></span>`,
-        };
+      ? { company: "관리자 콘솔" }
+      : { company: "(주)진양코퍼레이션" };
 
   const wrap = document.createElement("div");
   wrap.className = "shell";
@@ -72,10 +66,6 @@ function buildShell(variant = "enterprise") {
             <img src="./assets/company.png" alt="" />
             <span>${brand.company}</span>
           </div>
-        </div>
-        <div class="warning-banner" role="status">
-          <img src="./assets/warning.png" alt="" />
-          ${brand.banner}
         </div>
       </header>
 
