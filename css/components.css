@@ -27,28 +27,6 @@
   color: var(--c-company-text);
 }
 
-.warning-banner {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-5);
-  background: var(--c-warn-bg);
-  border: 1px solid var(--c-warn-border);
-  border-radius: var(--r-sm);
-  font-size: var(--fs-14);
-  color: var(--c-text-3);
-  white-space: nowrap;
-}
-.warning-banner img {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-}
-.warning-banner strong {
-  color: var(--c-warn-ink);
-  font-weight: var(--fw-bold);
-}
-
 /* ── Buttons ────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
