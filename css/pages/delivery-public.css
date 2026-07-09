@@ -1,0 +1,91 @@
+/* ============================================================
+   delivery-public.css — 배송완료 리포트 (전자 인수증)
+   배송완료 시 주문자 SMS 로 발송되는 공개 단독 페이지.
+   거래처(user) 디자인 시스템(tokens.css) 사용.
+   레이아웃/구조는 첨부 시안 참고 · 색·타이포는 전부 토큰.
+   ============================================================ */
+
+/* Latin/숫자 전용 모노 (한글은 항상 본문 산세로) */
+.mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ── Page shell ── */
+.dc { min-height: 100%; width: 100%; background: var(--c-bg); display: flex; flex-direction: column; align-items: center; }
+.dc__header {
+  position: sticky; top: 0; z-index: 5; width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 20px;
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border); box-shadow: var(--sh-header);
+}
+.dc__brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.dc__logo { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
+.dc__brandname { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc__doctype { flex-shrink: 0; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-3); }
+.dc__main { width: 100%; max-width: 480px; margin: 0 auto; padding: 22px 16px 40px; }
+
+/* ── The paper (오렌지 레터헤드 엣지 · 힘줄 룰) ── */
+.paper { position: relative; background: var(--c-surface); border: 1px solid var(--c-border); border-top: 3px solid var(--c-orange); border-radius: var(--r-lg); box-shadow: var(--sh-card); overflow: hidden; }
+.rule { border: 0; border-top: 1px solid var(--c-border); margin: 0; }
+
+/* ── Masthead ── */
+.masthead { padding: 20px 20px 16px; border-bottom: 1px solid var(--c-border); }
+.masthead__top { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
+.masthead__eyebrow { font-size: var(--fs-11); font-weight: var(--fw-medium); color: var(--c-text-4); }
+.masthead__no { flex-shrink: 0; font-size: var(--fs-11); color: var(--c-text-4); }
+.masthead__title { margin-top: 10px; max-width: 18ch; font-size: var(--fs-22); font-weight: var(--fw-bold); color: var(--c-text-strong); line-height: 1.24; letter-spacing: -0.02em; text-wrap: balance; word-break: keep-all; }
+
+/* ── Evidence photo (2:3 세로비율) ── */
+.evidence { margin: 0; padding: 14px 20px; }
+.evidence__fig { position: relative; aspect-ratio: 2 / 3; overflow: hidden; background: var(--c-surface-3); border: 1px solid var(--c-border); border-radius: var(--r-sm); }
+.evidence__img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.evidence__chip { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: var(--r-md); background: rgba(255, 255, 255, 0.98); color: var(--c-success-ink); font-size: var(--fs-12); font-weight: var(--fw-semibold); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }
+.evidence__chip .icon { display: block; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.evidence__zoom { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; border: 0; border-radius: inherit; cursor: zoom-in; }
+.evidence__zoom:focus-visible { box-shadow: inset 0 0 0 2px var(--c-orange); }
+
+/* ── stamped section title ── */
+.sectitle { font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-text-2); padding-bottom: 6px; border-bottom: 2px solid var(--c-text-2); }
+
+/* ── 수령인 (경조화환 수령자) ── */
+.stub { padding: 18px 20px; }
+.resolve__actual { position: relative; margin-top: 14px; padding-left: 14px; }
+.resolve__actual::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--c-orange); }
+.resolve__k { font-size: var(--fs-11); font-weight: var(--fw-medium); color: var(--c-text-4); }
+.resolve__name { margin-top: 3px; font-size: var(--fs-18); font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; word-break: keep-all; }
+
+/* ── 주문 정보 ledger ── */
+.ledger { padding: 18px 20px; }
+.ledger__list { margin-top: 4px; }
+.lrow { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--c-divider); }
+.lrow:last-child { border-bottom: 0; }
+.lrow__k { flex: 0 0 76px; font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-text-4); padding-top: 1px; }
+.lrow__v { flex: 1; min-width: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text); line-height: 1.5; word-break: keep-all; text-wrap: pretty; }
+
+/* ── Authenticity footer ── */
+.docfoot { position: relative; padding: 16px 20px calc(18px + env(safe-area-inset-bottom)); background: var(--c-surface-3); border-top: 1px solid var(--c-border); }
+.docfoot__brand { display: flex; align-items: center; gap: 7px; }
+.docfoot__logo { width: 18px; height: 18px; object-fit: contain; opacity: 0.85; }
+.docfoot__name { font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--c-text-3); }
+.docfoot__legal { margin-top: 8px; max-width: 32ch; font-size: var(--fs-12); font-weight: var(--fw-normal); color: var(--c-text-4); line-height: 1.65; }
+.seal { position: absolute; right: 18px; top: 16px; width: 64px; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transform: rotate(-7deg); }
+.seal__ring { position: absolute; inset: 0; border: 1.5px solid var(--c-orange-ink); border-radius: 50%; opacity: 0.16; }
+.seal__top { font-size: 9px; font-weight: var(--fw-bold); color: var(--c-text-faint); }
+.seal__date { margin-top: 1px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9px; color: var(--c-text-faint); font-variant-numeric: tabular-nums; }
+
+/* ── Lightbox (사진 탭 → contain 보기) ── */
+.lightbox { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(17, 17, 24, 0.92); cursor: zoom-out; }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--r-sm); }
+.lightbox__close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.14); color: #fff; cursor: pointer; border: 0; }
+.lightbox__close:hover { background: rgba(255, 255, 255, 0.24); }
+.lightbox__close .icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Entrance: 위→아래 프린트 리빌 (모션 선호 시에만) ── */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal { opacity: 0; animation: dc-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) var(--rd, 0s) both; }
+  @keyframes dc-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+}
+
+@media (max-width: 380px) {
+  .dc__main { padding: 16px 12px 32px; }
+  .masthead, .ledger, .stub, .docfoot, .evidence { padding-left: 16px; padding-right: 16px; }
+}

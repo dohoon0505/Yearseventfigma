@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>배송완료 리포트 — 올해의경조사</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="../assets/Black_Logo_Simbol.png" />
+
+    <!-- Pretendard (CDN) -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
+
+    <!-- 거래처(user) 디자인 시스템 (relative to /delivery/) -->
+    <link rel="stylesheet" href="../css/tokens.css" />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/pages/delivery-public.css" />
+  </head>
+  <body>
+    <div class="dc">
+      <!-- 헤더: 브랜드 · 문서종류 -->
+      <header class="dc__header">
+        <div class="dc__brand">
+          <img class="dc__logo" src="../assets/Black_Logo_Simbol.png" alt="올해의경조사" />
+          <span class="dc__brandname">올해의경조사</span>
+        </div>
+        <span class="dc__doctype">배송완료 리포트</span>
+      </header>
+
+      <main class="dc__main">
+        <article class="paper">
+          <!-- 문서 머리 -->
+          <header class="masthead reveal" style="--rd: 0.06s">
+            <div class="masthead__top">
+              <p class="masthead__eyebrow">배송완료 리포트</p>
+              <span class="masthead__no mono" id="order-no">No.—</span>
+            </div>
+            <h1 class="masthead__title" id="hero-headline">
+              화환 배송을 완료했습니다
+            </h1>
+          </header>
+
+          <!-- 배송완료 이미지 (2:3 세로비율) -->
+          <figure class="evidence reveal" style="--rd: 0.12s">
+            <div class="evidence__fig">
+              <img
+                class="evidence__img"
+                id="photo"
+                src="./sample.png"
+                alt="현장에 전달된 경조화환 사진"
+              />
+              <span class="evidence__chip">
+                <svg class="icon" width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                배송완료
+              </span>
+              <button
+                class="evidence__zoom"
+                id="photo-zoom"
+                type="button"
+                aria-label="배송 사진 크게 보기"
+              ></button>
+            </div>
+          </figure>
+
+          <hr class="rule" />
+
+          <!-- 수령인 -->
+          <section class="stub reveal" style="--rd: 0.18s">
+            <p class="sectitle">수령 확인</p>
+            <div class="resolve__actual">
+              <p class="resolve__k">경조화환 수령자 · 현장 확인</p>
+              <p class="resolve__name" id="receiver-name">—</p>
+            </div>
+          </section>
+
+          <hr class="rule" />
+
+          <!-- 주문 정보 -->
+          <section class="ledger reveal" style="--rd: 0.24s">
+            <p class="sectitle">주문 정보</p>
+            <dl class="ledger__list">
+              <div class="lrow">
+                <dt class="lrow__k">주문일시</dt>
+                <dd class="lrow__v tnum" id="v-date">—</dd>
+              </div>
+              <div class="lrow">
+                <dt class="lrow__k">배송주소</dt>
+                <dd class="lrow__v" id="v-place">—</dd>
+              </div>
+              <div class="lrow">
+                <dt class="lrow__k">받는분</dt>
+                <dd class="lrow__v" id="v-recipient">—</dd>
+              </div>
+              <div class="lrow">
+                <dt class="lrow__k">보내는분</dt>
+                <dd class="lrow__v" id="v-sender">—</dd>
+              </div>
+            </dl>
+          </section>
+
+          <!-- 진위 확인 푸터 -->
+          <footer class="docfoot reveal" style="--rd: 0.3s">
+            <div class="docfoot__brand">
+              <img class="docfoot__logo" src="../assets/Black_Logo_Simbol.png" alt="" />
+              <span class="docfoot__name">올해의경조사</span>
+            </div>
+            <p class="docfoot__legal">
+              본 페이지는 배송 완료 시점에 자동 생성된 배송완료 리포트입니다.
+              <span class="mono" id="foot-no">No.—</span>
+            </p>
+            <div class="seal" aria-hidden="true">
+              <span class="seal__ring"></span>
+              <span class="seal__top">배송완료</span>
+              <span class="seal__date" id="seal-date"></span>
+            </div>
+          </footer>
+        </article>
+      </main>
+    </div>
+
+    <script src="../js/public-delivery.js"></script>
+  </body>
+</html>
