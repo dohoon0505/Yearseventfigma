@@ -553,3 +553,90 @@
   justify-content: center;
   text-align: center;
 }
+
+/* ══ ② 대시보드 카드 (.adash / .acard / .kpi) ═════════════════
+   카드 = 헤더 존(구분선) + 본문. 색상은 tokens.css 토큰만. 숫자는 .num. */
+.page-admin .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.adash { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.adash .row-main { display: grid; grid-template-columns: 1.05fr 1.3fr; gap: 14px; }
+.adash .row-sub { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 14px; }
+.acard { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; box-shadow: var(--sh-card); min-width: 0; overflow: hidden; }
+.acard__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 22px; border-bottom: 1px solid var(--c-divider); }
+.acard__head b { font-size: var(--fs-14); font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.acard__hint { font-size: 11.5px; font-weight: var(--fw-semibold); color: var(--c-text-muted); background: var(--c-surface-2); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.acard__body { padding: 20px 22px; }
+/* KPI */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; box-shadow: var(--sh-card); padding: 18px 20px 16px; min-width: 0; }
+.kpi__lbl { font-size: 12.5px; color: var(--c-text-muted); font-weight: var(--fw-medium); }
+.kpi__val { font-size: 24px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.02em; margin-top: 6px; white-space: nowrap; }
+.kpi__val.warn { color: var(--c-danger-ink); }
+.kpi__delta { display: inline-flex; align-items: center; gap: 4px; margin-top: 9px; font-size: 11.5px; font-weight: var(--fw-bold); padding: 2.5px 9px; border-radius: 999px; }
+.kpi__delta.up { background: var(--c-danger-bg); color: var(--c-danger-ink); }
+.kpi__delta.down { background: var(--c-blue-soft); color: var(--c-blue); }
+.kpi__delta.flat { background: var(--c-surface-2); color: var(--c-text-muted); font-weight: var(--fw-medium); }
+@media (max-width: 1180px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .adash .row-main, .adash .row-sub { grid-template-columns: 1fr; }
+}
+/* 인사이트 (헤드라인 + 막대) */
+.headline { font-size: 19px; font-weight: var(--fw-bold); color: var(--c-text-strong); line-height: 1.5; }
+.headline .up { color: var(--c-danger-ink); }
+.headline .down { color: var(--c-blue); }
+.bars { display: flex; align-items: flex-end; gap: 14px; margin-top: 22px; }
+.bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.bar__v { font-size: 11px; color: var(--c-text-muted); font-weight: var(--fw-semibold); }
+.bar__c { width: 100%; max-width: 44px; border-radius: 7px 7px 3px 3px; background: var(--ch-bar-rest); }
+.bar.cur .bar__c { background: var(--c-orange); }
+.bar.cur .bar__v, .bar.cur .bar__l { color: var(--c-orange-ink); font-weight: var(--fw-bold); }
+.bar__l { font-size: 11px; color: var(--c-text-muted); }
+/* 거래처 랭킹 (오렌지 바) */
+.rank { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+.rank__no { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; background: var(--c-surface-2); color: var(--c-text-muted); font-size: 11.5px; font-weight: var(--fw-bold); display: grid; place-items: center; }
+.rank__no.top { background: var(--c-orange-soft); color: var(--c-orange-ink); }
+.rank__name { flex: 0 0 84px; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank__track { flex: 1; height: 8px; border-radius: 4px; background: var(--c-surface-2); overflow: hidden; }
+.rank__bar { display: block; height: 100%; border-radius: 4px; background: var(--c-orange); opacity: 0.85; }
+.rank__amt { flex: 0 0 86px; text-align: right; font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.rank__share { flex: 0 0 42px; text-align: right; font-size: 11.5px; color: var(--c-text-muted); }
+/* 항목 도넛 + 범례 */
+.acard__body.donut { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.donut__svg { flex: 0 0 124px; }
+.donut__t1 { font-size: 10px; fill: var(--c-text-muted); font-family: var(--font-sans); }
+.donut__t2 { font-size: 12px; font-weight: 700; fill: var(--c-text-strong); font-family: var(--font-sans); }
+.dleg { flex: 1 1 200px; min-width: 0; font-size: 12.5px; }
+.dleg__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; }
+.dleg__l { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.dleg__dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 9px; }
+.dleg__name { color: var(--c-text); font-weight: var(--fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dleg__val { color: var(--c-text-muted); white-space: nowrap; }
+/* 정산 진행 현황 */
+.prog__track { height: 10px; border-radius: 5px; background: var(--c-surface-2); overflow: hidden; }
+.prog__fill { height: 100%; border-radius: 5px; background: var(--c-success-ink); }
+.steps { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+.step { background: var(--c-bg); border: 1px solid var(--c-divider); border-radius: var(--r-lg); padding: 10px 12px; }
+.step b { display: block; font-size: 11.5px; color: var(--c-text-muted); font-weight: var(--fw-semibold); }
+.step span { font-size: var(--fs-14); font-weight: var(--fw-bold); color: var(--c-text-2); }
+.step.done { background: var(--c-success-bg); border-color: transparent; }
+.step.done span { color: var(--c-success-ink); }
+.prog__amts { display: flex; justify-content: space-between; margin-top: 14px; font-size: var(--fs-12); color: var(--c-text-muted); }
+.prog__amts b { color: var(--c-text-2); }
+.prog__amts .warn b { color: var(--c-danger-ink); }
+
+/* ══ ③ 리포트 카드 v2 (.report) — 라이트 · 문서 목차 · 아이콘 없음 ══ */
+.report { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; box-shadow: var(--sh-card); display: flex; flex-direction: column; min-width: 0; }
+.report__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 22px; border-bottom: 1px solid var(--c-divider); }
+.report__head b { font-size: var(--fs-14); font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.report__hint { font-size: 11.5px; font-weight: var(--fw-semibold); color: var(--c-orange-ink); background: var(--c-orange-soft); padding: 3px 10px; border-radius: 999px; }
+.report__body { padding: 16px 22px 0; flex: 1; }
+.report__desc { font-size: var(--fs-12); color: var(--c-text-muted); line-height: 1.65; }
+.report__list { margin-top: 12px; border-top: 1px solid var(--c-divider); }
+.report__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--c-divider); font-size: 12.5px; color: var(--c-text-2); }
+.report__row b { font-weight: var(--fw-semibold); color: var(--c-text-2); }
+.report__row span { font-size: 11px; color: var(--c-text-faint); }
+.report__quote { margin-top: 12px; padding: 10px 13px; background: var(--c-bg); border-left: 2px solid var(--c-border-strong); border-radius: 0 var(--r-md) var(--r-md) 0; font-size: var(--fs-12); color: var(--c-text-3); line-height: 1.6; }
+.report__btn { display: flex; align-items: center; justify-content: center; margin: 16px 22px 20px; height: 46px; border-radius: var(--r-xl); background: var(--c-orange); color: var(--c-surface); font-size: var(--fs-14); font-weight: var(--fw-bold); box-shadow: var(--sh-btn); transition: background 0.15s; }
+.report__btn:hover { background: var(--c-orange-hover); }
+
+/* ── 정산회계: 공개 링크 복사 버튼 ──────────────────────── */
+.settle-linkbtn {
