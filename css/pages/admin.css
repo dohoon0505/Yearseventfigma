@@ -181,6 +181,65 @@
   color: var(--c-danger-ink);
 }
 
+/* ── [레거시] 주문 필드(ofield) — 구 order.css에서 이관.
+   admin-clients.js 편집 모달이 사용. HModal 전환 시 삭제 예정. ── */
+.ofield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ofield__lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-14);
+  color: var(--c-text-3);
+  font-weight: var(--fw-medium);
+}
+.ofield__wrap {
+  position: relative;
+}
+.ofield__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #bbb;
+}
+.ofield__input {
+  width: 100%;
+  border: 1px solid var(--c-border-field);
+  border-radius: var(--r-xl);
+  padding: 11px 13px;
+  font-size: var(--fs-14);
+  color: var(--c-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ofield__input.has-icon {
+  padding-left: 38px;
+}
+.ofield__input::placeholder {
+  color: var(--c-text-faint);
+}
+.ofield__input:hover:not(:focus):not(:disabled):not(.is-readonly) {
+  border-color: var(--c-border-field-strong);
+}
+.ofield__input:focus {
+  border-color: var(--c-indigo);
+  box-shadow: var(--ring-field);
+}
+.ofield__input.is-error {
+  border-color: var(--c-danger);
+}
+.ofield__input.is-error:focus {
+  border-color: var(--c-danger-ink);
+  box-shadow: var(--ring-error);
+}
+.req {
+  color: var(--c-orange);
+}
+
 /* ── [레거시] 거래처 편집 모달(cedit) — settlement.css에서 이관.
    admin-clients.js가 HModal로 전환되면 삭제 예정. 신규 사용 금지. ── */
 .modal-panel--cedit {
