@@ -120,50 +120,43 @@ export function mount(root, { nav }) {
     const isValid = () => EDIT_FIELDS.every((f) => f.section || form[f.key].trim());
 
     const editField = (f) => html`
-      <div class="ofield">
-        <label class="ofield__lbl" for="se-${f.key}">${f.label}<span class="req">*</span></label>
-        <div class="ofield__wrap">
-          ${icon(f.icon, { size: 14, cls: "ofield__icon" })}
-          <input class="ofield__input has-icon" id="se-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key]}" placeholder="${f.placeholder}" />
-        </div>
+      <div class="hm-field">
+        <label for="se-${f.key}">${f.label}<span class="req">*</span></label>
+        <input class="hm-input" id="se-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key]}" placeholder="${f.placeholder}" />
       </div>
     `;
 
     const body = html`
-      <div class="cedit">
-        <div class="cedit__head">
-          <div class="cedit__head-icon">${icon("building2", { size: 18 })}</div>
-          <div><h2>회사정보 수정</h2><p>정산에 사용될 회사 정보를 수정합니다.</p></div>
-        </div>
-        <div class="cedit__body">
-          ${(() => {
-            const out = [];
-            let i = 0;
-            while (i < EDIT_FIELDS.length) {
-              const f = EDIT_FIELDS[i];
-              if (f.section) { out.push(html`<div class="cedit__section"><span>${f.section}</span></div>`); i++; continue; }
-              if (f.grid && EDIT_FIELDS[i + 1] && EDIT_FIELDS[i + 1].grid) {
-                out.push(html`<div class="cedit__grid2">${editField(f)}${editField(EDIT_FIELDS[i + 1])}</div>`);
-                i += 2;
-              } else { out.push(editField(f)); i++; }
-            }
-            return out;
-          })()}
-        </div>
-        <div class="cedit__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="cedit__save ${isValid() ? "is-on" : ""}" data-action="save" ${isValid() ? "" : "disabled"}>
-            ${icon("pencil", { size: 14 })} 저장
-          </button>
-        </div>
+      <div class="hm__head">
+        <div><h3>회사정보 수정</h3><p>정산에 사용될 회사 정보를 수정합니다.</p></div>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+      <div class="hm__body">
+        ${(() => {
+          const out = [];
+          let i = 0;
+          while (i < EDIT_FIELDS.length) {
+            const f = EDIT_FIELDS[i];
+            if (f.section) { out.push(html`<div class="hm-section">${f.section}</div>`); i++; continue; }
+            if (f.grid && EDIT_FIELDS[i + 1] && EDIT_FIELDS[i + 1].grid) {
+              out.push(html`<div class="hm-grid2">${editField(f)}${editField(EDIT_FIELDS[i + 1])}</div>`);
+              i += 2;
+            } else { out.push(editField(f)); i++; }
+          }
+          return out;
+        })()}
+      </div>
+      <div class="hm__foot">
+        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>저장</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--cedit", body, onClose: () => {} });
+    activeModal = openModal({ panelClass: "modal-panel--lg", body, onClose: () => {} });
     const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
     on(activeModal.panel, "input", "[data-cf]", (e, t) => {
       form[t.dataset.cf] = t.value;
       const b = saveBtn();
-      if (b) { b.disabled = !isValid(); b.classList.toggle("is-on", isValid()); }
+      if (b) b.disabled = !isValid();
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
@@ -171,9 +164,9 @@ export function mount(root, { nav }) {
       state.company = { ...form };
       const b = saveBtn();
       if (b) {
+        b.className = "hm-btn hm-btn--ok";
         b.disabled = true;
-        b.classList.add("is-saved");
-        setHTML(b, html`${icon("check-circle", { size: 15 })} 저장 완료!`);
+        setHTML(b, html`${icon("check", { size: 15 })} 저장 완료!`);
       }
       saveTimer = setTimeout(() => { saveTimer = null; closeModal(); render(); }, 900);
     });
