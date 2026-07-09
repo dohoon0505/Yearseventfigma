@@ -127,11 +127,16 @@ export function mount(root, { nav }) {
   /* ── ③ 거래처별 이용 랭킹 (가로 막대 · 오렌지) ──
      막대 길이 = 전체 대비 이용 비중(share%) — 우측에 표기된 % 와 시각적으로 일치. */
   function clientRankCard(r) {
+    const RANK_LIMIT = 10; // 이용금액 상위 10위까지만 표시
+    const top = r.affiliates.slice(0, RANK_LIMIT);
+    const hint = r.affiliates.length > RANK_LIMIT
+      ? `상위 ${RANK_LIMIT}곳 · 전체 ${r.affiliates.length}곳`
+      : (r.affiliates[0] ? `최다 이용 거래처: ${r.affiliates[0].name}` : "");
     return html`
       <div class="acard">
-        <div class="acard__head"><b>거래처별 이용 현황</b>${r.affiliates[0] ? html`<span class="acard__hint">최다 이용 거래처: ${r.affiliates[0].name}</span>` : ""}</div>
+        <div class="acard__head"><b>거래처별 이용 현황</b>${hint ? html`<span class="acard__hint">${hint}</span>` : ""}</div>
         <div class="acard__body" style="padding-top:12px;">
-          ${r.affiliates.map(
+          ${top.map(
             (a, i) => html`
               <div class="rank">
                 <span class="rank__no ${i < 3 ? "top" : ""}">${i + 1}</span>
