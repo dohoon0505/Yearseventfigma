@@ -7,6 +7,9 @@
    ============================================================ */
 
 const NOW = new Date();
+/** 목데이터 생성 기준 시각. 화면의 '이번달/저번달' 기본값은 반드시 이 값을 써야
+ *  자정·월 전환 후에도(모듈은 재평가되지 않으므로) 데이터 창과 어긋나지 않는다. */
+export const DATA_NOW = NOW;
 const pad = (n) => String(n).padStart(2, "0");
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
@@ -43,14 +46,67 @@ export const INITIAL_CLIENTS = [
   { id: "C020", accountId: "ccbros",     password: "cc2026@",  companyName: "주식회사 청춘브라더스",   bizNumber: "119-86-30945", ceoName: "박지훈", managerName: "최유진", department: "마케팅팀", contact: "010-2208-7741", email: "hello@ccbros.kr",        address: "서울 마포구 와우산로29길 18",                    status: "승인대기", joinDate: "2026-06-15" },
 ];
 
+/* ── 거래처별·월별 이용 내역 (항목 카테고리 단위) ──────────────
+   대시보드 인포그래픽·월간 분석 리포트의 원천 데이터.
+   시드 고정 PRNG(mulberry32)로 결정적 생성 → 새로고침해도 값이 흔들리지 않는다.
+   정산금액(CLIENT_SETTLEMENTS)은 이 이용 내역의 합계에서 파생 → 표·차트·리포트 정합. */
+/* 항목별 이용 비중은 개별 상품 단위(상품 규격 안내 = store.js ALL_PRODUCTS 와 동일). */
+export const USAGE_CATEGORIES = [
+  { key: "3단화환(기본형)",  unit: 50000 },
+  { key: "3단화환(고급형)",  unit: 60000 },
+  { key: "3단화환(특대형)",  unit: 75000 },
+  { key: "4단화환(표준형)",  unit: 95000 },
+  { key: "근조오브제(단형)", unit: 50000 },
+  { key: "근조바구니",       unit: 50000 },
+  { key: "평탁화(10kg)",     unit: 75000 },
+  { key: "동양란(기본형)",   unit: 50000 },
+  { key: "중형 꽃바구니",    unit: 80000 },
+];
+const CAT_WEIGHTS = [0.2, 0.1, 0.28, 0.14, 0.04, 0.03, 0.03, 0.11, 0.07]; // 상품별 이용 비중(대략, 합=1)
+
+const mulberry32 = (a) => () => {
+  a |= 0; a = (a + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+function usageFor(ci, m) {
+  const rnd = mulberry32(97 + ci * 131 + m * 17);
+  const scale = 1 + ci * 0.35;        // 거래처 규모 차이
+  const growth = 1 + (5 - m) * 0.09;  // 최근 월일수록 이용 증가 추세
+  const items = {};
+  let orders = 0, total = 0;
+  USAGE_CATEGORIES.forEach((cat, i) => {
+    const base = 4 * scale * growth * CAT_WEIGHTS[i];
+    const count = Math.max(0, Math.round(base + (rnd() - 0.35) * 3));
+    items[cat.key] = { count, amount: count * cat.unit };
+    orders += count;
+    total += count * cat.unit;
+  });
+  if (orders === 0) { // 최소 1건 보장(빈 월 방지) — 3단화환(특대형)
+    const f = USAGE_CATEGORIES[2];
+    items[f.key] = { count: 1, amount: f.unit };
+    orders = 1; total = f.unit;
+  }
+  return { items, orders, total };
+}
+
+/** CLIENT_USAGE[clientId]["YYYY년 MM월"] = { items:{카테고리:{count,amount}}, orders, total } */
+export const CLIENT_USAGE = {};
+INITIAL_CLIENTS.forEach((c, ci) => {
+  CLIENT_USAGE[c.id] = {};
+  for (let m = 0; m <= 5; m++) CLIENT_USAGE[c.id][ymLabel(m)] = usageFor(ci, m);
+});
+
 /* ── per-client SETTLEMENTS (settlement.js fields + 3 checks) ── */
-function settlementsFor(client, ci) {
+function settlementsFor(client) {
   return [0, 1, 2, 3, 4, 5].map((m) => {
     const complete = m >= 2;   // older months: fully settled
     const inProgress = m === 1; // last month: agreed + issued, not paid yet
     const issueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 1, 1);
     const dueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 2, 0);
-    const amount = 300000 + ci * 50000 + (5 - m) * 30000;
+    const amount = CLIENT_USAGE[client.id][ymLabel(m)].total; // 이용 내역 합계에서 파생
     return {
       id: `${client.id}-${ymLabel(m).replace(/[년월\s]/g, "")}`,
       발행일: fmtDot(issueD),
@@ -67,8 +123,8 @@ function settlementsFor(client, ci) {
 }
 
 export const CLIENT_SETTLEMENTS = {};
-INITIAL_CLIENTS.forEach((c, ci) => {
-  CLIENT_SETTLEMENTS[c.id] = settlementsFor(c, ci);
+INITIAL_CLIENTS.forEach((c) => {
+  CLIENT_SETTLEMENTS[c.id] = settlementsFor(c);
 });
 
 /** Available billing year/month options (for the settlement selector). */
