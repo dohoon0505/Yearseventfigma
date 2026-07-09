@@ -30,8 +30,14 @@ const MENU = [
   },
 ];
 
-// Admin console menu — single category, reuses existing nav PNG icons.
+// Admin console menu — reuses existing nav PNG icons.
 const ADMIN_MENU = [
+  {
+    group: "B2C 관리",
+    items: [
+      { label: "B2C 통합주문관리", hash: "#/admin/b2c", icon: "nav-realtime.png" },
+    ],
+  },
   {
     group: "거래처 관리",
     items: [
