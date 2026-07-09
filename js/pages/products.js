@@ -6,7 +6,7 @@ import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, won } from "../store.js";
 import { getClientId } from "../session.js";
-import { pageTitle, tableGrid, openModal } from "../ui.js";
+import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
 
 const sampleImages = {
   경조화환: "https://images.unsplash.com/photo-1728080568516-28156ceae0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdW5lcmFsJTIwZmxvd2VyJTIwS29yZWElMjBjZXJlbW9ueXxlbnwxfHx8fDE3NzU2Mzk0ODd8MA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -105,24 +105,61 @@ export function mount(root, { nav }) {
 
   function openSample(product) {
     closeModal();
-    const imgUrl = sampleImages[product.category];
+    const imgs = [sampleImages[product.category]];
+    const multi = imgs.length > 1;
+    let idx = 0;
+    let timer = null;
+    /* 세로형(2:3) 샘플 사진 캐러셀을 좌측 고정 배치, 상품 정보는 우측.
+       2장 이상이면 하단 ‹›·매수 표기 + 5초 주기 자동 슬라이드(우→좌). */
     const body = html`
-      <div class="psample">
-        <div class="psample__head">
-          <div><p class="psample__cat">${product.category}</p><h3>${product.product}</h3></div>
-          <button class="modal-close" data-action="close" aria-label="닫기">${icon("x", { size: 18 })}</button>
+      <div class="msplit">
+        <div class="msplit__media pcar ${multi ? "pcar--multi" : ""}">
+          <div class="pcar__track" data-action="zoom" role="button" tabindex="0" aria-label="샘플 사진 크게 보기">
+            ${imgs.map((u, i) => html`<div class="pcar__slide"><img src="${u}" alt="${product.product} 샘플 사진 ${i + 1}" /></div>`)}
+          </div>
+          <span class="msplit__zoomhint">${icon("search", { size: 12 })}크게 보기</span>
+          ${multi
+            ? html`<div class="pcar__ctrl">
+                <button class="pcar__nav" data-action="prev" aria-label="이전 사진">‹</button>
+                <span class="pcar__count"><b data-pcar-cur>1</b> / ${imgs.length}</span>
+                <button class="pcar__nav" data-action="next" aria-label="다음 사진">›</button>
+              </div>`
+            : ""}
         </div>
-        <div class="psample__imgwrap"><img src="${imgUrl}" alt="${product.product}" /></div>
-        <div class="psample__body">
-          <div class="psample__price-row"><span>상품금액</span><span class="psample__price">${priceFor(product)}</span></div>
-          <p class="psample__desc">${product.description}</p>
-          <div class="psample__note"><p>※ 실제 상품은 사진과 다를 수 있으며, 계절 및 산지 사정에 따라 품종이 변경될 수 있습니다.</p></div>
+        <div class="msplit__body">
+          <div class="hm__head">
+            <div><p class="hm-eyebrow">${product.category}</p><h3>${product.product}</h3></div>
+            <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+          </div>
+          <div class="msplit__scroll">
+            <div class="hm-dl">
+              <div class="row"><span class="k">상품금액</span><span class="v amt num">${priceFor(product)}</span></div>
+              <div class="row"><span class="k">상품설명</span><span class="v">${product.description}</span></div>
+            </div>
+            <p class="hm-help" style="margin-top:14px;">※ 실제 상품은 사진과 다를 수 있으며, 계절 및 산지 사정에 따라 품종이 변경될 수 있습니다.</p>
+          </div>
+          <div class="hm__foot"><button class="hm-btn hm-btn--primary" data-action="close">닫기</button></div>
         </div>
-        <div class="psample__foot"><button class="psample__close-btn" data-action="close">닫기</button></div>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--sample", body, onClose: () => {} });
+    activeModal = openModal({ panelClass: "modal-panel--split", body, onClose: () => { if (timer) clearInterval(timer); } });
+    const track = qs(activeModal.panel, ".pcar__track");
+    const curEl = qs(activeModal.panel, "[data-pcar-cur]");
+    const show = (i) => {
+      idx = (i + imgs.length) % imgs.length;
+      if (track) track.style.transform = `translateX(-${idx * 100}%)`;
+      if (curEl) curEl.textContent = String(idx + 1);
+    };
+    const autoplay = () => { if (timer) clearInterval(timer); if (multi) timer = setInterval(() => show(idx + 1), 5000); };
+    autoplay();
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
+    on(activeModal.panel, "click", "[data-action='zoom']", () =>
+      openLightbox({ src: imgs[idx], alt: `${product.product} 샘플 사진`, caption: `${product.product} — ${priceFor(product)}` })
+    );
+    if (multi) {
+      on(activeModal.panel, "click", "[data-action='prev']", () => { show(idx - 1); autoplay(); });
+      on(activeModal.panel, "click", "[data-action='next']", () => { show(idx + 1); autoplay(); });
+    }
   }
 
   render();
