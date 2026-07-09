@@ -154,6 +154,10 @@
   padding: 20px 16px 48px;
   overflow-x: auto;
 }
-.pubinv__docwrap .invoice-doc {
+.pubinv__docwrap .invoice-page {
   box-shadow: var(--sh-modal);
+  border-radius: 4px;
+}
+.pubinv__docwrap .invoice-page + .invoice-page {
+  margin-top: 24px;
 }
