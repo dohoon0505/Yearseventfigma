@@ -6,11 +6,15 @@
   /* ── Brand ─────────────────────────────────────────────── */
   --c-orange: #f15a2a;        /* primary CTA */
   --c-orange-ink: #d94000;    /* active text on light pink */
+  --c-orange-ink-strong: #c93a00; /* AA-safe ink on soft/white (거래명세서 다운로드 버튼) */
   --c-orange-soft: #fff1ec;   /* faint orange wash */
+  --c-orange-hover: #d94e24;  /* primary CTA hover (order 08-brand) */
   --c-blue: #4169e1;          /* secondary / links / toggles */
   --c-blue-soft: #f0f3fd;     /* selected row wash */
   --c-blue-soft-2: #eef1fd;
+  --c-blue-sel: #f8f9ff;      /* selected list-row wash (order/invoice) */
   --c-dark: #111118;          /* login/register panel + strong text */
+  --c-dark-hover: #2b2b33;    /* dark secondary button hover */
 
   /* ── Surfaces & lines ──────────────────────────────────── */
   --c-bg: #f9f9f9;            /* app main content background */
@@ -47,6 +51,7 @@
   --c-danger: #f44336;
   --c-danger-bg: #ffebee;
   --c-danger-ink: #c62828;
+  --c-danger-ink-strong: #a82020; /* danger 솔리드 버튼 hover */
   --c-warn: #ff9800;
   --c-warn-soft-bg: #fff3e0;
   --c-warn-soft-ink: #e65100;
@@ -100,11 +105,26 @@
   --sh-header: 0 1px 4px rgba(0, 0, 0, 0.06);
   --sh-card: 0 1px 6px rgba(0, 0, 0, 0.04);
   --sh-btn: 0 2px 8px rgba(241, 90, 42, 0.28);
-  --sh-modal: 0 10px 40px rgba(0, 0, 0, 0.18);
+  --sh-modal: 0 16px 50px rgba(17, 17, 24, 0.22);
+  --c-modal-dim: rgba(17, 17, 24, 0.45); /* 모달 오버레이 잉크 딤 */
+  --sh-seg: 0 1px 4px rgba(17, 17, 24, 0.1); /* 세그먼트 선택 버튼 */
+  --c-toast-ok: #7be0a0;   /* 다크 토스트 위 성공 아이콘 */
+  --c-toast-warn: #ffcf80; /* 다크 토스트 위 경고 아이콘 */
+  --sh-pop: 0 8px 28px rgba(17, 17, 24, 0.14); /* dropdown/calendar popover (order 08-brand) */
   --ring: 0 0 0 3px rgba(241, 90, 42, 0.09);
   --ring-blue: 0 0 0 3px rgba(65, 105, 225, 0.12);
   --ring-error: 0 0 0 3px rgba(244, 67, 54, 0.1);
   --ring-field: 0 0 0 3px rgba(79, 70, 229, 0.14); /* indigo focus ring */
+
+  /* ── Charts (admin 대시보드 인포그래픽) ─────────────────── */
+  /* 도넛 9색 팔레트 — 항목별(상품별) 이용 비중이 9개라 중복 없이 구분되도록.
+     1~5 는 기존 토큰(orange/blue/success/purple/warn) 재사용, 6~9 는 신규. */
+  --ch-purple: #8b5cf6;      /* 도넛 4번째 세그먼트 */
+  --ch-cyan: #06b6d4;        /* 도넛 6번째 */
+  --ch-pink: #ec4899;        /* 도넛 7번째 */
+  --ch-lime: #84cc16;        /* 도넛 8번째 */
+  --ch-slate: #64748b;       /* 도넛 9번째 */
+  --ch-bar-rest: #ececf1;    /* 막대차트 비선택 월 */
 
   /* ── Text field (design-system Text Field component) ───── */
   --c-indigo: #4f46e5;          /* interactive-brand — field focus */
