@@ -5,7 +5,7 @@
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
-import { pageTitle, tableGrid, openModal, simpleModal } from "../ui.js";
+import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
 
 const MSG_RECEIVE = "모든 배송완료 마다에 메세지를 수신합니다";
 const MSG_NONE = "메세지를 수신하지 않습니다.";
@@ -76,19 +76,16 @@ export function mount(root, { nav }) {
     );
   }
 
-  // ── field helper (reuses .ofield) ──────────────────────
-  function field({ label, key, value, placeholder, ic, required }) {
+  // ── field helper (HModal hm-field) ─────────────────────
+  function field({ label, key, value, placeholder, required }) {
     return html`
-      <div class="ofield">
-        <label class="ofield__lbl" for="pf-${key}">${label}${required ? html`<span class="req">*</span>` : ""}</label>
-        <div class="ofield__wrap">
-          ${ic ? icon(ic, { size: 14, cls: "ofield__icon" }) : ""}
-          <input class="ofield__input ${ic ? "has-icon" : ""}" id="pf-${key}" data-pf="${key}" type="text" value="${value}" placeholder="${placeholder}" />
-        </div>
+      <div class="hm-field">
+        <label for="pf-${key}">${label}${required ? html`<span class="req">*</span>` : ""}</label>
+        <input class="hm-input" id="pf-${key}" data-pf="${key}" type="text" value="${value}" placeholder="${placeholder}" />
       </div>
     `;
   }
-  const divider = (label) => html`<div class="pform-divider"><span>${label}</span><span class="pform-divider__line"></span></div>`;
+  const divider = (label) => html`<div class="hm-section">${label}</div>`;
 
   // ── New Profile ────────────────────────────────────────
   function openNewProfile() {
@@ -100,40 +97,32 @@ export function mount(root, { nav }) {
     const valid = () => !!(form.name && form.role && form.phone);
 
     const body = () => html`
-      <div class="pnew">
-        <div class="pnew__head">
-          <div class="pnew__head-icon">${icon("user-plus", { size: 18 })}</div>
-          <div><h2>신규 프로필 등록</h2><p>화환 리본에 표시될 발신인 정보를 등록합니다.</p></div>
+      <div class="hm__head">
+        <div><h3>신규 프로필 등록</h3><p>화환 리본에 표시될 발신인 정보를 등록합니다.</p></div>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+      <div class="hm__body">
+        <div class="hm-grid2">
+          ${field({ label: "성함", key: "name", value: form.name, placeholder: "예) 홍길동", required: true })}
+          ${field({ label: "직위", key: "role", value: form.role, placeholder: "예) 대표이사", required: true })}
         </div>
-        <div class="pnew__body">
-          ${divider("발신인 정보")}
-          <div class="cedit__grid2">
-            ${field({ label: "성함", key: "name", value: form.name, placeholder: "예) 홍길동", ic: "user-check", required: true })}
-            ${field({ label: "직위", key: "role", value: form.role, placeholder: "예) 대표이사", ic: "tag", required: true })}
-          </div>
-          ${divider("연락처")}
-          ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone, placeholder: "예) 010-0000-0000", ic: "phone", required: true })}
-          ${divider("리본 고정문구")}
-          ${field({ label: "고정문구", key: "greeting", value: form.greeting, placeholder: auto() || "비워두면 직위+성함 형식으로 자동 생성됩니다.", ic: "file-text" })}
-          <div class="pnew__preview" data-slot="preview">${greetingPreview(form, auto())}</div>
-          <div class="pnew__info">${icon("info", { size: 13 })}<p>고정문구를 비워두면 <strong>직위 + 성함</strong> 형식으로 자동 생성됩니다.<br />리본 문구는 주문 시 수정이 가능합니다.</p></div>
-        </div>
-        <div class="pnew__foot">
-          <span class="pnew__req"><span class="req">*</span> 필수 입력 항목</span>
-          <div class="pnew__foot-btns">
-            <button class="btn-cancel" data-action="close">취소</button>
-            <button class="pnew__ok ${valid() ? "is-on" : ""}" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
-          </div>
-        </div>
+        ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone, placeholder: "예) 010-0000-0000", required: true })}
+        ${field({ label: "리본 고정문구", key: "greeting", value: form.greeting, placeholder: auto() || "비워두면 직위+성함 형식으로 자동 생성됩니다." })}
+        <div class="hm-preview" data-slot="preview">${greetingPreview(form, auto())}</div>
+        <div class="hm-info"><span><b>고정문구를 비워두면</b> 직위 + 성함 형식으로 자동 생성됩니다. 리본 문구는 주문 시 수정이 가능합니다.</span></div>
+      </div>
+      <div class="hm__foot">
+        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        <button class="hm-btn hm-btn--primary" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--pnew", body: body(), onClose: () => {} });
+    activeModal = openModal({ body: body(), onClose: () => {} });
     on(activeModal.panel, "input", "[data-pf]", (e, t) => {
       form[t.dataset.pf] = t.value;
       const pv = qs(activeModal.panel, "[data-slot='preview']");
       if (pv) setHTML(pv, greetingPreview(form, auto()));
       const ok = qs(activeModal.panel, "[data-action='add']");
-      if (ok) { ok.disabled = !valid(); ok.classList.toggle("is-on", valid()); }
+      if (ok) ok.disabled = !valid();
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='add']", () => {
@@ -146,7 +135,7 @@ export function mount(root, { nav }) {
   }
   const greetingPreview = (form, auto) =>
     form.greeting || auto
-      ? html`<span class="pnew__preview-lbl">리본 문구 미리보기</span><p class="pnew__preview-val">${form.greeting.trim() || auto}</p>`
+      ? html`<span class="hm-preview__lbl">리본 문구 미리보기</span><p class="hm-preview__val">${form.greeting.trim() || auto}</p>`
       : "";
 
   // ── New Contact ────────────────────────────────────────
@@ -159,51 +148,40 @@ export function mount(root, { nav }) {
     const receiving = () => form.message === MSG_RECEIVE;
 
     const body = () => html`
-      <div class="pnew">
-        <div class="pnew__head">
-          <div class="pnew__head-icon">${icon("building2", { size: 18 })}</div>
-          <div><h2>신규 담당자 등록</h2><p>배송 완료 알림을 수신할 담당자를 등록합니다.</p></div>
+      <div class="hm__head">
+        <div><h3>신규 담당자 등록</h3><p>배송 완료 알림을 수신할 담당자를 등록합니다.</p></div>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+      <div class="hm__body">
+        <div class="hm-grid2">
+          ${field({ label: "성함", key: "name", value: form.name, placeholder: "예) 김담당", required: true })}
+          ${field({ label: "부서·직위", key: "role", value: form.role, placeholder: "예) 재경부", required: true })}
         </div>
-        <div class="pnew__body">
-          ${divider("담당자 정보")}
-          <div class="cedit__grid2">
-            ${field({ label: "성함", key: "name", value: form.name, placeholder: "예) 김담당", ic: "user-check", required: true })}
-            ${field({ label: "부서·직위", key: "role", value: form.role, placeholder: "예) 재경부", ic: "building2", required: true })}
-          </div>
-          ${divider("연락처")}
-          ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone, placeholder: "예) 010-0000-0000", ic: "phone", required: true })}
-          ${divider("메세지 수신 설정")}
-          <div class="ofield">
-            <label class="ofield__lbl">메세지 수신여부<span class="req">*</span></label>
-            <div class="cedit__grid2">
-              ${[{ val: MSG_RECEIVE, title: "수신함", desc: "배송 완료 시 문자 알림" }, { val: MSG_NONE, title: "수신 안 함", desc: "알림 미수신" }].map(
-                (opt) => html`<label class="pmsg ${form.message === opt.val ? "is-sel" : ""}">
-                  <input type="radio" name="pmsg" value="${opt.val}" ${form.message === opt.val ? "checked" : ""} data-pmsg />
-                  <div><p class="pmsg__t">${opt.title}</p><p class="pmsg__d">${opt.desc}</p></div>
-                </label>`
-              )}
-            </div>
-          </div>
-          <div class="pmsg-status ${receiving() ? "on" : "off"}" data-slot="msgstatus">${msgStatus(form, receiving())}</div>
-          <div class="pnew__info">${icon("info", { size: 13 })}<p>배송 완료 알림은 등록된 수신번호로 문자 메세지가 발송됩니다.<br />수신 설정은 언제든지 수정 가능합니다.</p></div>
+        ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone, placeholder: "예) 010-0000-0000", required: true })}
+        <div class="hm-section">메세지 수신 설정</div>
+        <div class="hm-grid2">
+          ${[{ val: MSG_RECEIVE, title: "수신함", desc: "배송 완료 시 문자 알림" }, { val: MSG_NONE, title: "수신 안 함", desc: "알림 미수신" }].map(
+            (opt) => html`<label class="hm-radio ${form.message === opt.val ? "is-sel" : ""}">
+              <input type="radio" name="pmsg" value="${opt.val}" ${form.message === opt.val ? "checked" : ""} data-pmsg />
+              <div><p class="hm-radio__t">${opt.title}</p><p class="hm-radio__d">${opt.desc}</p></div>
+            </label>`
+          )}
         </div>
-        <div class="pnew__foot">
-          <span class="pnew__req"><span class="req">*</span> 필수 입력 항목</span>
-          <div class="pnew__foot-btns">
-            <button class="btn-cancel" data-action="close">취소</button>
-            <button class="pnew__ok ${valid() ? "is-on" : ""}" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
-          </div>
-        </div>
+        <div class="hm-info" data-slot="msgstatus">${msgStatus(form, receiving())}</div>
+      </div>
+      <div class="hm__foot">
+        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        <button class="hm-btn hm-btn--primary" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--pnew", body: body(), onClose: () => {} });
+    activeModal = openModal({ body: body(), onClose: () => {} });
     const re = () => activeModal.render(body());
     on(activeModal.panel, "input", "[data-pf]", (e, t) => {
       form[t.dataset.pf] = t.value;
       const st = qs(activeModal.panel, "[data-slot='msgstatus']");
-      if (st) { setHTML(st, msgStatus(form, receiving())); st.className = `pmsg-status ${receiving() ? "on" : "off"}`; }
+      if (st) setHTML(st, msgStatus(form, receiving()));
       const ok = qs(activeModal.panel, "[data-action='add']");
-      if (ok) { ok.disabled = !valid(); ok.classList.toggle("is-on", valid()); }
+      if (ok) ok.disabled = !valid();
     });
     on(activeModal.panel, "change", "[data-pmsg]", (e, t) => { form.message = t.value; re(); });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
@@ -214,7 +192,7 @@ export function mount(root, { nav }) {
       render();
     });
   }
-  const msgStatus = (form, receiving) => html`${icon("message-square", { size: 13 })}<span>${form.name || "담당자"}님은 현재 <strong>${receiving ? "배송 완료 알림을 수신" : "알림을 수신하지 않음"}</strong>으로 설정됩니다.</span>`;
+  const msgStatus = (form, receiving) => html`<span><b>${form.name || "담당자"}님</b>은 현재 ${receiving ? "배송 완료 알림을 수신" : "알림을 수신하지 않음"}으로 설정됩니다.</span>`;
 
   // ── Edit (profile/contact) ─────────────────────────────
   function openEdit(kind, row) {
@@ -222,30 +200,36 @@ export function mount(root, { nav }) {
     const form = { ...row };
     const isContact = kind === "contact";
     const body = html`
-      <div class="pedit">
-        <div class="cedit__grid2">
-          ${field({ label: "성함", key: "name", value: form.name })}
-          ${field({ label: isContact ? "부서·직위" : "직위", key: "role", value: form.role })}
-        </div>
-        ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone })}
-        ${isContact
-          ? html`<div class="ofield">
-              <label class="ofield__lbl">메세지 수신여부</label>
-              <select class="select" data-pf="message">
-                <option value="${MSG_RECEIVE}" ${form.message === MSG_RECEIVE ? "selected" : ""}>수신함</option>
-                <option value="${MSG_NONE}" ${form.message === MSG_NONE ? "selected" : ""}>수신 안 함</option>
-              </select>
-            </div>`
-          : field({ label: "고정문구", key: "greeting", value: form.greeting })}
-        <div class="pedit__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="pedit__save" data-action="save">저장</button>
-        </div>
+      <div class="hm-grid2">
+        ${field({ label: "성함", key: "name", value: form.name })}
+        ${field({ label: isContact ? "부서·직위" : "직위", key: "role", value: form.role })}
       </div>
+      ${field({ label: "배송완료 수신번호", key: "phone", value: form.phone })}
+      ${isContact
+        ? html`<div class="hm-field">
+            <label>메세지 수신여부</label>
+            <div class="dd" data-dd-msg>
+              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+              <div class="dd-panel" role="listbox"></div>
+            </div>
+          </div>`
+        : field({ label: "고정문구", key: "greeting", value: form.greeting })}
     `;
-    activeModal = simpleModal({ title: isContact ? "담당자 수정" : "프로필 수정", body, panelClass: "modal-panel--pedit", onClose: () => {} });
+    const footer = html`
+      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+      <button class="hm-btn hm-btn--primary" data-action="save">저장</button>
+    `;
+    let ddMsg = null;
+    activeModal = simpleModal({ title: isContact ? "담당자 수정" : "프로필 수정", size: "sm", body, footer, onClose: () => { if (ddMsg) { ddMsg.destroy(); ddMsg = null; } } });
+    if (isContact) {
+      ddMsg = makeDropdown(qs(activeModal.panel, "[data-dd-msg]"), {
+        options: () => [MSG_RECEIVE, MSG_NONE],
+        get: () => form.message,
+        set: (v) => { form.message = v; },
+        label: (v) => (v === MSG_RECEIVE ? "수신함" : "수신 안 함"),
+      });
+    }
     on(activeModal.panel, "input", "[data-pf]", (e, t) => { form[t.dataset.pf] = t.value; });
-    on(activeModal.panel, "change", "[data-pf='message']", (e, t) => { form.message = t.value; });
     on(activeModal.panel, "click", "[data-action='save']", () => {
       if (isContact) store.setContacts((prev) => prev.map((c) => (c.no === form.no ? form : c)));
       else store.setProfiles((prev) => prev.map((p) => (p.no === form.no ? form : p)));
@@ -260,33 +244,21 @@ export function mount(root, { nav }) {
     // 정산·회계 담당자는 무조건 1명 존재해야 하므로 바로 삭제 불가 (먼저 다른 담당자 지정)
     if (kind === "contact" && row.isBilling) {
       const body = html`
-        <div class="pdel">
-          <div class="pdel__msg">
-            <p><strong>${row.name}</strong>님은 현재 <strong class="psec-billnote__on">정산·회계 담당자</strong>입니다.</p>
-            <p class="pdel__sub">정산·회계 담당자는 항상 1명이 지정되어 있어야 합니다.<br />다른 담당자를 정산담당으로 먼저 지정한 뒤 삭제해 주세요.</p>
-          </div>
-          <div class="pdel__foot">
-            <button class="btn-cancel" data-action="close">확인</button>
-          </div>
-        </div>
+        <div class="hm-info"><span><b>${row.name}님은 정산·회계 담당자예요.</b> 정산·회계 담당자는 항상 1명이 지정되어 있어야 하니, 다른 담당자를 정산담당으로 먼저 지정한 뒤 삭제해 주세요.</span></div>
       `;
-      activeModal = simpleModal({ title: "삭제 불가", body, onClose: () => {} });
+      const footer = html`<button class="hm-btn hm-btn--primary" data-action="close">확인</button>`;
+      activeModal = simpleModal({ title: "삭제할 수 없어요", size: "sm", body, footer, onClose: () => {} });
       on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
       return;
     }
     const body = html`
-      <div class="pdel">
-        <div class="pdel__msg">
-          <p><strong>${row.name}</strong> 항목을 삭제하시겠습니까?</p>
-          <p class="pdel__sub">삭제한 내용은 복구할 수 없습니다.</p>
-        </div>
-        <div class="pdel__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="pdel__del" data-action="do-del">삭제</button>
-        </div>
-      </div>
+      <div class="hm-warn"><span><b>삭제한 내용은 복구할 수 없습니다.</b></span></div>
     `;
-    activeModal = simpleModal({ title: "삭제 확인", body, onClose: () => {} });
+    const footer = html`
+      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+      <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
+    `;
+    activeModal = simpleModal({ title: `${row.name} 항목을 삭제할까요?`, size: "sm", body, footer, onClose: () => {} });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       if (kind === "contact") store.setContacts((prev) => prev.filter((c) => c.no !== row.no));
       else store.setProfiles((prev) => prev.filter((p) => p.no !== row.no));
