@@ -1,12 +1,12 @@
 /* ============================================================
    admin-clients.js — 거래처 정보관리
    상단 필터(상태 탭 + 검색) · 가입 승인/거부 워크플로 · 상세/수정/생성/삭제.
-   store.clients(영속). settlement cedit/.ofield + profile CRUD 패턴 재사용.
+   store.clients(영속). 모달은 HModal 규격(hm-field/hm-btn) + 커스텀 드롭다운.
    ============================================================ */
-import { html, setHTML, on, qs, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
-import { pageTitle, tableGrid, openModal, simpleModal } from "../ui.js";
+import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 const TABS = [
@@ -160,26 +160,26 @@ export function mount(root, { nav }) {
     if (tbl) setHTML(tbl, tableBody());
   };
 
-  // ── create/edit modal ──────────────────────────────────
+  // ── create/edit modal (HModal 규격) ────────────────────
   function field(f, form, isEdit) {
     if (f.type === "select") {
+      // 상태 선택은 공용 커스텀 드롭다운(makeDropdown)으로 — openClientModal에서 연결
       return html`
-        <div class="ofield">
-          <label class="ofield__lbl">${f.label}</label>
-          <select class="select" data-cf="${f.key}">
-            ${f.options.map((o) => html`<option value="${o}" ${form[f.key] === o ? "selected" : ""}>${o}</option>`)}
-          </select>
+        <div class="hm-field">
+          <label>${f.label}</label>
+          <div class="dd" data-dd-cf="${f.key}">
+            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+            <div class="dd-panel" role="listbox"></div>
+          </div>
         </div>
       `;
     }
-    const ro = f.lockOnEdit && isEdit;
+    // 접속 아이디는 수정 시 변경 불가 → 비활성 입력
+    const locked = f.lockOnEdit && isEdit;
     return html`
-      <div class="ofield">
-        <label class="ofield__lbl" for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}</label>
-        <div class="ofield__wrap">
-          ${icon(f.icon, { size: 14, cls: "ofield__icon" })}
-          <input class="ofield__input has-icon ${ro ? "is-readonly" : ""}" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.placeholder ?? f.label}" ${ro ? "readonly" : ""} />
-        </div>
+      <div class="hm-field">
+        <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}</label>
+        <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.placeholder ?? f.label}" ${locked ? "disabled" : ""} />
       </div>
     `;
   }
@@ -197,42 +197,49 @@ export function mount(root, { nav }) {
       let i = 0;
       while (i < FIELDS.length) {
         const f = FIELDS[i];
-        if (f.section) { out.push(html`<div class="cedit__section"><span>${f.section}</span></div>`); i++; continue; }
+        if (f.section) { out.push(html`<div class="hm-section">${f.section}</div>`); i++; continue; }
         if (f.grid && FIELDS[i + 1] && FIELDS[i + 1].grid) {
-          out.push(html`<div class="cedit__grid2">${field(f, form, isEdit)}${field(FIELDS[i + 1], form, isEdit)}</div>`);
+          out.push(html`<div class="hm-grid2">${field(f, form, isEdit)}${field(FIELDS[i + 1], form, isEdit)}</div>`);
           i += 2;
         } else { out.push(field(f, form, isEdit)); i++; }
       }
       return out;
     };
 
+    const rejectNote = isEdit && form.status === "반려" && form.rejectReason
+      ? html`<div class="hm-warn" style="margin-bottom:16px;"><span><b>거부 사유:</b> ${form.rejectReason}</span></div>`
+      : "";
     const body = html`
-      <div class="cedit">
-        <div class="cedit__head">
-          <div class="cedit__head-icon">${icon(isEdit ? "building2" : "user-plus", { size: 18 })}</div>
-          <div>
-            <h2>${isEdit ? "거래처 정보 수정" : "신규 거래처 등록"}</h2>
-            <p>${isEdit ? "거래처 계정·회사·담당자 정보를 수정합니다." : "신규 거래처 계정과 정보를 등록합니다."}</p>
-          </div>
+      <div class="hm__head">
+        <div>
+          <h3>${isEdit ? "거래처 정보 수정" : "신규 거래처 등록"}</h3>
+          <p>${isEdit ? "거래처 계정·회사·담당자 정보를 수정합니다." : "신규 거래처 계정과 정보를 등록합니다."}</p>
         </div>
-        ${isEdit && form.status === "반려" && form.rejectReason
-          ? html`<div class="cedit__rejectnote">거부 사유: ${form.rejectReason}</div>`
-          : ""}
-        <div class="cedit__body">${fieldsHtml()}</div>
-        <div class="cedit__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="cedit__save ${isValid() ? "is-on" : ""}" data-action="save" ${isValid() ? "" : "disabled"}>
-            ${icon(isEdit ? "pencil" : "user-plus", { size: 14 })} ${isEdit ? "저장" : "등록"}
-          </button>
-        </div>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+      <div class="hm__body">${rejectNote}${fieldsHtml()}</div>
+      <div class="hm__foot">
+        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>${isEdit ? "저장" : "등록"}</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--cedit", body, onClose: () => {} });
+    const ddCfs = [];
+    activeModal = openModal({ panelClass: "modal-panel--lg", body, onClose: () => { ddCfs.forEach((d) => d.destroy()); } });
     const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
-    const syncSave = () => { const b = saveBtn(); if (b) { b.disabled = !isValid(); b.classList.toggle("is-on", isValid()); } };
+    const syncSave = () => { const b = saveBtn(); if (b) b.disabled = !isValid(); };
+
+    /* select 필드(상태)는 공용 커스텀 드롭다운으로 (모달 닫힐 때 destroy) */
+    qsa(activeModal.panel, "[data-dd-cf]").forEach((elc) => {
+      const key = elc.dataset.ddCf;
+      const f = FIELDS.find((x) => x.key === key);
+      ddCfs.push(makeDropdown(elc, {
+        options: () => f.options,
+        get: () => form[key],
+        set: (v) => { form[key] = v; syncSave(); },
+      }));
+    });
 
     on(activeModal.panel, "input", "[data-cf]", (e, t) => { form[t.dataset.cf] = t.value; syncSave(); });
-    on(activeModal.panel, "change", "select[data-cf]", (e, t) => { form[t.dataset.cf] = t.value; syncSave(); });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
       if (!isValid()) return;
@@ -241,8 +248,8 @@ export function mount(root, { nav }) {
       const b = saveBtn();
       if (b) {
         b.disabled = true;
-        b.classList.add("is-saved");
-        setHTML(b, html`${icon("check-circle", { size: 15 })} ${isEdit ? "저장 완료!" : "등록 완료!"}`);
+        b.className = "hm-btn hm-btn--ok";
+        setHTML(b, html`${icon("check", { size: 15 })} ${isEdit ? "저장 완료!" : "등록 완료!"}`);
       }
       saveTimer = setTimeout(() => { saveTimer = null; closeModal(); render(); }, 900);
     });
@@ -258,19 +265,17 @@ export function mount(root, { nav }) {
   function openReject(client) {
     closeModal();
     const body = html`
-      <div class="areject">
-        <p class="areject__msg"><strong>${client.companyName}</strong> 거래처의 가입을 거부합니다.</p>
-        <div class="ofield">
-          <label class="ofield__lbl">거부 사유<span class="req">*</span></label>
-          <textarea class="textarea" data-reason rows="3" placeholder="거부 사유를 입력하세요. 담당자에게 통보됩니다."></textarea>
-        </div>
-        <div class="areject__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="areject__confirm" data-action="do-reject" disabled>거부 처리</button>
-        </div>
+      <div class="hm-warn"><span><b>${client.companyName}</b> 거래처의 가입을 거부합니다. 입력한 사유는 담당자에게 통보됩니다.</span></div>
+      <div class="hm-field" style="margin-top:16px;">
+        <label for="reject-reason">거부 사유<span class="req">*</span></label>
+        <textarea class="hm-input hm-textarea" id="reject-reason" data-reason rows="3" placeholder="거부 사유를 입력하세요."></textarea>
       </div>
     `;
-    activeModal = simpleModal({ title: "가입 거부", body, onClose: () => {} });
+    const footer = html`
+      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+      <button class="hm-btn hm-btn--danger" data-action="do-reject" disabled>거부 처리</button>
+    `;
+    activeModal = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer, onClose: () => {} });
     const ta = qs(activeModal.panel, "[data-reason]");
     const btn = qs(activeModal.panel, "[data-action='do-reject']");
     on(activeModal.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
@@ -286,19 +291,12 @@ export function mount(root, { nav }) {
 
   function openDelete(client) {
     closeModal();
-    const body = html`
-      <div class="pdel">
-        <div class="pdel__msg">
-          <p><strong>${client.companyName}</strong> 거래처를 삭제하시겠습니까?</p>
-          <p class="pdel__sub">계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 복구할 수 없습니다.</p>
-        </div>
-        <div class="pdel__foot">
-          <button class="btn-cancel" data-action="close">취소</button>
-          <button class="pdel__del" data-action="do-del">삭제</button>
-        </div>
-      </div>
+    const body = html`<div class="hm-warn"><span><b>삭제한 거래처는 되돌릴 수 없습니다.</b> 계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다.</span></div>`;
+    const footer = html`
+      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+      <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
     `;
-    activeModal = simpleModal({ title: "거래처 삭제", body, onClose: () => {} });
+    activeModal = simpleModal({ title: `${client.companyName} 거래처를 삭제할까요?`, subtitle: client.accountId, size: "sm", body, footer, onClose: () => {} });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       store.removeClient(client.id);
       closeModal();

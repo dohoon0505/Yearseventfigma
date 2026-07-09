@@ -310,6 +310,8 @@
 .hm-input:hover:not(:focus):not(:disabled) { border-color: var(--c-border-strong); }
 .hm-input:focus { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
 .hm-input:disabled { background: var(--c-surface-2); color: var(--c-text-faint); cursor: not-allowed; }
+/* textarea 변형(가입 거부 사유 등) — hm-input 규격 + 여러 줄 높이 */
+textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-height: 1.55; resize: vertical; font-family: inherit; }
 .hm-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* 라디오 그리드(수신 ON/OFF) 아래 안내 배너가 붙지 않도록 여백 확보 */
 .hm-grid2 + .hm-info, .hm-grid2 + .hm-warn { margin-top: 14px; }
@@ -520,43 +522,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* ── [레거시] 구 모달 내부 규격 — Phase 2에서 전 페이지 HModal 전환
-   완료 후 삭제 예정. 신규 코드에서 사용 금지. ─────────────────── */
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  padding: 16px var(--sp-7);
-  border-bottom: 1px solid var(--c-border);
-}
-.modal-title {
-  font-size: var(--fs-15);
-  font-weight: var(--fw-semibold);
-  color: var(--c-text);
-}
-.modal-close {
-  display: inline-flex;
-  padding: 4px;
-  color: var(--c-text-faint);
-  transition: color 0.15s;
-}
-.modal-close:hover {
-  color: var(--c-text-3);
-}
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-}
-.modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-3);
-  flex-shrink: 0;
-  padding: 16px var(--sp-7);
-  border-top: 1px solid var(--c-border);
 }
 
 /* ── DataTable grid (ports DataTable.tsx) ───────────────── */
