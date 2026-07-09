@@ -3,8 +3,20 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal } from "../ui.js";
+import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
 import { getDateRange, parseOrderDate, formatDateLabel } from "../util/date.js";
+
+/* 배송 현장사진은 2:3 세로형으로 촬영·수신된다. (데모: 카테고리별 샘플) */
+const DELIVERY_PHOTO = {
+  근조: "https://images.unsplash.com/photo-1728080568516-28156ceae0ea?auto=format&fit=crop&w=720&h=1080&q=80",
+  축하: "https://images.unsplash.com/photo-1641430262389-93bbbd2dd754?auto=format&fit=crop&w=720&h=1080&q=80",
+  기타: "https://images.unsplash.com/photo-1577378978713-9bebf3db8312?auto=format&fit=crop&w=720&h=1080&q=80",
+};
+function deliveryPhoto(order) {
+  if (order.product.startsWith("근조")) return DELIVERY_PHOTO.근조;
+  if (order.product.startsWith("축하")) return DELIVERY_PHOTO.축하;
+  return DELIVERY_PHOTO.기타;
+}
 
 const orderData = [
   // 오늘 (2026/06/16)
@@ -84,7 +96,7 @@ export function mount(root, { nav }) {
     { label: "배송요청일시", width: "148px", render: (r) => r.date },
     { label: "배송요청주소", render: (r) => html`<div class="orders-trunc">${r.address}</div>` },
     { label: "발송 프로필", width: "120px", render: (r) => html`<div class="orders-trunc">${r.sender}</div>` },
-    { label: "주문상품", width: "140px", render: (r) => r.product },
+    { label: "주문상품", width: "140px", render: (r) => html`<div class="orders-trunc">${r.product}</div>` },
     { label: "결제금액", width: "96px", align: "right", render: (r) => r.amount },
     {
       label: "주문현황", width: "94px", align: "center",
@@ -200,33 +212,51 @@ export function mount(root, { nav }) {
       ["주문상품", order.product],
       ["주문금액", order.amount],
     ];
-    const body = html`
-      <div class="odetail">
-        <div class="odetail__head">
-          <div class="odetail__head-l">
-            <div><p class="odetail__sub">주문 상세정보</p><h3>${order.product}</h3></div>
-          </div>
-          <div class="odetail__head-r">
-            <span class="odetail__badge" style="background:${sc.bg};color:${sc.text}">${order.status}</span>
-            <button class="modal-close" data-action="close" aria-label="닫기">${icon("x", { size: 18 })}</button>
-          </div>
+    const head = html`
+      <div class="hm__head">
+        <div><p class="hm-eyebrow">주문 상세정보</p><h3>${order.product}</h3></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="hm-badge" style="background:${sc.bg};color:${sc.text}">${order.status}</span>
+          <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
         </div>
-        ${order.hasPhoto
-          ? html`<div class="odetail__photo"><div class="odetail__photo-in">${icon("camera", { size: 40 })}<span>주문 사진</span></div></div>`
-          : html`<div class="odetail__nophoto"><div class="odetail__nophoto-in">${icon("camera", { size: 18 })}<span>등록된 사진이 없습니다</span></div></div>`}
-        <div class="odetail__rows">
-          ${rows.map(
-            ([label, value]) => html`<div class="odetail__row">
-              <div class="odetail__row-l">${label}</div>
-              <div class="odetail__row-v ${label === "주문금액" ? "is-amount" : ""}">${value}</div>
-            </div>`
-          )}
-        </div>
-        <div class="odetail__foot"><button class="odetail__close-btn" data-action="close">닫기</button></div>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--detail", body, onClose: () => {} });
+    const dl = html`
+      <div class="hm-dl">
+        ${rows.map(([label, value]) => {
+          const vClass = label === "주문금액" ? "v amt num" : label === "배송요청일시" ? "v num" : "v";
+          return html`<div class="row"><span class="k">${label}</span><span class="${vClass}">${value}</span></div>`;
+        })}
+      </div>
+    `;
+    const foot = html`<div class="hm__foot"><button class="hm-btn hm-btn--primary" data-action="close">닫기</button></div>`;
+
+    /* 사진 보유: 세로형(2:3) 현장사진을 좌측 고정 배치, 정보는 우측 —
+       사진 비율을 유지하면서도 모달 세로 길이가 늘어나지 않는다. */
+    const body = order.hasPhoto
+      ? html`
+          <div class="msplit">
+            <button class="msplit__media msplit__media--btn" data-action="zoom" aria-label="배송 사진 크게 보기">
+              <img src="${deliveryPhoto(order)}" alt="배송 완료 현장사진" />
+              <span class="msplit__zoomhint">${icon("search", { size: 12 })}크게 보기</span>
+            </button>
+            <div class="msplit__body">${head}<div class="msplit__scroll">${dl}</div>${foot}</div>
+          </div>
+        `
+      : html`${head}<div class="hm__body">${dl}</div>${foot}`;
+    activeModal = openModal({
+      panelClass: order.hasPhoto ? "modal-panel--split" : "",
+      body,
+      onClose: () => {},
+    });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
+    on(activeModal.panel, "click", "[data-action='zoom']", () =>
+      openLightbox({
+        src: deliveryPhoto(order),
+        alt: "배송 완료 현장사진",
+        caption: `${order.product} — ${order.date} 배송사진`,
+      })
+    );
   }
 
   render();
