@@ -18,6 +18,7 @@ const routes = [
   { hash: "#/app/profile",    load: () => import("./pages/profile.js"),    shell: true, nav: "#/app/profile" },
   { hash: "#/app/products",   load: () => import("./pages/products.js"),   shell: true, nav: "#/app/products" },
   // ── Admin (requires admin role; admin shell variant) ──
+  { hash: "#/admin/b2c",        load: () => import("./pages/admin-b2c.js"),        shell: true, nav: "#/admin/b2c",        variant: "admin", requiresRole: "admin" },
   { hash: "#/admin",            load: () => import("./pages/admin-clients.js"),    shell: true, nav: "#/admin",            variant: "admin", requiresRole: "admin" },
   { hash: "#/admin/settlement", load: () => import("./pages/admin-settlement.js"), shell: true, nav: "#/admin/settlement", variant: "admin", requiresRole: "admin" },
   { hash: "#/admin/pricing",    load: () => import("./pages/admin-pricing.js"),    shell: true, nav: "#/admin/pricing",    variant: "admin", requiresRole: "admin" },
