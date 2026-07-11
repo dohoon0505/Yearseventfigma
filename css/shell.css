@@ -80,9 +80,9 @@
 
 .shell__group-title {
   padding: 0 var(--sp-2);
-  font-size: var(--fs-12);
+  font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
   text-transform: uppercase;
   color: var(--c-text-muted);
 }
