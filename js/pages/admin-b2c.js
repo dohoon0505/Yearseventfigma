@@ -121,7 +121,7 @@ export function mount(root, { nav }) {
 
   function render() {
     setHTML(root, html`
-      <div class="page-admin">
+      <div class="page-admin page-b2c">
         <div class="admin-inner">
           ${pageTitle({
             imgSrc: "./assets/nav-realtime.png",

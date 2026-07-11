@@ -6,6 +6,9 @@
    색은 tokens.css 토큰만 사용.
    ============================================================ */
 
+/* B2C 통합주문관리만 콘텐츠 최대폭 확대(12컬럼 표) — 공용 admin은 1300px 유지 */
+.page-b2c .admin-inner { max-width: 1500px; }
+
 /* ── 목록 셀 ────────────────────────────────────────────── */
 .b2c-dim { color: var(--c-text-muted); }
 .b2c-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; color: var(--c-text-3); font-size: var(--fs-13); }
