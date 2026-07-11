@@ -12,6 +12,16 @@
 /* ── 목록 셀 ────────────────────────────────────────────── */
 .b2c-dim { color: var(--c-text-muted); }
 .b2c-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; color: var(--c-text-3); font-size: var(--fs-13); }
+/* 접수/배송 일시 — 한 컬럼에 2줄 스택(라벨 + 전체 날짜시각) */
+.b2c-dt2 { display: flex; flex-direction: column; gap: 4px; }
+.b2c-dt2__row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.b2c-dt2__lbl {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: var(--fw-bold); line-height: 1;
+  color: var(--c-text-muted); background: var(--c-surface-3);
+  border-radius: var(--r-sm); padding: 2px 5px;
+}
+.b2c-dt2__lbl--dv { color: var(--c-orange-ink); background: var(--c-orange-soft); } /* 배송 강조 */
+.b2c-dt2 .b2c-mono { font-size: 12.5px; }
 .b2c-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
 /* 인라인 현황 처리 셀렉트 (테이블 셀 안, 콤팩트) */
 .b2c-statussel {
