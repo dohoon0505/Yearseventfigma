@@ -7,7 +7,7 @@
 }
 .admin-inner {
   width: 100%;
-  max-width: 1500px;
+  max-width: 1300px;
   display: flex;
   flex-direction: column;
   gap: 16px;
