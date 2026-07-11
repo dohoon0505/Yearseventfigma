@@ -48,13 +48,18 @@
 }
 .b2c-sec__hint { font-size: 11.5px; font-weight: var(--fw-medium); color: var(--c-text-muted); }
 
-/* 필드 그리드 (가로 배치) — 필드 래퍼는 공용 .hm-field 재사용 */
+/* 필드 그리드 (가로 배치) — 필드 래퍼는 공용 .hm-field/.hm-input 재사용 */
 .b2c-grid { display: grid; gap: 14px 16px; }
 .b2c-grid--2 { grid-template-columns: 1fr 1fr; }
 .b2c-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
 .b2c-grid--4 { grid-template-columns: repeat(4, 1fr); }
 .b2c-grid .hm-field { margin-bottom: 0; }
-/* 모달 내부 입력은 surface-2 위에 놓이므로 흰 배경 유지(대비 확보) */
+
+/* 커스텀 드롭다운(.dd) 전개 방향 오버라이드:
+   공용 모달 규격은 위로 전개(패널 하단 select 클리핑 방지)지만, 이 모달은
+   본문(.b2c-body)이 자체 스크롤이라 상단 필드에서 위로 열면 스크롤 불가
+   영역으로 잘린다 → 아래로 전개(하단은 스크롤 오버플로로 도달 가능). */
+.modal-panel--b2c .dd-panel { bottom: auto; top: calc(100% + 6px); }
 
 /* 섹션 ② 좌(필드)/우(이미지) 분할 */
 .b2c-sec--split { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
@@ -75,7 +80,7 @@
 
 /* 배송지 주소 + 주소검색 버튼 (한 줄) */
 .b2c-addr__row { display: flex; gap: 8px; align-items: stretch; }
-.b2c-addr__row .input { flex: 1; min-width: 0; }
+.b2c-addr__row .hm-input { flex: 1; min-width: 0; }
 .b2c-addrbtn { flex: 0 0 auto; height: auto; padding: 0 14px; white-space: nowrap; }
 
 /* 취소 처리 섹션 — 상태 '취소'일 때 강조 */
