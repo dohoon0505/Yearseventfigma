@@ -18,14 +18,8 @@ import {
 
 const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
 const pad = (n) => String(n).padStart(2, "0");
-/* "2026-07-10T13:30" → "07-10 13:30" (연도 생략, 목록 표기용) */
-const fmtDeliver = (s) => {
-  if (!s) return "-";
-  const [d, t] = s.split("T");
-  const [, mo, day] = d.split("-");
-  return `${mo}-${day} ${t ?? ""}`.trim();
-};
-const fmtReceived = (s) => (s ? s.slice(5) : "-"); // "2026-07-08 15:20" → "07-08 15:20"
+/* datetime-local("2026-07-10T13:30")·저장문자열("2026-07-08 15:20") → "2026-07-10 13:30" */
+const fmtFull = (s) => (s ? s.replace("T", " ") : "-");
 
 const TABS = [{ v: "all", label: "전체" }, ...B2C_STATUSES.map((s) => ({ v: s, label: s }))];
 const statusColor = (s) => (B2C_STATUS_STYLE[s] ?? { color: "var(--c-text-4)" }).color;
@@ -87,8 +81,13 @@ export function mount(root, { nav }) {
   /* 컬럼: 주문경로 | 주문일시 | 배송요청일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황 | 사진 | 알림 (+관리) */
   const columns = [
     { label: "주문경로", width: "108px", align: "center", render: (r) => html`<div class="ellipsis b2c-dim">${r.channel}</div>` },
-    { label: "주문일시", width: "96px", align: "center", render: (r) => html`<span class="b2c-mono">${fmtReceived(r.receivedAt)}</span>` },
-    { label: "배송요청", width: "96px", align: "center", render: (r) => html`<span class="b2c-mono">${fmtDeliver(r.deliverAt)}</span>` },
+    {
+      label: "주문접수 / 배송일시", width: "168px",
+      render: (r) => html`<div class="b2c-dt2">
+        <span class="b2c-dt2__row"><span class="b2c-dt2__lbl">접수</span><span class="b2c-mono">${fmtFull(r.receivedAt)}</span></span>
+        <span class="b2c-dt2__row"><span class="b2c-dt2__lbl b2c-dt2__lbl--dv">배송</span><span class="b2c-mono">${fmtFull(r.deliverAt)}</span></span>
+      </div>`,
+    },
     { label: "배송지", width: "1.3fr", render: (r) => html`<div class="ellipsis b2c-dim" title="${r.address}">${r.address || "-"}</div>` },
     { label: "받는분", width: "88px", align: "center", render: (r) => html`<div class="ellipsis">${r.recipientName || "-"}</div>` },
     { label: "상품", width: "122px", render: (r) => html`<div class="ellipsis">${r.product || "-"}</div>` },
