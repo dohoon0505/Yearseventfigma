@@ -37,7 +37,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-09T11:00", request: "빈소 입구 우측에 배치 부탁드립니다.",
     recipientName: "故 김태수", recipientPhone: "010-3921-4400",
     address: "서울 종로구 대학로 101 서울대학교병원 장례식장 3호실", receiver: "",
-    memo: "", status: "접수", cancelFee: 0, cancelReason: "",
+    memo: "", status: "접수", notified: false, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b2", orderNo: "B2C-2607-0005", receivedAt: "2026-07-08 10:05",
@@ -48,7 +48,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-10T13:30", request: "예식 30분 전까지 도착 희망",
     recipientName: "혼주 김영호", recipientPhone: "010-8845-1120",
     address: "서울 서초구 강남대로 373 홀리데이인 서울강남 3층 그랜드볼룸", receiver: "",
-    memo: "예식장 반입 확인 완료", status: "처리중", cancelFee: 0, cancelReason: "",
+    memo: "예식장 반입 확인 완료", status: "처리중", notified: false, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b3", orderNo: "B2C-2607-0004", receivedAt: "2026-07-07 16:40",
@@ -59,7 +59,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-08T10:00", request: "",
     recipientName: "박상무", recipientPhone: "010-6612-7788",
     address: "부산 해운대구 센텀중앙로 90 벡스코 제2전시장 로비", receiver: "박상무 비서 김지원",
-    memo: "현장사진 발송 완료", status: "배송완료", cancelFee: 0, cancelReason: "",
+    memo: "현장사진 발송 완료", status: "배송완료", notified: true, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b4", orderNo: "B2C-2607-0003", receivedAt: "2026-07-06 09:30",
@@ -70,7 +70,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-07T14:00", request: "리본 문구 오탈자 없이 확인 부탁",
     recipientName: "이지안", recipientPhone: "010-3326-7740",
     address: "인천 연수구 컨벤시아대로 165 송도컨벤시아 2층", receiver: "이지안",
-    memo: "", status: "배송완료", cancelFee: 0, cancelReason: "",
+    memo: "", status: "배송완료", notified: true, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b5", orderNo: "B2C-2607-0002", receivedAt: "2026-07-05 13:15",
@@ -81,7 +81,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-06T11:00", request: "",
     recipientName: "윤대표", recipientPhone: "010-4471-9920",
     address: "서울 강남구 테헤란로 131 한국타이어빌딩 16층", receiver: "",
-    memo: "결제 후 고객 변심으로 당일 취소 요청", status: "취소",
+    memo: "결제 후 고객 변심으로 당일 취소 요청", status: "취소", notified: true,
     cancelFee: 10000, cancelReason: "고객 단순 변심 (제작 착수 전)",
   },
   {
@@ -93,7 +93,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-05T09:00", request: "장례식장 정문에서 수령 확인 요망",
     recipientName: "故 박순자", recipientPhone: "010-5540-9902",
     address: "대전 중구 문화로 282 충남대학교병원 장례식장 5호실", receiver: "상주 박현우",
-    memo: "", status: "배송완료", cancelFee: 0, cancelReason: "",
+    memo: "", status: "배송완료", notified: true, cancelFee: 0, cancelReason: "",
   },
 ];
 
