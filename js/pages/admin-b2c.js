@@ -7,9 +7,9 @@
      주소검색(데모 스텁), 상품→금액 자동채움, 취소섹션 강조.
    페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
-import { html, setHTML, on, qs, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown } from "../ui.js";
 import {
   B2C_STAFF, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
@@ -148,15 +148,16 @@ export function mount(root, { nav }) {
     if (tbl) setHTML(tbl, tableBody());
   };
 
-  /* ── 에디터 모달 (가로형 넓은 규격) ────────────────────── */
-  function selField(label, key, options, opts = {}) {
+  /* ── 에디터 모달 (가로형 넓은 규격 · HModal 필드 규격) ──────
+     select 류는 전부 ui.js makeDropdown(커스텀 드롭다운) — openEditor에서 연결. */
+  function ddField(label, key, opts = {}) {
     return html`
       <div class="hm-field">
         <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-        <select class="select" data-f="${key}">
-          ${opts.placeholder ? html`<option value="" ${!editing[key] ? "selected" : ""} disabled>${opts.placeholder}</option>` : ""}
-          ${options.map((o) => html`<option value="${o}" ${editing[key] === o ? "selected" : ""}>${o}</option>`)}
-        </select>
+        <div class="dd" data-dd-f="${key}">
+          <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+          <div class="dd-panel" role="listbox"></div>
+        </div>
       </div>
     `;
   }
@@ -165,7 +166,7 @@ export function mount(root, { nav }) {
     return html`
       <div class="hm-field">
         <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-        <input class="input" type="${type}" data-f="${key}" value="${editing[key] ?? ""}"
+        <input class="hm-input" type="${type}" data-f="${key}" value="${editing[key] ?? ""}"
           ${opts.list ? `list="${opts.list}"` : ""} ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""}
           placeholder="${opts.placeholder ?? ""}" ${opts.min != null ? `min="${opts.min}"` : ""} />
       </div>
@@ -175,7 +176,7 @@ export function mount(root, { nav }) {
     return html`
       <div class="hm-field">
         <label>${label}</label>
-        <textarea class="textarea" data-f="${key}" placeholder="${placeholder ?? ""}">${editing[key] ?? ""}</textarea>
+        <textarea class="hm-input hm-textarea" data-f="${key}" placeholder="${placeholder ?? ""}">${editing[key] ?? ""}</textarea>
       </div>
     `;
   }
@@ -197,8 +198,8 @@ export function mount(root, { nav }) {
         <section class="b2c-sec">
           <div class="b2c-sec__t">주문 접수 정보</div>
           <div class="b2c-grid b2c-grid--4">
-            ${selField("주문 담당자", "manager", B2C_STAFF)}
-            ${selField("주문경로 또는 거래처", "channel", B2C_CHANNELS)}
+            ${ddField("주문 담당자", "manager")}
+            ${ddField("주문경로 또는 거래처", "channel")}
             ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
             ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
           </div>
@@ -209,7 +210,7 @@ export function mount(root, { nav }) {
           <div class="b2c-sec__main">
             <div class="b2c-sec__t">상품 · 리본 정보</div>
             <div class="b2c-grid b2c-grid--2">
-              ${selField("주문상품", "product", B2C_PRODUCTS.map((p) => p.name), { placeholder: "상품을 선택하세요", req: true })}
+              ${ddField("주문상품", "product", { req: true })}
               ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
               ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
               ${txtField("리본문구 (보내는분)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
@@ -242,7 +243,7 @@ export function mount(root, { nav }) {
             <div class="hm-field b2c-addr">
               <label>배송지 주소</label>
               <div class="b2c-addr__row">
-                <input class="input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
+                <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
                 <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 주소검색</button>
               </div>
             </div>
@@ -258,7 +259,7 @@ export function mount(root, { nav }) {
             ${areaField("처리 메모 (내부)", "memo", "담당자 처리 메모 · 특이사항")}
           </div>
           <div class="b2c-grid b2c-grid--4" style="margin-top:14px;">
-            ${selField("처리 상태", "status", B2C_STATUSES)}
+            ${ddField("처리 상태", "status")}
           </div>
         </section>
 
@@ -317,16 +318,67 @@ export function mount(root, { nav }) {
     toast(wasNew ? "신규 주문을 등록했습니다" : "주문 정보를 저장했습니다");
   }
 
+  /* 취소 처리 섹션: 상태='취소'일 때만 활성(강조 + 입력 가능) */
+  function syncCancelSection(panel) {
+    const isCancel = editing?.status === "취소";
+    const sec = qs(panel, ".b2c-sec--cancel");
+    if (sec) sec.classList.toggle("is-active", isCancel);
+    ["cancelFee", "cancelReason"].forEach((k) => {
+      const inp = qs(panel, `[data-f='${k}']`);
+      if (inp) inp.disabled = !isCancel;
+    });
+  }
+  /* 연락처 자동 하이픈 (order.js onPhone 과 동일 규칙) */
+  function formatPhone(t) {
+    let v = t.value.replace(/\D/g, "").slice(0, 11);
+    if (v.length > 7) v = v.slice(0, 3) + "-" + v.slice(3, 7) + "-" + v.slice(7);
+    else if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
+    t.value = v;
+    return v;
+  }
+
   function openEditor(order, _isNew) {
     closeModal();
     editing = { ...order };
     isNew = _isNew;
+    const dds = [];
     activeModal = openModal({
       panelClass: "modal-panel--b2c",
       body: editorBody(),
-      onClose: () => { activeModal = null; editing = null; },
+      onClose: () => { dds.forEach((d) => d.destroy()); activeModal = null; editing = null; },
     });
     const panel = activeModal.panel;
+
+    /* select 류 → 공용 커스텀 드롭다운 (모달 닫힐 때 destroy) */
+    const DD_DEFS = {
+      manager: { options: () => B2C_STAFF },
+      channel: { options: () => B2C_CHANNELS },
+      product: {
+        options: () => B2C_PRODUCTS.map((p) => p.name),
+        label: (v) => (v ? `${v} · ${won(productPrice(v))}` : "상품을 선택하세요"),
+        onSet: (v) => {
+          const price = productPrice(v);
+          if (price > 0) {
+            editing.amount = price;
+            const amt = qs(panel, "[data-f='amount']");
+            if (amt) amt.value = String(price);
+          }
+        },
+      },
+      status: { onSet: () => syncCancelSection(panel), options: () => B2C_STATUSES },
+    };
+    qsa(panel, "[data-dd-f]").forEach((root) => {
+      const key = root.dataset.ddF;
+      const def = DD_DEFS[key];
+      dds.push(makeDropdown(root, {
+        options: def.options,
+        get: () => editing?.[key] ?? "",
+        set: (v) => { if (!editing) return; editing[key] = v; if (def.onSet) def.onSet(v); },
+        label: def.label,
+      }));
+    });
+    syncCancelSection(panel);
+
     // 모달은 document.body 에 붙으므로 에디터 이벤트는 panel 에 바인딩(패널 제거 시 함께 정리).
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => saveEditor());
@@ -344,25 +396,10 @@ export function mount(root, { nav }) {
       toast("주소 검색 API 연동 예정입니다 (데모)", "warn");
       const inp = qs(panel, "[data-f='address']"); if (inp) inp.focus();
     });
-    on(panel, "change", "select[data-f]", (e, t) => {
+    on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
-      editing[k] = t.value;
-      if (k === "product") {
-        const price = productPrice(t.value);
-        if (price > 0) {
-          editing.amount = price;
-          const amt = qs(panel, "[data-f='amount']");
-          if (amt) amt.value = String(price);
-        }
-      }
-      if (k === "status") {
-        const sec = qs(panel, ".b2c-sec--cancel");
-        if (sec) sec.classList.toggle("is-active", t.value === "취소");
-      }
-    });
-    on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
-      if (editing) editing[t.dataset.f] = t.value;
+      editing[k] = k === "ordererPhone" || k === "recipientPhone" ? formatPhone(t) : t.value;
     });
     on(panel, "change", "[data-img-input]", (e, t) => {
       onImageFile(panel, t.files && t.files[0]);
