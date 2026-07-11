@@ -35,7 +35,7 @@ const ADMIN_MENU = [
   {
     group: "B2C 관리",
     items: [
-      { label: "B2C 통합주문관리", hash: "#/admin/b2c", icon: "nav-realtime.png" },
+      { label: "통합주문관리", hash: "#/admin/b2c", icon: "nav-realtime.png" },
     ],
   },
   {
