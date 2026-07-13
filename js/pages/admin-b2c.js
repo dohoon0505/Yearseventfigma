@@ -1,11 +1,15 @@
 /* ============================================================
    admin-b2c.js — B2C 통합주문관리
-   모든 B2C 주문을 나열(상태 필터·검색·인라인 현황처리)하고,
-   넓은 가로형 모달 에디터에서 21개 항목을 섹션별 다열 그리드로 편집한다.
-   - 목록은 상시 렌더(root). 편집/신규는 openModal(document.body) 로 오픈.
-   - 데이터는 data/b2c-mock.js(세션 유지). 이미지 업로드/다운로드/프리뷰,
-     주소검색(데모 스텁), 상품→금액 자동채움, 취소섹션 강조.
-   페이지 규약: mount(root, { nav }) → cleanup.
+   목록(상태 필터·검색·현황 배지) + 읽기 우선 모달(주문 확인이 첫 용도).
+   모달 규약:
+   - 기존 주문은 읽기 모드로 열림 → [내용 수정]으로 편집 폼 전환.
+     수정 취소 시 폼은 저장본으로 되돌리되 레일 값(사진·인수자·메모)은 유지.
+   - 우측 처리 레일(현장사진 3:4·인수자·처리 메모)은 모드와 무관하게 항상 활성.
+   - 주문접수 처리·주문취소 = 즉시 반영(b2cSetStatus + 슬롯 재렌더).
+     저장 = 반영 후 모달 유지(읽기 복귀). 닫기/X/ESC 만 모달을 닫는다.
+   - 자동 배송완료: 주문접수 상태 + 사진 + 인수자 → 저장 시 배송완료·알림톡 자동.
+   - 신규 등록: 같은 모달, 레일·상태 액션 숨김, 강제 편집 모드, 등록 시 닫힘.
+   데이터는 data/b2c-mock.js(세션 유지). 페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
 import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
@@ -20,9 +24,18 @@ const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
 const pad = (n) => String(n).padStart(2, "0");
 /* datetime-local("2026-07-10T13:30")·저장문자열("2026-07-08 15:20") → "2026-07-10 13:30" */
 const fmtFull = (s) => (s ? s.replace("T", " ") : "-");
+const dash = (v) => (v != null && String(v).trim() ? v : "-");
+/* 값들을 구분자로 연결 — 전부 비면 "-" (읽기 모드 정의행용) */
+const joinVals = (sep, ...xs) => {
+  const v = xs.filter((x) => x != null && String(x).trim());
+  return v.length ? v.join(sep) : "-";
+};
 
 const TABS = [{ v: "all", label: "전체" }, ...B2C_STATUSES.map((s) => ({ v: s, label: s }))];
-const statusColor = (s) => (B2C_STATUS_STYLE[s] ?? { color: "var(--c-text-4)" }).color;
+const statusBadge = (s) => {
+  const st = B2C_STATUS_STYLE[s] ?? { bg: "var(--c-surface-3)", color: "var(--c-text-4)" };
+  return html`<span class="hm-badge" style="background:${st.bg};color:${st.color}">${s}</span>`;
+};
 
 function blankOrder() {
   const now = new Date();
@@ -33,7 +46,7 @@ function blankOrder() {
     ordererName: "", ordererPhone: "", ribbonPhrase: "", ribbonSender: "",
     image: "", product: "", amount: 0,
     deliverAt: "", request: "", recipientName: "", recipientPhone: "",
-    address: "", receiver: "", memo: "", status: "접수", notified: false,
+    address: "", receiver: "", memo: "", status: "접수대기", notified: false,
     cancelFee: 0, cancelReason: "",
   };
 }
@@ -41,9 +54,13 @@ function blankOrder() {
 export function mount(root, { nav }) {
   const state = { tab: "all", search: "" };
   let activeModal = null;
-  let editing = null; // 편집 작업본
+  let editing = null;      // 편집 작업본 (입력은 전부 여기로 write-through)
   let isNew = false;
+  let mode = "read";       // "read" | "edit" — 좌측 본문 렌더 모드
+  const dds = [];          // makeDropdown 인스턴스 (renderModal 마다 destroy→재생성)
   let toastEl = null, toastTimer = null;
+
+  const findOrder = (id) => b2cList().find((o) => o.id === id);
 
   function closeModal() {
     const m = activeModal;
@@ -78,7 +95,7 @@ export function mount(root, { nav }) {
   function summaryBody() {
     return html`조회 <strong>${filtered().length}</strong>건`;
   }
-  /* 컬럼: 주문경로 | 주문일시 | 배송요청일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황 | 사진 | 알림 (+관리) */
+  /* 컬럼: 주문경로 | 주문접수/배송일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황(배지) | 사진 | 알림 (+관리) */
   const columns = [
     { label: "주문경로", width: "108px", align: "center", render: (r) => html`<div class="ellipsis b2c-dim">${r.channel}</div>` },
     {
@@ -93,12 +110,7 @@ export function mount(root, { nav }) {
     { label: "상품", width: "122px", render: (r) => html`<div class="ellipsis">${r.product || "-"}</div>` },
     { label: "금액", width: "96px", align: "right", render: (r) => html`<span class="b2c-amt">${won(r.amount)}</span>` },
     { label: "메모", width: "1fr", render: (r) => html`<div class="ellipsis b2c-dim" title="${r.memo}">${r.memo || "-"}</div>` },
-    {
-      label: "현황", width: "100px", align: "center",
-      render: (r) => html`<select class="select b2c-statussel" data-status-id="${r.id}" aria-label="배송 현황" style="color:${statusColor(r.status)};font-weight:600">
-        ${B2C_STATUSES.map((s) => html`<option value="${s}" ${r.status === s ? "selected" : ""}>${s}</option>`)}
-      </select>`,
-    },
+    { label: "현황", width: "92px", align: "center", render: (r) => statusBadge(r.status) },
     {
       label: "사진", width: "52px", align: "center",
       render: (r) => html`<span class="b2c-flag b2c-flag--photo ${r.image ? "on" : ""}" title="${r.image ? "사진 있음" : "사진 없음"}">${icon("camera", { size: 15 })}</span>`,
@@ -156,8 +168,9 @@ export function mount(root, { nav }) {
     if (tbl) setHTML(tbl, tableBody());
   };
 
-  /* ── 에디터 모달 (가로형 넓은 규격 · HModal 필드 규격) ──────
-     select 류는 전부 ui.js makeDropdown(커스텀 드롭다운) — openEditor에서 연결. */
+  /* ══ 모달 — 읽기 우선(시안 C) ═══════════════════════════ */
+
+  /* 폼 필드 빌더 (표준 .hm-field — 상단 라벨 · 48px 컨트롤) */
   function ddField(label, key, opts = {}) {
     return html`
       <div class="hm-field">
@@ -181,7 +194,94 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* 현장사진 박스 내부 — 사진(or 빈 안내) + hover 오버레이(업로드·다운로드).
+  /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타 + [내용 수정] 토글 ── */
+  function headInner() {
+    const o = editing;
+    if (isNew) {
+      return html`
+        <div class="b2c-head__main">
+          <div class="b2c-head__row"><h3 class="b2c-head__no">신규 B2C 주문 등록</h3></div>
+          <p class="b2c-head__meta"><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt}</p>
+        </div>
+        <div class="b2c-head__acts">
+          <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+        </div>
+      `;
+    }
+    return html`
+      <div class="b2c-head__main">
+        <div class="b2c-head__row">
+          <h3 class="b2c-head__no b2c-mono">${o.orderNo}</h3>
+          ${statusBadge(o.status)}
+        </div>
+        <p class="b2c-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · 담당 ${o.manager}</p>
+      </div>
+      <div class="b2c-head__acts">
+        <button class="hm-btn hm-btn--secondary b2c-editbtn" data-action="toggle-edit">
+          ${mode === "edit" ? html`${icon("x", { size: 13 })} 수정 취소` : html`${icon("pencil", { size: 13 })} 내용 수정`}
+        </button>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+    `;
+  }
+
+  /* ── 읽기 모드: 상품·금액 헤드라인 + 정의행 문서 (입력 없음) ── */
+  function readBody() {
+    const o = editing;
+    const row = (k, v, cls = "") => html`
+      <div class="b2c-doc__row">
+        <span class="b2c-doc__k">${k}</span>
+        <span class="b2c-doc__v ${cls}">${v}</span>
+      </div>`;
+    return html`
+      <div class="b2c-doc">
+        <div class="b2c-doc__prod">
+          <span class="b2c-doc__name">${dash(o.product)}</span>
+          <span class="b2c-doc__price">${won(o.amount)}</span>
+        </div>
+        ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
+        ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
+        ${row("배송일시", fmtFull(o.deliverAt), "b2c-doc__v--strong")}
+        ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
+        ${row("리본", joinVals(" / ", o.ribbonPhrase, o.ribbonSender))}
+        ${row("요청사항", dash(o.request), "b2c-doc__v--pre")}
+      </div>
+    `;
+  }
+
+  /* ── 편집 모드: 2열 표준 폼 + 배송지/요청사항 풀로우 ── */
+  function editBody() {
+    const o = editing;
+    return html`
+      <div class="b2c-form">
+        ${ddField("주문 담당자", "manager")}
+        ${ddField("주문경로/거래처", "channel")}
+        ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
+        ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+        ${ddField("주문상품", "product", { req: true })}
+        ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
+        ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+        ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
+        ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
+        ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+        ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
+        <div class="hm-field b2c-form__full">
+          <label>배송지 주소</label>
+          <div class="b2c-addr__row">
+            <textarea class="hm-input hm-textarea b2c-addr__ta" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
+            <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
+          </div>
+        </div>
+        <div class="hm-field b2c-form__full">
+          <label>요청사항</label>
+          <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
+        </div>
+        <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
+      </div>
+    `;
+  }
+
+  /* 현장사진 박스 내부 — 사진(or 빈 안내) + hover 오버레이(업로드·다운로드·확대).
      onImageFile 에서 부분 재렌더에도 재사용하므로 별도 함수. */
   function imgboxInner() {
     const hasImg = !!editing?.image;
@@ -191,98 +291,113 @@ export function mount(root, { nav }) {
         : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
       <div class="b2c-imgover">
         <button class="b2c-imgact" data-action="img-upload" title="이미지 업로드" aria-label="이미지 업로드">${icon("camera", { size: 18 })}</button>
-        ${hasImg ? html`<button class="b2c-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>` : ""}
+        ${hasImg ? html`
+          <button class="b2c-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>
+          <button class="b2c-imgact" data-action="img-zoom-btn" title="크게 보기" aria-label="크게 보기">${icon("eye", { size: 18 })}</button>
+        ` : ""}
       </div>
     `;
   }
 
-  /* 와이어프레임 3열 레이아웃:
-     좌(주문 접수·내부 메모) · 중앙(주문·배송·리본·요청 + 취소존) · 우(인수자 정보 — 현장사진·인수자·배송완료 액션 레일) */
-  function editorBody() {
+  /* ── 처리 레일: 현장사진(3:4) · 인수자 · 처리 메모 — 항상 활성, 신규는 생략 ── */
+  function railBody() {
+    if (isNew) return "";
     const o = editing;
     const hasImg = !!o.image;
-    const done = o.status === "배송완료";
     return html`
-      <div class="hm__head">
-        <div>
-          <h3>${isNew ? "신규 B2C 주문 등록" : "B2C주문 조회/수정"}</h3>
-          <p><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt}</p>
+      <aside class="b2c-rail">
+        <div class="b2c-rail__t">처리 정보</div>
+        <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
+          ${imgboxInner()}
         </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-
-      <div class="hm__body b2c-body">
-        <!-- ① 좌: 주문 접수 정보 + 내부 메모 (라벨 좌측 · 컴팩트 행) -->
-        <section class="b2c-sec b2c-sec--left">
-          <div class="b2c-sec__t">주문 접수 정보</div>
-          ${ddField("주문 담당자", "manager")}
-          ${ddField("주문경로/거래처", "channel")}
-          ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
-          ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-          <div class="hm-field b2c-field--grow">
-            <label>처리 메모</label>
-            <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
-          </div>
-        </section>
-
-        <!-- ② 중앙: 주문 · 배송 정보 -->
-        <section class="b2c-sec b2c-sec--mid">
-          <div class="b2c-sec__t">주문 · 배송 정보</div>
-          <div class="b2c-grid b2c-grid--2">
-            ${ddField("주문상품", "product", { req: true })}
-            ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-          </div>
-          <div class="b2c-grid b2c-grid--2">
-            ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
-            ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
-          </div>
-          <div class="b2c-grid b2c-grid--2">
-            ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
-            ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-          </div>
-          <div class="b2c-grid b2c-grid--dt">
-            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
-            <div class="hm-field b2c-addr">
-              <label>배송지</label>
-              <div class="b2c-addr__row">
-                <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
-                <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
-              </div>
-            </div>
-          </div>
-          <div class="hm-field b2c-field--grow">
-            <label>요청사항</label>
-            <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
-          </div>
-        </section>
-
-        <!-- ③ 우: 인수자 정보 — 현장사진 · 인수자 · 배송완료 처리 레일 -->
-        <section class="b2c-sec b2c-sec--right">
-          <div class="b2c-sec__t">인수자 정보</div>
-          <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
-            ${imgboxInner()}
-          </div>
-          <input type="file" accept="image/*" data-img-input hidden />
-          ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
-          <button class="hm-btn hm-btn--ok b2c-donebtn" data-action="deliver-done" ${done ? "disabled" : ""}>
-            ${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}
-          </button>
-          <p class="b2c-notihint">${icon("bell", { size: 12 })} 배송완료 시 고객 알림톡이 자동 발송됩니다</p>
-        </section>
-      </div>
-
-      <!-- 푸터 액션: 좌(주문서 삭제 · 주문취소) / 우(저장 · 닫기) — 취소 처리는 버튼으로 수행 -->
-      <div class="hm__foot b2c-foot">
-        ${!isNew ? html`
-          <button class="hm-btn b2c-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 주문서 삭제</button>
-          <button class="hm-btn b2c-cancelbtn" data-action="order-cancel" ${o.status === "취소" ? "disabled" : ""}>${o.status === "취소" ? "취소됨" : "주문취소"}</button>
-        ` : ""}
-        <button class="hm-btn hm-btn--primary" data-action="save">${icon("save", { size: 14 })} 저장</button>
-        <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
-      </div>
-
-      <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
+        <input type="file" accept="image/*" data-img-input hidden />
+        ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
+        <div class="hm-field b2c-rail__memo">
+          <label>처리 메모</label>
+          <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
+        </div>
+        <p class="b2c-rail__hint">${icon("bell", { size: 12 })} 사진·인수자 입력 후 저장하면 배송완료 처리 및 고객 알림톡이 자동 발송됩니다</p>
+      </aside>
     `;
+  }
+
+  /* ── 푸터: 좌(삭제·주문취소) / 우(주문접수 처리 · 저장 · 닫기) ── */
+  function footInner() {
+    const o = editing;
+    if (isNew) {
+      return html`
+        <button class="hm-btn hm-btn--primary" data-action="save">${icon("save", { size: 14 })} 등록</button>
+        <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
+      `;
+    }
+    const cancelled = o.status === "취소";
+    return html`
+      <button class="hm-btn b2c-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 주문서 삭제</button>
+      <button class="hm-btn b2c-cancelbtn" data-action="order-cancel" ${cancelled ? "disabled" : ""}>${cancelled ? "취소됨" : "주문취소"}</button>
+      ${o.status === "접수대기" ? html`<button class="hm-btn b2c-acceptbtn" data-action="accept">${icon("check", { size: 14 })} 주문접수 처리</button>` : ""}
+      <button class="hm-btn hm-btn--primary" data-action="save">${icon("save", { size: 14 })} 저장</button>
+      <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
+    `;
+  }
+
+  function modalBody() {
+    return html`
+      <div class="hm__head b2c-head" data-slot="head">${headInner()}</div>
+      <div class="hm__body b2c-body ${isNew ? "b2c-body--new" : ""}">
+        <div class="b2c-main">${mode === "edit" ? editBody() : readBody()}</div>
+        ${railBody()}
+      </div>
+      <div class="hm__foot b2c-foot" data-slot="foot">${footInner()}</div>
+    `;
+  }
+
+  /* ── 드롭다운 생명주기 — renderModal 마다 destroy→재생성 (읽기 모드는 no-op) ── */
+  function destroyDds() {
+    dds.forEach((d) => d.destroy());
+    dds.length = 0;
+  }
+  function bindDropdowns(panel) {
+    const DD_DEFS = {
+      manager: { options: () => B2C_STAFF },
+      channel: { options: () => B2C_CHANNELS },
+      product: {
+        options: () => B2C_PRODUCTS.map((p) => p.name),
+        label: (v) => (v ? `${v} · ${won(productPrice(v))}` : "상품을 선택하세요"),
+        onSet: (v) => {
+          const price = productPrice(v);
+          if (price > 0) {
+            editing.amount = price;
+            const amt = qs(panel, "[data-f='amount']");
+            if (amt) amt.value = String(price);
+          }
+        },
+      },
+    };
+    qsa(panel, "[data-dd-f]").forEach((ddRoot) => {
+      const key = ddRoot.dataset.ddF;
+      const def = DD_DEFS[key];
+      dds.push(makeDropdown(ddRoot, {
+        options: def.options,
+        get: () => editing?.[key] ?? "",
+        set: (v) => { if (!editing) return; editing[key] = v; if (def.onSet) def.onSet(v); },
+        label: def.label,
+      }));
+    });
+  }
+  /* 전체 재렌더(모드 전환·저장 후) — 이벤트는 panel 위임이라 재바인딩 불필요 */
+  function renderModal() {
+    if (!activeModal) return;
+    const panel = activeModal.panel;
+    destroyDds();
+    setHTML(panel, modalBody());
+    if (mode === "edit") bindDropdowns(panel);
+  }
+  /* 헤더·푸터 슬롯만 재렌더 — 상태 액션(주문접수·취소) 시 편집 중 포커스·dd 보존 */
+  function renderSlots(panel) {
+    const h = qs(panel, "[data-slot='head']");
+    const f = qs(panel, "[data-slot='foot']");
+    if (h) setHTML(h, headInner());
+    if (f) setHTML(f, footInner());
   }
 
   function onImageFile(panel, file) {
@@ -302,37 +417,38 @@ export function mount(root, { nav }) {
     if (!editing?.image) return;
     const a = document.createElement("a");
     a.href = editing.image;
-    a.download = `${editing.orderNo}_상품이미지`;
+    a.download = `${editing.orderNo}_배송현장사진`;
     document.body.appendChild(a); a.click(); a.remove();
   }
-  function saveEditor() {
+
+  /* 저장 — 반영 후 모달 유지(읽기 복귀). 신규만 등록 후 닫힘.
+     자동 배송완료: 주문접수 + 사진 + 인수자 → 배송완료·notified (알림톡 자동 발송) */
+  function saveOrder() {
     if (!editing) return;
-    if (!editing.ordererName.trim() || !editing.product) {
+    if ((isNew || mode === "edit") && (!editing.ordererName.trim() || !editing.product)) {
       toast("주문자 성함과 주문상품은 필수입니다", "warn");
       return;
     }
-    b2cUpsert({ ...editing, amount: Number(editing.amount) || 0, cancelFee: Number(editing.cancelFee) || 0 });
-    const wasNew = isNew;
-    closeModal();
+    const merged = { ...editing, amount: Number(editing.amount) || 0, cancelFee: Number(editing.cancelFee) || 0 };
+    let autoDone = false;
+    if (!isNew && merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
+      merged.status = "배송완료";
+      merged.notified = true; // 배송완료 → 알림톡 자동 발송(API)
+      autoDone = true;
+    }
+    b2cUpsert(merged);
     refreshList();
-    toast(wasNew ? "신규 주문을 등록했습니다" : "주문 정보를 저장했습니다");
+    if (isNew) {
+      closeModal();
+      toast("신규 주문을 등록했습니다");
+      return;
+    }
+    editing = { ...merged };
+    mode = "read";
+    renderModal();
+    toast(autoDone ? "배송완료 처리됨 · 고객 알림톡이 자동 발송됩니다" : "주문 정보를 저장했습니다");
   }
 
-  /* 상태 액션 버튼 동기화 — 배송완료 처리(우측 레일)·주문취소(푸터)는 현재 상태에 따라 비활성/라벨 전환 */
-  function syncStatusBtns(panel) {
-    const doneBtn = qs(panel, "[data-action='deliver-done']");
-    if (doneBtn) {
-      const done = editing?.status === "배송완료";
-      doneBtn.disabled = done;
-      setHTML(doneBtn, html`${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}`);
-    }
-    const cancelBtn = qs(panel, "[data-action='order-cancel']");
-    if (cancelBtn) {
-      const cancelled = editing?.status === "취소";
-      cancelBtn.disabled = cancelled;
-      cancelBtn.textContent = cancelled ? "취소됨" : "주문취소";
-    }
-  }
   /* 연락처 자동 하이픈 (order.js onPhone 과 동일 규칙) */
   function formatPhone(t) {
     let v = t.value.replace(/\D/g, "").slice(0, 11);
@@ -346,48 +462,18 @@ export function mount(root, { nav }) {
     closeModal();
     editing = { ...order };
     isNew = _isNew;
-    const dds = [];
+    mode = isNew ? "edit" : "read"; // 기존 주문은 확인(읽기)이 첫 용도
     activeModal = openModal({
       panelClass: "modal-panel--b2c",
-      body: editorBody(),
-      onClose: () => { dds.forEach((d) => d.destroy()); activeModal = null; editing = null; },
+      body: modalBody(),
+      onClose: () => { destroyDds(); activeModal = null; editing = null; },
     });
     const panel = activeModal.panel;
+    if (mode === "edit") bindDropdowns(panel);
 
-    /* select 류 → 공용 커스텀 드롭다운 (모달 닫힐 때 destroy) */
-    const DD_DEFS = {
-      manager: { options: () => B2C_STAFF },
-      channel: { options: () => B2C_CHANNELS },
-      product: {
-        options: () => B2C_PRODUCTS.map((p) => p.name),
-        label: (v) => (v ? `${v} · ${won(productPrice(v))}` : "상품을 선택하세요"),
-        onSet: (v) => {
-          const price = productPrice(v);
-          if (price > 0) {
-            editing.amount = price;
-            const amt = qs(panel, "[data-f='amount']");
-            if (amt) amt.value = String(price);
-          }
-        },
-      },
-    };
-    const ddMap = {};
-    qsa(panel, "[data-dd-f]").forEach((root) => {
-      const key = root.dataset.ddF;
-      const def = DD_DEFS[key];
-      const inst = makeDropdown(root, {
-        options: def.options,
-        get: def.get || (() => editing?.[key] ?? ""),
-        set: def.set || ((v) => { if (!editing) return; editing[key] = v; if (def.onSet) def.onSet(v); }),
-        label: def.label,
-      });
-      ddMap[key] = inst;
-      dds.push(inst);
-    });
-
-    // 모달은 document.body 에 붙으므로 에디터 이벤트는 panel 에 바인딩(패널 제거 시 함께 정리).
+    /* 이벤트는 panel 위임으로 1회만 바인딩 — setHTML 재렌더에도 전부 생존 */
     on(panel, "click", "[data-action='close']", () => closeModal());
-    on(panel, "click", "[data-action='save']", () => saveEditor());
+    on(panel, "click", "[data-action='save']", () => saveOrder());
     on(panel, "click", "[data-action='delete']", () => {
       if (!editing) return;
       const name = editing.orderNo;
@@ -396,28 +482,46 @@ export function mount(root, { nav }) {
       refreshList();
       toast(`${name} 주문을 삭제했습니다`, "warn");
     });
-    on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
-    on(panel, "click", "[data-action='img-download']", () => downloadImage());
-    /* 현장사진 클릭 → 있으면 라이트박스 확대, 없으면 업로드. hover 오버레이 버튼 클릭은 제외(각자 처리). */
-    on(panel, "click", "[data-action='img-zoom']", (e) => {
-      if (!editing || e.target.closest("[data-action='img-upload'], [data-action='img-download']")) return;
-      if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
-      else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
+    /* 읽기 ↔ 편집 전환 — 수정 취소는 폼만 저장본으로 되돌리고 레일 값은 유지 */
+    on(panel, "click", "[data-action='toggle-edit']", () => {
+      if (!editing) return;
+      if (mode === "read") {
+        mode = "edit";
+      } else {
+        const stored = findOrder(editing.id);
+        if (stored) editing = { ...stored, image: editing.image, receiver: editing.receiver, memo: editing.memo };
+        mode = "read";
+      }
+      renderModal();
     });
-    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리. */
-    on(panel, "click", "[data-action='deliver-done']", () => {
-      if (!editing || editing.status === "배송완료") return;
-      editing.status = "배송완료";
-      editing.notified = true; // 배송완료 → 알림톡 자동 발송
-      syncStatusBtns(panel);
-      toast("배송완료로 변경했습니다 · 알림톡이 발송됩니다 (저장 시 반영)");
+    /* 주문접수 처리 — 즉시 반영. 편집 중 미저장 폼 값은 그대로 버퍼 유지(슬롯만 재렌더) */
+    on(panel, "click", "[data-action='accept']", () => {
+      if (!editing || editing.status !== "접수대기") return;
+      editing.status = "주문접수";
+      b2cSetStatus(editing.id, "주문접수");
+      refreshList();
+      renderSlots(panel);
+      toast("주문접수로 변경했습니다");
     });
-    /* 주문취소 — 원클릭 상태 전환(저장 시 반영). 재취소 방지 위해 완료 후 비활성. */
+    /* 주문취소 — 즉시 반영. 재취소 방지 위해 완료 후 비활성 */
     on(panel, "click", "[data-action='order-cancel']", () => {
       if (!editing || editing.status === "취소") return;
       editing.status = "취소";
-      syncStatusBtns(panel);
-      toast("주문을 취소 상태로 변경했습니다 (저장 시 반영)", "warn");
+      b2cSetStatus(editing.id, "취소");
+      refreshList();
+      renderSlots(panel);
+      toast("주문을 취소 처리했습니다", "warn");
+    });
+    on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
+    on(panel, "click", "[data-action='img-download']", () => downloadImage());
+    on(panel, "click", "[data-action='img-zoom-btn']", () => {
+      if (editing?.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
+    });
+    /* 현장사진 박스 클릭 → 있으면 라이트박스 확대, 없으면 업로드. 오버레이 버튼 클릭은 제외(각자 처리). */
+    on(panel, "click", "[data-action='img-zoom']", (e) => {
+      if (!editing || e.target.closest("[data-action='img-upload'], [data-action='img-download'], [data-action='img-zoom-btn']")) return;
+      if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
+      else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
     on(panel, "click", "[data-action='addr-search']", () => {
       toast("주소 검색 API 연동 예정입니다 (데모)", "warn");
@@ -437,17 +541,11 @@ export function mount(root, { nav }) {
   render();
 
   /* ── 목록 이벤트 (위임 · root 유지) ────────────────────── */
-  const findOrder = (id) => b2cList().find((o) => o.id === id);
   const offList = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
     if (a === "new") return openEditor(blankOrder(), true);
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
-  });
-  const offStatus = on(root, "change", "[data-status-id]", (e, t) => {
-    b2cSetStatus(t.dataset.statusId, t.value);
-    refreshList();
-    toast("주문 현황을 변경했습니다");
   });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state.search = t.value;
@@ -458,7 +556,7 @@ export function mount(root, { nav }) {
   });
 
   return () => {
-    offList(); offStatus(); offSearch();
+    offList(); offSearch();
     closeModal();
     if (toastEl) toastEl.remove();
     if (toastTimer) clearTimeout(toastTimer);

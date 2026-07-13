@@ -8,7 +8,8 @@ import { ALL_PRODUCTS, priceNum } from "../store.js";
 /* ── 드롭다운(select) 옵션 ─────────────────────────────── */
 export const B2C_STAFF = ["김총무", "박사원", "이대리", "최과장", "오임찬"];
 export const B2C_CHANNELS = ["네이버 스토어", "카카오톡 채널", "전화 주문", "자사몰", "인스타그램 DM", "거래처 직접"];
-export const B2C_STATUSES = ["접수", "처리중", "배송완료", "취소"];
+/* 워크플로: 접수대기(신규 유입) → 주문접수(담당자 확인) → 배송완료(사진+인수자 저장 시 자동) */
+export const B2C_STATUSES = ["접수대기", "주문접수", "배송완료", "취소"];
 /* 주문상품 옵션(상품 규격 안내 카탈로그) — 선택 시 주문금액 자동 채움 */
 export const B2C_PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, price: priceNum(p.price) }));
 export const productPrice = (name) => B2C_PRODUCTS.find((p) => p.name === name)?.price ?? 0;
@@ -20,8 +21,8 @@ export const B2C_RIBBON_PHRASES = [
 
 /* ── 상태 배지 색 (orders.js 톤과 통일) ────────────────── */
 export const B2C_STATUS_STYLE = {
-  "접수":    { bg: "var(--c-surface-3)", color: "var(--c-text-4)" },
-  "처리중":  { bg: "var(--c-blue-soft)", color: "var(--c-blue)" },
+  "접수대기": { bg: "var(--c-orange-soft)", color: "var(--c-orange-ink)" },
+  "주문접수": { bg: "var(--c-blue-soft)", color: "var(--c-blue)" },
   "배송완료": { bg: "var(--c-success-bg)", color: "var(--c-success-ink)" },
   "취소":    { bg: "var(--c-danger-bg)", color: "var(--c-danger-ink)" },
 };
@@ -37,7 +38,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-09T11:00", request: "빈소 입구 우측에 배치 부탁드립니다.",
     recipientName: "故 김태수", recipientPhone: "010-3921-4400",
     address: "서울 종로구 대학로 101 서울대학교병원 장례식장 3호실", receiver: "",
-    memo: "", status: "접수", notified: false, cancelFee: 0, cancelReason: "",
+    memo: "", status: "접수대기", notified: false, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b2", orderNo: "B2C-2607-0005", receivedAt: "2026-07-08 10:05",
@@ -48,7 +49,7 @@ export const B2C_ORDERS = [
     deliverAt: "2026-07-10T13:30", request: "예식 30분 전까지 도착 희망",
     recipientName: "혼주 김영호", recipientPhone: "010-8845-1120",
     address: "서울 서초구 강남대로 373 홀리데이인 서울강남 3층 그랜드볼룸", receiver: "",
-    memo: "예식장 반입 확인 완료", status: "처리중", notified: false, cancelFee: 0, cancelReason: "",
+    memo: "예식장 반입 확인 완료", status: "주문접수", notified: false, cancelFee: 0, cancelReason: "",
   },
   {
     id: "b3", orderNo: "B2C-2607-0004", receivedAt: "2026-07-07 16:40",
