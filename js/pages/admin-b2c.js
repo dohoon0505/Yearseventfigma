@@ -254,13 +254,6 @@ export function mount(root, { nav }) {
             <label>요청사항</label>
             <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
           </div>
-          <div class="b2c-cancelzone ${o.status === "취소" ? "is-active" : ""}">
-            <div class="b2c-cancelzone__t">취소 처리 <span class="b2c-sec__hint">상태가 ‘취소’일 때 적용됩니다</span></div>
-            <div class="b2c-grid b2c-grid--2">
-              ${txtField("취소수수료", "cancelFee", { type: "number", min: 0, inputmode: "numeric" })}
-              ${txtField("취소사유", "cancelReason", { placeholder: "예) 고객 단순 변심" })}
-            </div>
-          </div>
         </section>
 
         <!-- ③ 우: 인수자 정보 — 현장사진 · 인수자 · 배송완료 처리 레일 -->
@@ -278,10 +271,14 @@ export function mount(root, { nav }) {
         </section>
       </div>
 
+      <!-- 푸터 액션: 좌(주문서 삭제 · 주문취소) / 우(저장 · 닫기) — 취소 처리는 버튼으로 수행 -->
       <div class="hm__foot b2c-foot">
-        ${!isNew ? html`<button class="hm-btn hm-btn--danger b2c-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 삭제</button>` : ""}
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        ${!isNew ? html`
+          <button class="hm-btn b2c-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 주문서 삭제</button>
+          <button class="hm-btn b2c-cancelbtn" data-action="order-cancel" ${o.status === "취소" ? "disabled" : ""}>${o.status === "취소" ? "취소됨" : "주문취소"}</button>
+        ` : ""}
         <button class="hm-btn hm-btn--primary" data-action="save">${icon("save", { size: 14 })} 저장</button>
+        <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
       </div>
 
       <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
@@ -321,23 +318,20 @@ export function mount(root, { nav }) {
     toast(wasNew ? "신규 주문을 등록했습니다" : "주문 정보를 저장했습니다");
   }
 
-  /* 취소 처리 존: 상태='취소'일 때만 활성(강조 + 입력 가능) */
-  function syncCancelSection(panel) {
-    const isCancel = editing?.status === "취소";
-    const sec = qs(panel, ".b2c-cancelzone");
-    if (sec) sec.classList.toggle("is-active", isCancel);
-    ["cancelFee", "cancelReason"].forEach((k) => {
-      const inp = qs(panel, `[data-f='${k}']`);
-      if (inp) inp.disabled = !isCancel;
-    });
-  }
-  /* 배송완료 버튼: 현재 상태와 동기화(완료면 비활성 + 라벨 전환) */
-  function syncDoneBtn(panel) {
-    const b = qs(panel, "[data-action='deliver-done']");
-    if (!b) return;
-    const done = editing?.status === "배송완료";
-    b.disabled = done;
-    setHTML(b, html`${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}`);
+  /* 상태 액션 버튼 동기화 — 배송완료 처리(우측 레일)·주문취소(푸터)는 현재 상태에 따라 비활성/라벨 전환 */
+  function syncStatusBtns(panel) {
+    const doneBtn = qs(panel, "[data-action='deliver-done']");
+    if (doneBtn) {
+      const done = editing?.status === "배송완료";
+      doneBtn.disabled = done;
+      setHTML(doneBtn, html`${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}`);
+    }
+    const cancelBtn = qs(panel, "[data-action='order-cancel']");
+    if (cancelBtn) {
+      const cancelled = editing?.status === "취소";
+      cancelBtn.disabled = cancelled;
+      cancelBtn.textContent = cancelled ? "취소됨" : "주문취소";
+    }
   }
   /* 연락처 자동 하이픈 (order.js onPhone 과 동일 규칙) */
   function formatPhone(t) {
@@ -390,7 +384,6 @@ export function mount(root, { nav }) {
       ddMap[key] = inst;
       dds.push(inst);
     });
-    syncCancelSection(panel);
 
     // 모달은 document.body 에 붙으므로 에디터 이벤트는 panel 에 바인딩(패널 제거 시 함께 정리).
     on(panel, "click", "[data-action='close']", () => closeModal());
@@ -411,15 +404,20 @@ export function mount(root, { nav }) {
       if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
       else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
-    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리.
-       현황의 그 외 전환(접수/처리중/취소)은 목록 인라인 셀렉트에서 수행. */
+    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리. */
     on(panel, "click", "[data-action='deliver-done']", () => {
       if (!editing || editing.status === "배송완료") return;
       editing.status = "배송완료";
       editing.notified = true; // 배송완료 → 알림톡 자동 발송
-      syncCancelSection(panel);
-      syncDoneBtn(panel);
+      syncStatusBtns(panel);
       toast("배송완료로 변경했습니다 · 알림톡이 발송됩니다 (저장 시 반영)");
+    });
+    /* 주문취소 — 원클릭 상태 전환(저장 시 반영). 재취소 방지 위해 완료 후 비활성. */
+    on(panel, "click", "[data-action='order-cancel']", () => {
+      if (!editing || editing.status === "취소") return;
+      editing.status = "취소";
+      syncStatusBtns(panel);
+      toast("주문을 취소 상태로 변경했습니다 (저장 시 반영)", "warn");
     });
     on(panel, "click", "[data-action='addr-search']", () => {
       toast("주소 검색 API 연동 예정입니다 (데모)", "warn");
