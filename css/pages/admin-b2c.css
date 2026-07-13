@@ -146,24 +146,14 @@
 .b2c-addr__row .hm-input { flex: 1; min-width: 0; }
 .b2c-addrbtn { flex: 0 0 auto; height: auto; padding: 0 12px; white-space: nowrap; font-size: var(--fs-13); }
 
-/* 취소 처리 존 (중앙 카드 하단) — 상태 '취소'일 때 강조 */
-.b2c-cancelzone {
-  border: 1px solid var(--c-divider); border-radius: var(--r-lg);
-  padding: 8px 10px 10px; background: var(--c-surface);
-  opacity: 0.62; transition: opacity 0.2s, border-color 0.2s, background 0.2s;
-}
-.b2c-cancelzone__t {
-  font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-text-strong);
-  margin-bottom: 8px; display: flex; align-items: baseline; gap: 8px;
-}
-.b2c-cancelzone.is-active { opacity: 1; border-color: var(--c-danger); background: var(--c-danger-bg); }
-.b2c-cancelzone.is-active .b2c-cancelzone__t { color: var(--c-danger-ink); }
-
-/* 푸터: 삭제(좌) · 취소/저장(우) */
+/* 푸터: 좌(주문서 삭제 · 주문취소) / 우(저장 · 닫기) — 취소 처리는 버튼으로 수행 */
 .b2c-foot { justify-content: flex-end; }
 .b2c-foot .hm-btn { flex: 0 0 auto; min-width: 88px; }
-.b2c-foot .b2c-delbtn { margin-right: auto; background: var(--c-surface); border: 1px solid var(--c-danger); color: var(--c-danger-ink); }
+.b2c-foot .b2c-delbtn { background: var(--c-surface); border: 1px solid var(--c-danger); color: var(--c-danger-ink); }
 .b2c-foot .b2c-delbtn:hover:not(:disabled) { background: var(--c-danger-bg); }
+.b2c-foot .b2c-cancelbtn { margin-right: auto; background: var(--c-surface); border: 1px solid var(--c-warn); color: var(--c-warn-soft-ink); }
+.b2c-foot .b2c-cancelbtn:hover:not(:disabled) { background: var(--c-warn-soft-bg); }
+.b2c-foot .b2c-cancelbtn:disabled { opacity: 1; background: var(--c-warn-soft-bg); border-color: var(--c-warn-soft-bg); cursor: default; }
 
 /* ── 반응형: 좁은 폭에서 열 축소(본문 스크롤 허용) ────────── */
 @media (max-width: 1100px) {
