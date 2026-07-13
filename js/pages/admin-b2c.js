@@ -181,6 +181,21 @@ export function mount(root, { nav }) {
     `;
   }
 
+  /* 현장사진 박스 내부 — 사진(or 빈 안내) + hover 오버레이(업로드·다운로드).
+     onImageFile 에서 부분 재렌더에도 재사용하므로 별도 함수. */
+  function imgboxInner() {
+    const hasImg = !!editing?.image;
+    return html`
+      ${hasImg
+        ? html`<img src="${editing.image}" alt="배송 현장 사진" />`
+        : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
+      <div class="b2c-imgover">
+        <button class="b2c-imgact" data-action="img-upload" title="이미지 업로드" aria-label="이미지 업로드">${icon("camera", { size: 18 })}</button>
+        ${hasImg ? html`<button class="b2c-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>` : ""}
+      </div>
+    `;
+  }
+
   /* 와이어프레임 3열 레이아웃:
      좌(주문 접수·내부 메모) · 중앙(주문·배송·리본·요청 + 취소존) · 우(인수자 정보 — 현장사진·인수자·배송완료 액션 레일) */
   function editorBody() {
@@ -247,14 +262,8 @@ export function mount(root, { nav }) {
         <!-- ③ 우: 인수자 정보 — 현장사진 · 인수자 · 배송완료 처리 레일 -->
         <section class="b2c-sec b2c-sec--right">
           <div class="b2c-sec__t">인수자 정보</div>
-          <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" role="${hasImg ? "button" : ""}" title="${hasImg ? "클릭하여 크게 보기" : ""}">
-            ${hasImg
-              ? html`<img src="${o.image}" alt="배송 현장 사진" />`
-              : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
-          </div>
-          <div class="b2c-imgbtns">
-            <button class="hm-btn hm-btn--secondary" data-action="img-upload">${icon("camera", { size: 14 })} 업로드</button>
-            <button class="hm-btn hm-btn--secondary" data-action="img-download" ${hasImg ? "" : "disabled"}>${icon("download", { size: 14 })} 다운로드</button>
+          <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
+            ${imgboxInner()}
           </div>
           <input type="file" accept="image/*" data-img-input hidden />
           ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
@@ -286,9 +295,7 @@ export function mount(root, { nav }) {
       if (!editing) return;
       editing.image = String(reader.result);
       const box = qs(panel, "[data-slot='imgbox']");
-      if (box) { box.classList.add("has"); setHTML(box, html`<img src="${editing.image}" alt="배송 현장 사진" />`); }
-      const dl = qs(panel, "[data-action='img-download']");
-      if (dl) dl.disabled = false;
+      if (box) { box.classList.add("has"); setHTML(box, imgboxInner()); box.title = "클릭하여 크게 보기"; }
       toast("이미지를 업로드했습니다");
     };
     reader.readAsDataURL(file);
@@ -402,9 +409,9 @@ export function mount(root, { nav }) {
     });
     on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
     on(panel, "click", "[data-action='img-download']", () => downloadImage());
-    /* 현장사진 클릭 → 있으면 라이트박스 확대, 없으면 업로드 파일 선택 */
-    on(panel, "click", "[data-action='img-zoom']", () => {
-      if (!editing) return;
+    /* 현장사진 클릭 → 있으면 라이트박스 확대, 없으면 업로드. hover 오버레이 버튼 클릭은 제외(각자 처리). */
+    on(panel, "click", "[data-action='img-zoom']", (e) => {
+      if (!editing || e.target.closest("[data-action='img-upload'], [data-action='img-download']")) return;
       if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
       else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
