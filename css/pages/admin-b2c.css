@@ -34,6 +34,7 @@
 /* ══ 모달 셸 — 읽기 우선 · 넓은 가로형 ═══════════════════ */
 .modal-panel--b2c {
   width: min(1400px, 92vw);
+  max-height: 92vh; /* 구역 카드 여백 확보 (공용 88vh보다 여유) */
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 본문(.b2c-body)만 스크롤 → 헤더·푸터 고정 */
@@ -41,13 +42,13 @@
 .modal-panel--b2c .hm__head {
   flex-shrink: 0;
   align-items: center;
-  padding: 20px 28px 16px;
+  padding: 18px 28px 14px;
   border-bottom: 1px solid var(--c-divider);
 }
 .modal-panel--b2c .hm__foot {
   flex-shrink: 0;
   border-top: 1px solid var(--c-divider);
-  padding: 14px 28px 16px;
+  padding: 12px 28px 14px;
 }
 
 /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타 + [내용 수정] ── */
@@ -62,38 +63,58 @@
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 28px;
-  padding: 20px 28px 24px;
+  gap: 16px;
+  padding: 16px 28px 20px;
 }
 .b2c-main { min-width: 0; }
 /* 신규 등록: 레일 없이 1열 중앙 폼 */
 .b2c-body--new { grid-template-columns: minmax(0, 1fr); }
 .b2c-body--new .b2c-main { max-width: 760px; width: 100%; margin: 0 auto; }
 
-/* ── 읽기 문서: 상품·금액 헤드라인 + 정의행 ─────────────── */
+/* ── 구역 카드 — 읽기·편집·처리 레일 공통 골격 ───────────── */
+.b2c-doc, .b2c-edit { display: flex; flex-direction: column; gap: 14px; }
+.b2c-zone {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-divider);
+  border-radius: var(--r-xl);
+  padding: 14px 18px 16px;
+  min-width: 0;
+}
+.b2c-zone__t {
+  font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+/* ── 읽기 문서: 상품·금액 헤드라인 + 큰 정의행 ───────────── */
 .b2c-doc__prod {
   display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
-  padding: 4px 2px 16px;
-  border-bottom: 1px solid var(--c-divider);
+  padding: 2px 2px 14px;
+  border-bottom: 1px solid var(--c-border);
 }
-.b2c-doc__name { font-size: 19px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; }
-.b2c-doc__price { font-size: var(--fs-16); font-weight: var(--fw-bold); color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+.b2c-doc__name { font-size: 21px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; }
+.b2c-doc__price { font-size: 17px; font-weight: var(--fw-bold); color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
 .b2c-doc__row {
-  display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 14px;
-  padding: 13px 2px;
-  border-bottom: 1px solid var(--c-divider);
-  font-size: 14.5px; line-height: 1.55;
+  display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px;
+  align-items: baseline;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--c-border);
+  line-height: 1.55;
 }
-.b2c-doc__k { color: var(--c-text-muted); }
-.b2c-doc__v { color: var(--c-text-2); font-weight: var(--fw-medium); word-break: break-all; }
-.b2c-doc__v--strong { color: var(--c-text-strong); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.b2c-zone .b2c-doc__row:last-child { border-bottom: none; padding-bottom: 2px; }
+.b2c-doc__k { font-size: 13.5px; color: var(--c-text-muted); }
+.b2c-doc__v { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); word-break: break-all; }
+.b2c-doc__v--strong { font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
 .b2c-doc__v--pre { white-space: pre-line; }
 
-/* ── 편집 폼: 2열 표준 hm-field(상단 라벨·48px) ──────────── */
-.b2c-form { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 16px; } /* 행간 13px — 1080p 편집 모드 무스크롤 */
+/* ── 편집 폼: 구역 카드 안 2열 표준 hm-field(상단 라벨·48px) ── */
+.b2c-edit { gap: 10px; }
+.b2c-edit .b2c-zone { padding: 12px 16px; }
+.b2c-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.b2c-form--3 { grid-template-columns: 1fr 1fr 1fr; } /* 배송 구역: 받는분·연락처·배송일시 한 줄 */
 .b2c-form .hm-field { margin-bottom: 0; min-width: 0; }
 .b2c-form__full { grid-column: 1 / -1; }
-.b2c-form .hm-textarea { min-height: 64px; }
+.b2c-form .hm-textarea { min-height: 52px; }
 
 /* 배송지 주소(넓은 텍스트필드) + 주소검색 버튼 */
 .b2c-addr__row { display: flex; gap: 8px; align-items: flex-start; }
@@ -106,17 +127,9 @@
    영역으로 잘린다 → 아래로 전개(하단은 스크롤 오버플로로 도달 가능). */
 .modal-panel--b2c .dd-panel { bottom: auto; top: calc(100% + 6px); }
 
-/* ── 처리 레일: 현장사진 3:4 · 인수자 · 처리 메모 ─────────── */
-.b2c-rail {
-  display: flex; flex-direction: column; gap: 14px;
-  border-left: 1px solid var(--c-divider);
-  padding-left: 28px;
-  min-width: 0;
-}
-.b2c-rail__t {
-  font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-text-muted);
-  letter-spacing: 0.02em;
-}
+/* ── 처리 레일: 구역 카드 + 현장사진 3:4 · 인수자 · 처리 메모 ── */
+.b2c-rail { display: flex; flex-direction: column; gap: 12px; align-self: start; }
+.b2c-rail .b2c-zone__t { margin-bottom: 0; }
 .b2c-rail .hm-field { margin-bottom: 0; }
 .b2c-rail__memo .hm-textarea { min-height: 72px; }
 .b2c-rail__hint {
@@ -129,7 +142,7 @@
 .b2c-imgbox {
   position: relative; width: 100%;
   aspect-ratio: 3 / 4;
-  background: var(--c-surface-2); border: 1px solid var(--c-border);
+  background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--r-lg); overflow: hidden;
   display: grid; place-items: center;
   cursor: pointer;
@@ -164,7 +177,7 @@
 /* ── 반응형: 좁은 폭에서 레일을 아래로(본문 스크롤 허용) ──── */
 @media (max-width: 1100px) {
   .b2c-body { grid-template-columns: minmax(0, 1fr); }
-  .b2c-rail { border-left: none; padding-left: 0; border-top: 1px solid var(--c-divider); padding-top: 20px; }
+  .b2c-rail { align-self: stretch; }
 }
 @media (max-width: 640px) {
   .b2c-form { grid-template-columns: 1fr; }
