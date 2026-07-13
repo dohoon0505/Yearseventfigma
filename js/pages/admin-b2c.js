@@ -212,15 +212,15 @@ export function mount(root, { nav }) {
       </div>
 
       <div class="hm__body b2c-body">
-        <!-- ① 좌: 주문 접수 정보 + 내부 메모 -->
+        <!-- ① 좌: 주문 접수 정보 + 내부 메모 (라벨 좌측 · 컴팩트 행) -->
         <section class="b2c-sec b2c-sec--left">
           <div class="b2c-sec__t">주문 접수 정보</div>
           ${ddField("주문 담당자", "manager")}
-          ${ddField("주문경로 또는 거래처", "channel")}
+          ${ddField("주문경로/거래처", "channel")}
           ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
           ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
           <div class="hm-field b2c-field--grow">
-            <label>처리 메모 (내부)</label>
+            <label>처리 메모</label>
             <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
           </div>
         </section>
@@ -231,29 +231,33 @@ export function mount(root, { nav }) {
           <div class="b2c-grid b2c-grid--2">
             ${ddField("주문상품", "product", { req: true })}
             ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-            ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
-            ${txtField("리본문구 (보내는분)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
           </div>
-          <div class="b2c-grid b2c-grid--3" style="margin-top:12px;">
-            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
+          <div class="b2c-grid b2c-grid--2">
+            ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+            ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
+          </div>
+          <div class="b2c-grid b2c-grid--2">
             ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
             ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
           </div>
-          <div class="hm-field b2c-addr" style="margin-top:12px;">
-            <label>배송지</label>
-            <div class="b2c-addr__row">
-              <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
-              <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 주소검색</button>
+          <div class="b2c-grid b2c-grid--dt">
+            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
+            <div class="hm-field b2c-addr">
+              <label>배송지</label>
+              <div class="b2c-addr__row">
+                <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
+                <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
+              </div>
             </div>
           </div>
-          <div class="hm-field b2c-field--grow" style="margin-top:12px;">
-            <label>주문자 요청사항</label>
+          <div class="hm-field b2c-field--grow">
+            <label>요청사항</label>
             <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
           </div>
           <div class="b2c-cancelzone ${o.status === "취소" ? "is-active" : ""}">
             <div class="b2c-cancelzone__t">취소 처리 <span class="b2c-sec__hint">상태가 ‘취소’일 때 적용됩니다</span></div>
             <div class="b2c-grid b2c-grid--2">
-              ${txtField("취소수수료 (원)", "cancelFee", { type: "number", min: 0, inputmode: "numeric" })}
+              ${txtField("취소수수료", "cancelFee", { type: "number", min: 0, inputmode: "numeric" })}
               ${txtField("취소사유", "cancelReason", { placeholder: "예) 고객 단순 변심" })}
             </div>
           </div>
@@ -270,10 +274,7 @@ export function mount(root, { nav }) {
           <button class="hm-btn hm-btn--ok b2c-donebtn" data-action="deliver-done" ${done ? "disabled" : ""}>
             ${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}
           </button>
-          <div class="b2c-statuszone">
-            ${ddField("배송 현황", "status")}
-            <p class="b2c-notihint">${icon("bell", { size: 12 })} 배송완료 시 고객 알림톡이 자동 발송됩니다</p>
-          </div>
+          <p class="b2c-notihint">${icon("bell", { size: 12 })} 배송완료 시 고객 알림톡이 자동 발송됩니다</p>
         </section>
       </div>
 
@@ -375,11 +376,6 @@ export function mount(root, { nav }) {
           }
         },
       },
-      /* 배송완료로 바뀌면 알림톡이 자동 발송(API)된 것으로 처리 → notified=true */
-      status: {
-        options: () => B2C_STATUSES,
-        onSet: (v) => { if (editing && v === "배송완료") editing.notified = true; syncCancelSection(panel); syncDoneBtn(panel); },
-      },
     };
     const ddMap = {};
     qsa(panel, "[data-dd-f]").forEach((root) => {
@@ -415,12 +411,12 @@ export function mount(root, { nav }) {
       if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
       else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
-    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리. */
+    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리.
+       현황의 그 외 전환(접수/처리중/취소)은 목록 인라인 셀렉트에서 수행. */
     on(panel, "click", "[data-action='deliver-done']", () => {
       if (!editing || editing.status === "배송완료") return;
       editing.status = "배송완료";
       editing.notified = true; // 배송완료 → 알림톡 자동 발송
-      if (ddMap.status) ddMap.status.renderTrigger();
       syncCancelSection(panel);
       syncDoneBtn(panel);
       toast("배송완료로 변경했습니다 · 알림톡이 발송됩니다 (저장 시 반영)");

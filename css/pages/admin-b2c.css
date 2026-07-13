@@ -52,10 +52,10 @@
 .b2c-body {
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid;
-  grid-template-columns: 300px 1fr 300px;
-  gap: 12px;
+  grid-template-columns: 290px 1fr 290px;
+  gap: 10px;
   align-items: stretch;
-  padding: 14px 24px 12px;
+  padding: 12px 24px 10px;
 }
 
 /* 섹션 카드 (모달 내부 — 가벼운 카드, 컴팩트) */
@@ -63,39 +63,55 @@
   background: var(--c-surface-2);
   border: 1px solid var(--c-divider);
   border-radius: var(--r-lg);
-  padding: 12px 14px 14px;
+  padding: 10px 12px 12px;
   min-width: 0;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
 }
 .b2c-sec__t {
   font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-strong);
-  padding-bottom: 8px; border-bottom: 1px solid var(--c-border);
+  padding-bottom: 7px; margin-bottom: 2px; border-bottom: 1px solid var(--c-border);
   display: flex; align-items: baseline; gap: 10px;
 }
 .b2c-sec__hint { font-size: 11.5px; font-weight: var(--fw-medium); color: var(--c-text-muted); }
 
-/* 필드 그리드 (가로 배치) — 필드 래퍼는 공용 .hm-field/.hm-input 재사용 */
-.b2c-grid { display: grid; gap: 12px 14px; }
+/* 필드 그리드 (가로 배치) */
+.b2c-grid { display: grid; gap: 8px 12px; }
 .b2c-grid--2 { grid-template-columns: 1fr 1fr; }
-.b2c-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
-.b2c-sec .hm-field { margin-bottom: 0; }
-/* 남는 세로 공간을 흡수하는 textarea 필드(좌: 메모 · 중앙: 요청사항) */
-.b2c-field--grow { flex: 1; display: flex; flex-direction: column; }
-.b2c-field--grow .hm-textarea { flex: 1; }
-.modal-panel--b2c .hm-textarea { min-height: 60px; }
+.b2c-grid--dt { grid-template-columns: 256px 1fr; } /* 배송일시(datetime 최소폭 고정) | 배송지(+검색) */
+/* --dt 행은 라벨이 짧아(배송일시/배송지) 60px로 축소 → datetime 컨트롤 폭 확보
+   (아래 공통 .hm-field 84px 규칙보다 특이도를 높여 우선 적용) */
+.modal-panel--b2c .b2c-grid--dt .hm-field { grid-template-columns: 60px minmax(0, 1fr); }
+
+/* ── 컴팩트 폼 행: 라벨 좌측(84px) + 컨트롤 38px — 이 모달 한정 오버라이드.
+   필드당 세로 점유를 절반으로 줄여 레거시 ERP 수준의 밀도를 확보한다. ── */
+.modal-panel--b2c .hm-field {
+  margin-bottom: 0;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.modal-panel--b2c .hm-field label { margin-bottom: 0; font-size: var(--fs-12); line-height: 1.3; word-break: keep-all; }
+.modal-panel--b2c .hm-input,
+.modal-panel--b2c .dd-trigger { height: 38px; font-size: 13.5px; padding-left: 12px; }
+.modal-panel--b2c .dd-trigger { padding-right: 32px; }
+.modal-panel--b2c .dd-trigger::after { right: 12px; }
+/* 남는 세로 공간을 흡수하는 textarea 필드(좌: 메모 · 중앙: 요청사항) — 라벨은 상단 정렬 */
+.b2c-field--grow { flex: 1; align-items: stretch; }
+.b2c-field--grow label { padding-top: 10px; align-self: start; }
+.b2c-field--grow .hm-textarea { height: 100%; }
+.modal-panel--b2c .hm-textarea { min-height: 52px; padding: 9px 12px; font-size: 13.5px; }
 
 /* 커스텀 드롭다운(.dd) 전개 방향 오버라이드:
    공용 모달 규격은 위로 전개(패널 하단 select 클리핑 방지)지만, 이 모달은
    본문(.b2c-body)이 자체 스크롤이라 상단 필드에서 위로 열면 스크롤 불가
    영역으로 잘린다 → 아래로 전개(하단은 스크롤 오버플로로 도달 가능). */
 .modal-panel--b2c .dd-panel { bottom: auto; top: calc(100% + 6px); }
-/* 예외: 우측 레일 하단의 처리상태 dd 는 위로 전개(레일 바닥이라 아래 공간 없음) */
-.b2c-statuszone .dd-panel { top: auto; bottom: calc(100% + 6px); }
 
 /* ── 우측 레일: 인수자 정보 (사진 → 인수자 → 배송완료 → 처리상태) ── */
 .b2c-imgbox {
   position: relative; width: 100%;
-  flex: 1; min-height: 200px; /* 남는 높이를 사진이 흡수 → 3열 높이 균형 */
+  flex: 1; min-height: 150px; /* 남는 높이를 사진이 흡수 → 3열 높이 균형 */
   background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--r-lg); overflow: hidden;
   display: grid; place-items: center;
@@ -116,13 +132,11 @@
   display: grid; place-items: center; transition: background 0.15s;
 }
 .b2c-imgact:hover { background: rgba(255, 255, 255, 0.32); }
-/* 배송완료 처리 버튼 (완료 시 비활성) */
-.b2c-donebtn { width: 100%; }
+/* 배송완료 처리 버튼 (완료 시 비활성) — 현황 전환의 유일한 모달 내 액션(그 외는 목록 인라인) */
+.b2c-donebtn { width: 100%; height: 42px; }
 .b2c-donebtn:disabled { opacity: 1; background: var(--c-success-bg); color: var(--c-success-ink); cursor: default; }
-/* 처리 상태 존 (배송 현황 dd) — 완료 레일과 구분선 */
-.b2c-statuszone { border-top: 1px solid var(--c-border); padding-top: 12px; }
 .b2c-notihint {
-  display: flex; align-items: center; gap: 5px; margin-top: 8px;
+  display: flex; align-items: center; gap: 5px; margin-top: -4px;
   font-size: 11.5px; color: var(--c-text-muted); line-height: 1.4;
 }
 .b2c-notihint .icon { flex: 0 0 auto; color: var(--c-text-faint); }
@@ -135,12 +149,12 @@
 /* 취소 처리 존 (중앙 카드 하단) — 상태 '취소'일 때 강조 */
 .b2c-cancelzone {
   border: 1px solid var(--c-divider); border-radius: var(--r-lg);
-  padding: 10px 12px 12px; background: var(--c-surface);
+  padding: 8px 10px 10px; background: var(--c-surface);
   opacity: 0.62; transition: opacity 0.2s, border-color 0.2s, background 0.2s;
 }
 .b2c-cancelzone__t {
   font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-text-strong);
-  margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 8px; display: flex; align-items: baseline; gap: 8px;
 }
 .b2c-cancelzone.is-active { opacity: 1; border-color: var(--c-danger); background: var(--c-danger-bg); }
 .b2c-cancelzone.is-active .b2c-cancelzone__t { color: var(--c-danger-ink); }
@@ -158,6 +172,6 @@
 }
 @media (max-width: 640px) {
   .b2c-body { grid-template-columns: 1fr; }
-  .b2c-grid--2, .b2c-grid--3 { grid-template-columns: 1fr; }
+  .b2c-grid--2, .b2c-grid--dt { grid-template-columns: 1fr; }
   .b2c-addr__row { flex-direction: column; }
 }
