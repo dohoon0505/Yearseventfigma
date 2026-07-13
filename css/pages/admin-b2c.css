@@ -37,7 +37,10 @@
 .b2c-flag--photo.on { color: var(--c-blue); }
 .b2c-flag--noti.on { color: var(--c-success-ink); }
 
-/* ══ 모달 에디터 (넓은 가로형 · 원스크린) ══════════════════ */
+/* ══ 모달 에디터 — 와이어프레임 3열 레이아웃 ═══════════════
+   좌(주문 접수·내부 메모) · 중앙(주문·배송·리본·요청 + 취소존) ·
+   우(인수자 정보: 현장사진 → 인수자 → 배송완료 → 처리상태 액션 레일).
+   세 카드는 동일 높이로 스트레치, 남는 공간은 메모/요청 textarea·사진이 흡수. */
 .modal-panel--b2c {
   width: min(1280px, 96vw);
   display: flex;
@@ -48,23 +51,25 @@
 .modal-panel--b2c .hm__foot { flex-shrink: 0; border-top: 1px solid var(--c-divider); padding: 14px 24px 16px; }
 .b2c-body {
   flex: 1; min-height: 0; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 12px;
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  gap: 12px;
+  align-items: stretch;
   padding: 14px 24px 12px;
 }
-/* 좌우 2열 스택 (열별 높이 독립) */
-.b2c-cols { display: grid; grid-template-columns: 1.08fr 1fr; gap: 12px; align-items: start; }
-.b2c-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
-/* 섹션 (모달 내부 — 가벼운 카드, 컴팩트) */
+/* 섹션 카드 (모달 내부 — 가벼운 카드, 컴팩트) */
 .b2c-sec {
   background: var(--c-surface-2);
   border: 1px solid var(--c-divider);
   border-radius: var(--r-lg);
   padding: 12px 14px 14px;
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 12px;
 }
 .b2c-sec__t {
   font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-strong);
-  padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--c-border);
+  padding-bottom: 8px; border-bottom: 1px solid var(--c-border);
   display: flex; align-items: baseline; gap: 10px;
 }
 .b2c-sec__hint { font-size: 11.5px; font-weight: var(--fw-medium); color: var(--c-text-muted); }
@@ -73,11 +78,10 @@
 .b2c-grid { display: grid; gap: 12px 14px; }
 .b2c-grid--2 { grid-template-columns: 1fr 1fr; }
 .b2c-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
-.b2c-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.b2c-grid--addr { grid-template-columns: 1.7fr 1fr; } /* 주소(+검색버튼)는 넓게, 인수자는 좁게 */
-.b2c-grid .hm-field { margin-bottom: 0; }
-
-/* 모달 내부 textarea 는 컴팩트(2줄) — 원스크린 우선 */
+.b2c-sec .hm-field { margin-bottom: 0; }
+/* 남는 세로 공간을 흡수하는 textarea 필드(좌: 메모 · 중앙: 요청사항) */
+.b2c-field--grow { flex: 1; display: flex; flex-direction: column; }
+.b2c-field--grow .hm-textarea { flex: 1; }
 .modal-panel--b2c .hm-textarea { min-height: 60px; }
 
 /* 커스텀 드롭다운(.dd) 전개 방향 오버라이드:
@@ -85,33 +89,45 @@
    본문(.b2c-body)이 자체 스크롤이라 상단 필드에서 위로 열면 스크롤 불가
    영역으로 잘린다 → 아래로 전개(하단은 스크롤 오버플로로 도달 가능). */
 .modal-panel--b2c .dd-panel { bottom: auto; top: calc(100% + 6px); }
+/* 예외: 우측 레일 하단의 처리상태 dd 는 위로 전개(레일 바닥이라 아래 공간 없음) */
+.b2c-statuszone .dd-panel { top: auto; bottom: calc(100% + 6px); }
 
-/* 섹션 ② 좌(필드)/우(이미지) 분할 */
-.b2c-sec--split { display: grid; grid-template-columns: 1fr 132px; gap: 16px; align-items: start; }
-.b2c-sec--split .b2c-sec__main { min-width: 0; }
-.b2c-sec--split .b2c-sec__aside { min-width: 0; }
-
-/* 이미지 프리뷰 박스 (세로형 3:4 · 컴팩트) */
+/* ── 우측 레일: 인수자 정보 (사진 → 인수자 → 배송완료 → 처리상태) ── */
 .b2c-imgbox {
-  position: relative; width: 100%; aspect-ratio: 3 / 4;
+  position: relative; width: 100%;
+  flex: 1; min-height: 200px; /* 남는 높이를 사진이 흡수 → 3열 높이 균형 */
   background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--r-lg); overflow: hidden;
   display: grid; place-items: center;
 }
+.b2c-imgbox.has { cursor: zoom-in; }
 .b2c-imgbox img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .b2c-imgbox__ph { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--c-text-faint); font-size: var(--fs-12); }
-.b2c-imgbtns { display: flex; gap: 6px; margin-top: 8px; }
-.b2c-imgbtns .hm-btn { flex: 1; height: 36px; padding: 0; font-size: var(--fs-13); }
+.b2c-imgbtns { display: flex; gap: 6px; }
+.b2c-imgbtns .hm-btn { flex: 1; height: 36px; padding: 0 8px; font-size: var(--fs-13); }
+/* 배송완료 처리 버튼 (완료 시 비활성) */
+.b2c-donebtn { width: 100%; }
+.b2c-donebtn:disabled { opacity: 1; background: var(--c-success-bg); color: var(--c-success-ink); cursor: default; }
+/* 처리 상태 존 (현황·알림 dd) — 완료 레일과 구분선 */
+.b2c-statuszone { border-top: 1px solid var(--c-border); padding-top: 12px; }
 
-/* 배송지 주소 + 주소검색 버튼 (한 줄) */
+/* 배송지 + 주소검색 버튼 (한 줄) */
 .b2c-addr__row { display: flex; gap: 8px; align-items: stretch; }
 .b2c-addr__row .hm-input { flex: 1; min-width: 0; }
 .b2c-addrbtn { flex: 0 0 auto; height: auto; padding: 0 12px; white-space: nowrap; font-size: var(--fs-13); }
 
-/* 취소 처리 섹션 — 상태 '취소'일 때 강조 */
-.b2c-sec--cancel { opacity: 0.62; transition: opacity 0.2s, border-color 0.2s, background 0.2s; }
-.b2c-sec--cancel.is-active { opacity: 1; border-color: var(--c-danger); background: var(--c-danger-bg); }
-.b2c-sec--cancel.is-active .b2c-sec__t { color: var(--c-danger-ink); }
+/* 취소 처리 존 (중앙 카드 하단) — 상태 '취소'일 때 강조 */
+.b2c-cancelzone {
+  border: 1px solid var(--c-divider); border-radius: var(--r-lg);
+  padding: 10px 12px 12px; background: var(--c-surface);
+  opacity: 0.62; transition: opacity 0.2s, border-color 0.2s, background 0.2s;
+}
+.b2c-cancelzone__t {
+  font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-text-strong);
+  margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px;
+}
+.b2c-cancelzone.is-active { opacity: 1; border-color: var(--c-danger); background: var(--c-danger-bg); }
+.b2c-cancelzone.is-active .b2c-cancelzone__t { color: var(--c-danger-ink); }
 
 /* 푸터: 삭제(좌) · 취소/저장(우) */
 .b2c-foot { justify-content: flex-end; }
@@ -121,11 +137,11 @@
 
 /* ── 반응형: 좁은 폭에서 열 축소(본문 스크롤 허용) ────────── */
 @media (max-width: 1100px) {
-  .b2c-cols { grid-template-columns: 1fr; }
-  .b2c-grid--4 { grid-template-columns: 1fr 1fr; }
+  .b2c-body { grid-template-columns: 1fr 1fr; }
+  .b2c-sec--mid { grid-column: 1 / -1; order: -1; }
 }
 @media (max-width: 640px) {
-  .b2c-grid--2, .b2c-grid--3, .b2c-grid--4, .b2c-grid--addr { grid-template-columns: 1fr; }
-  .b2c-sec--split { grid-template-columns: 1fr; }
+  .b2c-body { grid-template-columns: 1fr; }
+  .b2c-grid--2, .b2c-grid--3 { grid-template-columns: 1fr; }
   .b2c-addr__row { flex-direction: column; }
 }

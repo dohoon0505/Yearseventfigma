@@ -9,7 +9,7 @@
    ============================================================ */
 import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import {
   B2C_STAFF, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
@@ -180,111 +180,94 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-  function areaField(label, key, placeholder) {
-    return html`
-      <div class="hm-field">
-        <label>${label}</label>
-        <textarea class="hm-input hm-textarea" data-f="${key}" placeholder="${placeholder ?? ""}">${editing[key] ?? ""}</textarea>
-      </div>
-    `;
-  }
 
+  /* 와이어프레임 3열 레이아웃:
+     좌(주문 접수·내부 메모) · 중앙(주문·배송·리본·요청 + 취소존) · 우(인수자 정보 — 현장사진·인수자·배송완료 액션 레일) */
   function editorBody() {
     const o = editing;
     const hasImg = !!o.image;
+    const done = o.status === "배송완료";
     return html`
       <div class="hm__head">
         <div>
-          <h3>${isNew ? "신규 B2C 주문 등록" : "B2C 주문 편집"}</h3>
-          <p><span class="b2c-mono">${o.orderNo}</span> · 접수 ${o.receivedAt}</p>
+          <h3>${isNew ? "신규 B2C 주문 등록" : "B2C주문 조회/수정"}</h3>
+          <p><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt}</p>
         </div>
         <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
       </div>
 
       <div class="hm__body b2c-body">
-        <!-- ① 주문 접수 정보 (전폭 4열) -->
-        <section class="b2c-sec">
+        <!-- ① 좌: 주문 접수 정보 + 내부 메모 -->
+        <section class="b2c-sec b2c-sec--left">
           <div class="b2c-sec__t">주문 접수 정보</div>
-          <div class="b2c-grid b2c-grid--4">
-            ${ddField("주문 담당자", "manager")}
-            ${ddField("주문경로 또는 거래처", "channel")}
-            ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
-            ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+          ${ddField("주문 담당자", "manager")}
+          ${ddField("주문경로 또는 거래처", "channel")}
+          ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
+          ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+          <div class="hm-field b2c-field--grow">
+            <label>처리 메모 (내부)</label>
+            <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
           </div>
         </section>
 
-        <!-- 2열 배치: 좌(상품·리본 / 배송) · 우(요청·처리 / 취소) — 한 화면에 전 항목 노출 -->
-        <div class="b2c-cols">
-          <div class="b2c-col">
-            <!-- ② 상품 · 리본 (좌: 필드 / 우: 이미지) -->
-            <section class="b2c-sec b2c-sec--split">
-              <div class="b2c-sec__main">
-                <div class="b2c-sec__t">상품 · 리본 정보</div>
-                <div class="b2c-grid b2c-grid--2">
-                  ${ddField("주문상품", "product", { req: true })}
-                  ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-                  ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
-                  ${txtField("리본문구 (보내는분)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
-                </div>
-              </div>
-              <div class="b2c-sec__aside">
-                <div class="b2c-sec__t">상품 이미지</div>
-                <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox">
-                  ${hasImg
-                    ? html`<img src="${o.image}" alt="상품 이미지" />`
-                    : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>이미지 없음</span></div>`}
-                </div>
-                <div class="b2c-imgbtns">
-                  <button class="hm-btn hm-btn--secondary" data-action="img-upload" title="이미지 업로드">${icon("camera", { size: 14 })}</button>
-                  <button class="hm-btn hm-btn--secondary" data-action="img-download" title="이미지 다운로드" ${hasImg ? "" : "disabled"}>${icon("download", { size: 14 })}</button>
-                </div>
-                <input type="file" accept="image/*" data-img-input hidden />
-              </div>
-            </section>
-
-            <!-- ③ 배송 정보 -->
-            <section class="b2c-sec">
-              <div class="b2c-sec__t">배송 정보</div>
-              <div class="b2c-grid b2c-grid--3">
-                ${txtField("배송요청일시", "deliverAt", { type: "datetime-local" })}
-                ${txtField("수령인 성함", "recipientName", { placeholder: "예) 故 김○○" })}
-                ${txtField("수령인 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-              </div>
-              <div class="b2c-grid b2c-grid--addr" style="margin-top:12px;">
-                <div class="hm-field b2c-addr">
-                  <label>배송지 주소</label>
-                  <div class="b2c-addr__row">
-                    <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
-                    <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 주소검색</button>
-                  </div>
-                </div>
-                ${txtField("인수자", "receiver", { placeholder: "실제 인수자" })}
-              </div>
-            </section>
+        <!-- ② 중앙: 주문 · 배송 정보 -->
+        <section class="b2c-sec b2c-sec--mid">
+          <div class="b2c-sec__t">주문 · 배송 정보</div>
+          <div class="b2c-grid b2c-grid--2">
+            ${ddField("주문상품", "product", { req: true })}
+            ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
+            ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+            ${txtField("리본문구 (보내는분)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
           </div>
-
-          <div class="b2c-col">
-            <!-- ④ 요청 · 처리 -->
-            <section class="b2c-sec">
-              <div class="b2c-sec__t">요청 · 처리</div>
-              ${areaField("주문자 요청사항", "request", "고객이 남긴 요청사항")}
-              <div style="margin-top:12px;">${areaField("처리 메모 (내부)", "memo", "담당자 처리 메모 · 특이사항")}</div>
-              <div class="b2c-grid b2c-grid--2" style="margin-top:12px;">
-                ${ddField("배송 현황", "status")}
-                ${ddField("알림 발송", "notified")}
-              </div>
-            </section>
-
-            <!-- ⑤ 취소 처리 -->
-            <section class="b2c-sec b2c-sec--cancel ${o.status === "취소" ? "is-active" : ""}">
-              <div class="b2c-sec__t">취소 처리 <span class="b2c-sec__hint">상태가 ‘취소’일 때 적용됩니다</span></div>
-              <div class="b2c-grid b2c-grid--2">
-                ${txtField("취소수수료 (원)", "cancelFee", { type: "number", min: 0, inputmode: "numeric" })}
-                ${txtField("취소사유", "cancelReason", { placeholder: "예) 고객 단순 변심" })}
-              </div>
-            </section>
+          <div class="b2c-grid b2c-grid--3" style="margin-top:12px;">
+            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
+            ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
+            ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
           </div>
-        </div>
+          <div class="hm-field b2c-addr" style="margin-top:12px;">
+            <label>배송지</label>
+            <div class="b2c-addr__row">
+              <input class="hm-input" type="text" data-f="address" value="${o.address ?? ""}" placeholder="배송지 주소를 입력하세요" />
+              <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 주소검색</button>
+            </div>
+          </div>
+          <div class="hm-field b2c-field--grow" style="margin-top:12px;">
+            <label>주문자 요청사항</label>
+            <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
+          </div>
+          <div class="b2c-cancelzone ${o.status === "취소" ? "is-active" : ""}">
+            <div class="b2c-cancelzone__t">취소 처리 <span class="b2c-sec__hint">상태가 ‘취소’일 때 적용됩니다</span></div>
+            <div class="b2c-grid b2c-grid--2">
+              ${txtField("취소수수료 (원)", "cancelFee", { type: "number", min: 0, inputmode: "numeric" })}
+              ${txtField("취소사유", "cancelReason", { placeholder: "예) 고객 단순 변심" })}
+            </div>
+          </div>
+        </section>
+
+        <!-- ③ 우: 인수자 정보 — 현장사진 · 인수자 · 배송완료 처리 레일 -->
+        <section class="b2c-sec b2c-sec--right">
+          <div class="b2c-sec__t">인수자 정보</div>
+          <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" role="${hasImg ? "button" : ""}" title="${hasImg ? "클릭하여 크게 보기" : ""}">
+            ${hasImg
+              ? html`<img src="${o.image}" alt="배송 현장 사진" />`
+              : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
+          </div>
+          <div class="b2c-imgbtns">
+            <button class="hm-btn hm-btn--secondary" data-action="img-upload">${icon("camera", { size: 14 })} 업로드</button>
+            <button class="hm-btn hm-btn--secondary" data-action="img-download" ${hasImg ? "" : "disabled"}>${icon("download", { size: 14 })} 다운로드</button>
+          </div>
+          <input type="file" accept="image/*" data-img-input hidden />
+          ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
+          <button class="hm-btn hm-btn--ok b2c-donebtn" data-action="deliver-done" ${done ? "disabled" : ""}>
+            ${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}
+          </button>
+          <div class="b2c-statuszone">
+            <div class="b2c-grid b2c-grid--2">
+              ${ddField("배송 현황", "status")}
+              ${ddField("알림 발송", "notified")}
+            </div>
+          </div>
+        </section>
       </div>
 
       <div class="hm__foot b2c-foot">
@@ -305,7 +288,7 @@ export function mount(root, { nav }) {
       if (!editing) return;
       editing.image = String(reader.result);
       const box = qs(panel, "[data-slot='imgbox']");
-      if (box) { box.classList.add("has"); setHTML(box, html`<img src="${editing.image}" alt="상품 이미지" />`); }
+      if (box) { box.classList.add("has"); setHTML(box, html`<img src="${editing.image}" alt="배송 현장 사진" />`); }
       const dl = qs(panel, "[data-action='img-download']");
       if (dl) dl.disabled = false;
       toast("이미지를 업로드했습니다");
@@ -332,15 +315,23 @@ export function mount(root, { nav }) {
     toast(wasNew ? "신규 주문을 등록했습니다" : "주문 정보를 저장했습니다");
   }
 
-  /* 취소 처리 섹션: 상태='취소'일 때만 활성(강조 + 입력 가능) */
+  /* 취소 처리 존: 상태='취소'일 때만 활성(강조 + 입력 가능) */
   function syncCancelSection(panel) {
     const isCancel = editing?.status === "취소";
-    const sec = qs(panel, ".b2c-sec--cancel");
+    const sec = qs(panel, ".b2c-cancelzone");
     if (sec) sec.classList.toggle("is-active", isCancel);
     ["cancelFee", "cancelReason"].forEach((k) => {
       const inp = qs(panel, `[data-f='${k}']`);
       if (inp) inp.disabled = !isCancel;
     });
+  }
+  /* 배송완료 버튼: 현재 상태와 동기화(완료면 비활성 + 라벨 전환) */
+  function syncDoneBtn(panel) {
+    const b = qs(panel, "[data-action='deliver-done']");
+    if (!b) return;
+    const done = editing?.status === "배송완료";
+    b.disabled = done;
+    setHTML(b, html`${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}`);
   }
   /* 연락처 자동 하이픈 (order.js onPhone 과 동일 규칙) */
   function formatPhone(t) {
@@ -379,7 +370,7 @@ export function mount(root, { nav }) {
           }
         },
       },
-      status: { onSet: () => syncCancelSection(panel), options: () => B2C_STATUSES },
+      status: { onSet: () => { syncCancelSection(panel); syncDoneBtn(panel); }, options: () => B2C_STATUSES },
       /* 알림 발송 여부 — boolean ↔ 라벨 매핑 */
       notified: {
         options: () => ["미발송", "발송완료"],
@@ -387,15 +378,18 @@ export function mount(root, { nav }) {
         set: (v) => { if (editing) editing.notified = v === "발송완료"; },
       },
     };
+    const ddMap = {};
     qsa(panel, "[data-dd-f]").forEach((root) => {
       const key = root.dataset.ddF;
       const def = DD_DEFS[key];
-      dds.push(makeDropdown(root, {
+      const inst = makeDropdown(root, {
         options: def.options,
         get: def.get || (() => editing?.[key] ?? ""),
         set: def.set || ((v) => { if (!editing) return; editing[key] = v; if (def.onSet) def.onSet(v); }),
         label: def.label,
-      }));
+      });
+      ddMap[key] = inst;
+      dds.push(inst);
     });
     syncCancelSection(panel);
 
@@ -412,6 +406,21 @@ export function mount(root, { nav }) {
     });
     on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
     on(panel, "click", "[data-action='img-download']", () => downloadImage());
+    /* 현장사진 클릭 → 있으면 라이트박스 확대, 없으면 업로드 파일 선택 */
+    on(panel, "click", "[data-action='img-zoom']", () => {
+      if (!editing) return;
+      if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
+      else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
+    });
+    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료 (저장 시 반영) */
+    on(panel, "click", "[data-action='deliver-done']", () => {
+      if (!editing || editing.status === "배송완료") return;
+      editing.status = "배송완료";
+      if (ddMap.status) ddMap.status.renderTrigger();
+      syncCancelSection(panel);
+      syncDoneBtn(panel);
+      toast("배송완료로 변경했습니다 · 저장 시 반영됩니다");
+    });
     on(panel, "click", "[data-action='addr-search']", () => {
       toast("주소 검색 API 연동 예정입니다 (데모)", "warn");
       const inp = qs(panel, "[data-f='address']"); if (inp) inp.focus();
