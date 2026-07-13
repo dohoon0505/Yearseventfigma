@@ -100,11 +100,22 @@
   border-radius: var(--r-lg); overflow: hidden;
   display: grid; place-items: center;
 }
-.b2c-imgbox.has { cursor: zoom-in; }
+.b2c-imgbox { cursor: pointer; }
 .b2c-imgbox img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .b2c-imgbox__ph { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--c-text-faint); font-size: var(--fs-12); }
-.b2c-imgbtns { display: flex; gap: 6px; }
-.b2c-imgbtns .hm-btn { flex: 1; height: 36px; padding: 0 8px; font-size: var(--fs-13); }
+/* hover 시 나타나는 업로드·다운로드 오버레이 (버튼 자리표시 제거) */
+.b2c-imgover {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(17, 17, 24, 0.42); opacity: 0; transition: opacity 0.15s;
+}
+.b2c-imgbox:hover .b2c-imgover,
+.b2c-imgbox:focus-within .b2c-imgover { opacity: 1; }
+.b2c-imgact {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16); color: #fff;
+  display: grid; place-items: center; transition: background 0.15s;
+}
+.b2c-imgact:hover { background: rgba(255, 255, 255, 0.32); }
 /* 배송완료 처리 버튼 (완료 시 비활성) */
 .b2c-donebtn { width: 100%; }
 .b2c-donebtn:disabled { opacity: 1; background: var(--c-success-bg); color: var(--c-success-ink); cursor: default; }
