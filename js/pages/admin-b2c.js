@@ -262,10 +262,8 @@ export function mount(root, { nav }) {
             ${icon("check", { size: 15 })} ${done ? "배송완료" : "배송완료 처리"}
           </button>
           <div class="b2c-statuszone">
-            <div class="b2c-grid b2c-grid--2">
-              ${ddField("배송 현황", "status")}
-              ${ddField("알림 발송", "notified")}
-            </div>
+            ${ddField("배송 현황", "status")}
+            <p class="b2c-notihint">${icon("bell", { size: 12 })} 배송완료 시 고객 알림톡이 자동 발송됩니다</p>
           </div>
         </section>
       </div>
@@ -370,12 +368,10 @@ export function mount(root, { nav }) {
           }
         },
       },
-      status: { onSet: () => { syncCancelSection(panel); syncDoneBtn(panel); }, options: () => B2C_STATUSES },
-      /* 알림 발송 여부 — boolean ↔ 라벨 매핑 */
-      notified: {
-        options: () => ["미발송", "발송완료"],
-        get: () => (editing?.notified ? "발송완료" : "미발송"),
-        set: (v) => { if (editing) editing.notified = v === "발송완료"; },
+      /* 배송완료로 바뀌면 알림톡이 자동 발송(API)된 것으로 처리 → notified=true */
+      status: {
+        options: () => B2C_STATUSES,
+        onSet: (v) => { if (editing && v === "배송완료") editing.notified = true; syncCancelSection(panel); syncDoneBtn(panel); },
       },
     };
     const ddMap = {};
@@ -412,14 +408,15 @@ export function mount(root, { nav }) {
       if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
       else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
-    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료 (저장 시 반영) */
+    /* 배송완료 처리 — 인수자 확인 후 원클릭 완료(저장 시 반영). 알림톡 자동 발송(API) 처리. */
     on(panel, "click", "[data-action='deliver-done']", () => {
       if (!editing || editing.status === "배송완료") return;
       editing.status = "배송완료";
+      editing.notified = true; // 배송완료 → 알림톡 자동 발송
       if (ddMap.status) ddMap.status.renderTrigger();
       syncCancelSection(panel);
       syncDoneBtn(panel);
-      toast("배송완료로 변경했습니다 · 저장 시 반영됩니다");
+      toast("배송완료로 변경했습니다 · 알림톡이 발송됩니다 (저장 시 반영)");
     });
     on(panel, "click", "[data-action='addr-search']", () => {
       toast("주소 검색 API 연동 예정입니다 (데모)", "warn");

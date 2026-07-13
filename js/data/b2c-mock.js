@@ -115,5 +115,7 @@ export function b2cRemove(id) {
 }
 export function b2cSetStatus(id, status) {
   const o = B2C_ORDERS.find((x) => x.id === id);
-  if (o) o.status = status;
+  if (!o) return;
+  o.status = status;
+  if (status === "배송완료") o.notified = true; // 배송완료 → 알림톡 자동 발송(API)
 }
