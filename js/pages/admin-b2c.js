@@ -225,7 +225,7 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* ── 읽기 모드: 상품·금액 헤드라인 + 정의행 문서 (입력 없음) ── */
+  /* ── 읽기 모드: 구역 카드(주문 상품 / 주문자·받는분 / 배송) + 큰 정의행 ── */
   function readBody() {
     const o = editing;
     const row = (k, v, cls = "") => html`
@@ -235,47 +235,71 @@ export function mount(root, { nav }) {
       </div>`;
     return html`
       <div class="b2c-doc">
-        <div class="b2c-doc__prod">
-          <span class="b2c-doc__name">${dash(o.product)}</span>
-          <span class="b2c-doc__price">${won(o.amount)}</span>
-        </div>
-        ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
-        ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
-        ${row("배송일시", fmtFull(o.deliverAt), "b2c-doc__v--strong")}
-        ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
-        ${row("리본", joinVals(" / ", o.ribbonPhrase, o.ribbonSender))}
-        ${row("요청사항", dash(o.request), "b2c-doc__v--pre")}
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">주문 상품</div>
+          <div class="b2c-doc__prod">
+            <span class="b2c-doc__name">${dash(o.product)}</span>
+            <span class="b2c-doc__price">${won(o.amount)}</span>
+          </div>
+          ${row("리본", joinVals(" / ", o.ribbonPhrase, o.ribbonSender))}
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">주문자 · 받는분</div>
+          ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
+          ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">배송</div>
+          ${row("배송일시", fmtFull(o.deliverAt), "b2c-doc__v--strong")}
+          ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
+          ${row("요청사항", dash(o.request), "b2c-doc__v--pre")}
+        </section>
       </div>
     `;
   }
 
-  /* ── 편집 모드: 2열 표준 폼 + 배송지/요청사항 풀로우 ── */
+  /* ── 편집 모드: 읽기와 동일한 구역 카드 안에 2열 표준 폼 ── */
   function editBody() {
     const o = editing;
     return html`
-      <div class="b2c-form">
-        ${ddField("주문 담당자", "manager")}
-        ${ddField("주문경로/거래처", "channel")}
-        ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
-        ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-        ${ddField("주문상품", "product", { req: true })}
-        ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-        ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
-        ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
-        ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
-        ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-        ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
-        <div class="hm-field b2c-form__full">
-          <label>배송지 주소</label>
-          <div class="b2c-addr__row">
-            <textarea class="hm-input hm-textarea b2c-addr__ta" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
-            <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
+      <div class="b2c-edit">
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">주문 접수</div>
+          <div class="b2c-form">
+            ${ddField("주문 담당자", "manager")}
+            ${ddField("주문경로/거래처", "channel")}
+            ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
+            ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
           </div>
-        </div>
-        <div class="hm-field b2c-form__full">
-          <label>요청사항</label>
-          <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
-        </div>
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">상품 · 리본</div>
+          <div class="b2c-form">
+            ${ddField("주문상품", "product", { req: true })}
+            ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
+            ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+            ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
+          </div>
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">배송</div>
+          <div class="b2c-form b2c-form--3">
+            ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
+            ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
+            <div class="hm-field b2c-form__full">
+              <label>배송지 주소</label>
+              <div class="b2c-addr__row">
+                <textarea class="hm-input hm-textarea b2c-addr__ta" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
+                <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
+              </div>
+            </div>
+            <div class="hm-field b2c-form__full">
+              <label>요청사항</label>
+              <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
+            </div>
+          </div>
+        </section>
         <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
       </div>
     `;
@@ -305,8 +329,8 @@ export function mount(root, { nav }) {
     const o = editing;
     const hasImg = !!o.image;
     return html`
-      <aside class="b2c-rail">
-        <div class="b2c-rail__t">처리 정보</div>
+      <aside class="b2c-rail b2c-zone">
+        <div class="b2c-zone__t">처리 정보</div>
         <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
           ${imgboxInner()}
         </div>
