@@ -90,6 +90,10 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
   }
   function onKey(e) {
     if (document.querySelector(".lightbox")) return; /* 라이트박스 우선 */
+    /* 스택된 모달 지원: 최상위(마지막에 열린) 오버레이만 ESC/Tab 처리 —
+       오버레이가 1개뿐인 기존 사용처는 항상 최상위라 무영향. */
+    const overlays = document.querySelectorAll(".modal-overlay");
+    if (overlay !== overlays[overlays.length - 1]) return;
     if (e.key === "Escape") {
       e.preventDefault();
       close();
