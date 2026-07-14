@@ -336,7 +336,6 @@ export function mount(root, { nav }) {
           <label>처리 메모</label>
           <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
         </div>
-        <p class="b2c-rail__hint">${icon("bell", { size: 12 })} 사진·인수자 입력 후 저장하면 배송완료 처리 및 고객 알림톡이 자동 발송됩니다</p>
       </aside>
     `;
   }
