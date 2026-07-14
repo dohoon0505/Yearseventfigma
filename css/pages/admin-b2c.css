@@ -99,6 +99,7 @@
 /* 요청사항 제외 전 항목 동일 강조 — 17px bold (금액만 주황) */
 .b2c-doc__v {
   font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold);
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums; word-break: break-all;
 }
 .b2c-doc__v--price { color: var(--c-orange-ink); }
