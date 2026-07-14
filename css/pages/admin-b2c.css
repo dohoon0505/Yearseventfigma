@@ -86,14 +86,7 @@
   margin-bottom: 8px;
 }
 
-/* ── 읽기 문서: 상품·금액 헤드라인 + 큰 정의행 ───────────── */
-.b2c-doc__prod {
-  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
-  padding: 2px 2px 14px;
-  border-bottom: 1px solid var(--c-border);
-}
-.b2c-doc__name { font-size: 21px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; }
-.b2c-doc__price { font-size: 17px; font-weight: var(--fw-bold); color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+/* ── 읽기 문서: 큰 정의행 (주문정보/발주정보) + 요청사항 텍스트 ── */
 .b2c-doc__row {
   display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px;
   align-items: baseline;
@@ -105,15 +98,21 @@
 .b2c-doc__k { font-size: 13.5px; color: var(--c-text-muted); }
 .b2c-doc__v { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); word-break: break-all; }
 .b2c-doc__v--strong { font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.b2c-doc__v--price { font-size: 17px; color: var(--c-orange-ink); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
 .b2c-doc__v--pre { white-space: pre-line; }
+/* 요청사항 구역 — 정의행 없이 본문 텍스트만 */
+.b2c-doc__txt { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); line-height: 1.6; white-space: pre-line; padding: 2px 2px 4px; }
 
 /* ── 편집 폼: 구역 카드 안 2열 표준 hm-field(상단 라벨·48px) ── */
 .b2c-edit { gap: 10px; }
 .b2c-edit .b2c-zone { padding: 12px 16px; }
 .b2c-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
-.b2c-form--3 { grid-template-columns: 1fr 1fr 1fr; } /* 배송 구역: 받는분·연락처·배송일시 한 줄 */
+.b2c-form--3 { grid-template-columns: 1fr 1fr 1fr; } /* 발주정보: 배송일시·받는분·연락처 한 줄 */
 .b2c-form .hm-field { margin-bottom: 0; min-width: 0; }
 .b2c-form__full { grid-column: 1 / -1; }
+/* 풀로우 안 2열 페어(리본문구|보내는분) — 3열 그리드 안에서 반반 분할 */
+.b2c-form__pair { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; min-width: 0; }
+.b2c-form__pair .hm-field { margin-bottom: 0; min-width: 0; }
 .b2c-form .hm-textarea { min-height: 52px; }
 
 /* 배송지 주소(넓은 텍스트필드) + 주소검색 버튼 */
