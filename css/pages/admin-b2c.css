@@ -96,9 +96,12 @@
 }
 .b2c-zone .b2c-doc__row:last-child { border-bottom: none; padding-bottom: 2px; }
 .b2c-doc__k { font-size: 13.5px; color: var(--c-text-muted); }
-.b2c-doc__v { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); word-break: break-all; }
-.b2c-doc__v--strong { font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
-.b2c-doc__v--price { font-size: 17px; color: var(--c-orange-ink); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+/* 요청사항 제외 전 항목 동일 강조 — 17px bold (금액만 주황) */
+.b2c-doc__v {
+  font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.b2c-doc__v--price { color: var(--c-orange-ink); }
 .b2c-doc__v--pre { white-space: pre-line; }
 /* 요청사항 구역 — 정의행 없이 본문 텍스트만 */
 .b2c-doc__txt { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); line-height: 1.6; white-space: pre-line; padding: 2px 2px 4px; }

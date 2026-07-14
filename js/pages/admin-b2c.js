@@ -238,12 +238,12 @@ export function mount(root, { nav }) {
         <section class="b2c-zone">
           <div class="b2c-zone__t">주문정보</div>
           ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
-          ${row("주문상품", dash(o.product), "b2c-doc__v--strong")}
+          ${row("주문상품", dash(o.product))}
           ${row("주문금액", won(o.amount), "b2c-doc__v--price")}
         </section>
         <section class="b2c-zone">
           <div class="b2c-zone__t">발주정보</div>
-          ${row("배송일시", fmtFull(o.deliverAt), "b2c-doc__v--strong")}
+          ${row("배송일시", fmtFull(o.deliverAt))}
           ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
           ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
           ${row("리본문구", dash(o.ribbonPhrase))}
