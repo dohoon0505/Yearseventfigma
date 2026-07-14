@@ -17,7 +17,7 @@ import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../
 import {
   B2C_STAFF, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
-  b2cNewId, b2cNextOrderNo,
+  b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
 
 const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
@@ -194,14 +194,23 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타 + [내용 수정] 토글 ── */
+  /* 헤더 인라인 담당자 컨트롤 — 클릭 시 담당자 지정 모달(선택·입력).
+     미지정(API 자동등록)이면 주황 강조로 '지정' 유도. */
+  function managerControl() {
+    const m = editing?.manager;
+    return m
+      ? html`<button class="b2c-mgr" data-action="pick-manager">담당 ${m} ${icon("pencil", { size: 12 })}</button>`
+      : html`<button class="b2c-mgr b2c-mgr--empty" data-action="pick-manager">${icon("user-plus", { size: 12 })} 담당자 미지정 · 지정하기</button>`;
+  }
+
+  /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타(+담당자 컨트롤) + [내용 수정] 토글 ── */
   function headInner() {
     const o = editing;
     if (isNew) {
       return html`
         <div class="b2c-head__main">
           <div class="b2c-head__row"><h3 class="b2c-head__no">신규 B2C 주문 등록</h3></div>
-          <p class="b2c-head__meta"><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt}</p>
+          <p class="b2c-head__meta"><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
         </div>
         <div class="b2c-head__acts">
           <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
@@ -214,7 +223,7 @@ export function mount(root, { nav }) {
           <h3 class="b2c-head__no b2c-mono">${o.orderNo}</h3>
           ${statusBadge(o.status)}
         </div>
-        <p class="b2c-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · 담당 ${o.manager}</p>
+        <p class="b2c-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
       </div>
       <div class="b2c-head__acts">
         <button class="hm-btn hm-btn--secondary b2c-editbtn" data-action="toggle-edit">
@@ -265,12 +274,11 @@ export function mount(root, { nav }) {
         <section class="b2c-zone">
           <div class="b2c-zone__t">주문정보</div>
           <div class="b2c-form">
-            ${ddField("주문 담당자", "manager")}
-            ${ddField("주문경로/거래처", "channel")}
             ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
             ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
             ${ddField("주문상품", "product", { req: true })}
             ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
+            <div class="b2c-form__full">${ddField("주문경로/거래처", "channel")}</div>
           </div>
         </section>
         <section class="b2c-zone">
@@ -281,10 +289,7 @@ export function mount(root, { nav }) {
             ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
             <div class="hm-field b2c-form__full">
               <label>배송지 주소</label>
-              <div class="b2c-addr__row">
-                <textarea class="hm-input hm-textarea b2c-addr__ta" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
-                <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
-              </div>
+              <textarea class="hm-input hm-textarea" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
             </div>
             <div class="b2c-form__pair">
               ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
@@ -477,6 +482,55 @@ export function mount(root, { nav }) {
     return v;
   }
 
+  /* ── 담당자 지정 모달 — 별도 창(선택 또는 직접 입력), 메인 위에 스택 ──
+     API 자동등록 주문은 담당자 미지정으로 도착 → 열면 이 창이 우선 뜬다.
+     지정은 즉시 반영(b2cSetManager). 폼/레일의 다른 미저장 편집은 건드리지 않음. */
+  function openManagerModal(mainPanel) {
+    if (!editing) return;
+    const cur = editing.manager || "";
+    const picker = openModal({
+      panelClass: "modal-panel--sm modal-panel--b2cmgr",
+      body: html`
+        <div class="hm__head">
+          <div>
+            <h3>담당자 지정</h3>
+            <p>이 주문을 담당할 직원을 선택하거나 직접 입력하세요.</p>
+          </div>
+          <button class="hm__x" data-action="mgr-close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+        </div>
+        <div class="hm__body">
+          <div class="hm-field">
+            <label>담당자</label>
+            <input class="hm-input" data-mgr-input list="b2c-staff-list" value="${cur}" placeholder="담당자 이름" autocomplete="off" />
+            <datalist id="b2c-staff-list">${B2C_STAFF.map((s) => html`<option value="${s}"></option>`)}</datalist>
+            <p class="b2c-mgrhint">${icon("user", { size: 12 })} 목록에서 선택하거나 새 담당자를 직접 입력할 수 있습니다.</p>
+          </div>
+        </div>
+        <div class="hm__foot">
+          <button class="hm-btn hm-btn--secondary" data-action="mgr-close">취소</button>
+          <button class="hm-btn hm-btn--primary" data-action="mgr-confirm">${icon("check", { size: 14 })} 지정</button>
+        </div>
+      `,
+    });
+    const p = picker.panel;
+    const input = qs(p, "[data-mgr-input]");
+    const confirm = () => {
+      const v = (input?.value || "").trim();
+      if (!v) { toast("담당자를 선택하거나 입력하세요", "warn"); input?.focus(); return; }
+      if (!editing) { picker.close(); return; }
+      editing.manager = v;
+      b2cSetManager(editing.id, v); // 담당자만 즉시 반영(다른 미저장 편집은 저장 시점까지 보류)
+      refreshList();
+      if (mainPanel) renderSlots(mainPanel); // 헤더 담당자 표시 갱신(편집 중이면 바디 보존)
+      picker.close();
+      toast(`담당자를 ${v}(으)로 지정했습니다`);
+    };
+    on(p, "click", "[data-action='mgr-close']", () => picker.close());
+    on(p, "click", "[data-action='mgr-confirm']", () => confirm());
+    on(p, "keydown", "[data-mgr-input]", (e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } });
+    if (input) { input.focus(); input.select(); }
+  }
+
   function openEditor(order, _isNew) {
     closeModal();
     editing = { ...order };
@@ -542,10 +596,7 @@ export function mount(root, { nav }) {
       if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
       else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
     });
-    on(panel, "click", "[data-action='addr-search']", () => {
-      toast("주소 검색 API 연동 예정입니다 (데모)", "warn");
-      const inp = qs(panel, "[data-f='address']"); if (inp) inp.focus();
-    });
+    on(panel, "click", "[data-action='pick-manager']", () => openManagerModal(panel));
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
@@ -555,6 +606,9 @@ export function mount(root, { nav }) {
       onImageFile(panel, t.files && t.files[0]);
       t.value = ""; // 같은 파일 재선택 허용
     });
+
+    /* API 자동등록(담당자 미지정) 주문을 열면 담당자 지정 모달을 우선 노출 */
+    if (!isNew && !editing.manager) openManagerModal(panel);
   }
 
   render();

@@ -31,7 +31,7 @@ export const B2C_STATUS_STYLE = {
 export const B2C_ORDERS = [
   {
     id: "b1", orderNo: "B2C-2607-0006", receivedAt: "2026-07-08 15:20",
-    manager: "김총무", channel: "네이버 스토어",
+    manager: "", channel: "네이버 스토어", // API 자동등록 → 담당자 미지정(열면 담당자 지정 우선)
     ordererName: "정하윤", ordererPhone: "010-4821-3300",
     ribbonPhrase: "삼가 고인의 명복을 빕니다", ribbonSender: "정하윤",
     image: "", product: "근조바구니", amount: 50000,
@@ -119,4 +119,8 @@ export function b2cSetStatus(id, status) {
   if (!o) return;
   o.status = status;
   if (status === "배송완료") o.notified = true; // 배송완료 → 알림톡 자동 발송(API)
+}
+export function b2cSetManager(id, name) {
+  const o = B2C_ORDERS.find((x) => x.id === id);
+  if (o) o.manager = name; // API 미지정 주문에 담당자 배정(별도 모달에서 선택·입력)
 }

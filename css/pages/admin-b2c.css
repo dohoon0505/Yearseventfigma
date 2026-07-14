@@ -57,6 +57,23 @@
 .b2c-head__meta { font-size: var(--fs-13); color: var(--c-text-muted); margin-top: 5px; }
 .b2c-head__acts { display: flex; align-items: center; gap: 10px; }
 .b2c-editbtn { height: 38px; padding: 0 14px; font-size: var(--fs-13); border-radius: var(--r-lg); }
+/* 메타 라인 인라인 담당자 컨트롤 — 클릭 시 담당자 지정 모달 */
+.b2c-mgr {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-3);
+  padding: 1px 6px; border-radius: var(--r-sm); vertical-align: baseline;
+  transition: background 0.14s, color 0.14s;
+}
+.b2c-mgr:hover { background: var(--c-surface-3); color: var(--c-text-strong); }
+.b2c-mgr .icon { color: var(--c-text-faint); }
+.b2c-mgr:hover .icon { color: var(--c-text-3); }
+/* 미지정(API 자동등록) — 주황 강조로 지정 유도 */
+.b2c-mgr--empty { color: var(--c-warn-soft-ink); background: var(--c-warn-soft-bg); font-weight: var(--fw-bold); }
+.b2c-mgr--empty:hover { color: var(--c-warn-soft-ink); background: var(--c-warn-soft-bg); filter: brightness(0.97); }
+.b2c-mgr--empty .icon, .b2c-mgr--empty:hover .icon { color: var(--c-warn-soft-ink); }
+/* 담당자 지정 모달 바디 힌트 */
+.b2c-mgrhint { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 11.5px; color: var(--c-text-muted); }
+.b2c-mgrhint .icon { flex: 0 0 auto; color: var(--c-text-faint); }
 
 /* ── 본문: 좌 본문(읽기/편집) + 우 처리 레일 ────────────── */
 .b2c-body {
@@ -119,11 +136,6 @@
 .b2c-form__pair .hm-field { margin-bottom: 0; min-width: 0; }
 .b2c-form .hm-textarea { min-height: 52px; }
 
-/* 배송지 주소(넓은 텍스트필드) + 주소검색 버튼 */
-.b2c-addr__row { display: flex; gap: 8px; align-items: flex-start; }
-.b2c-addr__row .b2c-addr__ta { flex: 1; min-width: 0; }
-.b2c-addrbtn { flex: 0 0 auto; height: 48px; padding: 0 14px; white-space: nowrap; font-size: var(--fs-13); }
-
 /* 커스텀 드롭다운(.dd) 전개 방향 오버라이드:
    공용 모달 규격은 위로 전개(패널 하단 select 클리핑 방지)지만, 이 모달은
    본문(.b2c-body)이 자체 스크롤이라 상단 필드에서 위로 열면 스크롤 불가
@@ -178,7 +190,6 @@
   .b2c-rail { align-self: stretch; }
 }
 @media (max-width: 640px) {
-  .b2c-form { grid-template-columns: 1fr; }
-  .b2c-addr__row { flex-direction: column; align-items: stretch; }
+  .b2c-form, .b2c-form--3, .b2c-form__pair { grid-template-columns: 1fr; }
   .b2c-doc__row { grid-template-columns: 96px minmax(0, 1fr); }
 }
