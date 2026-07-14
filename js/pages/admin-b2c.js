@@ -225,7 +225,7 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* ── 읽기 모드: 구역 카드(주문 상품 / 주문자·받는분 / 배송) + 큰 정의행 ── */
+  /* ── 읽기 모드: 구역 카드(주문정보 / 발주정보 / 요청사항) + 큰 정의행 ── */
   function readBody() {
     const o = editing;
     const row = (k, v, cls = "") => html`
@@ -236,57 +236,49 @@ export function mount(root, { nav }) {
     return html`
       <div class="b2c-doc">
         <section class="b2c-zone">
-          <div class="b2c-zone__t">주문 상품</div>
-          <div class="b2c-doc__prod">
-            <span class="b2c-doc__name">${dash(o.product)}</span>
-            <span class="b2c-doc__price">${won(o.amount)}</span>
-          </div>
-          ${row("리본", joinVals(" / ", o.ribbonPhrase, o.ribbonSender))}
-        </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">주문자 · 받는분</div>
+          <div class="b2c-zone__t">주문정보</div>
           ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
-          ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
+          ${row("주문상품", dash(o.product), "b2c-doc__v--strong")}
+          ${row("주문금액", won(o.amount), "b2c-doc__v--price")}
         </section>
         <section class="b2c-zone">
-          <div class="b2c-zone__t">배송</div>
+          <div class="b2c-zone__t">발주정보</div>
           ${row("배송일시", fmtFull(o.deliverAt), "b2c-doc__v--strong")}
           ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
-          ${row("요청사항", dash(o.request), "b2c-doc__v--pre")}
+          ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
+          ${row("리본문구", dash(o.ribbonPhrase))}
+          ${row("보내는분", dash(o.ribbonSender))}
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">요청사항</div>
+          <p class="b2c-doc__txt">${dash(o.request)}</p>
         </section>
       </div>
     `;
   }
 
-  /* ── 편집 모드: 읽기와 동일한 구역 카드 안에 2열 표준 폼 ── */
+  /* ── 편집 모드: 읽기와 동일한 구역(주문정보/발주정보/요청사항) 안에 표준 폼 ── */
   function editBody() {
     const o = editing;
     return html`
       <div class="b2c-edit">
         <section class="b2c-zone">
-          <div class="b2c-zone__t">주문 접수</div>
+          <div class="b2c-zone__t">주문정보</div>
           <div class="b2c-form">
             ${ddField("주문 담당자", "manager")}
             ${ddField("주문경로/거래처", "channel")}
             ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
             ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-          </div>
-        </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">상품 · 리본</div>
-          <div class="b2c-form">
             ${ddField("주문상품", "product", { req: true })}
-            ${txtField("상품금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-            ${txtField("경조사어 (리본)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
-            ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
+            ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
           </div>
         </section>
         <section class="b2c-zone">
-          <div class="b2c-zone__t">배송</div>
+          <div class="b2c-zone__t">발주정보</div>
           <div class="b2c-form b2c-form--3">
+            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
             ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
             ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
             <div class="hm-field b2c-form__full">
               <label>배송지 주소</label>
               <div class="b2c-addr__row">
@@ -294,11 +286,15 @@ export function mount(root, { nav }) {
                 <button class="hm-btn hm-btn--secondary b2c-addrbtn" data-action="addr-search">${icon("map-pin", { size: 14 })} 검색</button>
               </div>
             </div>
-            <div class="hm-field b2c-form__full">
-              <label>요청사항</label>
-              <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
+            <div class="b2c-form__pair">
+              ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+              ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
             </div>
           </div>
+        </section>
+        <section class="b2c-zone">
+          <div class="b2c-zone__t">요청사항</div>
+          <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
         </section>
         <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
       </div>
