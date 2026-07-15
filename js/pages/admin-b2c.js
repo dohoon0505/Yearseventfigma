@@ -72,7 +72,7 @@ export function mount(root, { nav }) {
     tab: "all", channel: "all", manager: "all",
     photo: ["has", "no"], noti: ["on", "off"],
     dateBasis: "received", dateQuick: "전체",
-    qOrderer: "", qRecipient: "", qAddress: "", qOrderNo: "",
+    qOrderer: "", qRecipient: "", qChannel: "", qOrderNo: "", qAddress: "",
   };
   let activeModal = null;
   let editing = null;      // 편집 작업본 (입력은 전부 여기로 write-through)
@@ -117,8 +117,9 @@ export function mount(root, { nav }) {
       }
       if (!match(o.ordererName, state.qOrderer)) return false;
       if (!match(o.recipientName, state.qRecipient)) return false;
-      if (!match(o.address, state.qAddress)) return false;
+      if (!match(o.channel, state.qChannel)) return false;
       if (!match(o.orderNo, state.qOrderNo)) return false;
+      if (!match(o.address, state.qAddress)) return false;
       return true;
     });
   }
@@ -205,17 +206,25 @@ export function mount(root, { nav }) {
         </div>
       </div>
 
-      <!-- Row 4: 분리 검색 -->
+      <!-- Row 4: 분리 검색 (주문자 · 받는분 · 주문경로 · 주문번호) -->
       <div class="orders-frow orders-frow--3">
         ${[
           { key: "qOrderer", label: "주문자 검색", ph: "주문자 성함" },
           { key: "qRecipient", label: "받는분 검색", ph: "받는분 성함" },
-          { key: "qAddress", label: "주소지 검색", ph: "배송지 주소" },
+          { key: "qChannel", label: "주문경로 검색", ph: "예) 네이버 스토어" },
           { key: "qOrderNo", label: "주문번호 검색", ph: "예) B2C-2607-0006" },
         ].map((s) => html`<div class="orders-search">
           <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>${s.label}</span></div>
           <input type="text" data-search="${s.key}" value="${state[s.key]}" placeholder="${s.ph}" />
         </div>`)}
+      </div>
+
+      <!-- Row 5: 배송지 주소 검색 (전폭 단독) -->
+      <div class="orders-frow orders-frow--3 b2c-frow--addr">
+        <div class="orders-search orders-search--wide">
+          <div class="orders-search__lbl">${icon("map-pin", { size: 12, cls: "tint-muted" })}<span>배송지 주소 검색</span></div>
+          <input type="text" data-search="qAddress" value="${state.qAddress}" placeholder="배송지 주소로 검색합니다 (예: 서울대학교병원 장례식장, 강남구 …)" />
+        </div>
       </div>
     `;
   }
