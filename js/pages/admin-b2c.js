@@ -15,7 +15,7 @@ import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import {
-  B2C_STAFF, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
+  staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
@@ -42,7 +42,7 @@ function blankOrder() {
   const receivedAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   return {
     id: b2cNewId(), orderNo: b2cNextOrderNo(), receivedAt,
-    manager: B2C_STAFF[0], channel: B2C_CHANNELS[0],
+    manager: staffNames()[0] ?? "", channel: B2C_CHANNELS[0],
     ordererName: "", ordererPhone: "", ribbonPhrase: "", ribbonSender: "",
     image: "", product: "", amount: 0,
     deliverAt: "", request: "", recipientName: "", recipientPhone: "",
@@ -382,7 +382,7 @@ export function mount(root, { nav }) {
   }
   function bindDropdowns(panel) {
     const DD_DEFS = {
-      manager: { options: () => B2C_STAFF },
+      manager: { options: () => staffNames() },
       channel: { options: () => B2C_CHANNELS },
       product: {
         options: () => B2C_PRODUCTS.map((p) => p.name),
@@ -502,7 +502,7 @@ export function mount(root, { nav }) {
           <div class="hm-field">
             <label>담당자</label>
             <input class="hm-input" data-mgr-input list="b2c-staff-list" value="${cur}" placeholder="담당자 이름" autocomplete="off" />
-            <datalist id="b2c-staff-list">${B2C_STAFF.map((s) => html`<option value="${s}"></option>`)}</datalist>
+            <datalist id="b2c-staff-list">${staffNames().map((s) => html`<option value="${s}"></option>`)}</datalist>
             <p class="b2c-mgrhint">${icon("user", { size: 12 })} 목록에서 선택하거나 새 담당자를 직접 입력할 수 있습니다.</p>
           </div>
         </div>

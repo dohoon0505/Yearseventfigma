@@ -46,6 +46,12 @@ const ADMIN_MENU = [
       { label: "기업별 상품단가", hash: "#/admin/pricing", icon: "nav-product.png" },
     ],
   },
+  {
+    group: "시스템 관리",
+    items: [
+      { label: "담당자 관련설정", hash: "#/admin/staff", icon: "nav-profile.png" },
+    ],
+  },
 ];
 
 let shellEl = null; // <div class="shell">
