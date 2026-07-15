@@ -189,18 +189,18 @@ export function mount(root, { nav }) {
         </div>
       </div>
 
-      <!-- Row 2: 기간 — 기준 토글 · 퀵버튼 · (우측) 커스텀 datepicker 범위 -->
+      <!-- Row 2: 기간 — 기준 토글 · 커스텀 datepicker 범위 · 퀵버튼 -->
       <div class="orders-frow orders-frow--2 b2c-frow--date">
         <span class="orders-flabel">기간</span>
         <div class="orders-chips">${chipRow(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
-        <div class="orders-chips">
-          ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
-        </div>
         <div class="b2c-daterange">
           ${icon("calendar-days", { size: 14, cls: "tint-muted" })}
           ${dpMarkup("start", "시작일")}
           <span class="b2c-daterange__sep">~</span>
           ${dpMarkup("end", "종료일")}
+        </div>
+        <div class="orders-chips">
+          ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
         </div>
       </div>
 
