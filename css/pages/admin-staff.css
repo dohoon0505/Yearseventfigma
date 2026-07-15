@@ -1,0 +1,18 @@
+/* ============================================================
+   admin-staff.css — 시스템 관리 > 담당자 관련설정
+   목록/필터/모달은 공용 스켈레톤(admin.css·orders.css·components.css) 재사용.
+   여기서는 셀 타이포와 모달 알림수신 행 레이아웃만 소량 보강.
+   색은 tokens.css 토큰만 사용.
+   ============================================================ */
+
+/* ── 목록 셀 타이포 ─────────────────────────────────────── */
+.staff-no { color: var(--c-text-muted); font-variant-numeric: tabular-nums; font-size: var(--fs-13); }
+.staff-name { font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.staff-phone { font-variant-numeric: tabular-nums; color: var(--c-text-3); }
+.staff-dept--empty { color: var(--c-text-faint); }
+
+/* ── 모달: 알림 수신 라벨 + 토글 한 줄 ──────────────────── */
+.staff-notifyrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.staff-notifyrow > div { min-width: 0; }
+.staff-notifyrow label { margin-bottom: 0; }
+.staff-notifyrow .hm-help { margin-top: 3px; }

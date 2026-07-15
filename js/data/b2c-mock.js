@@ -4,9 +4,13 @@
    실서비스에서는 서버 API로 대체.
    ============================================================ */
 import { ALL_PRODUCTS, priceNum } from "../store.js";
+import { staffNames } from "./staff-mock.js";
 
 /* ── 드롭다운(select) 옵션 ─────────────────────────────── */
-export const B2C_STAFF = ["김총무", "박사원", "이대리", "최과장", "오임찬"];
+/* 담당자 이름 목록은 시스템 관리 > 담당자 디렉터리(staff-mock)에서 파생 —
+   담당자 관련설정에서 추가/삭제하면 B2C 담당자 피커에도 그대로 반영된다. */
+export { staffNames };
+export const B2C_STAFF = staffNames(); // 하위호환 스냅샷(라이브 목록은 staffNames() 사용)
 export const B2C_CHANNELS = ["네이버 스토어", "카카오톡 채널", "전화 주문", "자사몰", "인스타그램 DM", "거래처 직접"];
 /* 워크플로: 접수대기(신규 유입) → 주문접수(담당자 확인) → 배송완료(사진+인수자 저장 시 자동) */
 export const B2C_STATUSES = ["접수대기", "주문접수", "배송완료", "취소"];
