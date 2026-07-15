@@ -14,6 +14,7 @@
 import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
+import { getDateRange, formatDateLabel } from "../util/date.js";
 import {
   staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
@@ -37,6 +38,21 @@ const statusBadge = (s) => {
   return html`<span class="hm-badge" style="background:${st.bg};color:${st.color}">${s}</span>`;
 };
 
+/* ── 고도화 필터 상수 (유저 '실시간 주문처리 내역' 필터 체계 기반) ── */
+const B2C_PHOTO_FILTERS = [{ v: "has", label: "사진 있음" }, { v: "no", label: "사진 없음" }];
+const B2C_NOTI_FILTERS = [{ v: "on", label: "알림 발송" }, { v: "off", label: "미발송" }];
+const B2C_DATE_BASIS = [{ v: "received", label: "접수일" }, { v: "deliver", label: "배송일" }];
+const B2C_QUICK_DATES = ["전체", "오늘", "어제", "내일", "이번 달", "지난 달"];
+const B2C_FLOW = ["접수대기", "주문접수", "배송완료"]; // 플로우 범례(취소 제외)
+/* B2C 저장 날짜("2026-07-08 15:20" / "2026-07-09T11:00") → Date (없으면 null) */
+function parseB2CDate(s) {
+  if (!s) return null;
+  const [datePart, timePart] = s.replace("T", " ").split(" ");
+  const [y, m, d] = (datePart || "").split("-").map(Number);
+  const [hh = 0, mm = 0] = (timePart || "00:00").split(":").map(Number);
+  return y && m && d ? new Date(y, m - 1, d, hh, mm) : null;
+}
+
 function blankOrder() {
   const now = new Date();
   const receivedAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -52,7 +68,12 @@ function blankOrder() {
 }
 
 export function mount(root, { nav }) {
-  const state = { tab: "all", search: "" };
+  const state = {
+    tab: "all", channel: "all", manager: "all",
+    photo: ["has", "no"], noti: ["on", "off"],
+    dateBasis: "received", dateQuick: "전체",
+    qOrderer: "", qRecipient: "", qAddress: "", qOrderNo: "",
+  };
   let activeModal = null;
   let editing = null;      // 편집 작업본 (입력은 전부 여기로 write-through)
   let isNew = false;
@@ -77,10 +98,27 @@ export function mount(root, { nav }) {
 
   /* ── 목록 ─────────────────────────────────────────────── */
   function filtered() {
-    const q = state.search.trim();
+    const useDate = state.dateQuick !== "전체";
+    const [rs, re] = useDate ? getDateRange(state.dateQuick) : [null, null];
+    const has = (v) => v != null && String(v).trim() !== "";
+    const match = (field, q) => !has(q) || (field || "").includes(q.trim());
     return b2cList().filter((o) => {
       if (state.tab !== "all" && o.status !== state.tab) return false;
-      if (q && !(o.ordererName.includes(q) || o.recipientName.includes(q) || o.product.includes(q) || o.orderNo.includes(q))) return false;
+      if (state.channel !== "all" && o.channel !== state.channel) return false;
+      if (state.manager !== "all" && o.manager !== state.manager) return false;
+      const hasImg = !!o.image;
+      if (!state.photo.includes("has") && hasImg) return false;
+      if (!state.photo.includes("no") && !hasImg) return false;
+      if (!state.noti.includes("on") && o.notified) return false;
+      if (!state.noti.includes("off") && !o.notified) return false;
+      if (useDate) {
+        const d = parseB2CDate(state.dateBasis === "deliver" ? o.deliverAt : o.receivedAt);
+        if (!d || d < rs || d > re) return false;
+      }
+      if (!match(o.ordererName, state.qOrderer)) return false;
+      if (!match(o.recipientName, state.qRecipient)) return false;
+      if (!match(o.address, state.qAddress)) return false;
+      if (!match(o.orderNo, state.qOrderNo)) return false;
       return true;
     });
   }
@@ -94,6 +132,92 @@ export function mount(root, { nav }) {
   }
   function summaryBody() {
     return html`조회 <strong>${filtered().length}</strong>건`;
+  }
+
+  /* ── 고도화 필터 블록 (orders 스타일 4행) ──────────────── */
+  const chipRow = (items, active, action) =>
+    items.map((it) => html`<button class="chip ${active === it.v ? "is-active" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
+  function checkRow(defs, on, action) {
+    return defs.map((f) => {
+      const checked = on.includes(f.v);
+      return html`<label class="orders-check">
+        <input type="checkbox" data-action="${action}" data-v="${f.v}" ${checked ? "checked" : ""} />
+        <span class="${checked ? "is-on" : ""}">${f.label}</span>
+      </label>`;
+    });
+  }
+  function filterBody() {
+    const useDate = state.dateQuick !== "전체";
+    const [rs, re] = useDate ? getDateRange(state.dateQuick) : [null, null];
+    const chan = [{ v: "all", label: "전체" }, ...B2C_CHANNELS.map((c) => ({ v: c, label: c }))];
+    const mgrs = [{ v: "all", label: "전체" }, ...staffNames().map((n) => ({ v: n, label: n }))];
+    return html`
+      <!-- Row 1: 현황 · 사진 · 알림 · 플로우 범례 -->
+      <div class="orders-frow orders-frow--1">
+        <div class="orders-fgroup">
+          <span class="orders-flabel">주문 현황</span>
+          <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
+        </div>
+        <div class="orders-divider"></div>
+        <div class="orders-fgroup">
+          <span class="orders-flabel">사진</span>
+          ${checkRow(B2C_PHOTO_FILTERS, state.photo, "photofilter")}
+        </div>
+        <div class="orders-divider"></div>
+        <div class="orders-fgroup">
+          <span class="orders-flabel">알림</span>
+          ${checkRow(B2C_NOTI_FILTERS, state.noti, "notifilter")}
+        </div>
+        <div class="orders-divider"></div>
+        <div class="orders-flow">
+          ${B2C_FLOW.map((s, i) => {
+            const st = B2C_STATUS_STYLE[s];
+            return html`<span class="orders-flowtag" style="background:${st.bg};color:${st.color}">${s}</span>${i < B2C_FLOW.length - 1 ? html`<span>→</span>` : ""}`;
+          })}
+        </div>
+      </div>
+
+      <!-- Row 2: 주문경로 · 담당자 -->
+      <div class="orders-frow orders-frow--1">
+        <div class="orders-fgroup">
+          <span class="orders-flabel">주문경로</span>
+          <div class="orders-chips">${chipRow(chan, state.channel, "channel")}</div>
+        </div>
+        <div class="orders-divider"></div>
+        <div class="orders-fgroup">
+          <span class="orders-flabel">담당자</span>
+          <div class="orders-chips">${chipRow(mgrs, state.manager, "manager")}</div>
+        </div>
+      </div>
+
+      <!-- Row 3: 날짜 기준 토글 · 범위 · 퀵버튼 -->
+      <div class="orders-frow orders-frow--2">
+        <span class="orders-flabel">기간</span>
+        <div class="orders-chips">${chipRow(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
+        <div class="orders-daterange">
+          ${icon("calendar-days", { size: 13, cls: "tint-muted" })}
+          ${useDate
+            ? html`<span>${formatDateLabel(rs)}</span>${icon("chevron-left", { size: 13 })}${icon("chevron-right", { size: 13 })}<span>${formatDateLabel(re)}</span>`
+            : html`<span>전체 기간</span>`}
+        </div>
+        <div class="orders-chips">
+          ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
+        </div>
+      </div>
+
+      <!-- Row 4: 분리 검색 -->
+      <div class="orders-frow orders-frow--3">
+        ${[
+          { key: "qOrderer", label: "주문자 검색", ph: "주문자 성함" },
+          { key: "qRecipient", label: "받는분 검색", ph: "받는분 성함" },
+          { key: "qAddress", label: "주소지 검색", ph: "배송지 주소" },
+          { key: "qOrderNo", label: "주문번호 검색", ph: "예) B2C-2607-0006" },
+        ].map((s) => html`<div class="orders-search">
+          <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>${s.label}</span></div>
+          <input type="text" data-search="${s.key}" value="${state[s.key]}" placeholder="${s.ph}" />
+        </div>`)}
+      </div>
+    `;
   }
   /* 컬럼: 주문경로 | 주문접수/배송일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황(배지) | 사진 | 알림 (+관리) */
   const columns = [
@@ -139,20 +263,7 @@ export function mount(root, { nav }) {
             title: "B2C 통합주문관리",
             action: html`<button class="btn btn-secondary" data-action="new">${icon("plus", { size: 14 })} 신규 주문 등록</button>`,
           })}
-          <div class="orders-filters">
-            <div class="orders-frow orders-frow--1">
-              <div class="orders-fgroup">
-                <span class="orders-flabel">주문 현황</span>
-                <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
-              </div>
-            </div>
-            <div class="orders-frow orders-frow--3">
-              <div class="orders-search">
-                <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>주문 검색</span></div>
-                <input type="text" data-search value="${state.search}" placeholder="주문자·수령인·상품·주문번호 검색" />
-              </div>
-            </div>
-          </div>
+          <div class="orders-filters" data-slot="filters">${filterBody()}</div>
           <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
           <div data-slot="table">${tableBody()}</div>
         </div>
@@ -164,6 +275,15 @@ export function mount(root, { nav }) {
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
     if (tabs) setHTML(tabs, tabsBody());
+    if (sum) setHTML(sum, summaryBody());
+    if (tbl) setHTML(tbl, tableBody());
+  };
+  /* 필터 조작 시 — 필터 블록(활성 상태) + 요약 + 표 재렌더 (검색 입력은 제외: 포커스 보존) */
+  const refreshFilters = () => {
+    const f = qs(root, "[data-slot='filters']");
+    if (f) setHTML(f, filterBody());
+    const sum = qs(root, "[data-slot='summary']");
+    const tbl = qs(root, "[data-slot='table']");
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
@@ -616,12 +736,22 @@ export function mount(root, { nav }) {
   /* ── 목록 이벤트 (위임 · root 유지) ────────────────────── */
   const offList = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
-    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
+    if (a === "tab") { state.tab = t.dataset.v; refreshFilters(); return; }
+    if (a === "channel") { state.channel = t.dataset.v; refreshFilters(); return; }
+    if (a === "manager") { state.manager = t.dataset.v; refreshFilters(); return; }
+    if (a === "datebasis") { state.dateBasis = t.dataset.v; refreshFilters(); return; }
+    if (a === "date") { state.dateQuick = t.dataset.v; refreshFilters(); return; }
     if (a === "new") return openEditor(blankOrder(), true);
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
   });
+  const offChange = on(root, "change", "[data-action='photofilter'], [data-action='notifilter']", (e, t) => {
+    const key = t.dataset.action === "photofilter" ? "photo" : "noti";
+    const v = t.dataset.v;
+    state[key] = state[key].includes(v) ? state[key].filter((x) => x !== v) : [...state[key], v];
+    refreshFilters();
+  });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
-    state.search = t.value;
+    state[t.dataset.search] = t.value;
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
     if (sum) setHTML(sum, summaryBody());
@@ -629,7 +759,7 @@ export function mount(root, { nav }) {
   });
 
   return () => {
-    offList(); offSearch();
+    offList(); offChange(); offSearch();
     closeModal();
     if (toastEl) toastEl.remove();
     if (toastTimer) clearTimeout(toastTimer);

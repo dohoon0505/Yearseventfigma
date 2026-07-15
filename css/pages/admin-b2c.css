@@ -11,6 +11,11 @@
 /* B2C 통합주문관리만 콘텐츠 최대폭 확대(12컬럼 표) — 공용 admin은 1300px 유지 */
 .page-b2c .admin-inner { max-width: 1500px; }
 
+/* ── 고도화 필터: 칩 다수 줄바꿈 + 담당자/경로 그룹 정렬 ── */
+.page-b2c .orders-chips { flex-wrap: wrap; }
+.page-b2c .orders-frow--1 { flex-wrap: wrap; row-gap: 8px; }
+.page-b2c .orders-fgroup { flex-wrap: wrap; }
+
 /* ── 목록 셀 ────────────────────────────────────────────── */
 .b2c-dim { color: var(--c-text-muted); }
 .b2c-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
