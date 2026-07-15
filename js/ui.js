@@ -262,7 +262,7 @@ export function makeDropdown(root, { unit = "", options, get, set, label } = {})
    rootEl: .dd-trigger + .cal-panel(.cal-title/.cal-prev/.cal-next/.cal-grid).
    get()/set(v) 는 "YYYY-MM-DD" 문자열. min/max 는 00:00 기준 Date (선택 범위).
    범위 밖 날짜·월이동 화살표는 자동 비활성. 드롭다운과 .dd/.open 을 공유해 상호 배타적. */
-export function makeDatepicker(root, { get, set, min, max } = {}) {
+export function makeDatepicker(root, { get, set, min, max, placeholder } = {}) {
   const DOW = ["일", "월", "화", "수", "목", "금", "토"];
   const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const trigger = root.querySelector(".dd-trigger");
@@ -272,7 +272,9 @@ export function makeDatepicker(root, { get, set, min, max } = {}) {
   const next = root.querySelector(".cal-next");
   const view = { y: 0, m: 0 };
   const renderTrigger = () => {
-    const d = new Date(get() + "T00:00:00");
+    const v = get();
+    if (!v) { trigger.textContent = placeholder || "날짜 선택"; return; } // 미선택 시 플레이스홀더
+    const d = new Date(v + "T00:00:00");
     trigger.textContent = `${d.getFullYear()}. ${String(d.getMonth() + 1).padStart(2, "0")}. ${String(d.getDate()).padStart(2, "0")} (${DOW[d.getDay()]})`;
   };
   const close = () => {
@@ -299,7 +301,8 @@ export function makeDatepicker(root, { get, set, min, max } = {}) {
   }
   function open() {
     document.querySelectorAll(".dd.open").forEach((d) => { if (d !== root) d.classList.remove("open"); });
-    const d0 = new Date(get() + "T00:00:00");
+    const v = get();
+    const d0 = v ? new Date(v + "T00:00:00") : new Date(); // 미선택이면 오늘 기준 월 표시
     view.y = d0.getFullYear();
     view.m = d0.getMonth();
     renderGrid();

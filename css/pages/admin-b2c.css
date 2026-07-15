@@ -18,6 +18,46 @@
 /* 배송지 주소 검색 — 단독 전폭 행 */
 .page-b2c .b2c-frow--addr .orders-search { flex: 1 1 100%; width: 100%; }
 
+/* ── 기간 행: 퀵버튼 + (우측) 커스텀 datepicker 범위 ────── */
+.page-b2c .b2c-frow--date { flex-wrap: wrap; row-gap: 8px; }
+.page-b2c .b2c-daterange { display: flex; align-items: center; gap: 8px; margin-left: auto; } /* 우측 배치 */
+.page-b2c .b2c-daterange__sep { color: var(--c-text-faint); }
+/* datepicker 트리거·패널 — order.css 규격을 필터용 컴팩트로 (.page-b2c 스코프) */
+.page-b2c .b2c-dp { position: relative; flex: 0 0 auto; }
+.page-b2c .b2c-dp .dd-trigger {
+  height: 34px; min-width: 150px; padding: 0 30px 0 12px; text-align: left;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2);
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-md);
+  position: relative; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.page-b2c .b2c-dp .dd-trigger::after {
+  content: ""; position: absolute; right: 11px; top: 50%; width: 7px; height: 7px;
+  border-right: 1.6px solid var(--c-text-muted); border-bottom: 1.6px solid var(--c-text-muted);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.18s;
+}
+.page-b2c .b2c-dp.open .dd-trigger::after { transform: translateY(-30%) rotate(225deg); }
+.page-b2c .b2c-dp .dd-trigger:hover { border-color: var(--c-border-strong); }
+.page-b2c .b2c-dp.open .dd-trigger { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.page-b2c .b2c-dp .dd-panel {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: 278px;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop); padding: 14px;
+}
+.page-b2c .b2c-dp.open .dd-panel { display: block; }
+.page-b2c .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.page-b2c .cal-title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.page-b2c .cal-nav { width: 30px; height: 30px; border-radius: var(--r-md); display: grid; place-items: center; color: var(--c-text-3); font-size: 15px; }
+.page-b2c .cal-nav:hover { background: var(--c-surface-2); }
+.page-b2c .cal-nav:disabled { color: var(--c-border-strong); cursor: default; background: none; }
+.page-b2c .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.page-b2c .cal-dow { font-size: 11px; color: var(--c-text-faint); text-align: center; padding: 4px 0; font-weight: var(--fw-semibold); }
+.page-b2c .cal-day { height: 32px; border-radius: var(--r-md); font-size: 13px; color: var(--c-text-2); display: grid; place-items: center; transition: background 0.1s; }
+.page-b2c .cal-day:hover { background: var(--c-surface-2); }
+.page-b2c .cal-day.dis { color: var(--c-border-input-2); cursor: default; }
+.page-b2c .cal-day.dis:hover { background: none; }
+.page-b2c .cal-day.sel { background: var(--c-blue); color: var(--c-surface); font-weight: var(--fw-bold); }
+.page-b2c .cal-day.sel:hover { background: var(--c-blue); }
+
 /* ── 목록 셀 ────────────────────────────────────────────── */
 .b2c-dim { color: var(--c-text-muted); }
 .b2c-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
