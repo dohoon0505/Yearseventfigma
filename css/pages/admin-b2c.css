@@ -18,9 +18,12 @@
 /* 배송지 주소 검색 — 단독 전폭 행 */
 .page-b2c .b2c-frow--addr .orders-search { flex: 1 1 100%; width: 100%; }
 
-/* ── 기간 행: 퀵버튼 + (우측) 커스텀 datepicker 범위 ────── */
-.page-b2c .b2c-frow--date { flex-wrap: wrap; row-gap: 8px; }
-.page-b2c .b2c-daterange { display: flex; align-items: center; gap: 8px; margin-left: auto; } /* 우측 배치 */
+/* ── 기간 행: 기준토글 · datepicker 범위 · 퀵버튼 (인라인) ── */
+/* .orders-frow 는 gap이 없어 요소별 margin으로 간격을 준다 → 열 간격 10px 부여
+   (기존 row-gap만 주면 column-gap이 0이 되어 배송일 칩이 다음 요소에 붙음) */
+.page-b2c .b2c-frow--date { flex-wrap: wrap; gap: 8px 10px; }
+.page-b2c .b2c-frow--date .orders-flabel { margin-right: 0; } /* 간격은 행 gap으로 통일 */
+.page-b2c .b2c-daterange { display: flex; align-items: center; gap: 8px; }
 .page-b2c .b2c-daterange__sep { color: var(--c-text-faint); }
 /* datepicker 트리거·패널 — order.css 규격을 필터용 컴팩트로 (.page-b2c 스코프) */
 .page-b2c .b2c-dp { position: relative; flex: 0 0 auto; }
@@ -39,7 +42,7 @@
 .page-b2c .b2c-dp .dd-trigger:hover { border-color: var(--c-border-strong); }
 .page-b2c .b2c-dp.open .dd-trigger { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
 .page-b2c .b2c-dp .dd-panel {
-  display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: 278px;
+  display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; width: 278px;
   background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg);
   box-shadow: var(--sh-pop); padding: 14px;
 }
