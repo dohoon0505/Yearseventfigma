@@ -15,8 +15,8 @@
 .page-b2c .orders-chips { flex-wrap: wrap; }
 .page-b2c .orders-frow--1 { flex-wrap: wrap; row-gap: 8px; }
 .page-b2c .orders-fgroup { flex-wrap: wrap; }
-/* 배송지 주소 검색 — 단독 전폭 행 */
-.page-b2c .b2c-frow--addr .orders-search { flex: 1 1 100%; width: 100%; }
+/* 배송지 주소 검색 — 기간 행 끝(지난 달 옆, 구분선 뒤)에서 남는 폭 채움 */
+.page-b2c .b2c-search--addr { flex: 1 1 260px; min-width: 240px; }
 
 /* ── 기간 행: 기준토글 · datepicker 범위 · 퀵버튼 (인라인) ── */
 /* .orders-frow 는 gap이 없어 요소별 margin으로 간격을 준다 → 열 간격 10px 부여
