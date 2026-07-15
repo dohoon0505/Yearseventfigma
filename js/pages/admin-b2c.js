@@ -189,7 +189,7 @@ export function mount(root, { nav }) {
         </div>
       </div>
 
-      <!-- Row 2: 기간 — 기준 토글 · 커스텀 datepicker 범위 · 퀵버튼 -->
+      <!-- Row 2: 기간 — 기준 토글 · datepicker 범위 · 퀵버튼 · (구분선) 배송지 검색 -->
       <div class="orders-frow orders-frow--2 b2c-frow--date">
         <span class="orders-flabel">기간</span>
         <div class="orders-chips">${chipRow(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
@@ -201,6 +201,11 @@ export function mount(root, { nav }) {
         </div>
         <div class="orders-chips">
           ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
+        </div>
+        <div class="orders-divider"></div>
+        <div class="orders-search b2c-search--addr">
+          <div class="orders-search__lbl">${icon("map-pin", { size: 12, cls: "tint-muted" })}<span>배송지 주소</span></div>
+          <input type="text" data-search="qAddress" value="${state.qAddress}" placeholder="배송지 주소로 검색" />
         </div>
       </div>
 
@@ -215,14 +220,6 @@ export function mount(root, { nav }) {
           <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>${s.label}</span></div>
           <input type="text" data-search="${s.key}" value="${state[s.key]}" placeholder="${s.ph}" />
         </div>`)}
-      </div>
-
-      <!-- Row 5: 배송지 주소 검색 (전폭 단독) -->
-      <div class="orders-frow orders-frow--3 b2c-frow--addr">
-        <div class="orders-search orders-search--wide">
-          <div class="orders-search__lbl">${icon("map-pin", { size: 12, cls: "tint-muted" })}<span>배송지 주소 검색</span></div>
-          <input type="text" data-search="qAddress" value="${state.qAddress}" placeholder="배송지 주소로 검색합니다 (예: 서울대학교병원 장례식장, 강남구 …)" />
-        </div>
       </div>
     `;
   }
