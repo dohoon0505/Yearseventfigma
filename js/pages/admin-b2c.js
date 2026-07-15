@@ -69,7 +69,7 @@ function blankOrder() {
 
 export function mount(root, { nav }) {
   const state = {
-    tab: "all", channel: "all", manager: "all",
+    tab: "all", manager: "all",
     photo: ["has", "no"], noti: ["on", "off"],
     dateBasis: "received", dateQuick: "전체",
     qOrderer: "", qRecipient: "", qChannel: "", qOrderNo: "", qAddress: "",
@@ -104,7 +104,6 @@ export function mount(root, { nav }) {
     const match = (field, q) => !has(q) || (field || "").includes(q.trim());
     return b2cList().filter((o) => {
       if (state.tab !== "all" && o.status !== state.tab) return false;
-      if (state.channel !== "all" && o.channel !== state.channel) return false;
       if (state.manager !== "all" && o.manager !== state.manager) return false;
       const hasImg = !!o.image;
       if (!state.photo.includes("has") && hasImg) return false;
@@ -150,7 +149,6 @@ export function mount(root, { nav }) {
   function filterBody() {
     const useDate = state.dateQuick !== "전체";
     const [rs, re] = useDate ? getDateRange(state.dateQuick) : [null, null];
-    const chan = [{ v: "all", label: "전체" }, ...B2C_CHANNELS.map((c) => ({ v: c, label: c }))];
     const mgrs = [{ v: "all", label: "전체" }, ...staffNames().map((n) => ({ v: n, label: n }))];
     return html`
       <!-- Row 1: 현황 · 사진 · 알림 · 플로우 범례 -->
@@ -178,13 +176,8 @@ export function mount(root, { nav }) {
         </div>
       </div>
 
-      <!-- Row 2: 주문경로 · 담당자 -->
+      <!-- Row 2: 담당자 (주문경로는 아래 검색창으로 필터) -->
       <div class="orders-frow orders-frow--1">
-        <div class="orders-fgroup">
-          <span class="orders-flabel">주문경로</span>
-          <div class="orders-chips">${chipRow(chan, state.channel, "channel")}</div>
-        </div>
-        <div class="orders-divider"></div>
         <div class="orders-fgroup">
           <span class="orders-flabel">담당자</span>
           <div class="orders-chips">${chipRow(mgrs, state.manager, "manager")}</div>
@@ -746,7 +739,6 @@ export function mount(root, { nav }) {
   const offList = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "tab") { state.tab = t.dataset.v; refreshFilters(); return; }
-    if (a === "channel") { state.channel = t.dataset.v; refreshFilters(); return; }
     if (a === "manager") { state.manager = t.dataset.v; refreshFilters(); return; }
     if (a === "datebasis") { state.dateBasis = t.dataset.v; refreshFilters(); return; }
     if (a === "date") { state.dateQuick = t.dataset.v; refreshFilters(); return; }
