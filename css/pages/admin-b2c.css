@@ -11,6 +11,11 @@
 /* B2C 통합주문관리만 콘텐츠 최대폭 확대(12컬럼 표) — 공용 admin은 1300px 유지 */
 .page-b2c .admin-inner { max-width: 1500px; }
 
+/* 공용 .orders-filters 는 overflow:hidden(둥근모서리용)이라 기간 datepicker
+   패널이 카드 밖으로 열리면 잘린다 → B2C 한정 visible 로 오버라이드.
+   (카드 자체 둥근모서리는 border-radius 로 유지, orders.js 는 무영향) */
+.page-b2c .orders-filters { overflow: visible; }
+
 /* ── 고도화 필터: 칩 다수 줄바꿈 + 담당자/경로 그룹 정렬 ── */
 .page-b2c .orders-chips { flex-wrap: wrap; }
 .page-b2c .orders-frow--1 { flex-wrap: wrap; row-gap: 8px; }
