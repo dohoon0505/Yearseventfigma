@@ -13,7 +13,7 @@
    ============================================================ */
 import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown, makeDatepicker, openLightbox } from "../ui.js";
 import { getDateRange, formatDateLabel } from "../util/date.js";
 import {
   staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
@@ -69,11 +69,13 @@ function blankOrder() {
 
 export function mount(root, { nav }) {
   const state = {
-    tab: "all", manager: "all",
+    tab: "all",
     photo: ["has", "no"], noti: ["on", "off"],
-    dateBasis: "received", dateQuick: "전체",
+    dateBasis: "received", dateQuick: "전체", dateStart: "", dateEnd: "",
     qOrderer: "", qRecipient: "", qChannel: "", qOrderNo: "", qAddress: "",
   };
+  const DP_MIN = new Date(2000, 0, 1);
+  const DP_MAX = new Date(new Date().getFullYear() + 2, 11, 31);
   let activeModal = null;
   let editing = null;      // 편집 작업본 (입력은 전부 여기로 write-through)
   let isNew = false;
@@ -98,21 +100,22 @@ export function mount(root, { nav }) {
 
   /* ── 목록 ─────────────────────────────────────────────── */
   function filtered() {
-    const useDate = state.dateQuick !== "전체";
-    const [rs, re] = useDate ? getDateRange(state.dateQuick) : [null, null];
+    const startD = state.dateStart ? new Date(state.dateStart + "T00:00:00") : null;
+    const endD = state.dateEnd ? new Date(state.dateEnd + "T23:59:59") : null;
     const has = (v) => v != null && String(v).trim() !== "";
     const match = (field, q) => !has(q) || (field || "").includes(q.trim());
     return b2cList().filter((o) => {
       if (state.tab !== "all" && o.status !== state.tab) return false;
-      if (state.manager !== "all" && o.manager !== state.manager) return false;
       const hasImg = !!o.image;
       if (!state.photo.includes("has") && hasImg) return false;
       if (!state.photo.includes("no") && !hasImg) return false;
       if (!state.noti.includes("on") && o.notified) return false;
       if (!state.noti.includes("off") && !o.notified) return false;
-      if (useDate) {
+      if (startD || endD) {
         const d = parseB2CDate(state.dateBasis === "deliver" ? o.deliverAt : o.receivedAt);
-        if (!d || d < rs || d > re) return false;
+        if (!d) return false;
+        if (startD && d < startD) return false;
+        if (endD && d > endD) return false;
       }
       if (!match(o.ordererName, state.qOrderer)) return false;
       if (!match(o.recipientName, state.qRecipient)) return false;
@@ -134,9 +137,22 @@ export function mount(root, { nav }) {
     return html`조회 <strong>${filtered().length}</strong>건`;
   }
 
-  /* ── 고도화 필터 블록 (orders 스타일 4행) ──────────────── */
+  /* ── 고도화 필터 블록 (orders 스타일) ──────────────────── */
   const chipRow = (items, active, action) =>
     items.map((it) => html`<button class="chip ${active === it.v ? "is-active" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
+  /* 커스텀 datepicker 마크업 (ui.js makeDatepicker 와 짝) */
+  const dpMarkup = (which, ph) => html`
+    <div class="dd datepick b2c-dp" data-dp="${which}">
+      <button type="button" class="dd-trigger" aria-haspopup="dialog" aria-expanded="false"></button>
+      <div class="dd-panel cal-panel" role="dialog" aria-label="${ph} 선택">
+        <div class="cal-head">
+          <button type="button" class="cal-nav cal-prev" aria-label="이전 달">‹</button>
+          <span class="cal-title"></span>
+          <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
+        </div>
+        <div class="cal-grid"></div>
+      </div>
+    </div>`;
   function checkRow(defs, on, action) {
     return defs.map((f) => {
       const checked = on.includes(f.v);
@@ -147,9 +163,6 @@ export function mount(root, { nav }) {
     });
   }
   function filterBody() {
-    const useDate = state.dateQuick !== "전체";
-    const [rs, re] = useDate ? getDateRange(state.dateQuick) : [null, null];
-    const mgrs = [{ v: "all", label: "전체" }, ...staffNames().map((n) => ({ v: n, label: n }))];
     return html`
       <!-- Row 1: 현황 · 사진 · 알림 · 플로우 범례 -->
       <div class="orders-frow orders-frow--1">
@@ -176,26 +189,18 @@ export function mount(root, { nav }) {
         </div>
       </div>
 
-      <!-- Row 2: 담당자 (주문경로는 아래 검색창으로 필터) -->
-      <div class="orders-frow orders-frow--1">
-        <div class="orders-fgroup">
-          <span class="orders-flabel">담당자</span>
-          <div class="orders-chips">${chipRow(mgrs, state.manager, "manager")}</div>
-        </div>
-      </div>
-
-      <!-- Row 3: 날짜 기준 토글 · 범위 · 퀵버튼 -->
-      <div class="orders-frow orders-frow--2">
+      <!-- Row 2: 기간 — 기준 토글 · 퀵버튼 · (우측) 커스텀 datepicker 범위 -->
+      <div class="orders-frow orders-frow--2 b2c-frow--date">
         <span class="orders-flabel">기간</span>
         <div class="orders-chips">${chipRow(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
-        <div class="orders-daterange">
-          ${icon("calendar-days", { size: 13, cls: "tint-muted" })}
-          ${useDate
-            ? html`<span>${formatDateLabel(rs)}</span>${icon("chevron-left", { size: 13 })}${icon("chevron-right", { size: 13 })}<span>${formatDateLabel(re)}</span>`
-            : html`<span>전체 기간</span>`}
-        </div>
         <div class="orders-chips">
           ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
+        </div>
+        <div class="b2c-daterange">
+          ${icon("calendar-days", { size: 14, cls: "tint-muted" })}
+          ${dpMarkup("start", "시작일")}
+          <span class="b2c-daterange__sep">~</span>
+          ${dpMarkup("end", "종료일")}
         </div>
       </div>
 
@@ -280,14 +285,41 @@ export function mount(root, { nav }) {
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
-  /* 필터 조작 시 — 필터 블록(활성 상태) + 요약 + 표 재렌더 (검색 입력은 제외: 포커스 보존) */
-  const refreshFilters = () => {
-    const f = qs(root, "[data-slot='filters']");
-    if (f) setHTML(f, filterBody());
+  /* 기간 datepicker(시작·종료) 수명주기 — 필터 슬롯 재렌더마다 destroy→재생성 */
+  const filterDps = [];
+  const destroyFilterDps = () => { filterDps.forEach((d) => d.destroy()); filterDps.length = 0; };
+  const refreshTableOnly = () => {
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
+  };
+  function bindFilterDps() {
+    const mk = (which, key, ph) => {
+      const el0 = qs(root, `[data-dp='${which}']`);
+      if (!el0) return;
+      filterDps.push(makeDatepicker(el0, {
+        get: () => state[key],
+        set: (v) => {
+          /* 직접 날짜 선택 → 커스텀 범위(퀵버튼 해제). 자기 자신(datepicker) 재생성 없이 표만 갱신. */
+          state[key] = v;
+          state.dateQuick = "custom";
+          qsa(root, ".orders-datebtn").forEach((b) => b.classList.remove("is-active"));
+          refreshTableOnly();
+        },
+        min: DP_MIN, max: DP_MAX, placeholder: ph,
+      }));
+    };
+    mk("start", "dateStart", "시작일");
+    mk("end", "dateEnd", "종료일");
+  }
+  /* 필터 조작 시 — 필터 블록(활성 상태) + 요약 + 표 재렌더 (검색 입력은 제외: 포커스 보존) */
+  const refreshFilters = () => {
+    destroyFilterDps();
+    const f = qs(root, "[data-slot='filters']");
+    if (f) setHTML(f, filterBody());
+    bindFilterDps();
+    refreshTableOnly();
   };
 
   /* ══ 모달 — 읽기 우선(시안 C) ═══════════════════════════ */
@@ -734,14 +766,21 @@ export function mount(root, { nav }) {
   }
 
   render();
+  bindFilterDps(); // 초기 렌더 후 기간 datepicker 연결
 
   /* ── 목록 이벤트 (위임 · root 유지) ────────────────────── */
   const offList = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "tab") { state.tab = t.dataset.v; refreshFilters(); return; }
-    if (a === "manager") { state.manager = t.dataset.v; refreshFilters(); return; }
     if (a === "datebasis") { state.dateBasis = t.dataset.v; refreshFilters(); return; }
-    if (a === "date") { state.dateQuick = t.dataset.v; refreshFilters(); return; }
+    if (a === "date") {
+      const label = t.dataset.v;
+      state.dateQuick = label;
+      if (label === "전체") { state.dateStart = ""; state.dateEnd = ""; }
+      else { const [rs, re] = getDateRange(label); state.dateStart = formatDateLabel(rs); state.dateEnd = formatDateLabel(re); }
+      refreshFilters();
+      return;
+    }
     if (a === "new") return openEditor(blankOrder(), true);
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
   });
@@ -761,6 +800,7 @@ export function mount(root, { nav }) {
 
   return () => {
     offList(); offChange(); offSearch();
+    destroyFilterDps();
     closeModal();
     if (toastEl) toastEl.remove();
     if (toastTimer) clearTimeout(toastTimer);
