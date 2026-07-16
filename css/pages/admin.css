@@ -55,42 +55,15 @@
   color: var(--c-text-3);
 }
 
-/* ── Top filter panel (clients + settlement) ────────────────
-   Reuses the orders.css filter-panel skeleton (.orders-filters /
-   .orders-frow / .orders-fgroup / .orders-flabel / .orders-search)
-   so the admin filters match the 실시간 주문내역 filter panel exactly.
-   Only the admin-specific bits live here. */
-.orders-fgroup .select {
+/* ── Top filter panel ───────────────────────────────────────
+   admin 필터는 공용 .bf-* 카드 체계(파일 하단) 사용.
+   select 를 .bf-row--main 에 인라인 배치할 때의 컴팩트 규격만 여기서. */
+.bf-row--main .select {
   width: auto;
   min-width: 120px;
-  padding: 7px 30px 7px 12px;
+  height: 36px;
+  padding: 0 30px 0 12px;
   font-size: var(--fs-13);
-}
-.orders-fgroup .select + .select {
-  margin-left: 8px;
-}
-/* status tab count badge (sits inside the chip-based status tabs) */
-.admin-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  margin-left: 2px;
-  border-radius: 999px;
-  background: var(--c-surface-3);
-  color: var(--c-text-muted);
-  font-size: var(--fs-11);
-  font-weight: var(--fw-bold);
-}
-.chip.is-active .admin-tab-count {
-  background: rgba(241, 90, 42, 0.15);
-  color: var(--c-orange-ink);
-}
-.admin-tab-count--alert {
-  background: var(--c-warn-soft-bg);
-  color: var(--c-warn-soft-ink);
 }
 
 /* ── Row actions (approve / reject) ─────────────────────── */
@@ -250,10 +223,6 @@
 }
 
 /* ── 정산회계: 조회 기간 빠른 선택(이번달/저번달) ────────── */
-.settle-quickmonth {
-  margin-left: 12px;
-}
-
 /* ── 정산회계: 기간 정산액 요약 (총/입금완료/미입금) ─────── */
 .settle-sum {
   display: grid;
@@ -432,5 +401,116 @@
 .report__btn { display: flex; align-items: center; justify-content: center; margin: 16px 22px 20px; height: 46px; border-radius: var(--r-xl); background: var(--c-orange); color: var(--c-surface); font-size: var(--fs-14); font-weight: var(--fw-bold); box-shadow: var(--sh-btn); transition: background 0.15s; }
 .report__btn:hover { background: var(--c-orange-hover); }
 
-/* ── 정산회계: 공개 링크 복사 버튼 ──────────────────────── */
-.settle-linkbtn {
+/* ══ 공용 필터 카드 (.bf-*) — claude_design '필터 영역 리디자인' 시안 ══
+   전 admin 페이지 공용: ① 상태 언더라인 탭(+카운트) ② 메인 행(세그먼트
+   트랙·인라인 라벨 검색·select) ③ 접이식 상세(토글 칩·검색 그리드).
+   B2C에서 검증 후 승격. 색은 tokens.css 토큰만. */
+.bf-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  box-shadow: var(--sh-card);
+  overflow: visible; /* datepicker 등 팝오버가 카드 밖으로 전개 */
+}
+
+/* ── ① 상태 언더라인 탭 ─────────────────────────────────── */
+.bf-row--tabs { display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--c-divider); }
+.bf-tabs { display: flex; gap: 28px; flex-wrap: wrap; }
+.bf-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 14px 2px; background: none; border: none; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; /* 행 하단선 위에 겹침 */
+  font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-text-4);
+  transition: color 0.15s, border-color 0.15s;
+}
+.bf-tab:hover { color: var(--c-text-2); }
+.bf-tab.is-active { border-bottom-color: var(--c-orange); color: var(--c-text); font-weight: var(--fw-bold); }
+.bf-tab__cnt { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-faint); }
+.bf-tab.is-active .bf-tab__cnt { color: var(--c-orange-ink); }
+.bf-tab__cnt--alert { color: var(--c-orange-ink); } /* 주의 카운트(예: 승인대기>0) */
+.bf-flow { margin-left: auto; font-size: var(--fs-12); color: var(--c-text-faint); white-space: nowrap; }
+
+/* ── ② 메인 행: 세그먼트 · 검색 · select 등 ─────────────── */
+.bf-row--main { display: flex; align-items: center; gap: 10px; padding: 12px 20px; flex-wrap: wrap; }
+.bf-lbl { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-4); white-space: nowrap; }
+.bf-tilde { color: var(--c-text-faint); font-size: var(--fs-13); }
+.bf-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* 세그먼트 트랙 (선택 = 흰 pill + 그림자) */
+.bf-seg { display: inline-flex; gap: 2px; background: var(--c-surface-2); border-radius: var(--r-lg); padding: 2px; }
+.bf-seg__btn {
+  height: 30px; padding: 0 14px; border: none; border-radius: var(--r-md);
+  background: transparent; color: var(--c-text-4);
+  font-size: var(--fs-13); font-weight: var(--fw-medium); cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; transition: color 0.12s;
+}
+.bf-seg__btn:hover { color: var(--c-text-2); }
+.bf-seg__btn.is-sel { background: var(--c-surface); color: var(--c-text-strong); font-weight: var(--fw-bold); box-shadow: var(--sh-seg); }
+
+/* 인라인 라벨형 검색창 (아이콘 · 볼드 라벨 · 세로 구분선 · 입력) */
+.bf-srch {
+  display: flex; align-items: center; gap: 10px;
+  height: 36px; padding: 0 12px; box-sizing: border-box;
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bf-srch:hover { border-color: var(--c-border-field-strong); }
+.bf-srch:focus-within { border-color: var(--c-orange); box-shadow: var(--ring); }
+.bf-srch .bf-srch__ic, .bf-srch .icon { color: var(--c-text-faint); flex: 0 0 auto; }
+.bf-srch__lbl { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-2); white-space: nowrap; }
+.bf-srch__dv { width: 1px; height: 16px; background: var(--c-divider); flex: 0 0 auto; }
+.bf-srch input { border: none; outline: none; flex: 1; min-width: 0; background: transparent; font-size: var(--fs-13); color: var(--c-text); font-family: inherit; }
+.bf-srch input::placeholder { color: var(--c-text-faint); }
+.bf-srch--addr { width: 270px; }
+.bf-srch--grow { flex: 1 1 260px; min-width: 240px; }
+
+/* 상세 필터 토글 버튼 (+활성 개수 배지 · 회전 chevron) */
+.bf-detailbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 13px;
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-3);
+  cursor: pointer; white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.bf-detailbtn:hover { border-color: var(--c-border-strong); }
+.bf-detailbtn.is-open { border-color: var(--c-orange); background: var(--c-orange-soft); color: var(--c-orange-ink); font-weight: var(--fw-bold); }
+.bf-detailbtn__badge {
+  min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--c-orange); color: var(--c-surface);
+  font-size: var(--fs-11); font-weight: var(--fw-bold);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bf-chevron {
+  width: 6px; height: 6px; margin-top: -3px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg); transition: transform 0.15s, margin 0.15s;
+}
+.bf-detailbtn.is-open .bf-chevron { transform: rotate(-135deg); margin-top: 3px; }
+
+/* ── ③ 상세 필터 (접이식) ───────────────────────────────── */
+.bf-detail {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 20px;
+  background: var(--c-surface-hover); border-top: 1px solid var(--c-divider);
+  border-radius: 0 0 12px 12px;
+}
+.bf-detail__chips { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bf-vdiv { width: 1px; height: 18px; background: var(--c-divider); margin: 0 6px; }
+.bf-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 11px;
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
+  font-size: 12.5px; font-weight: var(--fw-semibold); color: var(--c-text-muted);
+  cursor: pointer; white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.bf-chip:hover { border-color: var(--c-border-strong); color: var(--c-text-3); }
+.bf-chip.is-on { border-color: var(--c-orange); background: var(--c-orange-soft); color: var(--c-orange-ink); font-weight: var(--fw-bold); }
+.bf-detail__srch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.bf-detail__srch .bf-srch { height: 40px; }
+
+/* ── 반응형: 좁은 폭에서 검색 그리드 2열, 우측 그룹 줄바꿈 ── */
+@media (max-width: 1240px) {
+  .bf-detail__srch { grid-template-columns: repeat(2, 1fr); }
+  .bf-right { margin-left: 0; flex: 1 1 100%; }
+  .bf-srch--addr { flex: 1; width: auto; }
+}

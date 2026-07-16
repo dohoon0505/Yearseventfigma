@@ -115,7 +115,7 @@ export function mount(root, { nav }) {
       const count = t.value === "all" ? clients.length : clients.filter((c) => c.status === t.value).length;
       const active = state.tab === t.value;
       const alert = t.value === "승인대기" && count > 0;
-      return html`<button class="chip ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}">${t.label}<span class="admin-tab-count ${alert ? "admin-tab-count--alert" : ""}">${count}</span></button>`;
+      return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}">${t.label}<span class="bf-tab__cnt ${alert ? "bf-tab__cnt--alert" : ""}">${count}</span></button>`;
     });
   }
 
@@ -130,16 +130,15 @@ export function mount(root, { nav }) {
               title: "거래처 정보관리",
               action: html`<button class="btn btn-secondary" data-action="new">${icon("user-plus", { size: 14 })} 신규 거래처 등록</button>`,
             })}
-            <div class="orders-filters">
-              <div class="orders-frow orders-frow--1">
-                <div class="orders-fgroup">
-                  <span class="orders-flabel">거래처 상태</span>
-                  <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
-                </div>
+            <div class="bf-card">
+              <div class="bf-row bf-row--tabs">
+                <div class="bf-tabs" data-slot="tabs">${tabsBody()}</div>
               </div>
-              <div class="orders-frow orders-frow--3">
-                <div class="orders-search">
-                  <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>거래처 검색</span></div>
+              <div class="bf-row bf-row--main">
+                <div class="bf-srch bf-srch--grow">
+                  ${icon("search", { size: 13, cls: "bf-srch__ic" })}
+                  <span class="bf-srch__lbl">거래처</span>
+                  <span class="bf-srch__dv"></span>
                   <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자 검색" />
                 </div>
               </div>

@@ -54,7 +54,7 @@ export function mount(root, { nav }) {
     const all = staffList();
     return TABS.map((t) => {
       const count = t.v === "all" ? all.length : all.filter((s) => (t.v === "on" ? s.notify : !s.notify)).length;
-      return html`<button class="chip ${state.tab === t.v ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="admin-tab-count">${count}</span></button>`;
+      return html`<button class="bf-tab ${state.tab === t.v ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="bf-tab__cnt">${count}</span></button>`;
     });
   }
   function summaryBody() { return html`조회 <strong>${filtered().length}</strong>명`; }
@@ -91,16 +91,15 @@ export function mount(root, { nav }) {
             title: "담당자 관련설정",
             action: html`<button class="btn btn-secondary" data-action="new">${icon("user-plus", { size: 14 })} 담당자 등록</button>`,
           })}
-          <div class="orders-filters">
-            <div class="orders-frow orders-frow--1">
-              <div class="orders-fgroup">
-                <span class="orders-flabel">알림 수신</span>
-                <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
-              </div>
+          <div class="bf-card">
+            <div class="bf-row bf-row--tabs">
+              <div class="bf-tabs" data-slot="tabs">${tabsBody()}</div>
             </div>
-            <div class="orders-frow orders-frow--3">
-              <div class="orders-search">
-                <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>담당자 검색</span></div>
+            <div class="bf-row bf-row--main">
+              <div class="bf-srch bf-srch--grow">
+                ${icon("search", { size: 13, cls: "bf-srch__ic" })}
+                <span class="bf-srch__lbl">담당자</span>
+                <span class="bf-srch__dv"></span>
                 <input type="text" data-search value="${state.search}" placeholder="이름·부서·연락처 검색" />
               </div>
             </div>

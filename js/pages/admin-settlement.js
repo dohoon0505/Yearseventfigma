@@ -314,33 +314,31 @@ export function mount(root, { nav }) {
         <div class="page-admin">
           <div class="admin-inner">
             ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계" })}
-            <div class="orders-filters">
-              <div class="orders-frow orders-frow--1">
-                <div class="orders-fgroup">
-                  <span class="orders-flabel">조회 기간</span>
-                  <select class="select" data-ctl="year">
-                    ${SETTLEMENT_YEARS.map((y) => html`<option value="${y}" ${state.year === y ? "selected" : ""}>${y}년</option>`)}
-                  </select>
-                  <select class="select" data-ctl="month">
-                    ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
-                  </select>
-                  <div class="orders-chips settle-quickmonth">
-                    <button class="orders-datebtn ${state.year === curY && state.month === curM ? "is-active" : ""}" data-action="qmonth" data-v="this">이번달</button>
-                    <button class="orders-datebtn ${state.year === lastY && state.month === lastM ? "is-active" : ""}" data-action="qmonth" data-v="last">저번달</button>
-                  </div>
-                </div>
-                <div class="orders-divider"></div>
-                <div class="orders-fgroup">
-                  <span class="orders-flabel">정산 상태</span>
-                  <div class="orders-chips">
-                    ${STATUS_TABS.map((t) => html`<button class="chip ${state.statusFilter === t.value ? "is-active" : ""}" data-action="stab" data-v="${t.value}">${t.label}</button>`)}
-                  </div>
+            <div class="bf-card">
+              <div class="bf-row bf-row--tabs">
+                <div class="bf-tabs">
+                  ${STATUS_TABS.map((t) => html`<button class="bf-tab ${state.statusFilter === t.value ? "is-active" : ""}" data-action="stab" data-v="${t.value}">${t.label}</button>`)}
                 </div>
               </div>
-              <div class="orders-frow orders-frow--3">
-                <div class="orders-search">
-                  <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>거래처 검색</span></div>
-                  <input type="text" data-search value="${state.search}" placeholder="거래처명 검색" />
+              <div class="bf-row bf-row--main">
+                <span class="bf-lbl">조회 기간</span>
+                <select class="select" data-ctl="year">
+                  ${SETTLEMENT_YEARS.map((y) => html`<option value="${y}" ${state.year === y ? "selected" : ""}>${y}년</option>`)}
+                </select>
+                <select class="select" data-ctl="month">
+                  ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
+                </select>
+                <div class="bf-seg">
+                  <button class="bf-seg__btn ${state.year === curY && state.month === curM ? "is-sel" : ""}" data-action="qmonth" data-v="this">이번달</button>
+                  <button class="bf-seg__btn ${state.year === lastY && state.month === lastM ? "is-sel" : ""}" data-action="qmonth" data-v="last">저번달</button>
+                </div>
+                <div class="bf-right">
+                  <div class="bf-srch bf-srch--addr">
+                    ${icon("search", { size: 13, cls: "bf-srch__ic" })}
+                    <span class="bf-srch__lbl">거래처</span>
+                    <span class="bf-srch__dv"></span>
+                    <input type="text" data-search value="${state.search}" placeholder="거래처명 검색" />
+                  </div>
                 </div>
               </div>
             </div>
