@@ -199,10 +199,10 @@ export function mount(root, { nav }) {
       ${state.detailOpen ? html`
         <div class="bf-detail">
           <div class="bf-detail__chips">
-            <span class="bf-detail__lbl">사진</span>
+            <span class="bf-lbl">사진</span>
             ${toggleChips(B2C_PHOTO_FILTERS, state.photo, "photofilter")}
             <span class="bf-vdiv"></span>
-            <span class="bf-detail__lbl">알림</span>
+            <span class="bf-lbl">알림</span>
             ${toggleChips(B2C_NOTI_FILTERS, state.noti, "notifilter")}
           </div>
           <div class="bf-detail__srch">

@@ -4,7 +4,7 @@
    store.clientPrices에 영속되며, 해당 거래처 계정으로 로그인하면
    '상품 규격 안내'의 금액에 반영된다. 비워두면 기본 단가 적용.
    ============================================================ */
-import { html, setHTML, on, qs, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, won } from "../store.js";
 import { pageTitle } from "../ui.js";
@@ -85,21 +85,17 @@ export function mount(root, { nav }) {
         <div class="page-admin">
           <div class="admin-inner">
             ${pageTitle({ imgSrc: "./assets/nav-product.png", title: "기업별 상품단가" })}
-            <div class="orders-filters">
-              <div class="orders-frow orders-frow--1">
-                <div class="orders-fgroup">
-                  <span class="orders-flabel">거래처 선택</span>
-                  <select class="select" data-ctl="client">
-                    ${store.get().clients.map((c) => html`<option value="${c.id}" ${state.clientId === c.id ? "selected" : ""}>${c.companyName}</option>`)}
-                  </select>
+            <div class="bf-card">
+              <div class="bf-row bf-row--tabs">
+                <div class="bf-tabs">
+                  ${CATS.map((c) => html`<button class="bf-tab ${state.category === c ? "is-active" : ""}" data-action="cat" data-v="${c}">${c}</button>`)}
                 </div>
-                <div class="orders-divider"></div>
-                <div class="orders-fgroup">
-                  <span class="orders-flabel">상품 분류</span>
-                  <div class="orders-chips">
-                    ${CATS.map((c) => html`<button class="chip ${state.category === c ? "is-active" : ""}" data-action="cat" data-v="${c}">${c}</button>`)}
-                  </div>
-                </div>
+              </div>
+              <div class="bf-row bf-row--main">
+                <span class="bf-lbl">거래처 선택</span>
+                <select class="select" data-ctl="client">
+                  ${store.get().clients.map((c) => html`<option value="${c.id}" ${state.clientId === c.id ? "selected" : ""}>${c.companyName}</option>`)}
+                </select>
               </div>
             </div>
             <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
@@ -139,6 +135,7 @@ export function mount(root, { nav }) {
     const a = t.dataset.action;
     if (a === "cat") {
       state.category = t.dataset.v;
+      qsa(root, "[data-action='cat']").forEach((b) => b.classList.toggle("is-active", b.dataset.v === state.category));
       refreshTableSummary();
     } else if (a === "reset-row") {
       delete state.draft[t.dataset.pk];
