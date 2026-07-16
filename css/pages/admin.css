@@ -460,6 +460,9 @@
 .bf-srch__lbl { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-2); white-space: nowrap; }
 .bf-srch__dv { width: 1px; height: 16px; background: var(--c-divider); flex: 0 0 auto; }
 .bf-srch input { border: none; outline: none; flex: 1; min-width: 0; background: transparent; font-size: var(--fs-13); color: var(--c-text); font-family: inherit; }
+/* 포커스 표시는 컨테이너(:focus-within 오렌지 보더+링)가 담당 —
+   전역 :focus-visible 링(base.css)이 input에 겹치면 검색창 속 검색창처럼 보여 제거 */
+.bf-srch input:focus-visible { box-shadow: none; outline: none; }
 .bf-srch input::placeholder { color: var(--c-text-faint); }
 .bf-srch--addr { width: 270px; }
 .bf-srch--grow { flex: 1 1 260px; min-width: 240px; }
