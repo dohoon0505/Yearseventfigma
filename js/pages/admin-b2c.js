@@ -38,12 +38,11 @@ const statusBadge = (s) => {
   return html`<span class="hm-badge" style="background:${st.bg};color:${st.color}">${s}</span>`;
 };
 
-/* ── 고도화 필터 상수 (유저 '실시간 주문처리 내역' 필터 체계 기반) ── */
+/* ── 필터 상수 (claude_design '필터 영역 리디자인' 시안 기반) ── */
 const B2C_PHOTO_FILTERS = [{ v: "has", label: "사진 있음" }, { v: "no", label: "사진 없음" }];
 const B2C_NOTI_FILTERS = [{ v: "on", label: "알림 발송" }, { v: "off", label: "미발송" }];
 const B2C_DATE_BASIS = [{ v: "received", label: "접수일" }, { v: "deliver", label: "배송일" }];
 const B2C_QUICK_DATES = ["전체", "오늘", "어제", "내일", "이번 달", "지난 달"];
-const B2C_FLOW = ["접수대기", "주문접수", "배송완료"]; // 플로우 범례(취소 제외)
 /* B2C 저장 날짜("2026-07-08 15:20" / "2026-07-09T11:00") → Date (없으면 null) */
 function parseB2CDate(s) {
   if (!s) return null;
@@ -70,7 +69,8 @@ function blankOrder() {
 export function mount(root, { nav }) {
   const state = {
     tab: "all",
-    photo: ["has", "no"], noti: ["on", "off"],
+    photo: [], noti: [], // 켜진 토글만 담김 — 빈 배열 = 전체 (디자인 시안 의미론)
+    detailOpen: true,    // 상세 필터(사진·알림·검색 4종) 펼침 상태
     dateBasis: "received", dateQuick: "전체", dateStart: "", dateEnd: "",
     qOrderer: "", qRecipient: "", qChannel: "", qOrderNo: "", qAddress: "",
   };
@@ -106,11 +106,10 @@ export function mount(root, { nav }) {
     const match = (field, q) => !has(q) || (field || "").includes(q.trim());
     return b2cList().filter((o) => {
       if (state.tab !== "all" && o.status !== state.tab) return false;
+      /* 토글 칩: 켜진 항목이 있으면 그 항목들만 통과(빈 배열 = 전체) */
       const hasImg = !!o.image;
-      if (!state.photo.includes("has") && hasImg) return false;
-      if (!state.photo.includes("no") && !hasImg) return false;
-      if (!state.noti.includes("on") && o.notified) return false;
-      if (!state.noti.includes("off") && !o.notified) return false;
+      if (state.photo.length && !state.photo.includes(hasImg ? "has" : "no")) return false;
+      if (state.noti.length && !state.noti.includes(o.notified ? "on" : "off")) return false;
       if (startD || endD) {
         const d = parseB2CDate(state.dateBasis === "deliver" ? o.deliverAt : o.receivedAt);
         if (!d) return false;
@@ -125,21 +124,23 @@ export function mount(root, { nav }) {
       return true;
     });
   }
+  /* 상태 = 언더라인 탭 (활성: 오렌지 밑줄 + 카운트 강조) */
   function tabsBody() {
     const all = b2cList();
     return TABS.map((t) => {
       const count = t.v === "all" ? all.length : all.filter((o) => o.status === t.v).length;
       const active = state.tab === t.v;
-      return html`<button class="chip ${active ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="admin-tab-count">${count}</span></button>`;
+      return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="bf-tab__cnt">${count}</span></button>`;
     });
   }
   function summaryBody() {
     return html`조회 <strong>${filtered().length}</strong>건`;
   }
 
-  /* ── 고도화 필터 블록 (orders 스타일) ──────────────────── */
-  const chipRow = (items, active, action) =>
-    items.map((it) => html`<button class="chip ${active === it.v ? "is-active" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
+  /* ══ 필터 블록 — claude_design '필터 영역 리디자인' 시안 ══
+     ① 상태 언더라인 탭(+카운트·플로우 텍스트) ② 기간 세그먼트 트랙 +
+     datepicker + 배송지 인라인 검색 + 상세 필터 토글(활성 배지)
+     ③ 접이식 상세(사진·알림 토글 칩 + 검색 4종 그리드) */
   /* 커스텀 datepicker 마크업 (ui.js makeDatepicker 와 짝) */
   const dpMarkup = (which, ph) => html`
     <div class="dd datepick b2c-dp" data-dp="${which}">
@@ -153,74 +154,65 @@ export function mount(root, { nav }) {
         <div class="cal-grid"></div>
       </div>
     </div>`;
-  function checkRow(defs, on, action) {
-    return defs.map((f) => {
-      const checked = on.includes(f.v);
-      return html`<label class="orders-check">
-        <input type="checkbox" data-action="${action}" data-v="${f.v}" ${checked ? "checked" : ""} />
-        <span class="${checked ? "is-on" : ""}">${f.label}</span>
-      </label>`;
+  /* 세그먼트 트랙 버튼 (선택 = 흰 pill + 그림자) */
+  const segBtns = (items, active, action) =>
+    items.map((it) => html`<button class="bf-seg__btn ${active === it.v ? "is-sel" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
+  /* 토글 칩 (켜짐 = 오렌지 소프트 + 체크 표시) */
+  const toggleChips = (defs, on, action) =>
+    defs.map((f) => {
+      const sel = on.includes(f.v);
+      return html`<button class="bf-chip ${sel ? "is-on" : ""}" data-action="${action}" data-v="${f.v}">${sel ? "✓ " : ""}${f.label}</button>`;
     });
-  }
+  /* 인라인 라벨형 검색창 (아이콘 · 볼드 라벨 · 세로 구분선 · 입력) */
+  const srchBox = (key, label, ph, extra = "") => html`
+    <div class="bf-srch ${extra}">
+      ${icon("search", { size: 13, cls: "bf-srch__ic" })}
+      <span class="bf-srch__lbl">${label}</span>
+      <span class="bf-srch__dv"></span>
+      <input type="text" data-search="${key}" value="${state[key]}" placeholder="${ph}" />
+    </div>`;
   function filterBody() {
+    const activeCnt = state.photo.length + state.noti.length;
     return html`
-      <!-- Row 1: 현황 · 사진 · 알림 · 플로우 범례 -->
-      <div class="orders-frow orders-frow--1">
-        <div class="orders-fgroup">
-          <span class="orders-flabel">주문 현황</span>
-          <div class="orders-chips" data-slot="tabs">${tabsBody()}</div>
-        </div>
-        <div class="orders-divider"></div>
-        <div class="orders-fgroup">
-          <span class="orders-flabel">사진</span>
-          ${checkRow(B2C_PHOTO_FILTERS, state.photo, "photofilter")}
-        </div>
-        <div class="orders-divider"></div>
-        <div class="orders-fgroup">
-          <span class="orders-flabel">알림</span>
-          ${checkRow(B2C_NOTI_FILTERS, state.noti, "notifilter")}
-        </div>
-        <div class="orders-divider"></div>
-        <div class="orders-flow">
-          ${B2C_FLOW.map((s, i) => {
-            const st = B2C_STATUS_STYLE[s];
-            return html`<span class="orders-flowtag" style="background:${st.bg};color:${st.color}">${s}</span>${i < B2C_FLOW.length - 1 ? html`<span>→</span>` : ""}`;
-          })}
+      <!-- ① 상태 언더라인 탭 + 플로우 텍스트 -->
+      <div class="bf-row bf-row--tabs">
+        <div class="bf-tabs" data-slot="tabs">${tabsBody()}</div>
+        <span class="bf-flow">접수대기 → 주문접수 → 배송완료</span>
+      </div>
+
+      <!-- ② 기간 세그먼트 · datepicker 범위 · (우측) 배송지 검색 · 상세 필터 토글 -->
+      <div class="bf-row bf-row--main">
+        <div class="bf-seg">${segBtns(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
+        ${dpMarkup("start", "시작일")}
+        <span class="bf-tilde">~</span>
+        ${dpMarkup("end", "종료일")}
+        <div class="bf-seg">${segBtns(B2C_QUICK_DATES.map((v) => ({ v, label: v })), state.dateQuick, "date")}</div>
+        <div class="bf-right">
+          ${srchBox("qAddress", "배송지", "배송지 주소로 검색", "bf-srch--addr")}
+          <button class="bf-detailbtn ${state.detailOpen ? "is-open" : ""}" data-action="detail-toggle" aria-expanded="${state.detailOpen ? "true" : "false"}">
+            상세 필터${activeCnt ? html`<span class="bf-detailbtn__badge">${activeCnt}</span>` : ""}<span class="bf-chevron"></span>
+          </button>
         </div>
       </div>
 
-      <!-- Row 2: 기간 — 기준 토글 · datepicker 범위 · 퀵버튼 · (구분선) 배송지 검색 -->
-      <div class="orders-frow orders-frow--2 b2c-frow--date">
-        <span class="orders-flabel">기간</span>
-        <div class="orders-chips">${chipRow(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
-        <div class="b2c-daterange">
-          ${icon("calendar-days", { size: 14, cls: "tint-muted" })}
-          ${dpMarkup("start", "시작일")}
-          <span class="b2c-daterange__sep">~</span>
-          ${dpMarkup("end", "종료일")}
+      <!-- ③ 상세 필터 (접이식): 사진·알림 토글 칩 + 검색 4종 그리드 -->
+      ${state.detailOpen ? html`
+        <div class="bf-detail">
+          <div class="bf-detail__chips">
+            <span class="bf-detail__lbl">사진</span>
+            ${toggleChips(B2C_PHOTO_FILTERS, state.photo, "photofilter")}
+            <span class="bf-vdiv"></span>
+            <span class="bf-detail__lbl">알림</span>
+            ${toggleChips(B2C_NOTI_FILTERS, state.noti, "notifilter")}
+          </div>
+          <div class="bf-detail__srch">
+            ${srchBox("qOrderer", "주문자", "주문자 성함")}
+            ${srchBox("qRecipient", "받는분", "받는분 성함")}
+            ${srchBox("qChannel", "주문경로", "예) 네이버 스토어")}
+            ${srchBox("qOrderNo", "주문번호", "예) B2C-2607-0006")}
+          </div>
         </div>
-        <div class="orders-chips">
-          ${B2C_QUICK_DATES.map((opt) => html`<button class="orders-datebtn ${state.dateQuick === opt ? "is-active" : ""}" data-action="date" data-v="${opt}">${opt}</button>`)}
-        </div>
-        <div class="orders-divider"></div>
-        <div class="orders-search b2c-search--addr">
-          <div class="orders-search__lbl">${icon("map-pin", { size: 12, cls: "tint-muted" })}<span>배송지 주소</span></div>
-          <input type="text" data-search="qAddress" value="${state.qAddress}" placeholder="배송지 주소로 검색" />
-        </div>
-      </div>
-
-      <!-- Row 4: 분리 검색 (주문자 · 받는분 · 주문경로 · 주문번호) -->
-      <div class="orders-frow orders-frow--3">
-        ${[
-          { key: "qOrderer", label: "주문자 검색", ph: "주문자 성함" },
-          { key: "qRecipient", label: "받는분 검색", ph: "받는분 성함" },
-          { key: "qChannel", label: "주문경로 검색", ph: "예) 네이버 스토어" },
-          { key: "qOrderNo", label: "주문번호 검색", ph: "예) B2C-2607-0006" },
-        ].map((s) => html`<div class="orders-search">
-          <div class="orders-search__lbl">${icon("search", { size: 12, cls: "tint-muted" })}<span>${s.label}</span></div>
-          <input type="text" data-search="${s.key}" value="${state[s.key]}" placeholder="${s.ph}" />
-        </div>`)}
-      </div>
+      ` : ""}
     `;
   }
   /* 컬럼: 주문경로 | 주문접수/배송일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황(배지) | 사진 | 알림 (+관리) */
@@ -267,7 +259,7 @@ export function mount(root, { nav }) {
             title: "B2C 통합주문관리",
             action: html`<button class="btn btn-secondary" data-action="new">${icon("plus", { size: 14 })} 신규 주문 등록</button>`,
           })}
-          <div class="orders-filters" data-slot="filters">${filterBody()}</div>
+          <div class="bf-card" data-slot="filters">${filterBody()}</div>
           <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
           <div data-slot="table">${tableBody()}</div>
         </div>
@@ -301,7 +293,7 @@ export function mount(root, { nav }) {
           /* 직접 날짜 선택 → 커스텀 범위(퀵버튼 해제). 자기 자신(datepicker) 재생성 없이 표만 갱신. */
           state[key] = v;
           state.dateQuick = "custom";
-          qsa(root, ".orders-datebtn").forEach((b) => b.classList.remove("is-active"));
+          qsa(root, "[data-action='date']").forEach((b) => b.classList.remove("is-sel"));
           refreshTableOnly();
         },
         min: DP_MIN, max: DP_MAX, placeholder: ph,
@@ -778,14 +770,16 @@ export function mount(root, { nav }) {
       refreshFilters();
       return;
     }
+    if (a === "photofilter" || a === "notifilter") {
+      const key = a === "photofilter" ? "photo" : "noti";
+      const v = t.dataset.v;
+      state[key] = state[key].includes(v) ? state[key].filter((x) => x !== v) : [...state[key], v];
+      refreshFilters();
+      return;
+    }
+    if (a === "detail-toggle") { state.detailOpen = !state.detailOpen; refreshFilters(); return; }
     if (a === "new") return openEditor(blankOrder(), true);
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
-  });
-  const offChange = on(root, "change", "[data-action='photofilter'], [data-action='notifilter']", (e, t) => {
-    const key = t.dataset.action === "photofilter" ? "photo" : "noti";
-    const v = t.dataset.v;
-    state[key] = state[key].includes(v) ? state[key].filter((x) => x !== v) : [...state[key], v];
-    refreshFilters();
   });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state[t.dataset.search] = t.value;
@@ -796,7 +790,7 @@ export function mount(root, { nav }) {
   });
 
   return () => {
-    offList(); offChange(); offSearch();
+    offList(); offSearch();
     destroyFilterDps();
     closeModal();
     if (toastEl) toastEl.remove();
