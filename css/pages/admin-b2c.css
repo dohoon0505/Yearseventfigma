@@ -113,6 +113,10 @@
 /* 담당자 지정 모달 바디 힌트 */
 .b2c-mgrhint { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 11.5px; color: var(--c-text-muted); }
 .b2c-mgrhint .icon { flex: 0 0 auto; color: var(--c-text-faint); }
+/* 담당자 지정 모달 — 커스텀 드롭다운 패널이 작은 다이얼로그에서 잘리지 않게
+   (공용 .modal-panel 은 overflow-y:auto·패널 위로 전개 → 여기선 visible + 아래로) */
+.modal-panel--b2cmgr { overflow: visible; }
+.modal-panel--b2cmgr .dd-panel { bottom: auto; top: calc(100% + 6px); }
 
 /* ── 본문: 좌 본문(읽기/편집) + 우 처리 레일 ────────────── */
 .b2c-body {

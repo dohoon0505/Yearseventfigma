@@ -630,36 +630,60 @@ export function mount(root, { nav }) {
      지정은 즉시 반영(b2cSetManager). 폼/레일의 다른 미저장 편집은 건드리지 않음. */
   function openManagerModal(mainPanel) {
     if (!editing) return;
+    const DIRECT = "직접 입력…";
+    const names = staffNames();
     const cur = editing.manager || "";
+    /* 현재값이 목록에 있으면 그 값, 목록 밖 커스텀이면 '직접 입력…'(+프리필), 미지정이면 첫 직원 */
+    let pick = names.includes(cur) ? cur : cur ? DIRECT : names[0] ?? DIRECT;
+    let mgrDd = null;
     const picker = openModal({
       panelClass: "modal-panel--sm modal-panel--b2cmgr",
       body: html`
         <div class="hm__head">
           <div>
             <h3>담당자 지정</h3>
-            <p>이 주문을 담당할 직원을 선택하거나 직접 입력하세요.</p>
+            <p>이 주문을 담당할 직원을 선택하세요.</p>
           </div>
           <button class="hm__x" data-action="mgr-close" aria-label="닫기">${icon("x", { size: 14 })}</button>
         </div>
         <div class="hm__body">
           <div class="hm-field">
             <label>담당자</label>
-            <input class="hm-input" data-mgr-input list="b2c-staff-list" value="${cur}" placeholder="담당자 이름" autocomplete="off" />
-            <datalist id="b2c-staff-list">${staffNames().map((s) => html`<option value="${s}"></option>`)}</datalist>
-            <p class="b2c-mgrhint">${icon("user", { size: 12 })} 목록에서 선택하거나 새 담당자를 직접 입력할 수 있습니다.</p>
+            <div class="dd" data-mgr-dd>
+              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+              <div class="dd-panel" role="listbox"></div>
+            </div>
           </div>
+          <div class="hm-field" data-mgr-custom ${pick === DIRECT ? "" : "hidden"}>
+            <label>담당자 이름</label>
+            <input class="hm-input" data-mgr-input value="${pick === DIRECT ? cur : ""}" placeholder="예) 한신입" autocomplete="off" />
+          </div>
+          <p class="b2c-mgrhint">${icon("user", { size: 12 })} 목록에 없는 담당자는 ‘${DIRECT}’을 선택해 입력하세요.</p>
         </div>
         <div class="hm__foot">
           <button class="hm-btn hm-btn--secondary" data-action="mgr-close">취소</button>
           <button class="hm-btn hm-btn--primary" data-action="mgr-confirm">${icon("check", { size: 14 })} 지정</button>
         </div>
       `,
+      onClose: () => { if (mgrDd) mgrDd.destroy(); }, // 문서 리스너 정리
     });
     const p = picker.panel;
+    const customField = qs(p, "[data-mgr-custom]");
     const input = qs(p, "[data-mgr-input]");
+    /* '직접 입력…' 선택 시에만 텍스트 입력 필드 노출(+포커스) */
+    const syncCustom = () => {
+      const direct = pick === DIRECT;
+      if (customField) customField.hidden = !direct;
+      if (direct && input) { input.focus(); input.select(); }
+    };
+    mgrDd = makeDropdown(qs(p, "[data-mgr-dd]"), {
+      options: () => [...staffNames(), DIRECT],
+      get: () => pick,
+      set: (v) => { pick = v; syncCustom(); },
+    });
     const confirm = () => {
-      const v = (input?.value || "").trim();
-      if (!v) { toast("담당자를 선택하거나 입력하세요", "warn"); input?.focus(); return; }
+      const v = pick === DIRECT ? (input?.value || "").trim() : pick;
+      if (!v) { toast("담당자를 선택하거나 입력하세요", "warn"); if (pick === DIRECT) input?.focus(); return; }
       if (!editing) { picker.close(); return; }
       editing.manager = v;
       b2cSetManager(editing.id, v); // 담당자만 즉시 반영(다른 미저장 편집은 저장 시점까지 보류)
@@ -671,7 +695,7 @@ export function mount(root, { nav }) {
     on(p, "click", "[data-action='mgr-close']", () => picker.close());
     on(p, "click", "[data-action='mgr-confirm']", () => confirm());
     on(p, "keydown", "[data-mgr-input]", (e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } });
-    if (input) { input.focus(); input.select(); }
+    if (pick === DIRECT && input) { input.focus(); input.select(); }
   }
 
   function openEditor(order, _isNew) {
