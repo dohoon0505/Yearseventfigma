@@ -56,9 +56,9 @@ export const USAGE_CATEGORIES = [
   { key: "3단화환(고급형)",  unit: 60000 },
   { key: "3단화환(특대형)",  unit: 75000 },
   { key: "4단화환(표준형)",  unit: 95000 },
-  { key: "근조오브제(단형)", unit: 50000 },
+  { key: "근조오브제(1단형)", unit: 50000 },
   { key: "근조바구니",       unit: 50000 },
-  { key: "평탁화(10kg)",     unit: 75000 },
+  { key: "쌀화환(10kg)",     unit: 75000 },
   { key: "동양란(기본형)",   unit: 50000 },
   { key: "중형 꽃바구니",    unit: 80000 },
 ];
