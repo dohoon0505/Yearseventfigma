@@ -7,6 +7,7 @@ import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, won } from "../store.js";
 import { getClientId } from "../session.js";
 import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
+import { INTAKE_TOTAL, filterIntakeGuide } from "../data/intake-guide.js";
 
 const sampleImages = {
   경조화환: "https://images.unsplash.com/photo-1728080568516-28156ceae0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdW5lcmFsJTIwZmxvd2VyJTIwS29yZWElMjBjZXJlbW9ueXxlbnwxfHx8fDE3NzU2Mzk0ODd8MA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -15,9 +16,12 @@ const sampleImages = {
   생화: "https://images.unsplash.com/photo-1641430262389-93bbbd2dd754?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMGZsb3dlciUyMGJvdXF1ZXQlMjBjb2xvcmZ1bCUyMGJsb29tfGVufDF8fHx8MTc3NTYzOTQ4N3ww&ixlib=rb-4.1.0&q=80&w=1080",
 };
 const categories = ["전체", "경조화환", "관엽화분", "동서양란", "생화"];
+/* 반입 제한은 오브제·근조바구니·쌀화환 — 전부 '경조화환' 카테고리 상품이다.
+   그 외 카테고리를 고르면 표 대신 안내를 보여준다(섹션 자체는 유지). */
+const IG_CAT = "경조화환";
 
 export function mount(root, { nav }) {
-  const state = { selectedCategory: "전체", saved: false };
+  const state = { selectedCategory: "전체", saved: false, igQuery: "" };
   let activeModal = null;
   let saveTimer = null;
   const closeModal = () => { if (activeModal) { activeModal.close(); activeModal = null; } };
@@ -66,6 +70,57 @@ export function mount(root, { nav }) {
     if (el) setHTML(el, savebarBody());
   };
 
+  /* ── 지역별 반입가이드 ─────────────────────────────────── */
+  const igVisible = () => state.selectedCategory === "전체" || state.selectedCategory === IG_CAT;
+  const yn = (v) => (v ? html`<span class="ig-yes" title="반입가능">✓</span>` : html`<span class="ig-no" aria-hidden="true">·</span>`);
+
+  function igBody() {
+    if (!igVisible()) {
+      return html`<div class="ig-notice">
+        <p class="ig-notice__t">${state.selectedCategory}은 지역별 반입 제한이 없습니다.</p>
+        <p class="ig-notice__d">반입가이드는 오브제 · 근조바구니 · 쌀화환 등 <b>경조화환</b> 대체발송 상품에만 적용돼요.</p>
+        <button class="ig-notice__btn" data-action="ig-cat">경조화환 반입가이드 보기</button>
+      </div>`;
+    }
+    const groups = filterIntakeGuide(state.igQuery);
+    const n = groups.reduce((a, [, rows]) => a + rows.length, 0);
+    if (!n) {
+      return html`<div class="ig-notice">
+        <p class="ig-notice__t">‘${state.igQuery}’ 검색 결과가 없어요.</p>
+        <p class="ig-notice__d">시·도(예: 경남) 또는 장소명(예: 장례식장)으로 다시 검색해 보세요.</p>
+      </div>`;
+    }
+    return html`
+      <p class="ig-count">전국 <b>${INTAKE_TOTAL}곳</b>${state.igQuery ? html` 중 <b>${n}곳</b>` : ""}</p>
+      <div class="ig-scroll">
+        <table class="ig-table">
+          <colgroup><col class="c-sido" /><col class="c-place" /><col class="c-p" /><col class="c-p" /><col class="c-p" /><col class="c-note" /></colgroup>
+          <thead>
+            <tr><th>시 · 도</th><th>지역 · 장소</th><th>오브제</th><th>근조바구니</th><th>쌀화환</th><th>상세 안내</th></tr>
+          </thead>
+          <tbody>
+            ${groups.flatMap(([sido, rows]) =>
+              rows.map((row, i) => html`
+                <tr class="${i === 0 ? "ig-grp" : ""}">
+                  ${i === 0 ? html`<td class="ig-sido" rowspan="${rows.length}">${sido}</td>` : ""}
+                  <td class="ig-place">${row[0]}</td>
+                  <td class="ig-c">${yn(row[1])}</td>
+                  <td class="ig-c">${yn(row[2])}</td>
+                  <td class="ig-c">${yn(row[3])}</td>
+                  <td class="ig-note">${row[4]}</td>
+                </tr>
+              `)
+            )}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  /* 표 슬롯만 패치 — 검색 입력은 슬롯 밖(.ig-head)에 있어 포커스가 유지된다. */
+  const updateIg = () => {
+    const el = qs(root, "[data-slot='ig-body']");
+    if (el) setHTML(el, igBody());
+  };
+
   function render() {
     const filtered = state.selectedCategory === "전체" ? ALL_PRODUCTS : ALL_PRODUCTS.filter((p) => p.category === state.selectedCategory);
     setHTML(
@@ -97,6 +152,24 @@ export function mount(root, { nav }) {
             <div class="prod-table">
               ${tableGrid({ columns, rows: filtered, rowKey: (r) => productKey(r), compact: true })}
             </div>
+
+            <section class="intake-guide">
+              <div class="ig-head">
+                <div class="ig-head__l">
+                  <h3 class="ig-title">지역별 반입가이드</h3>
+                  <p class="ig-desc">일부 지역 · 장소는 3단화환 반입이 제한돼 오브제 · 근조바구니 · 쌀화환으로 대체 발송됩니다.</p>
+                </div>
+                ${igVisible()
+                  ? html`<div class="bf-srch ig-srch">
+                      ${icon("search", { size: 13, cls: "bf-srch__ic" })}
+                      <span class="bf-srch__lbl">지역</span>
+                      <span class="bf-srch__dv"></span>
+                      <input type="text" data-ig-q value="${state.igQuery}" placeholder="시 · 도 · 지역 · 장소 검색" />
+                    </div>`
+                  : ""}
+              </div>
+              <div class="ig-body" data-slot="ig-body">${igBody()}</div>
+            </section>
           </div>
         </div>
       `
@@ -175,6 +248,9 @@ export function mount(root, { nav }) {
     } else if (a === "sample") {
       const p = ALL_PRODUCTS.find((x) => productKey(x) === t.dataset.key);
       if (p) openSample(p);
+    } else if (a === "ig-cat") {
+      state.selectedCategory = IG_CAT;
+      render();
     }
   });
   // favorite toggle: checkbox keeps its native state; only update count/save button
@@ -187,11 +263,17 @@ export function mount(root, { nav }) {
     state.selectedCategory = t.dataset.cat;
     render();
   });
+  /* 검색은 표 슬롯만 패치 — 입력이 슬롯 밖이라 타이핑 중 포커스가 유지된다. */
+  const offIgQ = on(root, "input", "[data-ig-q]", (e, t) => {
+    state.igQuery = t.value;
+    updateIg();
+  });
 
   return () => {
     offClick();
     offFav();
     offCat();
+    offIgQ();
     closeModal();
     if (saveTimer) clearTimeout(saveTimer);
   };

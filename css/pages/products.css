@@ -148,3 +148,35 @@
   border-color: var(--c-orange);
   color: var(--c-orange);
 }
+
+/* ── 지역별 반입가이드 (harim 원본 이식 · 상단 .prod-table 과 동일 규격) ── */
+.intake-guide { margin-top: 12px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-md); overflow: hidden; }
+.ig-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--c-border); flex-wrap: wrap; }
+.ig-title { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.ig-desc { margin-top: 4px; font-size: var(--fs-13); color: var(--c-text-4); line-height: 1.6; }
+.ig-srch { flex: 0 0 auto; width: 280px; }
+.ig-count { padding: 10px 20px 0; font-size: var(--fs-13); color: var(--c-text-4); }
+.ig-count b { color: var(--c-orange-ink); font-weight: var(--fw-bold); }
+.ig-scroll { overflow-x: auto; }
+.ig-table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); table-layout: fixed; }
+.ig-table col.c-sido { width: 108px; }
+.ig-table col.c-p { width: 92px; }
+.ig-table col.c-note { width: 30%; }
+.ig-table th, .ig-table td { padding: 11px 12px; font-size: var(--fs-14); border-bottom: 1px solid var(--c-border); border-right: 1px solid var(--c-border); vertical-align: middle; }
+.ig-table th:last-child, .ig-table td:last-child { border-right: 0; }
+.ig-table th { background: var(--c-surface-3); font-weight: var(--fw-medium); color: var(--c-text-3); text-align: left; white-space: nowrap; }
+.ig-table th:nth-child(n+3):nth-child(-n+5) { text-align: center; }
+.ig-table td { color: var(--c-text-4); line-height: 1.45; word-break: keep-all; }
+.ig-table tbody tr:last-child td { border-bottom: 0; }
+.ig-table tbody tr:hover td { background: var(--c-surface-hover); }
+.ig-sido { font-weight: var(--fw-bold); color: var(--c-text-strong); background: var(--c-surface-2); text-align: center; white-space: nowrap; }
+.ig-c { text-align: center; }
+.ig-yes { color: var(--c-success-ink); font-weight: var(--fw-bold); }
+.ig-no { color: var(--c-border-strong); }
+/* 카테고리 미대상 · 검색 결과 없음 안내 */
+.ig-notice { padding: 36px 20px; text-align: center; }
+.ig-notice__t { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-2); }
+.ig-notice__d { margin-top: 6px; font-size: var(--fs-13); color: var(--c-text-4); line-height: 1.6; }
+.ig-notice__d b { color: var(--c-orange-ink); }
+.ig-notice__btn { margin-top: 14px; padding: 9px 18px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); background: var(--c-surface); font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-2); transition: border-color 0.15s, color 0.15s, background 0.15s; }
+.ig-notice__btn:hover { border-color: var(--c-orange); color: var(--c-orange); background: var(--c-sidebar-active-bg); }
