@@ -246,11 +246,6 @@
 .page-order .dd--mgr { min-width: 200px; flex: 0 0 auto; }
 .page-order .dd--mgr .dd-trigger { height: 44px; padding: 0 38px 0 14px; font-size: 14px; font-weight: 600; color: var(--c-text-2); }
 .page-order .dd--mgr .dd-trigger::after { right: 14px; }
-.page-order .toggles { display: flex; gap: 8px; }
-.page-order .tg { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-faint); transition: all 0.13s; }
-.page-order .tg svg { display: none; width: 13px; height: 13px; flex: 0 0 auto; }
-.page-order .tg.on { background: var(--c-blue-soft); border-color: var(--c-user-border); color: var(--c-blue); }
-.page-order .tg.on svg { display: inline-block; }
 
 /* ── 추가 수신자(합동 발송) — 알림 행 아래 인라인 누적 ── */
 .page-order .nt-extra { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--c-border); }
@@ -306,3 +301,15 @@
 /* ── 안내 토스트 (불러오기 결과 등) ── */
 .page-order .o-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(14px); max-width: 460px; width: max-content; background: var(--c-dark); color: var(--c-surface); font-size: 14px; font-weight: 600; line-height: 1.55; padding: 13px 22px; border-radius: 12px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 80; box-shadow: var(--sh-pop); text-align: center; }
 .page-order .o-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── 배송완료 알림 수신자 명단 ─────────────────────────────
+   받는분·보내는분·담당자(자동 편입)·추가 수신자를 같은 행 목록으로 보여준다.
+   실제 번호가 보여야 오발송을 주문 전에 잡을 수 있다. */
+.page-order .nt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.page-order .nt-count { font-size: 13px; font-weight: 600; color: var(--c-blue); white-space: nowrap; }
+.page-order .nt-row--fixed { gap: 12px; }
+.page-order .nt-kind { flex: 0 0 52px; font-size: 12px; color: var(--c-text-faint); }
+.page-order .nt-who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.page-order .nt-who b { font-size: 14px; font-weight: 600; color: var(--c-text); }
+.page-order .nt-who span { font-size: 13px; color: var(--c-text-faint); }
+.page-order .nt-auto { font-style: normal; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--c-blue-soft); color: var(--c-blue); }
