@@ -12,57 +12,35 @@
 }
 
 /* ── Filter panel ───────────────────────────────────────── */
-.orders-filters {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  overflow: hidden;
-}
-.orders-frow {
-  display: flex;
-  align-items: center;
-}
-.orders-frow--1,
-.orders-frow--2 {
-  border-bottom: 1px solid var(--c-border);
-}
-.orders-frow--2,
-.orders-frow--3 {
-  padding: 12px 16px;
-}
-.orders-frow--3 {
-  gap: 12px;
-}
-.orders-fgroup {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-}
-.orders-flabel {
-  font-size: var(--fs-13);
-  color: var(--c-text-muted);
-  font-weight: var(--fw-medium);
-  margin-right: 12px;
-  white-space: nowrap;
-}
 .orders-chips {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+/* 상태 칩 — 색 의미(주문접수=파랑 · 배송완료=초록)를 살려 .bf-seg 대신 존치.
+   활성 칩만 JS 가 --st-bg/--st-fg 를 주입하고, 색 리터럴은 STATUS_STYLE(토큰)에만 있다. */
 .orders-statbtn {
   padding: 6px 12px;
   border-radius: 4px;
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
-  border: 1px solid;
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
   transition: all 0.15s;
 }
-.orders-divider {
-  height: 20px;
-  width: 1px;
-  background: var(--c-border);
+.orders-statbtn.is-active {
+  background: var(--st-bg);
+  color: var(--st-fg);
+  border-color: var(--st-fg);
 }
+.orders-statbtn--all.is-active {
+  background: var(--c-text-strong);
+  color: var(--c-surface);
+  border-color: var(--c-text-strong);
+}
+/* 탭 행 없이 메인 행을 3단 적층하는 orders 전용 — 페이지 한정 오버라이드(특이도 ↑) */
+.page-orders .bf-row + .bf-row { border-top: 1px solid var(--c-divider); }
 .orders-check {
   display: flex;
   align-items: center;
@@ -90,7 +68,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  margin-left: auto;
   font-size: var(--fs-13);
   color: var(--c-text-faint);
 }
@@ -114,72 +92,6 @@
   color: var(--c-text-2);
 }
 .orders-daterange .icon {
-  color: var(--c-text-faint);
-}
-.orders-datebtn {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: var(--fs-13);
-  border: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text-4);
-  transition: all 0.15s;
-}
-.orders-datebtn:hover {
-  border-color: var(--c-orange);
-  color: var(--c-orange);
-}
-.orders-datebtn.is-active {
-  background: var(--c-orange);
-  color: #fff;
-  border-color: var(--c-orange);
-  font-weight: var(--fw-medium);
-}
-.orders-search {
-  display: flex;
-  align-items: stretch;
-  flex: 1;
-  border: 1px solid var(--c-border-field);
-  border-radius: var(--r-xl);
-  overflow: hidden;
-  background: var(--c-surface);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.orders-search:hover:not(:focus-within) {
-  border-color: var(--c-border-field-strong);
-}
-.orders-search:focus-within {
-  border-color: var(--c-indigo);
-  box-shadow: var(--ring-field);
-}
-.orders-search__lbl {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 14px;
-  background: var(--c-surface-2);
-  border-right: 1px solid var(--c-border-field);
-  flex-shrink: 0;
-}
-.orders-search__lbl .icon {
-  color: var(--c-text-muted);
-}
-.orders-search__lbl span {
-  font-size: var(--fs-13);
-  color: var(--c-text-4);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-}
-.orders-search input {
-  flex: 1;
-  min-width: 0;
-  padding: 11px 14px;
-  font-size: var(--fs-14);
-  color: var(--c-text);
-  outline: none;
-  background: var(--c-surface);
-}
-.orders-search input::placeholder {
   color: var(--c-text-faint);
 }
 

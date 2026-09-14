@@ -11,7 +11,7 @@
 /* B2C 통합주문관리만 콘텐츠 최대폭 확대(12컬럼 표) — 공용 admin은 1300px 유지 */
 .page-b2c .admin-inner { max-width: 1500px; }
 
-/* 필터 카드(.bf-*)는 admin 공용 체계로 승격 → css/pages/admin.css 참조.
+/* 필터 카드(.bf-*)는 전 페이지 공용 체계로 승격 → css/components.css 참조.
    이 파일에는 B2C 전용 datepicker(.b2c-dp/.cal-*)만 남긴다. */
 
 /* datepicker 트리거·패널 — 시안 규격(148×36 · r-lg) (.page-b2c 스코프) */
