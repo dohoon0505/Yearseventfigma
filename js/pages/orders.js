@@ -5,6 +5,7 @@ import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
 import { getDateRange, parseOrderDate, formatDateLabel } from "../util/date.js";
+import { DATA_NOW } from "../data/admin-mock.js";
 
 /* 배송 현장사진은 2:3 세로형으로 촬영·수신된다. (데모: 카테고리별 샘플) */
 const DELIVERY_PHOTO = {
@@ -18,28 +19,47 @@ function deliveryPhoto(order) {
   return DELIVERY_PHOTO.기타;
 }
 
+/* 목데이터 날짜는 모듈 로드 시점(DATA_NOW) 기준으로 상대 생성한다.
+   절대값으로 박아두면 시간이 흐르면서 기본 필터('이번 달')에 걸리는 행이 하나도 없어져
+   표가 영구히 빈 화면이 된다 — admin-mock 이 DATA_NOW 를 export 하는 이유와 같다.
+   같은 시계를 공유해야 #/app/orders 와 admin 화면의 '오늘'이 어긋나지 않으므로
+   자체 NOW 를 새로 잡지 않고 DATA_NOW 를 재사용한다.
+   ⚠ getDateRange 는 호출 시점의 new Date() 를 쓴다 — 탭을 자정 너머로 열어두면
+     '오늘' 필터와 데이터가 하루 어긋날 수 있다(새로고침하면 다시 맞는다). */
+const pad2 = (n) => String(n).padStart(2, "0");
+/** Date + "HH:mm" → "YYYY/MM/DD HH:mm" — 필터(parseOrderDate)와 표시가 이 포맷을 파싱한다. */
+const at = (d, time) => `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${time}`;
+/** 오늘 기준 n일 이동 */
+const dayOff = (n) => new Date(DATA_NOW.getFullYear(), DATA_NOW.getMonth(), DATA_NOW.getDate() + n);
+/** n일 전 — 달 경계는 넘어가게 둔다.
+ *  1일로 클램프하면 월초(1~2일)에 배송완료 7건이 전부 '오늘/어제'로 쏠려 부자연스럽다.
+ *  그대로 두면 자연히 전월로 넘어가고, '이번 달'은 오늘·내일 건이 항상 채운다. */
+const daysAgo = (n) => dayOff(-n);
+/** 지난 달 n일 — 말일 길이(28~31)와 무관하도록 28 이하만 쓴다. */
+const lastMonth = (day) => new Date(DATA_NOW.getFullYear(), DATA_NOW.getMonth() - 1, day);
+
 const orderData = [
-  // 오늘 (2026/06/16)
-  { id: 1, manager: "김총무", date: "2026/06/16 14:30", address: "서울 종로구 대학로 101 서울대학교병원 장례식장 5호실", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "근조화환(고급형)", amount: "100,000원", status: "주문접수", hasPhoto: true },
-  { id: 2, manager: "박사원", date: "2026/06/16 10:15", address: "경기 성남시 분당구 야탑로 59 분당차병원 장례식장 특실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(기본형)", amount: "70,000원", status: "접수대기", hasPhoto: false },
-  // 내일 (2026/06/17) — 예약 발송
-  { id: 3, manager: "이대리", date: "2026/06/17 09:00", address: "부산 해운대구 센텀중앙로 90 벡스코 제2전시장 그랜드볼룸", sender: "영업본부", profile: "주식회사 싱크플로 영업본부", product: "축하화환(고급형)", amount: "100,000원", status: "접수대기", hasPhoto: false },
-  // 어제 (2026/06/15)
-  { id: 4, manager: "김총무", date: "2026/06/15 16:40", address: "인천 남동구 구월로 12 가천대길병원 장례식장 301호실", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: true },
-  { id: 5, manager: "최과장", date: "2026/06/15 09:30", address: "대전 서구 둔산로 100 대전무역회관 4층 대강당", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
-  // 이번 달 (2026/06/01 ~ 06/13)
-  { id: 6, manager: "박사원", date: "2026/06/13 11:20", address: "광주 북구 첨단과기로 123 광주과학기술원 오룡관 컨벤션홀", sender: "이대리", profile: "주식회사 싱크플로 영업1팀 이대리", product: "축하화환(고급형)", amount: "100,000원", status: "주문접수", hasPhoto: true },
-  { id: 7, manager: "오임찬", date: "2026/06/11 15:00", address: "울산 남구 삼산로 200 울산롯데호텔 3층 크리스탈볼룸", sender: "오임찬", profile: "주식회사 싱크플로 재경팀 오임찬", product: "동양란(중)", amount: "120,000원", status: "배송완료", hasPhoto: true },
-  { id: 8, manager: "김총무", date: "2026/06/09 13:10", address: "경남 창원시 의창구 중앙대로 250 창원컨벤션센터 2층 컨벤션홀", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
-  { id: 9, manager: "이대리", date: "2026/06/06 10:00", address: "서울 강남구 테헤란로 152 강남파이낸스센터 지하1층 컨퍼런스홀", sender: "영업본부", profile: "주식회사 싱크플로 영업본부", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", hasPhoto: true },
-  { id: 10, manager: "박사원", date: "2026/06/04 17:30", address: "전북 전주시 덕진구 백제대로 567 전북대학교병원 장례식장 특2호실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: false },
-  { id: 11, manager: "최과장", date: "2026/06/02 09:40", address: "경기 수원시 영통구 광교중앙로 140 수원컨벤션센터 3층 컨벤션홀", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "서양란(대)", amount: "150,000원", status: "배송완료", hasPhoto: true },
-  { id: 12, manager: "김총무", date: "2026/06/01 11:00", address: "대구 수성구 동대구로 99 대구은행 본점 2층 대강당", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
-  // 지난 달 (2026/05)
-  { id: 13, manager: "오임찬", date: "2026/05/27 14:00", address: "서울 송파구 올림픽로 300 롯데월드타워 SKY31 컨벤션", sender: "오임찬", profile: "주식회사 싱크플로 재경팀 오임찬", product: "축하화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: true },
-  { id: 14, manager: "이대리", date: "2026/05/20 10:30", address: "충북 청주시 흥덕구 1순환로 776 청주성모병원 장례식장 5호실", sender: "이대리", profile: "주식회사 싱크플로 영업1팀 이대리", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
-  { id: 15, manager: "박사원", date: "2026/05/13 16:20", address: "강원 춘천시 백령로 156 강원대학교병원 장례식장 특실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: true },
-  { id: 16, manager: "김총무", date: "2026/05/06 09:00", address: "제주 제주시 첨단로 242 제주첨단과학기술단지 컨벤션홀", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", hasPhoto: false },
+  // 오늘 — 진행 중인 주문(주문접수 · 접수대기)
+  { id: 1, manager: "김총무", date: at(dayOff(0), "14:30"), address: "서울 종로구 대학로 101 서울대학교병원 장례식장 5호실", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "근조화환(고급형)", amount: "100,000원", status: "주문접수", hasPhoto: true },
+  { id: 2, manager: "박사원", date: at(dayOff(0), "10:15"), address: "경기 성남시 분당구 야탑로 59 분당차병원 장례식장 특실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(기본형)", amount: "70,000원", status: "접수대기", hasPhoto: false },
+  // 내일 — 예약 발송
+  { id: 3, manager: "이대리", date: at(dayOff(1), "09:00"), address: "부산 해운대구 센텀중앙로 90 벡스코 제2전시장 그랜드볼룸", sender: "영업본부", profile: "주식회사 싱크플로 영업본부", product: "축하화환(고급형)", amount: "100,000원", status: "접수대기", hasPhoto: false },
+  // 어제 — 배송완료
+  { id: 4, manager: "김총무", date: at(dayOff(-1), "16:40"), address: "인천 남동구 구월로 12 가천대길병원 장례식장 301호실", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: true },
+  { id: 5, manager: "최과장", date: at(dayOff(-1), "09:30"), address: "대전 서구 둔산로 100 대전무역회관 4층 대강당", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
+  // 그 이전 — 3~15일 전(월초에 열면 일부는 자연히 전월로 넘어간다)
+  { id: 6, manager: "박사원", date: at(daysAgo(3), "11:20"), address: "광주 북구 첨단과기로 123 광주과학기술원 오룡관 컨벤션홀", sender: "이대리", profile: "주식회사 싱크플로 영업1팀 이대리", product: "축하화환(고급형)", amount: "100,000원", status: "주문접수", hasPhoto: true },
+  { id: 7, manager: "오임찬", date: at(daysAgo(5), "15:00"), address: "울산 남구 삼산로 200 울산롯데호텔 3층 크리스탈볼룸", sender: "오임찬", profile: "주식회사 싱크플로 재경팀 오임찬", product: "동양란(중)", amount: "120,000원", status: "배송완료", hasPhoto: true },
+  { id: 8, manager: "김총무", date: at(daysAgo(7), "13:10"), address: "경남 창원시 의창구 중앙대로 250 창원컨벤션센터 2층 컨벤션홀", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "축하화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
+  { id: 9, manager: "이대리", date: at(daysAgo(10), "10:00"), address: "서울 강남구 테헤란로 152 강남파이낸스센터 지하1층 컨퍼런스홀", sender: "영업본부", profile: "주식회사 싱크플로 영업본부", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", hasPhoto: true },
+  { id: 10, manager: "박사원", date: at(daysAgo(12), "17:30"), address: "전북 전주시 덕진구 백제대로 567 전북대학교병원 장례식장 특2호실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: false },
+  { id: 11, manager: "최과장", date: at(daysAgo(14), "09:40"), address: "경기 수원시 영통구 광교중앙로 140 수원컨벤션센터 3층 컨벤션홀", sender: "홍길동", profile: "주식회사 싱크플로 대표이사 홍길동", product: "서양란(대)", amount: "150,000원", status: "배송완료", hasPhoto: true },
+  { id: 12, manager: "김총무", date: at(daysAgo(15), "11:00"), address: "대구 수성구 동대구로 99 대구은행 본점 2층 대강당", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
+  // 지난 달
+  { id: 13, manager: "오임찬", date: at(lastMonth(27), "14:00"), address: "서울 송파구 올림픽로 300 롯데월드타워 SKY31 컨벤션", sender: "오임찬", profile: "주식회사 싱크플로 재경팀 오임찬", product: "축하화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: true },
+  { id: 14, manager: "이대리", date: at(lastMonth(20), "10:30"), address: "충북 청주시 흥덕구 1순환로 776 청주성모병원 장례식장 5호실", sender: "이대리", profile: "주식회사 싱크플로 영업1팀 이대리", product: "근조화환(기본형)", amount: "70,000원", status: "배송완료", hasPhoto: false },
+  { id: 15, manager: "박사원", date: at(lastMonth(13), "16:20"), address: "강원 춘천시 백령로 156 강원대학교병원 장례식장 특실", sender: "김현수", profile: "주식회사 싱크플로 인사팀 김현수", product: "근조화환(고급형)", amount: "100,000원", status: "배송완료", hasPhoto: true },
+  { id: 16, manager: "김총무", date: at(lastMonth(6), "09:00"), address: "제주 제주시 첨단로 242 제주첨단과학기술단지 컨벤션홀", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", hasPhoto: false },
 ].map((o) => (o.status === "배송완료" ? { ...o, hasPhoto: true } : o)); // 배송완료 주문은 배송 현장사진이 항상 첨부됨
 
 // 주문현황 정렬 우선순위(상단→하단): 접수대기 → 주문접수 → 배송완료
