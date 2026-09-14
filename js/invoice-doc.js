@@ -168,6 +168,8 @@ function pageBlock(d, assetBase, rows, pageIdx, pageCount) {
       ${isFirst
         ? html`${infoTable("공급받는자", [
             [{ label: "사업장주소", value: d.buyer.address }],
+            // 부서는 동일 사업자번호를 부서별로 나눠 쓰는 거래처에만 실려 온다(없으면 행 자체가 빠짐).
+            ...(d.buyer.department ? [[{ label: "부서", value: d.buyer.department }]] : []),
             [{ label: "회사명", value: d.buyer.company }, { label: "사업자번호", value: d.buyer.bizNumber }, { label: "대표자명", value: d.buyer.ceo }],
             [{ label: "명세요약", value: d.buyer.summary }, { label: "명세서 발행일", value: d.buyer.issueDate }, { label: "계산서 발행", value: d.buyer.invoiceNote }],
           ])}
