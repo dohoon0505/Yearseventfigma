@@ -517,3 +517,30 @@
   .bf-right { margin-left: 0; flex: 1 1 100%; }
   .bf-srch--addr { flex: 1; width: auto; }
 }
+
+/* ── 거래처 목록: 사업자번호 그룹 접기 (동일 법인 부서 분리) ──────
+   같은 사업자번호를 2곳 이상이 쓰면 부모(회사) + 자식(부서) 2단으로 접는다.
+   행 종류는 tableGrid 의 rowClass 훅으로 붙는다. */
+.table-grid__row.is-group { background: var(--c-surface-hover); }
+.table-grid__row.is-child .table-grid__cell:nth-child(2) { padding-left: 26px; }
+.cli-grp {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: inherit; color: var(--c-text-strong); text-align: left;
+}
+.cli-grp b { font-weight: var(--fw-bold); min-width: 0; }
+.cli-grp:hover b { color: var(--c-orange-ink); }
+.cli-grp__chev {
+  flex: 0 0 auto; width: 6px; height: 6px; margin-top: -2px;
+  border-right: 1.5px solid var(--c-text-muted); border-bottom: 1.5px solid var(--c-text-muted);
+  transform: rotate(-45deg); transition: transform 0.15s, margin 0.15s;
+}
+.cli-grp[aria-expanded="true"] .cli-grp__chev { transform: rotate(45deg); margin-top: -4px; }
+.cli-badge {
+  flex: 0 0 auto; font-size: 11.5px; font-weight: var(--fw-bold);
+  color: var(--c-orange-ink); background: var(--c-orange-soft);
+  border-radius: 999px; padding: 2px 8px;
+}
+.cli-child { color: var(--c-text-3); font-size: var(--fs-13); }
+.cli-child::before { content: "↳"; margin-right: 5px; color: var(--c-text-faint); }
+.cli-dash { color: var(--c-text-faint); }
