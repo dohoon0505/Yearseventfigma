@@ -4,7 +4,8 @@
    store.clientPrices에 영속되며, 해당 거래처 계정으로 로그인하면
    '상품 규격 안내'의 금액에 반영된다. 비워두면 기본 단가 적용.
    ============================================================ */
-import { html, setHTML, on, qs, qsa, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
+import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, won } from "../store.js";
 import { pageTitle } from "../ui.js";
@@ -20,21 +21,13 @@ export function mount(root, { nav }) {
     category: "전체",
     draft: {}, // { [productKey]: number } working overrides for the selected client
   };
-  let toastEl = null;
-  let toastTimer = null;
+  const toast = makeToast();
 
   function loadDraft() {
     state.draft = { ...(store.get().clientPrices[state.clientId] || {}) };
   }
   loadDraft();
 
-  function toast(msg, kind = "ok") {
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
-    toastEl = el(html`<div class="admin-toast admin-toast--${kind}">${icon(kind === "warn" ? "alert-circle" : "check-circle", { size: 16 })}<span>${msg}</span></div>`);
-    document.body.appendChild(toastEl);
-    toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
-  }
 
   const visible = () => (state.category === "전체" ? ALL_PRODUCTS : ALL_PRODUCTS.filter((p) => p.category === state.category));
   const customCount = () => Object.values(state.draft).filter((v) => typeof v === "number" && v > 0).length;
@@ -165,7 +158,6 @@ export function mount(root, { nav }) {
     offChange();
     offClick();
     offInput();
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
+    toast.destroy();
   };
 }

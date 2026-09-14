@@ -3,7 +3,8 @@
    상단 필터(상태 탭 + 검색) · 가입 승인/거부 워크플로 · 상세/수정/생성/삭제.
    store.clients(영속). 모달은 HModal 규격(hm-field/hm-btn) + 커스텀 드롭다운.
    ============================================================ */
-import { html, setHTML, on, qs, qsa, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
+import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
@@ -62,19 +63,11 @@ export function mount(root, { nav }) {
   const state = { tab: "all", search: "", expanded: new Set() };
   let activeModal = null;
   let saveTimer = null;
-  let toastEl = null;
-  let toastTimer = null;
+  const toast = makeToast();
 
   function closeModal() {
     if (activeModal) { activeModal.close(); activeModal = null; }
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  }
-  function toast(msg, kind = "ok") {
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
-    toastEl = el(html`<div class="admin-toast admin-toast--${kind}">${icon(kind === "warn" ? "alert-circle" : "check-circle", { size: 16 })}<span>${msg}</span></div>`);
-    document.body.appendChild(toastEl);
-    toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
   }
 
   /** 자식 필드(담당자명·부서) 매칭 — 이 경우에만 그룹을 자동으로 펼친다. */
@@ -434,7 +427,6 @@ export function mount(root, { nav }) {
     offClick();
     offSearch();
     closeModal();
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
+    toast.destroy();
   };
 }

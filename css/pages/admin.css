@@ -74,37 +74,6 @@
   background: var(--c-danger-bg);
 }
 
-/* ── Toast ──────────────────────────────────────────────── */
-.admin-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 32px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  border-radius: var(--r-lg);
-  background: var(--c-text-strong);
-  color: #fff;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  box-shadow: var(--sh-modal);
-  z-index: 60;
-  max-width: 90vw;
-  animation: toastIn 0.2s ease;
-}
-.admin-toast--ok .icon {
-  color: #7be0a0;
-}
-.admin-toast--warn .icon {
-  color: #ffcf80;
-}
-@keyframes toastIn {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
-}
-
 /* ── 기업별 상품단가 설정 (admin-pricing) ────────────────── */
 .prc-default {
   color: var(--c-text-muted);

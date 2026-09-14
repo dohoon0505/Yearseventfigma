@@ -11,7 +11,8 @@
    - 신규 등록: 같은 모달, 레일·상태 액션 숨김, 강제 편집 모드, 등록 시 닫힘.
    데이터는 data/b2c-mock.js(세션 유지). 페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
-import { html, setHTML, on, qs, qsa, el } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
+import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDatepicker, openLightbox } from "../ui.js";
 import { getDateRange, formatDateLabel } from "../util/date.js";
@@ -81,7 +82,7 @@ export function mount(root, { nav }) {
   let isNew = false;
   let mode = "read";       // "read" | "edit" — 좌측 본문 렌더 모드
   const dds = [];          // makeDropdown 인스턴스 (renderModal 마다 destroy→재생성)
-  let toastEl = null, toastTimer = null;
+  const toast = makeToast();
 
   const findOrder = (id) => b2cList().find((o) => o.id === id);
 
@@ -89,13 +90,6 @@ export function mount(root, { nav }) {
     const m = activeModal;
     activeModal = null; editing = null;
     if (m) m.close();
-  }
-  function toast(msg, kind = "ok") {
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
-    toastEl = el(html`<div class="admin-toast admin-toast--${kind}">${icon(kind === "warn" ? "alert-circle" : "check-circle", { size: 16 })}<span>${msg}</span></div>`);
-    document.body.appendChild(toastEl);
-    toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
   }
 
   /* ── 목록 ─────────────────────────────────────────────── */
@@ -817,7 +811,6 @@ export function mount(root, { nav }) {
     offList(); offSearch();
     destroyFilterDps();
     closeModal();
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
+    toast.destroy();
   };
 }
