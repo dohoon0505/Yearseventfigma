@@ -285,7 +285,7 @@ export function mount(root, { nav }) {
       id, accountId: f.userId, password: f.password,
       companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
       managerName: f.managerName, department: f.department, contact: f.contact,
-      email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1",
+      email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1", clientNote: "",
     });
     // 최초 정산·회계 담당자 = 회원가입 시 작성한 담당자 (담당자 저장공간에 등록 후 지정)
     const contacts = store.get().contacts;

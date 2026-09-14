@@ -5,6 +5,7 @@
 import { html, setHTML, on, qs, qsa } from "./dom.js";
 import { nav } from "./router.js";
 import { clearRole } from "./session.js";
+import { currentClientName } from "./util/client.js";
 
 const MENU = [
   {
@@ -90,7 +91,7 @@ function buildShell(variant = "enterprise") {
   const brand =
     variant === "admin"
       ? { company: "관리자 콘솔" }
-      : { company: "(주)진양코퍼레이션" };
+      : { company: currentClientName() || "거래처 미지정" };
 
   const wrap = document.createElement("div");
   wrap.className = "shell";
@@ -103,7 +104,7 @@ function buildShell(variant = "enterprise") {
           <span class="shell__sep"></span>
           <div class="badge badge--company">
             <img src="./assets/company.png" alt="" />
-            <span>${brand.company}</span>
+            <span data-company>${brand.company}</span>
           </div>
           ${variant === "admin"
             ? ""
@@ -167,6 +168,12 @@ export function mountShell(appRoot, variant = "enterprise") {
     currentVariant = variant;
     appRoot.appendChild(shellEl);
     if (variant !== "admin") { renderDeadline(); deadlineTimer = setInterval(renderDeadline, 60000); }
+  }
+  // 셸은 /app/* 라우트 간 재사용되므로 배지는 마운트마다 갱신한다
+  // (로그인 직후·거래처 정보 수정 후에도 회사명이 따라오게).
+  if (variant !== "admin") {
+    const badge = qs(shellEl, "[data-company]");
+    if (badge) badge.textContent = currentClientName() || "거래처 미지정";
   }
   return qs(shellEl, ".shell__main");
 }

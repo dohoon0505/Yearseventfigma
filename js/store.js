@@ -7,7 +7,9 @@ import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
 /** @typedef {{no:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
-/** @typedef {{id:string,accountId:string,password:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string}} Client */
+/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,password?:string}} Client */
+/* password 는 셀프 가입(register.js)으로 만든 레코드에만 있다. 이관 시드에는 없다 —
+   관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
 
 /* ── Static product catalog (immutable) ─────────────────── */
 export const ALL_PRODUCTS = [
@@ -48,6 +50,13 @@ const INITIAL_PROFILES = [
   { no: "05", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
 ];
 
+/* 담당자의 배송완료 알림 수신 여부. 주문서의 알림 수신자 명단이 이 값으로 파생되므로
+   문자열 비교가 두 모듈(profile.js·order.js)에서 어긋나면 안 된다 → 여기서 단일 정의. */
+export const MSG_RECEIVE = "모든 배송완료 마다에 메세지를 수신합니다";
+export const MSG_NONE = "메세지를 수신하지 않습니다.";
+/** 배송완료 알림을 받는 담당자만. */
+export const receivingContacts = (contacts) => contacts.filter((c) => c.message === MSG_RECEIVE);
+
 const INITIAL_CONTACTS = [
   { no: "01", name: "할다운", role: "비서",   phone: "010-1111-2222", message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false },
   { no: "02", name: "오임찬", role: "재경부", phone: "010-3333-4444", message: "메세지를 수신하지 않습니다.",        isBilling: true },
@@ -55,7 +64,7 @@ const INITIAL_CONTACTS = [
 ];
 
 /* ── Reactive store ─────────────────────────────────────── */
-const KEY = "yeop.store.v3"; // v3: 싱크플로·대구가톨릭대(부서 2건) 시드 추가 + invoiceDay 필드
+const KEY = "yeop.store.v4"; // v4: 구 시스템 거래처 실데이터 이관(19곳) + clientNote 필드
 const subs = new Set();
 const SEED_BY_ID = new Map(INITIAL_CLIENTS.map((c) => [c.id, c]));
 

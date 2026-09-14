@@ -8,7 +8,7 @@
 import { setHTML, on, qs, html } from "../dom.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
-import { INITIAL_CLIENTS } from "../data/admin-mock.js";
+import { currentClient, currentClientName } from "../util/client.js";
 import { pageTitle, makeDropdown, simpleModal } from "../ui.js";
 import { sheetToXlsx } from "../util/xlsx.js";
 
@@ -104,14 +104,18 @@ const DB = {
     ],
   },
 };
-/* 공급받는자 — 데모 기업 계정(싱크플로) 거래처 레코드에서 파생.
-   하드코딩 대신 시드를 쓰므로 회사명·사업자번호를 고치면 문서와 토큰이 함께 따라온다. */
-const BUYER_CLIENT_ID = "C021";
-const BUYER_SEED = INITIAL_CLIENTS.find((c) => c.id === BUYER_CLIENT_ID);
-const BUYER = {
-  address: `${BUYER_SEED.address} ${BUYER_SEED.companyName}`, company: BUYER_SEED.companyName,
-  bizNumber: BUYER_SEED.bizNumber, ceo: BUYER_SEED.ceoName, summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급",
-};
+/* 공급받는자 — 로그인한 거래처에서 매번 파생한다(util/client.js).
+   모듈 로드 시점에 한 번 굽지 않는 이유: 셸 배지·정산 간편조회와 같은 거래처를
+   가리켜야 하고, 거래처 정보를 수정하면 문서에도 바로 반영돼야 한다. */
+function buyerOf() {
+  const c = currentClient();
+  if (!c) return { address: "", company: "", bizNumber: "", ceo: "", summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급" };
+  const name = currentClientName();
+  return {
+    address: `${c.address} ${name}`, company: name,
+    bizNumber: c.bizNumber, ceo: c.ceoName, summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급",
+  };
+}
 const YEARS = ["2024", "2025", "2026"];
 const MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
@@ -220,7 +224,7 @@ export function mount(root, { nav }) {
       _label: label,
       title: `${state.year.slice(2)}년 ${state.month}월 꽃배달 거래명세서`,
       period: `${label} 귀속`,
-      buyer: { ...BUYER, issueDate: data ? data.issue : "-" },
+      buyer: { ...buyerOf(), issueDate: data ? data.issue : "-" },
       supplier: SUPPLIER,
       items,
       account: ACCOUNT,
@@ -267,17 +271,18 @@ export function mount(root, { nav }) {
     const meta = (l, v) => { push([{ v: l, s: XS.mlabel }, { v, s: XS.mvalue }, bl(XS.mvalue), bl(XS.mvalue), bl(XS.mvalue)]); mr("B", "E"); };
     const foot = (l, v) => { push([{ v: l, s: XS.flabel }, { v, s: XS.fvalue }, bl(XS.fvalue), bl(XS.fvalue), bl(XS.fvalue)]); mr("B", "E"); };
 
+    const buyer = buyerOf();
     /* 제목 · 부제 */
     push([{ v: "거래명세서", s: XS.title }, bl(XS.title), bl(XS.title), bl(XS.title), bl(XS.title)]); mr("A", "E"); rowHeights[R] = 34;
-    push([{ v: `${label} 귀속 · ${BUYER.summary}`, s: XS.sub }, bl(XS.sub), bl(XS.sub), bl(XS.sub), bl(XS.sub)]); mr("A", "E"); rowHeights[R] = 18;
+    push([{ v: `${label} 귀속 · ${buyer.summary}`, s: XS.sub }, bl(XS.sub), bl(XS.sub), bl(XS.sub), bl(XS.sub)]); mr("A", "E"); rowHeights[R] = 18;
     push([]);
     /* 공급받는자 */
     band("■ 공급받는자");
-    meta("회사명", BUYER.company);
-    meta("사업자등록번호", BUYER.bizNumber);
-    meta("대표자", BUYER.ceo);
-    meta("소재지", BUYER.address);
-    meta("청구 항목", BUYER.summary);
+    meta("회사명", buyer.company);
+    meta("사업자등록번호", buyer.bizNumber);
+    meta("대표자", buyer.ceo);
+    meta("소재지", buyer.address);
+    meta("청구 항목", buyer.summary);
     push([]);
     /* 공급자 */
     band("■ 공급자");
@@ -399,7 +404,7 @@ export function mount(root, { nav }) {
     }),
     on(root, "click", "[data-excel]", downloadExcel),
     on(root, "click", "[data-link]", () => {
-      const token = issueLink({ clientId: BUYER_CLIENT_ID, bizNumber: BUYER.bizNumber, doc: currentDoc() });
+      const token = issueLink({ clientId: (currentClient() || {}).id || "", bizNumber: buyerOf().bizNumber, doc: currentDoc() });
       const url = publicInvoiceUrl(token);
       const ok = () => toast("거래명세서 열람링크가 복사되었습니다 · 링크만으로 접속이 가능해요");
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => window.prompt("거래명세서 열람링크 (복사하세요)", url));

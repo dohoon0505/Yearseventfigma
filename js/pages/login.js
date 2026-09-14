@@ -172,7 +172,10 @@ export function mount(root, { nav }) {
     // Map an enterprise login to its 거래처 when the credentials match a
     // client account → drives per-client pricing in 상품 규격 안내.
     if (role === "enterprise") {
-      const c = store.get().clients.find((x) => x.accountId === id && x.password === pw);
+      // 이관 시드에는 비밀번호가 없다(관리자가 읽을 수 없는 구조 — admin-clients 참조).
+      // 그래서 시드 계정은 아이디만 맞으면 통과시키고, 셀프 가입으로 만든 레코드만
+      // 저장된 비밀번호를 검사한다. DEMO 게이트이며 실서비스에서는 서버가 검증한다.
+      const c = store.get().clients.find((x) => x.accountId === id && (!x.password || x.password === pw));
       setClientId(c ? c.id : null);
     } else {
       clearClientId();
