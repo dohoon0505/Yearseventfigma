@@ -16,3 +16,13 @@
 .staff-notifyrow > div { min-width: 0; }
 .staff-notifyrow label { margin-bottom: 0; }
 .staff-notifyrow .hm-help { margin-top: 3px; }
+
+/* ── 계정·권한 (구 시스템 '사용자 리스트' 흡수) ───────────── */
+.staff-acct { font-size: var(--fs-13); color: var(--c-text-2); font-family: var(--font-mono, inherit); }
+.staff-role {
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
+  background: var(--c-surface-3); color: var(--c-text-2);
+  font-size: 11.5px; font-weight: var(--fw-semibold);
+}
+/* 최고관리자는 권한 범위가 다르므로 한눈에 구분되게 */
+.staff-role--su { background: var(--c-blue-soft); color: var(--c-blue); }
