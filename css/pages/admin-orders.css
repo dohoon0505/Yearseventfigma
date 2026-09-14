@@ -1,0 +1,30 @@
+/* ============================================================
+   admin-orders.css — 거래처 주문관리(#/admin/orders) 전용.
+   레이아웃·필터 카드(.bf-*)·표(.tbl-*)·모달(.hm-*)은 공용을 그대로 쓰고,
+   이 파일에는 이 화면에만 있는 표기만 둔다.
+   색은 tokens.css 토큰만.
+   ============================================================ */
+
+/* 표 셀 표기 */
+.ao-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.ao-dim { color: var(--c-text-muted); }
+.ao-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+
+/* 거래 조건(clientNote)이 있는 거래처 표시 — 목록에서 미리 알아보게 한다.
+   상세를 열면 같은 내용이 .ao-note-box 배너로 뜬다. */
+.ao-note {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
+  background: var(--c-danger-bg); color: var(--c-danger-ink);
+  font-size: 10px; font-weight: var(--fw-bold); line-height: 1; vertical-align: middle;
+}
+.ao-note-box { margin-bottom: 16px; white-space: pre-line; }
+
+/* 모달 정의행 — 라벨 고정폭 + 값 */
+.ao-row {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px;
+  align-items: start; padding: 9px 0; border-bottom: 1px solid var(--c-border-light);
+}
+.ao-row:last-of-type { border-bottom: 0; }
+.ao-row__k { font-size: var(--fs-13); color: var(--c-text-muted); }
+.ao-row__v { font-size: var(--fs-13); color: var(--c-text-strong); font-weight: var(--fw-semibold); word-break: break-all; }
