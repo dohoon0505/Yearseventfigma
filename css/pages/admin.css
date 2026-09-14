@@ -544,3 +544,10 @@
 .cli-child { color: var(--c-text-3); font-size: var(--fs-13); }
 .cli-child::before { content: "↳"; margin-right: 5px; color: var(--c-text-faint); }
 .cli-dash { color: var(--c-text-faint); }
+
+/* 정산 표 거래처명 옆 부서 칩 — 사업자번호를 공유하는 거래처만 표시 */
+.settle-dept {
+  flex: 0 0 auto; margin-left: 6px; font-size: 11.5px;
+  color: var(--c-text-muted); background: var(--c-surface-3);
+  border-radius: var(--r-sm); padding: 1px 6px;
+}

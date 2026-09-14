@@ -5,6 +5,8 @@
    DOM 의존 없음(Node 검증 가능). 데이터가 없는 월은 null 반환.
    ============================================================ */
 
+import { sharedBizKeys, displayName } from "../util/biz.js";
+
 const pad2 = (n) => String(n).padStart(2, "0");
 export const ymLabelOf = (y, m) => `${y}년 ${pad2(m)}월`;
 const wonFmt = (n) => Number(n).toLocaleString("ko-KR") + "원";
@@ -30,6 +32,8 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
   const label = ymLabelOf(year, month);
   const rows = monthRows(label, clients, usage);
   if (rows.length === 0) return null; // 데이터 없는 월
+  // 동일 사업자번호를 부서별로 나눠 쓰는 거래처는 표시명에 부서를 병기해 합산으로 오인되지 않게 한다.
+  const shared = sharedBizKeys(clients);
 
   const prev = shiftMonth(year, month, -1);
   const prevLabel = ymLabelOf(prev.y, prev.m);
@@ -68,7 +72,8 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
       const p = prevById[r.client.id];
       return {
         id: r.client.id,
-        name: r.client.companyName,
+        name: displayName(r.client, shared), // 동일 사업자번호 거래처만 "회사명 부서"로 구분
+
         orders: r.orders,
         total: r.total,
         share: pct(r.total, total),
@@ -130,8 +135,8 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
     paid: paidRecs.length,
     paidAmount,
     unpaidAmount,
-    // 스토어의 현재 회사명 사용(레코드의 입금자는 모듈 로드 시점 스냅샷이라 개명 시 어긋남)
-    unpaidNames: unpaidRecs.map(({ client }) => client.companyName),
+    // 스토어의 현재 회사명 사용 + 동일 사업자번호는 부서로 구분
+    unpaidNames: unpaidRecs.map(({ client }) => displayName(client, shared)),
     paidRate: recs.length ? Math.round((paidRecs.length / recs.length) * 100) : 0,
   };
 

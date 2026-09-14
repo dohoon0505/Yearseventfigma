@@ -10,6 +10,7 @@ import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { settlementsFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
@@ -48,7 +49,8 @@ const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서�
 const buildDoc = (client, rec) => ({
   title: `${rec.청구년월} 꽃배달 거래명세서`,
   period: `${rec.청구년월} 귀속`,
-  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 },
+  // 부서는 사업자번호를 공유하는 거래처에만 — 그 외엔 빈 값이라 문서에서 행 자체가 빠진다.
+  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 },
   supplier: SUPPLIER,
   items: [{ date: rec.청구년월, sender: "-", address: "-", product: `${rec.청구년월} 꽃배달 이용료 합계`, amount: rec.정산금액 }],
   account: ACCOUNT,
@@ -250,6 +252,9 @@ export function mount(root, { nav }) {
     if (rows.length === 0) {
       return html`<div class="admin-empty">선택한 조건(${state.year}년 ${pad(state.month)}월)에 정산 내역이 없습니다.</div>`;
     }
+    /* 부서 칩은 사업자번호를 공유하는 거래처에만 — 전 거래처에 부서가 있어
+       무조건 병기하면 모든 행이 노이즈가 된다. */
+    const sharedBiz = sharedBizKeys(store.get().clients);
     return html`
       <div class="settle-table">
         <div class="settle-thead" style="grid-template-columns:${COL}">
@@ -258,7 +263,7 @@ export function mount(root, { nav }) {
         ${rows.map(
           ({ client, rec }) => html`
             <div class="settle-trow" style="grid-template-columns:${COL}">
-              <div class="settle-td"><span class="ellipsis">${client.companyName}</span></div>
+              <div class="settle-td"><span class="ellipsis">${client.companyName}</span>${sharedBiz.has(normalizeBiz(client.bizNumber)) && client.department ? html`<span class="settle-dept">${client.department}</span>` : ""}</div>
               <div class="settle-td"><span class="settle-amount">${rec.정산금액}</span></div>
               <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
