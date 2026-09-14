@@ -9,6 +9,7 @@ import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
 import { INVOICE_DAYS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
+import { formatDateLabel } from "../util/date.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 const TABS = [
@@ -21,21 +22,21 @@ const TABS = [
 
 const FIELDS = [
   { section: "계정 정보" },
-  { key: "accountId", label: "접속 아이디", icon: "user", grid: true, lockOnEdit: true, required: true },
-  { key: "password", label: "비밀번호", icon: "hash", grid: true, required: true },
+  { key: "accountId", label: "접속 아이디", grid: true, lockOnEdit: true, required: true },
+  { key: "password", label: "비밀번호", grid: true, required: true },
   { section: "회사 정보" },
-  { key: "companyName", label: "회사명", icon: "building2", required: true },
-  { key: "bizNumber", label: "사업자번호", icon: "hash", grid: true, required: true, hint: true },
-  { key: "ceoName", label: "대표자명", icon: "user", grid: true, required: true },
+  { key: "companyName", label: "회사명", required: true },
+  { key: "bizNumber", label: "사업자번호", grid: true, required: true, hint: true },
+  { key: "ceoName", label: "대표자명", grid: true, required: true },
   { section: "담당자 정보" },
-  { key: "managerName", label: "담당자명", icon: "user-check", grid: true, required: true },
-  { key: "department", label: "부서·직위", icon: "building2", grid: true, hint: true },
-  { key: "contact", label: "연락처", icon: "phone", grid: true, required: true },
-  { key: "email", label: "계산서 이메일", icon: "mail", grid: true },
+  { key: "managerName", label: "담당자명", grid: true, required: true },
+  { key: "department", label: "부서·직위", grid: true, hint: true },
+  { key: "contact", label: "연락처", grid: true, required: true },
+  { key: "email", label: "계산서 이메일", grid: true },
   { section: "기타" },
-  { key: "address", label: "사업장주소", icon: "map-pin" },
+  { key: "address", label: "사업장주소" },
   { key: "status", label: "상태", type: "select", options: STATUS_OPTS, grid: true },
-  { key: "joinDate", label: "가입일", icon: "calendar-days", grid: true },
+  { key: "joinDate", label: "가입일", grid: true },
   /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
      28개 목록이 잘리지 않고, 인접 grid 짝짓기(fieldsHtml)도 건드리지 않는다. */
   { section: "계산서 발급" },
@@ -53,10 +54,6 @@ const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s
 function nextId(clients) {
   const max = clients.reduce((m, c) => Math.max(m, parseInt(String(c.id).replace(/\D/g, ""), 10) || 0), 0);
   return "C" + String(max + 1).padStart(3, "0");
-}
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function mount(root, { nav }) {
@@ -247,7 +244,7 @@ export function mount(root, { nav }) {
     return html`
       <div class="hm-field">
         <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}${f.hint ? html`<span class="req" data-reqmark="${f.key}" hidden>*</span>` : ""}</label>
-        <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.placeholder ?? f.label}" ${locked ? "disabled" : ""} />
+        <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.label}" ${locked ? "disabled" : ""} />
         ${f.hint ? html`<p class="hm-help" data-hint="${f.key}"></p>` : ""}
       </div>
     `;
@@ -258,7 +255,7 @@ export function mount(root, { nav }) {
     const isEdit = !!client;
     const form = client
       ? { ...client }
-      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: todayStr(), invoiceDay: "1" };
+      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1" };
     /* 사업자번호 중복은 "같은 법인의 부서 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
        대신 부서를 비워두면 목록에서 두 레코드를 구분할 수 없으므로 그때만 부서를 필수로 올린다. */
     const dupes = () => store.get().clients.filter(
