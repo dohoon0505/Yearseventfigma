@@ -65,15 +65,15 @@ const pad2 = (n) => String(n).padStart(2, "0");
 const hourOptions = () => Array.from({ length: BIZ.closeH - BIZ.openH + 1 }, (_, i) => pad2(BIZ.openH + i));
 const minOptions = (hour) => (+hour === BIZ.closeH ? ["00", "10", "20", "30"] : ["00", "10", "20", "30", "40", "50"]);
 /* 배송 시간대 구분:
-   beforeOpen 00:00~09:00 · biz 09:00~18:30 · evening 18:30~20:00(야간) · night 20:00~24:00
-   즉시배송 버튼은 biz/beforeOpen 에는 '즉시배송', evening/night 에는 '익일 빠른배송'으로 전환. */
-const NIGHT_CLOSE = 20 * 60; // 야간배송 마감 20:00
+   beforeOpen 00:00~09:00 · biz 09:00~18:30 · afterClose 18:30~24:00
+   즉시배송 버튼은 biz/beforeOpen 에는 '즉시배송', afterClose 에는 '익일 빠른배송'으로 전환.
+   ※ 야간배송을 없애면서 18:30~20:00(evening)과 20:00~(night)을 나눌 이유가 사라졌다 —
+     둘 다 '오늘은 마감, 내일 배송'으로 동일하게 처리된다. */
 const timePhase = (d) => {
   const t = d.getHours() * 60 + d.getMinutes();
   if (t < BIZ.openH * 60) return "beforeOpen";
   if (t <= BIZ.closeH * 60 + BIZ.closeM) return "biz";
-  if (t <= NIGHT_CLOSE) return "evening";
-  return "night";
+  return "afterClose";
 };
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 const fmtYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -184,8 +184,6 @@ function markup() {
             <div class="seg seg--deliv">
               <button data-seg="sched" class="sel">날짜 · 시간 지정</button>
               <button data-seg="imm">즉시배송</button>
-              <button data-seg="urgent">긴급배송</button>
-              <button data-seg="night">야간배송</button>
             </div>
             <div class="dt-row" data-dt-row>
               <div class="dd datepick" data-dd-date>
@@ -508,7 +506,7 @@ export function mount(root, { nav }) {
   }
   /* 즉시/익일 빠른배송 선택 시 날짜·시간 픽커를 실제 배송 슬롯으로 동기화:
      영업시간(biz) → 접수시각 + 4시간(분 30분 단위 반올림), 마감(18:30) 초과 시 마감으로 클램프.
-       예) 13:23 접수 → 17:30. · 영업 후(evening/night) → 익일 12:30 · 영업 전(beforeOpen) → 당일 12:30. */
+       예) 13:23 접수 → 17:30. · 영업 후(afterClose) → 익일 12:30 · 영업 전(beforeOpen) → 당일 12:30. */
   function applyImmSlot() {
     const ph = timePhase(new Date());
     const base = new Date();
@@ -520,7 +518,7 @@ export function mount(root, { nav }) {
       dpDate.renderTrigger(); ddHour.renderTrigger(); ddMin.renderTrigger();
       return;
     }
-    if (ph === "evening" || ph === "night") base.setDate(base.getDate() + 1);
+    if (ph === "afterClose") base.setDate(base.getDate() + 1);
     state.date = fmtYMD(base);
     state.hour = "12";
     state.min = "30";
@@ -532,29 +530,23 @@ export function mount(root, { nav }) {
     const ph = timePhase(new Date());
     let lines = [], tone = "ok";
     if (state.deliv === "imm") {
-      if (ph === "evening" || ph === "night") lines = ["금일 영업시간이 종료되어 다음 날 오전에 배송됩니다."];
+      if (ph === "afterClose") lines = ["금일 영업시간이 종료되어 다음 날 오전에 배송됩니다."];
       else if (ph === "beforeOpen") lines = ["영업 시작(09:00) 후 순차 배송되어 오늘 낮 12시 30분경 배송돼요."];
       else { const d = immBizSlot(); lines = [`영업시간 내 접수 건은 4시간 이내(오늘 ${pad2(d.getHours())}:${pad2(d.getMinutes())}경)에 배송해 드려요.`]; }
-    } else if (state.deliv === "urgent") {
-      lines = ["2시간 내 긴급하게 배송 요청 시 선택해주세요.", "최대 1만원의 비용이 추가로 발생합니다."]; tone = "warn";
-    } else if (state.deliv === "night") {
-      lines = ["18:30 이후 야간 배송이 필요한 경우 선택해주세요.", "화훼 농가와 배송 인프라 확인 후 가능유무를 안내드립니다."]; tone = "warn";
     }
     if (!lines.length) { note.classList.remove("show"); setHTML(note, ""); return; }
     note.className = `imm-note imm-note--${tone} show`;
     setHTML(note, html`${lines.map((l, i) => html`<span class="imm-note__line ${i ? "is-sub" : ""}">${l}</span>`)}`);
   }
-  /* 시간대에 따라 즉시배송 라벨 전환 + 긴급/야간 신청 가능여부 갱신 (1분 주기) */
+  /* 시간대에 따라 즉시배송 라벨을 전환한다 (1분 주기).
+     영업시간(09:00~18:30)에는 '즉시배송', 마감 후에는 '익일 빠른배송' — 같은 버튼이고
+     접수 시각에 따라 실제 배송 슬롯이 달라진다는 사실을 라벨로 알린다.
+     ※ 긴급배송·야간배송은 요금·가용성 정책이 확정되지 않아 제거했다(구 시스템에도 없던 옵션). */
   function applyBizRule() {
     const ph = timePhase(new Date());
-    $('[data-seg="imm"]').textContent = ph === "evening" || ph === "night" ? "익일 빠른배송" : "즉시배송";
-    const urgentOk = ph === "biz";
-    const nightOk = ph === "evening"; // 야간배송은 영업 종료(18:30) 후 야간 시간대에만 신청 가능
-    const ub = $('[data-seg="urgent"]'), nb = $('[data-seg="night"]');
-    ub.disabled = !urgentOk; ub.title = urgentOk ? "" : "긴급배송은 09:00 ~ 18:30 에만 신청할 수 있어요";
-    nb.disabled = !nightOk; nb.title = nightOk ? "" : "야간배송은 18:30 ~ 20:00 배송 건에 한해 신청할 수 있어요";
-    if ((state.deliv === "urgent" && !urgentOk) || (state.deliv === "night" && !nightOk)) setDeliv("sched");
-    else { if (state.deliv === "imm") applyImmSlot(); renderDelivNote(); }
+    $('[data-seg="imm"]').textContent = ph === "afterClose" ? "익일 빠른배송" : "즉시배송";
+    if (state.deliv === "imm") applyImmSlot();
+    renderDelivNote();
   }
 
   /* ── STEP 3 · 리본문구 · 보내는분 (텍스트 입력 + 간편선택 모달) ── */
@@ -619,10 +611,8 @@ export function mount(root, { nav }) {
       const d = new Date(state.date + "T00:00:00");
       return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]}) ${state.hour}:${state.min}`;
     }
-    if (state.deliv === "urgent") return "긴급배송 · 2시간 내";
-    if (state.deliv === "night") return "야간배송 · 18:30 ~ 20:00";
     const ph = timePhase(new Date()); // imm
-    if (ph === "evening" || ph === "night") {
+    if (ph === "afterClose") {
       const t = new Date(); t.setDate(t.getDate() + 1);
       return `익일 빠른배송 · ${t.getMonth() + 1}월 ${t.getDate()}일 (${DOW[t.getDay()]}) 12:30`;
     }
