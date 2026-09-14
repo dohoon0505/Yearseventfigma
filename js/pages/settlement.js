@@ -4,24 +4,27 @@
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, openModal } from "../ui.js";
+import { store } from "../store.js";
+import { getClientId } from "../session.js";
+import { settlementsFor, invoiceDayOf } from "../data/admin-mock.js";
+import { sharedBizKeys, displayName } from "../util/biz.js";
 
-const DEFAULT_COMPANY = {
-  회사명: "주식회사 싱크플로",
-  사업자번호: "680-87-02988",
-  대표자명: "홍길동",
-  계산서이메일: "admin@thinkflow.info",
-  담당자명: "홍길동",
-  담당자연락처: "010-7615-2699",
-  사업장주소: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사",
-};
+/* 로그인한 거래처 레코드 → 이 화면의 회사정보 블록.
+   계정이 실제 거래처와 매칭되지 않는 데모 로그인이면 첫 거래처로 폴백한다. */
+function currentClient() {
+  const clients = store.get().clients;
+  return clients.find((c) => c.id === getClientId()) || clients[0] || null;
+}
+const companyOf = (c) => ({
+  회사명: c.companyName,
+  사업자번호: c.bizNumber,
+  대표자명: c.ceoName,
+  계산서이메일: c.email,
+  담당자명: c.managerName,
+  담당자연락처: c.contact,
+  사업장주소: c.address,
+});
 
-const settlementData = [
-  { id: "B256C987", 발행일: "2026. 05. 01", 정산기한: "2026. 05. 31", 청구내역: "2026년 04월 꽃배달 이용금 청구", 청구년월: "2026년 04월", 정산금액: "350,000원", 입금자: "홍길동", 계산서발급: "동의하기", 정산확인: "정산필요" },
-  { id: "C379D421", 발행일: "2026. 04. 01", 정산기한: "2026. 04. 30", 청구내역: "2026년 03월 꽃배달 이용금 청구", 청구년월: "2026년 03월", 정산금액: "650,000원", 입금자: "홍길동", 계산서발급: "발급완료", 정산확인: "정산완료" },
-  { id: "D4816E54", 발행일: "2026. 03. 01", 정산기한: "2026. 03. 31", 청구내역: "2026년 02월 꽃배달 이용금 청구", 청구년월: "2026년 02월", 정산금액: "500,000원", 입금자: "홍길동", 계산서발급: "발급완료", 정산확인: "정산완료" },
-  { id: "E592F876", 발행일: "2026. 02. 01", 정산기한: "2026. 02. 28", 청구내역: "2026년 01월 꽃배달 이용금 청구", 청구년월: "2026년 01월", 정산금액: "1,250,000원", 입금자: "홍길동", 계산서발급: "발급완료", 정산확인: "정산완료" },
-  { id: "F613G298", 발행일: "2026. 01. 01", 정산기한: "2026. 01. 31", 청구내역: "2025년 12월 꽃배달 이용금 청구", 청구년월: "2025년 12월", 정산금액: "700,000원", 입금자: "홍길동", 계산서발급: "발급완료", 정산확인: "정산완료" },
-];
 
 const COL = "118px 120px 120px 1fr 120px 70px 200px 100px 100px";
 const HEADERS = ["문서 번호", "청구서 발행일", "정산 기한", "청구 내역", "정산금액", "입금자", "거래명세서", "계산서발급", "정산확인"];
@@ -49,7 +52,8 @@ const EDIT_FIELDS = [
 ];
 
 export function mount(root, { nav }) {
-  const state = { company: { ...DEFAULT_COMPANY } };
+  const client = currentClient();
+  const state = { company: client ? companyOf(client) : null };
   let activeModal = null;
   let saveTimer = null;
   function closeModal() {
@@ -70,6 +74,20 @@ export function mount(root, { nav }) {
 
   function render() {
     const c = state.company;
+    if (!c) {
+      setHTML(root, html`
+        <div class="page-settlement">
+          <div class="settle-inner">
+            ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "정산회계 간편조회" })}
+            <div class="admin-empty">연결된 거래처 정보가 없습니다.</div>
+          </div>
+        </div>
+      `);
+      return;
+    }
+    /* 표는 거래처 레코드에서 파생 — 관리자 정산 화면과 같은 데이터를 본다. */
+    const rows = settlementsFor(client);
+    const 표시명 = displayName(client, sharedBizKeys(store.get().clients));
     setHTML(
       root,
       html`
@@ -81,20 +99,20 @@ export function mount(root, { nav }) {
             </div>
 
             <div class="settle-company">
-              ${infoRow([{ label: "회사명", value: c.회사명 }, { label: "사업자번호", value: c.사업자번호 }, { label: "대표자명", value: c.대표자명 }])}
+              ${infoRow([{ label: "회사명", value: 표시명 }, { label: "사업자번호", value: c.사업자번호 }, { label: "대표자명", value: c.대표자명 }])}
               ${infoRow([{ label: "계산서 이메일", value: c.계산서이메일 }, { label: "담당자명", value: c.담당자명 }, { label: "담당자 연락처", value: c.담당자연락처 }])}
               ${infoRow([{ label: "사업장주소", value: c.사업장주소, flex: 3 }])}
             </div>
 
             <div class="settle-notice">
-              <p>📌 매월 1일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong></p>
+              <p>📌 매월 ${invoiceDayOf(client)}일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong></p>
             </div>
 
             <div class="settle-table">
               <div class="settle-thead" style="grid-template-columns:${COL}">
                 ${HEADERS.map((h) => html`<div class="settle-th">${h}</div>`)}
               </div>
-              ${settlementData.map(
+              ${rows.map(
                 (r) => html`<div class="settle-trow" style="grid-template-columns:${COL}">
                   <div class="settle-td"><button class="settle-link" data-action="invoice"><span>${icon("file-text", { size: 13 })}</span>${r.id}</button></div>
                   <div class="settle-td settle-td--muted">${r.발행일}</div>
@@ -104,7 +122,7 @@ export function mount(root, { nav }) {
                   <div class="settle-td settle-td--muted">${r.입금자}</div>
                   <div class="settle-td"><button class="settle-link" data-action="invoice">${r.청구년월} 명세서 조회 ${icon("external-link", { size: 11 })}</button></div>
                   <div class="settle-td">${invoiceBadge(r.계산서발급)}</div>
-                  <div class="settle-td">${settleBadge(r.정산확인)}</div>
+                  <div class="settle-td">${settleBadge(r.입금완료 === "입금완료" ? "정산완료" : "정산필요")}</div>
                 </div>`
               )}
             </div>
