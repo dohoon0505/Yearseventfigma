@@ -4,6 +4,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
+import { attachmentOf, fileSizeLabel } from "../util/image.js";
 
 const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
 const BENEFITS = [
@@ -32,6 +33,9 @@ export function mount(root, { nav }) {
       userId: "", password: "", passwordConfirm: "",
       managerName: "", department: "", contact: "",
       bizNumber: "", companyName: "", ceoName: "", address: "", email: "",
+      /* 사업자등록증 — 관리자가 승인 전에 확인할 증빙. 이미지는 축소해 보관하고
+         PDF 는 파일명만 남긴다(실서비스에서는 서버 업로드 후 URL 만 저장). */
+      bizLicense: null,
     },
   };
 
@@ -134,6 +138,16 @@ export function mount(root, { nav }) {
       ${field({ label: "대표자명", name: "ceoName", placeholder: "대표자 성명을 입력해주세요" })}
       ${field({ label: "사업장 소재지", name: "address", placeholder: "사업자등록증 상의 주소를 입력해주세요" })}
       ${field({ label: "계산서 수신 이메일", name: "email", type: "email", placeholder: "세금계산서를 수신할 이메일 주소" })}
+      <div class="rf" data-field="bizLicense">
+        <label class="rf__label">사업자등록증<span class="rf__req">*</span></label>
+        <input type="file" accept="image/*,application/pdf" data-license-input hidden />
+        <button type="button" class="rf-file" data-action="pick-license">
+          ${state.form.bizLicense
+            ? html`<span class="rf-file__name">${state.form.bizLicense.name} · ${fileSizeLabel(state.form.bizLicense.size)}</span><span class="rf-file__re">다시 선택</span>`
+            : html`<span class="rf-file__name rf-file__name--empty">파일을 선택해주세요 (이미지 또는 PDF)</span><span class="rf-file__re">파일 선택</span>`}
+        </button>
+        <p class="rf__hint">가입 승인 심사에 쓰입니다. 사업자번호·대표자명이 등록증과 일치해야 합니다.</p>
+      </div>
       <button type="button" class="rf-sign">
         <span class="rf-sign__l">${icon("check-circle", { size: 14 })} 계약서 전자서명</span>
         <span class="rf-sign__r">서명하기 ${icon("arrow-right", { size: 10 })}</span>
@@ -267,9 +281,14 @@ export function mount(root, { nav }) {
   function goNext() {
     if (state.step === 1 && check({ userId: "아이디를 입력해주세요", password: "비밀번호를 입력해주세요", passwordConfirm: "비밀번호를 확인해주세요" })) state.step = 2;
     else if (state.step === 2 && check({ managerName: "담당자명을 입력해주세요", department: "부서·직위를 입력해주세요", contact: "연락처를 입력해주세요" })) state.step = 3;
-    else if (state.step === 3 && check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" })) {
-      registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
-      state.step = "done";
+    else if (state.step === 3) {
+      const ok = check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" });
+      /* 사업자등록증은 승인 심사의 근거다 — 없으면 관리자가 무엇을 보고 승인할지가 없다. */
+      if (!state.form.bizLicense) { state.errors.bizLicense = "사업자등록증을 첨부해주세요"; renderWizard(); return; }
+      if (ok) {
+        registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
+        state.step = "done";
+      }
     }
     renderWizard();
   }
@@ -286,6 +305,9 @@ export function mount(root, { nav }) {
       companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
       managerName: f.managerName, department: f.department, contact: f.contact,
       email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1", clientNote: "",
+      bizLicense: f.bizLicense,
+      /* 셀프 가입은 영업 경로가 'SNS·홈페이지'로 고정된다 — 관리자가 등록하면 비어 있다. */
+      salesRoute: "셀프 가입", salesMemo: "", salesDate: joinDate,
     });
     // 최초 정산·회계 담당자 = 회원가입 시 작성한 담당자 (담당자 저장공간에 등록 후 지정)
     const contacts = store.get().contacts;
@@ -387,7 +409,10 @@ export function mount(root, { nav }) {
     if (action === "to-login") nav("#/login");
     else if (action === "next") goNext();
     else if (action === "prev") goPrev();
-    else if (action === "toggle-pw") {
+    else if (action === "pick-license") {
+      const inp = qs(root, "[data-license-input]");
+      if (inp) inp.click();
+    } else if (action === "toggle-pw") {
       const key = t.dataset.eye; // showPw | showPwC
       state[key] = !state[key];
       const input = qs(t.closest(".rf"), "input");
@@ -397,8 +422,19 @@ export function mount(root, { nav }) {
     }
   });
 
+  /* 첨부 선택 — 이미지는 축소해 보관한다(localStorage 용량). 실패해도 이름·용량은 남는다. */
+  const offFile = on(root, "change", "[data-license-input]", async (e, t) => {
+    const file = t.files && t.files[0];
+    t.value = ""; // 같은 파일 재선택이 먹히도록
+    if (!file) return;
+    state.form.bizLicense = await attachmentOf(file);
+    delete state.errors.bizLicense;
+    renderWizard();
+  });
+
   return () => {
     offInput();
     offClick();
+    offFile();
   };
 }

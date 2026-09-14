@@ -7,13 +7,17 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
-import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
+import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
+import { fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
+/* 구 시스템 계약체결 리스트(302)의 '계약요청유형'. 별도 화면 대신 거래처 레코드에
+   붙였다 — 승인대기 탭이 이미 파이프라인 역할을 하므로 화면을 하나 더 두지 않는다. */
+const SALES_ROUTES = ["미지정", "우체국 문서발송", "업체 방문영업", "SNS", "셀프 가입", "지인 소개", "기타"];
 const TABS = [
   { value: "all", label: "전체" },
   { value: "활성", label: "활성" },
@@ -44,6 +48,11 @@ const FIELDS = [
   { key: "joinDate", label: "가입일", grid: true },
   /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
      28개 목록이 잘리지 않고, 인접 grid 짝짓기(fieldsHtml)도 건드리지 않는다. */
+  { section: "증빙 · 영업" },
+  { key: "bizLicense", type: "attach", label: "사업자등록증" },
+  { key: "salesRoute", label: "유입 경로", type: "select", options: SALES_ROUTES, grid: true },
+  { key: "salesDate", label: "영업·요청일", grid: true },
+  { key: "salesMemo", label: "영업 메모", placeholder: "예) 3월 방문 상담, 경조화환 월 20건 예상" },
   { section: "계산서 발급" },
   {
     key: "invoiceDay", label: "계산서 발급일", type: "select", options: INVOICE_DAYS,
@@ -142,12 +151,14 @@ export function mount(root, { nav }) {
     { label: "상태", width: "92px", align: "center", render: (r) => (r.kind === "group" ? dash : statusPill(r.client.status)) },
     { label: "가입일", width: "108px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.joinDate) },
     {
-      label: "관리", width: "148px", align: "center",
+      label: "관리", width: "184px", align: "center",
       render: (r) => {
         if (r.kind === "group") return dash; // 개별 관리는 자식 행에서
         const c = r.client;
+        /* 승인대기 행에도 상세를 연다 — 사업자등록증을 못 보고 승인하면 심사가 아니다. */
         return c.status === "승인대기"
           ? html`<div class="admin-rowact">
+              <button class="ptbl-edit" data-action="edit" data-id="${c.id}" aria-label="가입 정보 확인">${icon("search", { size: 14 })}</button>
               <button class="btn-approve" data-action="approve" data-id="${c.id}">승인</button>
               <button class="btn-reject" data-action="reject" data-id="${c.id}">거부</button>
             </div>`
@@ -228,6 +239,23 @@ export function mount(root, { nav }) {
 
   // ── create/edit modal (HModal 규격) ────────────────────
   function field(f, form, isEdit) {
+    if (f.type === "attach") {
+      const a = form[f.key];
+      if (!a) {
+        return html`<div class="hm-field"><label>${f.label}</label><p class="hm-help">첨부 없음 — 관리자가 등록한 거래처이거나 이관 전 계정입니다.</p></div>`;
+      }
+      return html`
+        <div class="hm-field">
+          <label>${f.label}</label>
+          <div class="cli-attach">
+            ${a.dataUrl
+              ? html`<img class="cli-attach__img" src="${a.dataUrl}" alt="사업자등록증 미리보기" data-action="attach-zoom" />`
+              : html`<span class="cli-attach__none">미리보기 없음</span>`}
+            <span class="cli-attach__meta"><b>${a.name}</b><span>${fileSizeLabel(a.size)}</span></span>
+          </div>
+          <p class="hm-help">가입 승인 심사용 증빙입니다. 사업자번호·대표자명이 등록증과 일치하는지 확인하세요.</p>
+        </div>`;
+    }
     if (f.type === "action") {
       return html`
         <div class="hm-field">
@@ -267,8 +295,8 @@ export function mount(root, { nav }) {
     closeModal();
     const isEdit = !!client;
     const form = client
-      ? { ...client }
-      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1" };
+      ? { salesRoute: "미지정", salesDate: "", salesMemo: "", bizLicense: null, clientNote: "", ...client }
+      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1", clientNote: "", bizLicense: null, salesRoute: "미지정", salesDate: "", salesMemo: "" };
     /* 사업자번호 중복은 "같은 법인의 부서 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
        대신 부서를 비워두면 목록에서 두 레코드를 구분할 수 없으므로 그때만 부서를 필수로 올린다. */
     const dupes = () => store.get().clients.filter(
@@ -372,6 +400,10 @@ export function mount(root, { nav }) {
         el.setSelectionRange(el.value.length, el.value.length);
         syncSave();
       });
+    });
+    on(activeModal.panel, "click", "[data-action='attach-zoom']", () => {
+      const a = form.bizLicense;
+      if (a && a.dataUrl) openLightbox({ src: a.dataUrl, alt: "사업자등록증", caption: `${form.companyName} 사업자등록증` });
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
