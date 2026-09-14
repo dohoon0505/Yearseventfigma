@@ -75,7 +75,7 @@
 /* ── Lightbox (사진 탭 → contain 보기) ── */
 .lightbox { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(17, 17, 24, 0.92); cursor: zoom-out; }
 .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--r-sm); }
-.lightbox__close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.14); color: #fff; cursor: pointer; border: 0; }
+.lightbox__close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.14); color: var(--c-surface); cursor: pointer; border: 0; }
 .lightbox__close:hover { background: rgba(255, 255, 255, 0.24); }
 .lightbox__close .icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 

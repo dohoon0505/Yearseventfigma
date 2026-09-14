@@ -15,11 +15,11 @@ const BENEFITS = [
 
 function pwStrength(p) {
   if (!p) return null;
-  if (p.length < 4) return { level: 0, label: "너무 짧음", color: "#e55" };
-  if (p.length < 8) return { level: 1, label: "약함", color: "#f5a623" };
+  if (p.length < 4) return { level: 0, label: "너무 짧음", color: "var(--c-error-border)" };
+  if (p.length < 8) return { level: 1, label: "약함", color: "var(--c-strength-weak)" };
   if (/[^a-zA-Z0-9]/.test(p) && /[0-9]/.test(p) && /[a-zA-Z]/.test(p))
-    return { level: 3, label: "강함", color: "#3db069" };
-  return { level: 2, label: "보통", color: "#f15a2a" };
+    return { level: 3, label: "강함", color: "var(--c-strength-strong)" };
+  return { level: 2, label: "보통", color: "var(--c-orange)" };
 }
 
 export function mount(root, { nav }) {
@@ -84,7 +84,7 @@ export function mount(root, { nav }) {
       .map(
         (i) =>
           `<div class="rf-strength__bar" style="background:${
-            i <= s.level ? s.color : "#ebebeb"
+            i <= s.level ? s.color : "var(--c-fill-3)"
           }"></div>`
       )
       .join("");

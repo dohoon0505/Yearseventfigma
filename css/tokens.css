@@ -132,6 +132,45 @@
   --c-border-field: #e6e9f0;    /* neutral-30 — field rest border */
   --c-border-field-strong: #cdd3e0; /* field hover border */
 
+  /* ── 중립 회색 보강 — 기존 text/border ramp 사이를 메운다 ─────────────────────── */
+  --c-text-5: #777777; /* 본문 보조(안내문 등) */
+  --c-text-dim: #bbbbbb; /* 비활성 아이콘·플레이스홀더 */
+  --c-text-dim-2: #cccccc; /* 다크 패널 위 보조 텍스트 */
+  --c-text-dim-3: #c0c0c0; /* 다크 패널 위 약한 텍스트 */
+  --c-text-dim-4: #c8c8c8; /* 다크 패널 위 아주 약한 텍스트 */
+  --c-border-light: #dddddd; /* 옅은 구분 테두리 */
+  --c-fill-1: #f0f0f0; /* 옅은 면 채움(구분선·placeholder 배경) */
+  --c-fill-2: #f3f3f3; /* 옅은 면 채움 2 */
+  --c-fill-3: #ebebeb; /* 옅은 면 채움 3(강도 게이지 빈칸) */
+  --c-surface-dark: #1c1e22; /* 모바일 분할 모달의 사진 면 */
+
+  /* ── 폼 오류 (auth) ─────────────────────── */
+  --c-error-border: #ee5555; /* 오류 입력 테두리 */
+  --c-error-ink: #cc3333; /* 오류 문구 */
+  --c-error-wash: #fff8f8; /* 오류 배너 배경 */
+  --c-error-wash-border: #ffdddd; /* 오류 배너 테두리 */
+  --c-danger-border: #f3c0c0; /* 위험 요약카드 테두리 */
+
+  /* ── 비밀번호 강도 게이지 (auth/register) ─────────────────────── */
+  --c-strength-weak: #f5a623; /* 약함 */
+  --c-strength-strong: #3db069; /* 강함 */
+
+  /* ── 로그인·회원가입 다크 패널 전용 ─────────────────────── */
+  --c-auth-line: #1c1c26; /* 다크 패널 구분선 */
+  --c-auth-text-1: #8a8a9a; /* 다크 패널 텍스트 1 */
+  --c-auth-text-2: #6a6a78; /* 다크 패널 텍스트 2 */
+  --c-auth-text-3: #585866; /* 다크 패널 텍스트 3 */
+  --c-auth-text-4: #4a4a5a; /* 다크 패널 텍스트 4 */
+  --c-auth-ink: #3a3a3a; /* 밝은 면 위 강조 텍스트 */
+  --c-auth-cta-hover: #d94a1c; /* 가입 CTA hover */
+
+  /* ── 기타 ─────────────────────── */
+  --c-blue-hover: #3558c4; /* 파랑 버튼·링크 hover */
+  --c-notice-bg: #fff5f5; /* 주문현황 경고 안내 배경 */
+  --c-notice-border: #ffccc7; /* 주문현황 경고 안내 테두리 */
+  --c-photo-bg: #fff0ea; /* 배송사진 썸네일 배경 */
+  --c-photo-accent: #ffd9c7; /* 배송사진 썸네일 강조 */
+
   /* ── Layout ────────────────────────────────────────────── */
   --header-h: 62px;
   --sidebar-w: 220px;

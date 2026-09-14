@@ -74,14 +74,14 @@
 
 /* ── Notice ─────────────────────────────────────────────── */
 .settle-notice {
-  background: #fffbf0;
-  border: 1px solid #f2e0a0;
+  background: var(--c-warn-bg);
+  border: 1px solid var(--c-warn-border);
   border-radius: 4px;
   padding: 12px 16px;
 }
 .settle-notice p {
   font-size: var(--fs-13);
-  color: #777;
+  color: var(--c-text-5);
   line-height: 1.7;
 }
 /* ── Table ──────────────────────────────────────────────── */
