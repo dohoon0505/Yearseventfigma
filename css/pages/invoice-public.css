@@ -79,14 +79,14 @@
   padding: 9px 16px;
   border-radius: var(--r-md);
   background: var(--c-orange);
-  color: #fff;
+  color: var(--c-surface);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   box-shadow: var(--sh-btn);
   transition: background 0.15s;
 }
 .pubinv__dl:hover {
-  background: #d94e24;
+  background: var(--c-orange-hover);
 }
 .pubinv__docwrap {
   display: flex;

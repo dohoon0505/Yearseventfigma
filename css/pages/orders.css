@@ -100,8 +100,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff5f5;
-  border: 1px solid #ffccc7;
+  background: var(--c-notice-bg);
+  border: 1px solid var(--c-notice-border);
   border-radius: 4px;
   padding: 8px 16px;
 }
@@ -141,17 +141,17 @@
   transition: background 0.15s;
 }
 .orders-photo.has {
-  background: #fff0ea;
+  background: var(--c-photo-bg);
   border: 1px solid rgba(241, 90, 42, 0.3);
   color: var(--c-orange);
 }
 .orders-photo.has:hover {
-  background: #ffd9c7;
+  background: var(--c-photo-accent);
 }
 .orders-photo.no {
-  background: #f0f0f0;
-  border: 1px solid #ddd;
-  color: #bbb;
+  background: var(--c-fill-1);
+  border: 1px solid var(--c-border-light);
+  color: var(--c-text-dim);
 }
 .orders-photo.no:hover {
   background: var(--c-divider);

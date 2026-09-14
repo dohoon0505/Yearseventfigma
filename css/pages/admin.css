@@ -52,7 +52,7 @@
   padding: 5px 12px;
   border-radius: var(--r-sm);
   background: var(--c-success);
-  color: #fff;
+  color: var(--c-surface);
   font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
   transition: background 0.15s;
@@ -157,13 +157,13 @@
   padding: 9px 18px;
   border-radius: var(--r-md);
   background: var(--c-orange);
-  color: #fff;
+  color: var(--c-surface);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   transition: background 0.15s;
 }
 .prc-save:hover {
-  background: #d94e24;
+  background: var(--c-orange-hover);
 }
 
 /* ── 정산회계: 조회 기간 빠른 선택(이번달/저번달) ────────── */
@@ -202,7 +202,7 @@
 }
 .settle-sumcard--warn {
   background: var(--c-danger-bg);
-  border-color: #f3c0c0;
+  border-color: var(--c-danger-border);
 }
 .settle-sumcard--warn .settle-sumcard__val {
   color: var(--c-danger-ink);

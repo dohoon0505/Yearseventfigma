@@ -103,14 +103,14 @@
 }
 .prod-savebtn.is-on {
   background: var(--c-blue);
-  color: #fff;
+  color: var(--c-surface);
 }
 .prod-savebtn.is-on:hover {
-  background: #3558c4;
+  background: var(--c-blue-hover);
 }
 .prod-savebtn.is-saved {
   background: var(--c-success);
-  color: #fff;
+  color: var(--c-surface);
 }
 
 /* ── Table cells ────────────────────────────────────────── */
