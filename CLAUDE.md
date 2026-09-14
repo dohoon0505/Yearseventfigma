@@ -17,7 +17,7 @@
 ## 아키텍처 규약
 - 페이지 계약: `mount(root, { nav }) → cleanup`. 이벤트는 `on()` 위임(대상 요소에 1회) — `setHTML` 재렌더에도 생존. `makeDropdown`/`makeDatepicker` 인스턴스만 재렌더마다 `destroy()→재생성`, cleanup에서도 destroy.
 - **색은 tokens.css 토큰만** — raw hex는 tokens.css 밖 금지. **단 예외 2곳**: `invoice-doc.js`·`report-doc.js`는 `window.open`+`document.write`로 새 창에 인쇄 문서를 쓰는데 그 창은 tokens.css를 로드하지 않는다(var()로 바꾸면 PDF 색이 사라짐). `util/xlsx.js`의 ARGB도 엑셀 포맷이라 동일.
-- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css).
+- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css), `openCancelModal`(**js/util/cancel-modal.js** — 주문취소 사유·수수료, B2C·B2B 공용), `openPostcode`/`ensurePostcode`(**js/util/postcode.js**), `attachmentOf`(**js/util/image.js** — 첨부 이미지 축소), `currentClient`/`currentClientName`(**js/util/client.js**).
 - 공용 클래스는 **components.css**에 둔다 — 페이지 CSS보다 먼저 로드돼 페이지 오버라이드가 자연히 이긴다. 페이지 CSS에 두면 다른 페이지가 전역 로드에 기대는 암시적 의존이 생긴다(`.ptbl-*`·`.bf-*`가 실제로 그랬다).
 - 공개(비로그인) 페이지 선례: `delivery/` = 단독 index.html + `../css/tokens.css`+`base.css` + 전용 CSS + 비모듈 IIFE JS.
 
@@ -53,3 +53,12 @@
 - 주문서 배송완료 알림 추가 수신자: **최대 5명**, 이름+연락처+`.toggle`+삭제 인라인 행. 동적 행은 `data-nte-*` 접두사(리셋 루프의 `[data-nt]`와 겹치면 안 됨).
 - 목데이터는 **호출 시점 lazy 파생**(`usageFor`/`settlementsFor`) — 정적 맵으로 미리 구우면 UI로 등록한 거래처가 정산·리포트에서 통째로 사라진다. 메모 키에 출력에 영향을 주는 필드(개명·발급일)를 모두 넣을 것.
 - UI 판단 기준: **시인성·가독성 우선**(신입/임원도 즉시 사용) — ERP식 초밀도 금지. 표준 hm-field(48px·상단 라벨)가 기본.
+- **거래처·계정·지역규칙은 구 시스템(flowerdel.pe.kr/adm2)에서 이관한 실데이터다.** 임의로 바꾸지 말 것. 담당자명·이메일이 빈 것은 구 시스템에 대응 필드가 없어서다(버그 아님).
+- `clientNote`(구 '거래처 참고사항')는 메모가 아니라 **거래 조건**이다((주)홈팩: "무조건 특대상품 발송"). 주문 화면에서 담당자에게 반드시 노출한다 — 목록 `!` 표시 + 상세 경고 배너.
+- 지역 규칙은 **`js/data/intake-rules.js` 단일 엔진**. `type` 3종(blocked/allowlist/surcharge)이고 **평가 순서가 곧 정책**이다: blocked → 장소 allowlist → 지역 allowlist → surcharge. 밀양농협이 밀양 전역 규칙에 가리면 정상 주문이 전부 반려된다 — 회귀에 상시 포함. `delivery-fees.js`는 이 엔진에 위임하는 얇은 어댑터이며 금액만 돌려주므로 **새 코드는 `evaluateAddress()`를 직접 쓸 것**.
+- **비밀번호는 화면에 표시하지 않는다.** 거래처·담당자 모달 모두 입력칸 없이 '임시비밀번호 발급'만. 이관 시드에는 비밀번호가 없어 **아이디만으로 로그인**한다(login.js 주석 참조).
+- 배송완료 알림 수신자는 **한 명단**(받는분·보내는분·담당자N·추가5). 담당자는 담당자 저장공간에서 수신 ON인 사람이 `자동` 배지로 편입되고 **이 주문에서만** 끌 수 있다(`state.managerOff`). 저장공간 설정은 건드리지 않는다.
+- 배송 옵션은 **2종**(날짜·시간 지정 / 즉시배송↔익일 빠른배송). 긴급·야간은 제거됨 — 되살리지 말 것.
+- 대쉬보드 수치는 **전부 목록과 같은 소스에서 파생**한다. 집계 전용 목데이터를 두면 화면 간 숫자가 어긋나 아무도 안 본다.
+- 로그인 거래처 결정은 **`js/util/client.js` 단일 소스**. 셸 배지·거래명세서·정산이 모두 이걸 쓴다. 새 화면도 반드시 경유할 것(과거 화면마다 다른 회사가 보이던 결함).
+- 백엔드 계약은 **`docs/backend-spec.md`가 정본**. 코드가 바뀌면 함께 고치고 `python tools/build-docs.py`로 Word를 재생성한다. `docs/*.docx`는 생성물이라 커밋하지 않는다.
