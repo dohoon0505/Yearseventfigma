@@ -921,3 +921,8 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   .bf-right { margin-left: 0; flex: 1 1 100%; }
   .bf-srch--addr { flex: 1; width: auto; }
 }
+
+/* hm-field 안 입력 + 부가 버튼(예: 주소검색) 한 줄 배치 */
+.hm-findrow { display: flex; gap: 8px; align-items: stretch; }
+.hm-findrow .hm-input { flex: 1 1 auto; min-width: 0; }
+.hm-findrow .hm-btn { flex: 0 0 auto; height: auto; padding: 0 16px; }
