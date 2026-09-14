@@ -1,0 +1,91 @@
+/* ============================================================
+   admin-dashboard.css — 관리자 대쉬보드(#/admin/dashboard) 전용.
+   3층 구조(처리대기 / 오늘 유입 / 이번 달)를 같은 폭의 2열 카드로 쌓는다.
+   색은 tokens.css 토큰만.
+   ============================================================ */
+
+.dash-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+.dash-head b { font-size: var(--fs-17); color: var(--c-text-strong); font-weight: var(--fw-bold); }
+.dash-head span { font-size: var(--fs-13); color: var(--c-text-muted); }
+
+/* 층 제목 — 번호는 원형 배지 */
+.dash-sec {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-14); font-weight: var(--fw-bold); color: var(--c-text-strong);
+  margin: 26px 0 10px;
+}
+.dash-sec:first-of-type { margin-top: 0; }
+.dash-sec i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--c-orange-soft); color: var(--c-orange-ink);
+  font-size: 11px; font-weight: var(--fw-bold); font-style: normal;
+}
+
+.dash-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1100px) { .dash-2col { grid-template-columns: minmax(0, 1fr); } }
+
+.dash-card {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-lg); padding: 14px 16px;
+}
+.dash-card__t {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: var(--fs-12); color: var(--c-text-muted); margin-bottom: 10px;
+}
+.dash-card__t span { font-size: var(--fs-13); color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.dash-card__t--sm { margin-top: 14px; }
+
+/* 처리 대기 카드 — 클릭하면 해당 목록으로 */
+.dash-qs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dash-q {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 10px 12px; border: 0; border-radius: var(--r-md);
+  background: var(--c-surface-3); cursor: pointer; text-align: left;
+  transition: filter .12s ease;
+}
+.dash-q:hover { filter: brightness(0.97); }
+.dash-q__l { font-size: 11.5px; color: var(--c-text-muted); }
+.dash-q__n { font-size: 21px; line-height: 1.25; font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.dash-q--danger { background: var(--c-danger-bg); }
+.dash-q--danger .dash-q__l, .dash-q--danger .dash-q__n { color: var(--c-danger-ink); }
+.dash-q--warn { background: var(--c-orange-soft); }
+.dash-q--warn .dash-q__l, .dash-q--warn .dash-q__n { color: var(--c-orange-ink); }
+
+/* 목록 행 */
+.dash-li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 6px 0; border-top: 1px solid var(--c-border-light);
+  font-size: var(--fs-13);
+}
+.dash-li:first-of-type { border-top: 0; }
+.dash-li__k { color: var(--c-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-li__v { color: var(--c-text-strong); font-weight: var(--fw-semibold); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dash-none { font-size: var(--fs-13); color: var(--c-text-muted); margin: 4px 0 0; }
+
+/* 이번 달 수치 */
+.dash-big { display: block; font-size: 22px; font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.dash-sub { font-size: var(--fs-13); color: var(--c-text-muted); margin: 4px 0 0; }
+.dash-due { color: var(--c-danger-ink); font-weight: var(--fw-bold); }
+
+/* 정산 3단계 진행 */
+.dash-stage { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.dash-stage__s {
+  padding: 5px 9px; border-radius: var(--r-md);
+  background: var(--c-surface-3); color: var(--c-text-2);
+  font-size: 11.5px; font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.dash-stage__s--ok { background: var(--c-success-bg); color: var(--c-success-ink); }
+.dash-stage__s--warn { background: var(--c-orange-soft); color: var(--c-orange-ink); }
+.dash-stage__s--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
+.dash-stage__a { color: var(--c-text-muted); font-size: 13px; }
+
+.dash-more {
+  margin-top: 12px; padding: 8px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  color: var(--c-text-2); font-size: var(--fs-13); font-weight: var(--fw-semibold); cursor: pointer;
+}
+.dash-more:hover { border-color: var(--c-text-muted); background: var(--c-bg); }

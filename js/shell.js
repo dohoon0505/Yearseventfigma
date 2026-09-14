@@ -33,6 +33,10 @@ const MENU = [
 
 // Admin console menu — reuses existing nav PNG icons.
 const ADMIN_MENU = [
+  /* 대쉬보드는 그룹 없이 최상단 단독 — 진입 기본 화면이라 분류 아래 묻히면 안 된다. */
+  {
+    items: [{ label: "대쉬보드", hash: "#/admin/dashboard", icon: "nav-accounting.png" }],
+  },
   {
     group: "B2C 관리",
     items: [
@@ -119,7 +123,7 @@ function buildShell(variant = "enterprise") {
             ${menu.map(
               (g) => html`
                 <div class="shell__group">
-                  <p class="shell__group-title">${g.group}</p>
+                  ${g.group ? html`<p class="shell__group-title">${g.group}</p>` : ""}
                   <div class="shell__group-items">
                     ${g.items.map(
                       (it) => html`
