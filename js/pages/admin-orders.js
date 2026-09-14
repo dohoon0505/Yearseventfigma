@@ -20,6 +20,7 @@ import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal } from "../ui.js";
 import { getDateRange, parseOrderDate } from "../util/date.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
+import { openCancelModal } from "../util/cancel-modal.js";
 import { B2C_STATUS_STYLE } from "../data/b2c-mock.js";
 import { B2B_STATUSES, b2bList, b2bFind, b2bSetStatus, b2bUpsert } from "../data/b2b-mock.js";
 
@@ -207,6 +208,7 @@ export function mount(root, { nav }) {
       <div class="hm__foot">
         <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
         <button class="hm-btn hm-btn--secondary" data-action="status" data-v="주문접수" ${o.status === "접수대기" ? "" : "disabled"}>주문접수 처리</button>
+        <button class="hm-btn hm-btn--danger" data-action="cancel" ${o.status === "취소" ? "disabled" : ""}>${o.status === "취소" ? "취소됨" : "주문취소"}</button>
         <button class="hm-btn hm-btn--primary" data-action="save">저장</button>
       </div>
     `;
@@ -220,6 +222,22 @@ export function mount(root, { nav }) {
       setHTML(qs(activeModal.panel, "[data-slot='rows']"), rowsHtml());
       t.disabled = true;
       toast(`${t.dataset.v} 처리했습니다`);
+    });
+    on(activeModal.panel, "click", "[data-action='cancel']", (e, t) => {
+      if (o.status === "취소") return;
+      openCancelModal({
+        orderNo: o.orderNo, amount: o.amount, settle: true,
+        onConfirm: ({ reason, fee }) => {
+          const next = { ...o, status: "취소", cancelReason: reason, cancelFee: fee };
+          b2bUpsert(next);
+          Object.assign(o, next);
+          refreshList();
+          setHTML(qs(activeModal.panel, "[data-slot='rows']"), rowsHtml());
+          t.disabled = true;
+          t.textContent = "취소됨";
+          toast("주문을 취소 처리했습니다", "warn");
+        },
+      });
     });
     on(activeModal.panel, "click", "[data-action='save']", () => {
       /* 주문접수 + 인수자 입력 = 배송완료 자동 전환(B2C 규약과 동일한 판정). */
