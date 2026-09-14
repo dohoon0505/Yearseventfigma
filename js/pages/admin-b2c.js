@@ -16,6 +16,7 @@ import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDatepicker, openLightbox } from "../ui.js";
 import { getDateRange, formatDateLabel } from "../util/date.js";
+import { openCancelModal } from "../util/cancel-modal.js";
 import {
   staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
@@ -399,6 +400,12 @@ export function mount(root, { nav }) {
           <div class="b2c-zone__t">요청사항</div>
           <p class="b2c-doc__txt">${dash(o.request)}</p>
         </section>
+        ${o.status === "취소" ? html`
+          <section class="b2c-zone">
+            <div class="b2c-zone__t">취소 처리</div>
+            ${row("취소 사유", dash(o.cancelReason))}
+            ${row("취소 수수료", won(o.cancelFee), "b2c-doc__v--price")}
+          </section>` : ""}
       </div>
     `;
   }
@@ -737,14 +744,24 @@ export function mount(root, { nav }) {
       renderSlots(panel);
       toast("주문접수로 변경했습니다");
     });
-    /* 주문취소 — 즉시 반영. 재취소 방지 위해 완료 후 비활성 */
+    /* 주문취소 — 사유·수수료를 받고 반영한다. 구 시스템에서 필수 필드였고
+       신규는 입력란만 없어서 값이 영원히 비어 있었다. 재취소 방지 위해 완료 후 비활성 */
     on(panel, "click", "[data-action='order-cancel']", () => {
       if (!editing || editing.status === "취소") return;
-      editing.status = "취소";
-      b2cSetStatus(editing.id, "취소");
-      refreshList();
-      renderSlots(panel);
-      toast("주문을 취소 처리했습니다", "warn");
+      openCancelModal({
+        orderNo: editing.orderNo,
+        amount: editing.amount,
+        onConfirm: ({ reason, fee }) => {
+          editing.status = "취소";
+          editing.cancelReason = reason;
+          editing.cancelFee = fee;
+          b2cUpsert({ ...editing });
+          b2cSetStatus(editing.id, "취소");
+          refreshList();
+          renderSlots(panel);
+          toast("주문을 취소 처리했습니다", "warn");
+        },
+      });
     });
     on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
     on(panel, "click", "[data-action='img-download']", () => downloadImage());
