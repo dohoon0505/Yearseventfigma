@@ -8,6 +8,7 @@ import { html, raw, setHTML, on, qs, qsa } from "../dom.js";
 import { store, ALL_PRODUCTS, productKey, receivingContacts } from "../store.js";
 import { pageTitle, makeDropdown, makeDatepicker, simpleModal } from "../ui.js";
 import { deliveryFeeFor } from "../data/delivery-fees.js";
+import { ensurePostcode, openPostcode } from "../util/postcode.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -157,7 +158,10 @@ function markup() {
           <div class="sec-gap">
             <div class="ofield">
               <label>배송지 주소 <span class="auto-chip" data-auto-chip>링크에서 자동입력</span></label>
-              <input type="text" data-f-addr placeholder="장례식장 · 예식장 주소를 입력해 주세요" />
+              <div class="addr-row">
+                <input type="text" data-f-addr placeholder="장례식장 · 예식장 주소를 입력해 주세요" />
+                <button type="button" class="addr-find" data-addr-find hidden>주소검색</button>
+              </div>
               <p class="deliv-fee-note" data-deliv-fee></p>
             </div>
             <div class="grid2">
@@ -890,6 +894,18 @@ export function mount(root, { nav }) {
   bind("click", "[data-prod]", (e, t) => {
     state.product = occProducts(state.occ).find((p) => productKey(p) === t.dataset.prod) || null;
     renderProducts(); refreshCtas();
+  });
+  /* 주소검색 — 표준 주소를 넣고 상세주소만 직접 잇게 한다. 스크립트가 없는 환경에서는
+     버튼 자체를 감춰 직접 입력을 그대로 쓴다(주문이 막히면 안 된다). */
+  ensurePostcode().then((ok) => { const b = $("[data-addr-find]"); if (b && ok) b.hidden = false; });
+  bind("click", "[data-addr-find]", () => {
+    openPostcode(({ road }) => {
+      const el = $("[data-f-addr]");
+      el.value = road + " ";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length); // 상세주소 이어 적기
+    });
   });
   bind("input", "[data-f-addr]", (e, t) => {
     state.addr = t.value.trim();

@@ -11,6 +11,7 @@ import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../u
 import { INVOICE_DAYS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
+import { ensurePostcode, openPostcode } from "../util/postcode.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 const TABS = [
@@ -38,7 +39,7 @@ const FIELDS = [
   { key: "contact", label: "연락처", grid: true, required: true },
   { key: "email", label: "계산서 이메일", grid: true },
   { section: "기타" },
-  { key: "address", label: "사업장주소" },
+  { key: "address", label: "사업장주소", find: true },
   { key: "status", label: "상태", type: "select", options: STATUS_OPTS, grid: true },
   { key: "joinDate", label: "가입일", grid: true },
   /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
@@ -254,7 +255,9 @@ export function mount(root, { nav }) {
     return html`
       <div class="hm-field">
         <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}${f.hint ? html`<span class="req" data-reqmark="${f.key}" hidden>*</span>` : ""}</label>
+        ${f.find ? html`<div class="hm-findrow">` : ""}
         <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.label}" ${locked ? "disabled" : ""} />
+        ${f.find ? html`<button type="button" class="hm-btn hm-btn--secondary" data-addr-find hidden>주소검색</button></div>` : ""}
         ${f.hint ? html`<p class="hm-help" data-hint="${f.key}"></p>` : ""}
       </div>
     `;
@@ -356,6 +359,19 @@ export function mount(root, { nav }) {
       if (out) out.textContent = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
       toast("임시비밀번호를 발급했습니다");
       syncSave();
+    });
+    /* 주소검색 — 스크립트 사용 가능할 때만 버튼을 드러낸다(없으면 직접 입력 유지). */
+    ensurePostcode().then((ok) => { const b = qs(activeModal.panel, "[data-addr-find]"); if (b && ok) b.hidden = false; });
+    on(activeModal.panel, "click", "[data-addr-find]", () => {
+      openPostcode(({ road }) => {
+        const el = qs(activeModal.panel, "[data-cf='address']");
+        if (!el) return;
+        el.value = road + " ";
+        form.address = el.value;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+        syncSave();
+      });
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
