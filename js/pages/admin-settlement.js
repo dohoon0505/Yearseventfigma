@@ -9,7 +9,7 @@ import { html, setHTML, on, qs, raw, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
-import { CLIENT_SETTLEMENTS, CLIENT_USAGE, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+import { settlementsFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
@@ -64,17 +64,18 @@ export function mount(root, { nav }) {
 
   /* 선택 월 분석 데이터 (대시보드·리포트 공용) — 상태탭/검색과 무관 */
   function reportFor() {
+    const cs = store.get().clients;
     return buildMonthlyReport({
       year: state.year, month: state.month,
-      clients: store.get().clients,
-      usage: CLIENT_USAGE, settlements: CLIENT_SETTLEMENTS, categories: USAGE_CATEGORIES,
+      clients: cs,
+      usage: usageMap(cs), settlements: settlementsMap(cs), categories: USAGE_CATEGORIES,
     });
   }
   function rowsForPeriod() {
     const label = `${state.year}년 ${pad(state.month)}월`;
     return store.get().clients
       .map((c) => {
-        const rec = (CLIENT_SETTLEMENTS[c.id] || []).find((r) => r.청구년월 === label);
+        const rec = settlementsFor(c).find((r) => r.청구년월 === label);
         return rec ? { client: c, rec } : null;
       })
       .filter(Boolean);

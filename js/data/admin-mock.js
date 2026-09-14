@@ -1,7 +1,9 @@
 /* ============================================================
    admin-mock.js — ADMIN console mock datasets.
    - INITIAL_CLIENTS: 거래처(client companies) — persisted/editable via store.
-   - CLIENT_SETTLEMENTS: static read-only mock, keyed by client id.
+   - usageFor(client) / settlementsFor(client): 호출 시점에 client 레코드에서
+     파생하는 lazy 목데이터(id 기준 메모이제이션). 정적 맵을 미리 굽지 않으므로
+     UI로 새로 등록한 거래처도 정산 표·리포트에 즉시 나타난다.
    Dates are generated RELATIVE TO NOW so the date / year-month filters
    always have current data regardless of when the demo is viewed.
    ============================================================ */
@@ -53,7 +55,7 @@ export const INITIAL_CLIENTS = [
 /* ── 거래처별·월별 이용 내역 (항목 카테고리 단위) ──────────────
    대시보드 인포그래픽·월간 분석 리포트의 원천 데이터.
    시드 고정 PRNG(mulberry32)로 결정적 생성 → 새로고침해도 값이 흔들리지 않는다.
-   정산금액(CLIENT_SETTLEMENTS)은 이 이용 내역의 합계에서 파생 → 표·차트·리포트 정합. */
+   정산금액(settlementsFor)은 이 이용 내역의 합계에서 파생 → 표·차트·리포트 정합. */
 /* 항목별 이용 비중은 개별 상품 단위(상품 규격 안내 = store.js ALL_PRODUCTS 와 동일). */
 export const USAGE_CATEGORIES = [
   { key: "3단화환(기본형)",  unit: 50000 },
@@ -75,9 +77,15 @@ const mulberry32 = (a) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-function usageFor(ci, m) {
+/** 거래처 id → 0-based 시퀀스. 배열 인덱스 대신 id를 쓰므로 목록에서 한 건을 지워도
+ *  나머지 거래처의 과거 데이터가 흔들리지 않는다. */
+const idNum = (id) => parseInt(String(id).replace(/\D/g, ""), 10) || 0;
+/** 규모 계수는 20주기로 순환 — 21번째 이후 신규 거래처가 랭킹·도넛을 지배하지 않게. */
+const scaleIdx = (ci) => ci % 20;
+
+function usageMonth(ci, m) {
   const rnd = mulberry32(97 + ci * 131 + m * 17);
-  const scale = 1 + ci * 0.35;        // 거래처 규모 차이
+  const scale = 1 + scaleIdx(ci) * 0.35; // 거래처 규모 차이
   const growth = 1 + (5 - m) * 0.09;  // 최근 월일수록 이용 증가 추세
   const items = {};
   let orders = 0, total = 0;
@@ -96,21 +104,45 @@ function usageFor(ci, m) {
   return { items, orders, total };
 }
 
-/** CLIENT_USAGE[clientId]["YYYY년 MM월"] = { items:{카테고리:{count,amount}}, orders, total } */
-export const CLIENT_USAGE = {};
-INITIAL_CLIENTS.forEach((c, ci) => {
-  CLIENT_USAGE[c.id] = {};
-  for (let m = 0; m <= 5; m++) CLIENT_USAGE[c.id][ymLabel(m)] = usageFor(ci, m);
-});
+/* ── lazy 파생 + 메모이제이션 ────────────────────────────────
+   시드 배열을 미리 순회해 굽지 않고, 호출 시점에 client 레코드에서 파생한다.
+   → UI로 새로 등록한 거래처도 정산 표·리포트에 즉시 나타난다(예전엔 통째로 누락).
+   메모 키에는 "출력에 영향을 주는 필드"를 모두 넣어, 개명·발급일 변경이
+   stale 캐시로 남지 않게 한다. */
+const usageCache = new Map();
+const settleCache = new Map();
+
+/** usageFor(client)["YYYY년 MM월"] = { items:{카테고리:{count,amount}}, orders, total } */
+export function usageFor(client) {
+  const id = client.id;
+  if (usageCache.has(id)) return usageCache.get(id);
+  const ci = idNum(id) - 1;
+  const byMonth = {};
+  for (let m = 0; m <= 5; m++) byMonth[ymLabel(m)] = usageMonth(ci, m);
+  usageCache.set(id, byMonth);
+  return byMonth;
+}
+
+/** 거래처별 계산서 발급일(매월 N일, 1~28). 미설정·범위 밖이면 1일. */
+export const INVOICE_DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1));
+export function invoiceDayOf(client) {
+  const n = Number(client && client.invoiceDay);
+  return n >= 1 && n <= 28 ? n : 1;
+}
 
 /* ── per-client SETTLEMENTS (settlement.js fields + 3 checks) ── */
-function settlementsFor(client) {
-  return [0, 1, 2, 3, 4, 5].map((m) => {
+export function settlementsFor(client) {
+  const key = `${client.id}|${invoiceDayOf(client)}|${client.companyName}`;
+  if (settleCache.has(key)) return settleCache.get(key);
+  const day = invoiceDayOf(client);
+  const usage = usageFor(client);
+  const rows = [0, 1, 2, 3, 4, 5].map((m) => {
     const complete = m >= 2;   // older months: fully settled
     const inProgress = m === 1; // last month: agreed + issued, not paid yet
-    const issueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 1, 1);
+    // 발행일 = 귀속월 다음 달의 거래처 지정일. 정산기한 = 그 발행일이 속한 달의 말일.
+    const issueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 1, day);
     const dueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 2, 0);
-    const amount = CLIENT_USAGE[client.id][ymLabel(m)].total; // 이용 내역 합계에서 파생
+    const amount = usage[ymLabel(m)].total; // 이용 내역 합계에서 파생
     return {
       id: `${client.id}-${ymLabel(m).replace(/[년월\s]/g, "")}`,
       발행일: fmtDot(issueD),
@@ -124,12 +156,13 @@ function settlementsFor(client) {
       입금완료: complete ? "입금완료" : "미입금",
     };
   });
+  settleCache.set(key, rows);
+  return rows;
 }
 
-export const CLIENT_SETTLEMENTS = {};
-INITIAL_CLIENTS.forEach((c) => {
-  CLIENT_SETTLEMENTS[c.id] = settlementsFor(c);
-});
+/** report.js 계약 유지용 — { [clientId]: … } 맵으로 묶어 넘긴다. */
+export const usageMap = (clients) => Object.fromEntries(clients.map((c) => [c.id, usageFor(c)]));
+export const settlementsMap = (clients) => Object.fromEntries(clients.map((c) => [c.id, settlementsFor(c)]));
 
 /** Available billing year/month options (for the settlement selector). */
 export const SETTLEMENT_YEARS = (() => {
