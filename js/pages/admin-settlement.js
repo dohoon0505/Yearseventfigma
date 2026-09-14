@@ -10,7 +10,9 @@ import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { settlementsFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
-import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
+import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
+import { b2bList } from "../data/b2b-mock.js";
+import { parseOrderDate } from "../util/date.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
@@ -59,7 +61,9 @@ const buildDoc = (client, rec) => ({
 
 export function mount(root, { nav }) {
   const now = DATA_NOW; // 목데이터 생성 기준과 동일 시각 → 월 전환 후에도 데이터 창 이탈 없음
-  const state = { year: now.getFullYear(), month: now.getMonth() + 1, statusFilter: "all", search: "" };
+  /* 펼친 거래처(청구금액 드릴다운). 표는 통째로 재렌더되므로 DOM 클래스가 아니라
+     state 에서 읽는다 — 검색 한 글자에 초기화되는 것을 막는다(admin-clients 와 같은 이유). */
+  const state = { year: now.getFullYear(), month: now.getMonth() + 1, statusFilter: "all", search: "", expanded: new Set() };
   const curY = now.getFullYear(), curM = now.getMonth() + 1;
   const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastY = lastDate.getFullYear(), lastM = lastDate.getMonth() + 1;
@@ -264,17 +268,55 @@ export function mount(root, { nav }) {
           ({ client, rec }) => html`
             <div class="settle-trow" style="grid-template-columns:${COL}">
               <div class="settle-td"><span class="ellipsis">${client.companyName}</span>${sharedBiz.has(normalizeBiz(client.bizNumber)) && client.department ? html`<span class="settle-dept">${client.department}</span>` : ""}</div>
-              <div class="settle-td"><span class="settle-amount">${rec.정산금액}</span></div>
+              <div class="settle-td">
+                <button class="settle-amount settle-amount--drill" data-action="drill" data-id="${client.id}"
+                        aria-expanded="${state.expanded.has(client.id) ? "true" : "false"}"
+                        title="이 금액을 만든 주문 보기">${rec.정산금액}<span class="settle-caret"></span></button>
+              </div>
               <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
               <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
               <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
             </div>
+            ${state.expanded.has(client.id) ? drillBody(client) : ""}
           `
         )}
       </div>
     `;
+  }
+
+  /* 청구금액 → 근거 주문 드릴다운.
+     ⚠️ 데모 목데이터에서 청구금액은 이용 내역(usageFor)에서, 주문 목록은 b2b-mock 에서
+        각각 파생되므로 합계가 일치하지 않는다. 실서비스에서는 같은 주문 집합에서
+        나와야 한다 — 그 사실을 화면에 감추지 않고 안내로 적는다. */
+  function ordersOf(client) {
+    return b2bList().filter((o) => {
+      if (o.clientId !== client.id) return false;
+      const d = parseOrderDate(o.date);
+      return d.getFullYear() === state.year && d.getMonth() + 1 === state.month;
+    });
+  }
+  function drillBody(client) {
+    const list = ordersOf(client);
+    if (!list.length) {
+      return html`<div class="settle-drill settle-drill--empty">이 달의 주문 내역이 데모 데이터에 없습니다.</div>`;
+    }
+    const top = list.slice(0, 3);
+    return html`
+      <div class="settle-drill">
+        ${top.map((o) => html`
+          <div class="settle-drill__row">
+            <span class="settle-drill__d">${o.date.slice(5, 10)}</span>
+            <span class="settle-drill__s">${o.sender}</span>
+            <span class="settle-drill__a ellipsis" title="${o.address}">${o.address}</span>
+            <span class="settle-drill__p">${o.product}</span>
+            <span class="settle-drill__m">${Number(o.amount).toLocaleString("ko-KR")}원</span>
+          </div>`)}
+        <button class="settle-drill__more" data-action="drill-all" data-id="${client.id}">
+          ${list.length > 3 ? `외 ${list.length - 3}건 · 주문관리에서 전체 보기` : "주문관리에서 보기"}
+        </button>
+      </div>`;
   }
   function summaryBody() {
     const rows = visibleRows();
@@ -386,6 +428,18 @@ export function mount(root, { nav }) {
     state.search = t.value;
     refreshTable();
   });
+  /* 청구금액 클릭 → 그 자리에서 근거 주문 펼치기. 여러 거래처를 연달아 훑기 위해
+     화면 이동 대신 인라인 아코디언을 쓴다(상세·수정은 주문관리에서). */
+  const offDrill = on(root, "click", "[data-action='drill']", (e, t) => {
+    const id = t.dataset.id;
+    if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+    refreshTable();
+  });
+  const offDrillAll = on(root, "click", "[data-action='drill-all']", (e, t) => {
+    /* 주문관리로 이동 — 거래처명으로 검색이 걸리도록 해시에 힌트를 싣지 않고
+       단순 이동한다(라우터가 쿼리를 다루지 않는다). 후속: 필터 프리셋 전달. */
+    nav("#/admin/orders");
+  });
   const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
     if (!row) return;
@@ -421,5 +475,5 @@ export function mount(root, { nav }) {
     catch (err) { console.error("리포트 생성 오류:", err); alert("리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요."); }
   });
 
-  return () => { offChange(); offClick(); offQuick(); offSearch(); offCopy(); offDownload(); offReport(); };
+  return () => { offChange(); offClick(); offQuick(); offSearch(); offDrill(); offDrillAll(); offCopy(); offDownload(); offReport(); };
 }
