@@ -7,7 +7,7 @@ import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
 /** @typedef {{no:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
-/** @typedef {{id:string,accountId:string,password:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string}} Client */
+/** @typedef {{id:string,accountId:string,password:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string}} Client */
 
 /* ── Static product catalog (immutable) ─────────────────── */
 export const ALL_PRODUCTS = [
@@ -55,8 +55,9 @@ const INITIAL_CONTACTS = [
 ];
 
 /* ── Reactive store ─────────────────────────────────────── */
-const KEY = "yeop.store.v2"; // v2: 거래처 시드 교체(실제 거래처 20곳)로 재시드
+const KEY = "yeop.store.v3"; // v3: 싱크플로·대구가톨릭대(부서 2건) 시드 추가 + invoiceDay 필드
 const subs = new Set();
+const SEED_BY_ID = new Map(INITIAL_CLIENTS.map((c) => [c.id, c]));
 
 /* 순번(no) 재부여: 프로필·담당자 목록은 항상 배열 순서대로 01,02,03… 을 유지한다.
    → 대상자 삭제 시 뒤 항목이 자동으로 앞 번호로 당겨진다(빈 번호 방지). */
@@ -96,7 +97,9 @@ function hydrate() {
       profiles: Array.isArray(data.profiles) ? reindexNo(data.profiles) : state.profiles,
       contacts: Array.isArray(data.contacts) ? reindexNo(data.contacts.map((c) => ({ isBilling: false, ...c }))) : state.contacts,
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
-      clients: Array.isArray(data.clients) ? data.clients : state.clients,
+      // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다.
+      // 편집값이 항상 이기고, 삭제한 거래처는 부활시키지 않는다(저장 목록만 순회).
+      clients: Array.isArray(data.clients) ? data.clients.map((c) => ({ ...(SEED_BY_ID.get(c.id) || {}), ...c })) : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
     };
     // 불변식 보정: 로드된 담당자 중 정산담당이 없으면 첫 담당자로 지정
