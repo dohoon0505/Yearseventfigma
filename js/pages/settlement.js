@@ -169,7 +169,7 @@ export function mount(root, { nav }) {
         <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>저장</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--lg", body, onClose: () => {} });
+    activeModal = openModal({ panelClass: "modal-panel--lg", body });
     const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
     on(activeModal.panel, "input", "[data-cf]", (e, t) => {
       form[t.dataset.cf] = t.value;

@@ -161,7 +161,7 @@ export function mount(root, { nav }) {
         <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>${isEdit ? "저장" : "등록"}</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "", body, onClose: () => {} });
+    activeModal = openModal({ body });
     const panel = activeModal.panel;
     const syncSave = () => { const b = qs(panel, "[data-action='save']"); if (b) b.disabled = !isValid(); };
     on(panel, "input", "[data-f]", (e, t) => {
@@ -202,7 +202,7 @@ export function mount(root, { nav }) {
         <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
       </div>
     `;
-    activeModal = openModal({ panelClass: "modal-panel--sm", body, onClose: () => {} });
+    activeModal = openModal({ panelClass: "modal-panel--sm", body });
     const panel = activeModal.panel;
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='do-del']", () => {
