@@ -1,18 +1,22 @@
 /* ============================================================
    invoice-links.js — public 거래명세서 링크 매핑 (DEMO mock).
-   각 토큰 = 한 기업의 한 귀속 년/월 명세서. 공개 링크(/invoice/?link=토큰)로
-   접근하며, 사업자번호(bizNumber) 입력으로 본인 확인 후 doc 노출.
+   각 토큰 = 한 거래처의 한 귀속 년/월 명세서. 토큰 자체가 비밀값(capability URL)
+   이므로 공개 링크(/invoice/?link=토큰)를 아는 사람이 곧 열람 권한자다.
 
-   ⚠️ DEMO: 사업자번호는 비밀이 아니므로 이 게이트는 약식 확인일 뿐입니다.
-   실서비스에서는 link 토큰 자체를 충분히 긴 무작위 비밀값(capability URL)으로
-   발급하고, 서버에서 토큰↔명세서 매핑·만료·접근로그를 관리해야 합니다.
+   ⚠️ 논리 키는 (clientId, 사업자번호, 귀속월) 3튜플이다. clientId를 빼면
+   같은 법인의 서로 다른 부서가 한 토큰을 공유해 남의 명세서를 받게 된다.
+   issueLink 를 호출하는 쪽은 반드시 clientId 를 실어야 한다.
+
+   ⚠️ DEMO: 토큰은 클라이언트에서 생성되고 localStorage 에만 남습니다.
+   실서비스에서는 서버가 토큰을 발급·저장하고 만료·접근로그를 관리해야 합니다.
    ============================================================ */
 export const SUPPLIER = { company: "도랑플라워", bizNumber: "321-99-01778", ceo: "김도훈", email: "ehgns335@naver.com", fax: "053-715-2699" };
 export const ACCOUNT = "NH농협은행 352-2284-9916-83 예금주 김도훈(도랑플라워)";
 
 export const INVOICE_LINKS = {
-  // (주)싱크플로 · 2026년 04월
+  // 주식회사 싱크플로(C021) · 2026년 04월
   FP9S0QA8YA: {
+    clientId: "C021",
     bizNumber: "680-87-02988",
     doc: {
       title: "26년 04월 꽃배달 거래명세서",
@@ -28,8 +32,9 @@ export const INVOICE_LINKS = {
       total: "215,000원",
     },
   },
-  // (주)싱크플로 · 2026년 03월 (동일 기업, 다른 귀속월 → 별도 링크)
+  // 주식회사 싱크플로(C021) · 2026년 03월 (동일 거래처, 다른 귀속월 → 별도 링크)
   KM3X7BQ2LP: {
+    clientId: "C021",
     bizNumber: "680-87-02988",
     doc: {
       title: "26년 03월 꽃배달 거래명세서",
@@ -46,8 +51,9 @@ export const INVOICE_LINKS = {
       total: "345,000원",
     },
   },
-  // (주)진양코퍼레이션 · 2026년 04월 (다른 기업)
+  // (주)진양코퍼레이션(C003) · 2026년 04월 (다른 거래처)
   ZT6W1HE4NC: {
+    clientId: "C003",
     bizNumber: "123-45-67890",
     doc: {
       title: "26년 04월 꽃배달 거래명세서",
@@ -64,15 +70,17 @@ export const INVOICE_LINKS = {
   },
 };
 
-/** 사업자번호 비교용: 숫자만 추출. */
-export const normalizeBiz = (s) => String(s || "").replace(/[^0-9]/g, "");
+/** 사업자번호 비교용: 숫자만 추출. (정의는 util/biz.js — 여기서는 재export) */
+export { normalizeBiz } from "../util/biz.js";
+import { normalizeBiz as normBiz } from "../util/biz.js";
 
 /* ── 발급된 링크 레지스트리 (localStorage, SPA↔/invoice/ 동일 origin 공유) ──
    정적 시드(INVOICE_LINKS) + 런타임 발급 링크를 합쳐 해석한다.
    실서비스에서는 서버가 토큰을 발급·저장·만료 관리해야 한다. */
-const LKEY = "yeop.invoice-links.v1";
+const LKEY = "yeop.invoice-links.v2"; // v2: 논리 키에 clientId 추가 — 구 레코드는 키가 없어 폐기
 const loadReg = () => { try { return JSON.parse(localStorage.getItem(LKEY)) || {}; } catch { return {}; } };
 const saveReg = (reg) => { try { localStorage.setItem(LKEY, JSON.stringify(reg)); } catch {} };
+try { localStorage.removeItem("yeop.invoice-links.v1"); } catch { /* storage 비활성 — 무시 */ }
 
 /** 무작위 토큰 생성 (혼동 문자 제외, crypto 우선). */
 export function genToken(len = 10) {
@@ -86,16 +94,20 @@ export function genToken(len = 10) {
   return t;
 }
 
-/** 토큰 → 명세서 레코드 ({bizNumber, doc}) 해석. 런타임 발급분 우선, 없으면 시드. */
+/** 토큰 → 명세서 레코드 ({clientId, bizNumber, doc}) 해석. 런타임 발급분 우선, 없으면 시드. */
 export function resolveLink(token) {
   if (!token) return null;
   return loadReg()[token] || INVOICE_LINKS[token] || null;
 }
 
-/** 명세서에 대한 공개 링크 토큰을 발급(동일 사업자번호·귀속월이면 기존 토큰 재사용). */
+/** 명세서의 논리 키 — (거래처, 사업자번호, 귀속월).
+ *  거래처 id가 빠지면 같은 법인의 다른 부서가 한 토큰을 공유한다. */
+const linkKey = (r) => `${r.clientId || ""}|${normBiz(r.bizNumber)}|${r.doc.period}`;
+
+/** 명세서에 대한 공개 링크 토큰을 발급(동일 거래처·귀속월이면 기존 토큰 재사용). */
 export function issueLink(record) {
-  const period = record.doc.period;
-  const match = ([, r]) => r.bizNumber === record.bizNumber && r.doc.period === period;
+  const key = linkKey(record);
+  const match = ([, r]) => linkKey(r) === key;
   const seed = Object.entries(INVOICE_LINKS).find(match);
   if (seed) return seed[0];
   const reg = loadReg();
