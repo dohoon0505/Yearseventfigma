@@ -6,7 +6,8 @@
    - 여기서 추가/삭제한 담당자는 B2C 담당자 지정 피커(staffNames 파생)에도 반영된다.
    페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
-import { html, setHTML, on, qs, el } from "../dom.js";
+import { html, setHTML, on, qs } from "../dom.js";
+import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal } from "../ui.js";
 import {
@@ -21,16 +22,10 @@ const TABS = [
 
 export function mount(root, { nav }) {
   const state = { tab: "all", search: "" };
-  let activeModal = null, toastEl = null, toastTimer = null;
+  let activeModal = null;
+  const toast = makeToast();
 
   function closeModal() { const m = activeModal; activeModal = null; if (m) m.close(); }
-  function toast(msg, kind = "ok") {
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
-    toastEl = el(html`<div class="admin-toast admin-toast--${kind}">${icon(kind === "warn" ? "alert-circle" : "check-circle", { size: 16 })}<span>${msg}</span></div>`);
-    document.body.appendChild(toastEl);
-    toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
-  }
   /* 연락처 자동 하이픈 (admin-b2c formatPhone 과 동일 규칙) */
   function formatPhone(t) {
     let v = t.value.replace(/\D/g, "").slice(0, 11);
@@ -245,7 +240,6 @@ export function mount(root, { nav }) {
   return () => {
     offClick(); offSearch();
     closeModal();
-    if (toastEl) toastEl.remove();
-    if (toastTimer) clearTimeout(toastTimer);
+    toast.destroy();
   };
 }

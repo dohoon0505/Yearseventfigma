@@ -773,3 +773,32 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .tint-muted {
   color: var(--c-text-muted);
 }
+
+/* ── Toast ──────────────────────────────────────────────
+   js/toast.js 가 유일한 사용처(ADMIN 4개 페이지가 공유).
+   주문 페이지의 .o-toast 는 페이지 내부 DOM + .show 토글 방식의 별개 구현이다. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--r-lg);
+  background: var(--c-text-strong);
+  color: var(--c-surface);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--sh-modal);
+  z-index: 60;
+  max-width: 90vw;
+  animation: toastIn 0.2s ease;
+}
+.toast--ok .icon { color: var(--c-toast-ok); }
+.toast--warn .icon { color: var(--c-toast-warn); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
