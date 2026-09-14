@@ -25,11 +25,11 @@ const FIELDS = [
   { key: "password", label: "비밀번호", icon: "hash", grid: true, required: true },
   { section: "회사 정보" },
   { key: "companyName", label: "회사명", icon: "building2", required: true },
-  { key: "bizNumber", label: "사업자번호", icon: "hash", grid: true, required: true },
+  { key: "bizNumber", label: "사업자번호", icon: "hash", grid: true, required: true, hint: true },
   { key: "ceoName", label: "대표자명", icon: "user", grid: true, required: true },
   { section: "담당자 정보" },
   { key: "managerName", label: "담당자명", icon: "user-check", grid: true, required: true },
-  { key: "department", label: "부서·직위", icon: "building2", grid: true },
+  { key: "department", label: "부서·직위", icon: "building2", grid: true, hint: true },
   { key: "contact", label: "연락처", icon: "phone", grid: true, required: true },
   { key: "email", label: "계산서 이메일", icon: "mail", grid: true },
   { section: "기타" },
@@ -246,8 +246,9 @@ export function mount(root, { nav }) {
     const locked = f.lockOnEdit && isEdit;
     return html`
       <div class="hm-field">
-        <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}</label>
+        <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}${f.hint ? html`<span class="req" data-reqmark="${f.key}" hidden>*</span>` : ""}</label>
         <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.placeholder ?? f.label}" ${locked ? "disabled" : ""} />
+        ${f.hint ? html`<p class="hm-help" data-hint="${f.key}"></p>` : ""}
       </div>
     `;
   }
@@ -258,7 +259,15 @@ export function mount(root, { nav }) {
     const form = client
       ? { ...client }
       : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: todayStr(), invoiceDay: "1" };
-    const isValid = () => REQUIRED.every((k) => String(form[k] ?? "").trim());
+    /* 사업자번호 중복은 "같은 법인의 부서 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
+       대신 부서를 비워두면 목록에서 두 레코드를 구분할 수 없으므로 그때만 부서를 필수로 올린다. */
+    const dupes = () => store.get().clients.filter(
+      (c) => c.id !== form.id && normalizeBiz(c.bizNumber) && normalizeBiz(c.bizNumber) === normalizeBiz(form.bizNumber)
+    );
+    const deptRequired = () => dupes().length > 0;
+    const isValid = () =>
+      REQUIRED.every((k) => String(form[k] ?? "").trim()) &&
+      (!deptRequired() || !!String(form.department ?? "").trim());
 
     const fieldsHtml = () => {
       const out = [];
@@ -308,7 +317,26 @@ export function mount(root, { nav }) {
       }));
     });
 
-    on(activeModal.panel, "input", "[data-cf]", (e, t) => { form[t.dataset.cf] = t.value; syncSave(); });
+    /* 사업자번호 중복 안내 + 부서 필수 전환 — 텍스트만 갱신하므로 입력 포커스에 무해. */
+    const hintEl = (k) => qs(activeModal.panel, `[data-hint='${k}']`);
+    const reqEl = (k) => qs(activeModal.panel, `[data-reqmark='${k}']`);
+    function syncBizDup() {
+      const d = dupes();
+      const names = d.map((x) => x.department || "부서 미지정").join(", ");
+      const hb = hintEl("bizNumber");
+      if (hb) hb.textContent = d.length ? `이미 등록된 사업자번호입니다 · ${d[0].companyName}(${names}) — 부서를 입력하면 부서별로 분리 관리됩니다.` : "";
+      const rm = reqEl("department");
+      if (rm) rm.hidden = !d.length;
+      const hd = hintEl("department");
+      if (hd) hd.textContent = d.length ? "동일 사업자번호가 있어 부서 입력이 필요합니다." : "";
+    }
+    syncBizDup(); // 수정 진입 시에도 현재 상태를 반영
+
+    on(activeModal.panel, "input", "[data-cf]", (e, t) => {
+      form[t.dataset.cf] = t.value;
+      if (t.dataset.cf === "bizNumber") syncBizDup();
+      syncSave();
+    });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
       if (!isValid()) return;
