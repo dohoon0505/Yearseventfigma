@@ -5,16 +5,10 @@ import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, openModal } from "../ui.js";
 import { store } from "../store.js";
-import { getClientId } from "../session.js";
 import { settlementsFor, invoiceDayOf } from "../data/admin-mock.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
-
-/* 로그인한 거래처 레코드 → 이 화면의 회사정보 블록.
-   계정이 실제 거래처와 매칭되지 않는 데모 로그인이면 첫 거래처로 폴백한다. */
-function currentClient() {
-  const clients = store.get().clients;
-  return clients.find((c) => c.id === getClientId()) || clients[0] || null;
-}
+/* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
+import { currentClient } from "../util/client.js";
 const companyOf = (c) => ({
   회사명: c.companyName,
   사업자번호: c.bizNumber,
@@ -40,7 +34,7 @@ const settleBadge = (t) =>
 
 const EDIT_FIELDS = [
   { section: "회사 기본정보" },
-  { key: "회사명", label: "회사명", placeholder: "예) 주식회사 싱크플로", icon: "building2", grid: true },
+  { key: "회사명", label: "회사명", placeholder: "예) 주식회사 올해", icon: "building2", grid: true },
   { key: "사업자번호", label: "사업자번호", placeholder: "예) 000-00-00000", icon: "hash", grid: true },
   { key: "대표자명", label: "대표자명", placeholder: "예) 홍길동", icon: "user" },
   { section: "계산서 및 담당자 정보" },
