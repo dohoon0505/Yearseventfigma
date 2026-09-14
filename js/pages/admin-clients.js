@@ -24,7 +24,10 @@ const TABS = [
 const FIELDS = [
   { section: "계정 정보" },
   { key: "accountId", label: "접속 아이디", grid: true, lockOnEdit: true, required: true },
-  { key: "password", label: "비밀번호", grid: true, required: true },
+  /* 비밀번호는 입력칸을 두지 않는다 — 관리자가 거래처 계정 비밀번호를 읽을 수 있던
+     구조를 없애기 위함. 재설정이 필요하면 임시비밀번호를 발급해 전달한다. */
+  { key: "password", type: "action", label: "비밀번호", grid: true, action: "임시비밀번호 발급",
+    help: "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다." },
   { section: "회사 정보" },
   { key: "companyName", label: "회사명", required: true },
   { key: "bizNumber", label: "사업자번호", grid: true, required: true, hint: true },
@@ -224,6 +227,15 @@ export function mount(root, { nav }) {
 
   // ── create/edit modal (HModal 규격) ────────────────────
   function field(f, form, isEdit) {
+    if (f.type === "action") {
+      return html`
+        <div class="hm-field">
+          <label>${f.label}</label>
+          <button type="button" class="hm-btn hm-btn--secondary hm-field__act" data-action="reset-pw">${f.action}</button>
+          <p class="hm-help" data-pwout>${f.help}</p>
+        </div>
+      `;
+    }
     if (f.type === "select") {
       // 상태 선택은 공용 커스텀 드롭다운(makeDropdown)으로 — openClientModal에서 연결
       return html`
@@ -330,6 +342,19 @@ export function mount(root, { nav }) {
     on(activeModal.panel, "input", "[data-cf]", (e, t) => {
       form[t.dataset.cf] = t.value;
       if (t.dataset.cf === "bizNumber") syncBizDup();
+      syncSave();
+    });
+    /* 임시비밀번호 발급 — 값은 화면에 1회만 보여주고 form 에 실어 저장 시 적용한다.
+       DEMO 라 평문으로 저장되지만, 관리자가 **기존** 비밀번호를 읽는 경로는 사라진다.
+       실서비스에서는 서버가 해시를 저장하고 재설정 링크를 발송해야 한다. */
+    on(activeModal.panel, "click", "[data-action='reset-pw']", () => {
+      const CH = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+      let pw = "";
+      for (let i = 0; i < 10; i++) pw += CH[Math.floor(Math.random() * CH.length)];
+      form.password = pw;
+      const out = qs(activeModal.panel, "[data-pwout]");
+      if (out) out.textContent = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
+      toast("임시비밀번호를 발급했습니다");
       syncSave();
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
