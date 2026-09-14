@@ -23,7 +23,9 @@ export function pageTitle({ icon, imgSrc, title, action } = {}) {
 }
 
 /* ── DataTable grid (ports DataTable.tsx) ───────────────── */
-export function tableGrid({ columns, rows, rowKey, compact = false, fit = false }) {
+/* rowClass(row, idx) → 행에 추가할 클래스. 그룹 접기처럼 같은 그리드 위에서 행 종류를
+   구분해야 할 때 쓴다(미전달 시 기존과 동일). */
+export function tableGrid({ columns, rows, rowKey, rowClass, compact = false, fit = false }) {
   const cols = columns.map((c) => c.width ?? "1fr").join(" ");
   const acls = (a) => (a === "center" ? "is-center" : a === "right" ? "is-right" : "");
   return html`
@@ -38,7 +40,7 @@ export function tableGrid({ columns, rows, rowKey, compact = false, fit = false 
       ${rows.map(
         (row, idx) => html`
           <div
-            class="table-grid__row"
+            class="table-grid__row ${rowClass ? rowClass(row, idx) : ""}"
             data-rowkey="${rowKey(row, idx)}"
             style="grid-template-columns:${cols}"
           >

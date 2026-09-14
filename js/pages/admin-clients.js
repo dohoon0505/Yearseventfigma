@@ -8,6 +8,7 @@ import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
 import { INVOICE_DAYS } from "../data/admin-mock.js";
+import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 const TABS = [
@@ -59,7 +60,9 @@ function todayStr() {
 }
 
 export function mount(root, { nav }) {
-  const state = { tab: "all", search: "" };
+  // expanded: 펼쳐 둔 사업자번호(정규화) 집합. 재렌더로 DOM이 통째로 갈리므로
+  // 접힘 상태는 반드시 state 에서 읽는다(클래스 토글 방식은 검색 한 글자에 초기화됨).
+  const state = { tab: "all", search: "", expanded: new Set() };
   let activeModal = null;
   let saveTimer = null;
   let toastEl = null;
@@ -77,43 +80,99 @@ export function mount(root, { nav }) {
     toastTimer = setTimeout(() => { if (toastEl) toastEl.remove(); toastEl = null; toastTimer = null; }, 2600);
   }
 
+  /** 자식 필드(담당자명·부서) 매칭 — 이 경우에만 그룹을 자동으로 펼친다. */
+  const matchesChild = (c, q) => c.managerName.includes(q) || (c.department || "").includes(q);
+  const matchesParent = (c, q) => c.companyName.includes(q) || c.bizNumber.includes(q);
+
   function filtered() {
     const q = state.search.trim();
     return store.get().clients.filter((c) => {
       if (state.tab !== "all" && c.status !== state.tab) return false;
-      if (q && !(c.companyName.includes(q) || c.bizNumber.includes(q) || c.managerName.includes(q))) return false;
+      if (q && !(matchesParent(c, q) || matchesChild(c, q))) return false;
       return true;
     });
   }
 
+  /* 표에 실제로 그릴 행 목록.
+     같은 사업자번호를 2곳 이상이 쓰면 부모(그룹) + 자식(부서) 구조로 접는다.
+     ─ 그룹 성립은 전체 목록 기준 → 필터로 1건만 남아도 '부서 N' 배지가 맥락을 준다.
+     ─ 자식 필드에 검색이 걸리면 자동으로 펼친다(비매칭 형제는 filtered()에서 이미 탈락).
+     ─ 부모 필드(회사명·사업자번호) 매칭은 형제 전원이 살아남으므로 펼치지 않는다.
+       접힌 부모 한 줄이 더 정확한 요약이다. */
+  function displayRows() {
+    const q = state.search.trim();
+    const shared = sharedBizKeys(store.get().clients);
+    const rows = filtered();
+    const out = [];
+    const seen = new Set();
+    let no = 0;
+
+    rows.forEach((c) => {
+      const key = normalizeBiz(c.bizNumber);
+      if (!shared.has(key)) { out.push({ kind: "flat", key: c.id, client: c, no: String(++no).padStart(2, "0") }); return; }
+      if (seen.has(key)) return;
+      seen.add(key);
+      const members = rows.filter((x) => normalizeBiz(x.bizNumber) === key);
+      const total = store.get().clients.filter((x) => normalizeBiz(x.bizNumber) === key).length;
+      const autoOpen = !!q && members.some((m) => matchesChild(m, q));
+      const open = state.expanded.has(key) || autoOpen;
+      const pno = String(++no).padStart(2, "0");
+      out.push({ kind: "group", key, client: members[0], count: total, open, no: pno });
+      if (open) members.forEach((m, i) => out.push({ kind: "child", key: m.id, client: m, no: `${pno}-${i + 1}` }));
+    });
+    return out;
+  }
+
+  const dash = html`<span class="cli-dash">—</span>`;
   const columns = [
-    { label: "순번", width: "56px", align: "center", render: (r, i) => String(i + 1).padStart(2, "0") },
-    { label: "회사명", width: "1fr", render: (r) => html`<div class="ellipsis">${r.companyName}</div>` },
-    { label: "사업자번호", width: "128px", align: "center", render: (r) => r.bizNumber },
-    { label: "대표자명", width: "84px", align: "center", render: (r) => r.ceoName },
-    { label: "담당자", width: "84px", align: "center", render: (r) => r.managerName },
-    { label: "연락처", width: "136px", align: "center", render: (r) => r.contact },
-    { label: "상태", width: "92px", align: "center", render: (r) => statusPill(r.status) },
-    { label: "가입일", width: "108px", align: "center", render: (r) => r.joinDate },
+    { label: "순번", width: "56px", align: "center", render: (r) => r.no },
+    {
+      label: "회사명", width: "1fr",
+      render: (r) => {
+        const c = r.client;
+        if (r.kind === "group") {
+          return html`<button type="button" class="cli-grp" data-action="grp" data-k="${r.key}" aria-expanded="${r.open ? "true" : "false"}">
+            <span class="cli-grp__chev"></span>
+            <b class="ellipsis">${c.companyName}</b>
+            <span class="cli-badge">부서 ${r.count}</span>
+          </button>`;
+        }
+        if (r.kind === "child") return html`<div class="cli-child ellipsis">${c.department || "부서 미지정"}</div>`;
+        return html`<div class="ellipsis">${c.companyName}</div>`;
+      },
+    },
+    { label: "사업자번호", width: "128px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.bizNumber) },
+    { label: "대표자명", width: "84px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.ceoName) },
+    { label: "담당자", width: "84px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.managerName) },
+    { label: "연락처", width: "136px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.contact) },
+    { label: "상태", width: "92px", align: "center", render: (r) => (r.kind === "group" ? dash : statusPill(r.client.status)) },
+    { label: "가입일", width: "108px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.joinDate) },
     {
       label: "관리", width: "148px", align: "center",
-      render: (r) =>
-        r.status === "승인대기"
+      render: (r) => {
+        if (r.kind === "group") return dash; // 개별 관리는 자식 행에서
+        const c = r.client;
+        return c.status === "승인대기"
           ? html`<div class="admin-rowact">
-              <button class="btn-approve" data-action="approve" data-id="${r.id}">승인</button>
-              <button class="btn-reject" data-action="reject" data-id="${r.id}">거부</button>
+              <button class="btn-approve" data-action="approve" data-id="${c.id}">승인</button>
+              <button class="btn-reject" data-action="reject" data-id="${c.id}">거부</button>
             </div>`
           : html`<div class="admin-rowact">
-              <button class="ptbl-edit" data-action="edit" data-id="${r.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
-              <button class="ptbl-del" data-action="del" data-id="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
-            </div>`,
+              <button class="ptbl-edit" data-action="edit" data-id="${c.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
+              <button class="ptbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
+            </div>`;
+      },
     },
   ];
 
   function tableBody() {
-    const rows = filtered();
+    const rows = displayRows();
     if (rows.length === 0) return html`<div class="admin-empty">조건에 맞는 거래처가 없습니다.</div>`;
-    return tableGrid({ columns, rows, rowKey: (r) => r.id, compact: true });
+    return tableGrid({
+      columns, rows, compact: true,
+      rowKey: (r) => (r.kind === "group" ? `g:${r.key}` : r.key),
+      rowClass: (r) => (r.kind === "group" ? "is-group" : r.kind === "child" ? "is-child" : ""),
+    });
   }
   function summaryBody() {
     return html`조회 <strong>${filtered().length}</strong>개 거래처`;
@@ -148,7 +207,7 @@ export function mount(root, { nav }) {
                   ${icon("search", { size: 13, cls: "bf-srch__ic" })}
                   <span class="bf-srch__lbl">거래처</span>
                   <span class="bf-srch__dv"></span>
-                  <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자 검색" />
+                  <input type="text" data-search value="${state.search}" placeholder="회사명·사업자번호·담당자·부서 검색" />
                 </div>
               </div>
             </div>
@@ -322,6 +381,13 @@ export function mount(root, { nav }) {
     const a = t.dataset.action;
     if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
     if (a === "new") return openClientModal(null);
+    // 그룹 토글은 data-id 가 없으므로 findClient 앞에서 처리해야 한다(뒤면 조용히 무시됨).
+    if (a === "grp") {
+      const k = t.dataset.k;
+      if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k);
+      refreshList();
+      return;
+    }
     const c = findClient(t.dataset.id);
     if (!c) return;
     if (a === "edit") openClientModal(c);
