@@ -8,6 +8,7 @@
 import { setHTML, on, qs, html } from "../dom.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
+import { INITIAL_CLIENTS } from "../data/admin-mock.js";
 import { pageTitle, makeDropdown, simpleModal } from "../ui.js";
 import { sheetToXlsx } from "../util/xlsx.js";
 
@@ -103,9 +104,13 @@ const DB = {
     ],
   },
 };
+/* 공급받는자 — 데모 기업 계정(싱크플로) 거래처 레코드에서 파생.
+   하드코딩 대신 시드를 쓰므로 회사명·사업자번호를 고치면 문서와 토큰이 함께 따라온다. */
+const BUYER_CLIENT_ID = "C021";
+const BUYER_SEED = INITIAL_CLIENTS.find((c) => c.id === BUYER_CLIENT_ID);
 const BUYER = {
-  address: "서울 중구 퇴계로 100 스테이트타워 남산 3층 (주)올해의경조사", company: "주식회사 싱크플로",
-  bizNumber: "680-87-02988", ceo: "홍길동", summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급",
+  address: `${BUYER_SEED.address} ${BUYER_SEED.companyName}`, company: BUYER_SEED.companyName,
+  bizNumber: BUYER_SEED.bizNumber, ceo: BUYER_SEED.ceoName, summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급",
 };
 const YEARS = ["2024", "2025", "2026"];
 const MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
@@ -394,7 +399,7 @@ export function mount(root, { nav }) {
     }),
     on(root, "click", "[data-excel]", downloadExcel),
     on(root, "click", "[data-link]", () => {
-      const token = issueLink({ bizNumber: BUYER.bizNumber, doc: currentDoc() });
+      const token = issueLink({ clientId: BUYER_CLIENT_ID, bizNumber: BUYER.bizNumber, doc: currentDoc() });
       const url = publicInvoiceUrl(token);
       const ok = () => toast("거래명세서 열람링크가 복사되었습니다 · 링크만으로 접속이 가능해요");
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => window.prompt("거래명세서 열람링크 (복사하세요)", url));

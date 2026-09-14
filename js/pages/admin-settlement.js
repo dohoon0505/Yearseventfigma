@@ -44,7 +44,7 @@ const issueBadge = (v) => (v === "발급완료" ? ok("발급완료") : warn("동
 const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : danger("미입금"));
 const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서발급 === "발급완료" && r.입금완료 === "입금완료";
 
-// 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 사업자번호·귀속월이면 issueLink가 시드 토큰 재사용.
+// 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 거래처·귀속월이면 issueLink가 시드 토큰 재사용.
 const buildDoc = (client, rec) => ({
   title: `${rec.청구년월} 꽃배달 거래명세서`,
   period: `${rec.청구년월} 귀속`,
@@ -383,7 +383,7 @@ export function mount(root, { nav }) {
   const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
     if (!row) return;
-    const token = issueLink({ bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
+    const token = issueLink({ clientId: row.client.id, bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
     const url = publicInvoiceUrl(token);
     const span = t.querySelector("span");
     const flash = () => { if (span) { span.textContent = "복사됨!"; setTimeout(() => { if (span) span.textContent = "링크 복사"; }, 1600); } };
