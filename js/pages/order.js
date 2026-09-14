@@ -13,6 +13,18 @@ import { deliveryFeeFor } from "../data/delivery-fees.js";
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
+/* 연락처 자동 하이픈 — 순수 포맷. 받는분·추가 수신자 입력이 공유한다. */
+const fmtPhone = (v) => {
+  const d = String(v).replace(/\D/g, "").slice(0, 11);
+  if (d.length > 7) return d.slice(0, 3) + "-" + d.slice(3, 7) + "-" + d.slice(7);
+  if (d.length > 3) return d.slice(0, 3) + "-" + d.slice(3);
+  return d;
+};
+const phoneOk = (v) => String(v).replace(/\D/g, "").length >= 10;
+
+/* 합동 발송 시 함께 알림받을 추가 수신자 상한 */
+const NT_MAX = 5;
+
 /* ── 경조사 정의 (배너 · 카테고리 · 링크 안내문구) ───────────── */
 /* Y 카탈로그의 3단화환은 목(축)·근조 겸용이라 두 경조사가 같은 카테고리를 공유한다. */
 const OCC = {
@@ -77,6 +89,8 @@ const immBizSlot = () => {
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const DONE_SVG = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+/* 추가 수신자 행 삭제 (icons.js trash2 와 동일 형태) */
+const TRASH_SVG = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 /* 간편선택 버튼 아이콘 (목록) */
 const PICK_SVG = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.4" fill="currentColor"/><circle cx="4.5" cy="12" r="1.4" fill="currentColor"/><circle cx="4.5" cy="18" r="1.4" fill="currentColor"/></svg>`;
 
@@ -258,6 +272,15 @@ function markup() {
                 <button class="tg on" data-nt="manager">${raw(CHECK_SVG)}담당자</button>
               </div>
             </div>
+            <!-- 합동 발송 추가 수신자 — 행 슬롯은 renderNotifyExtra()가 채운다.
+                 동적 행은 data-nte-* 접두사: [data-nt] 강제 ON 루프·토글 핸들러와 겹치지 않게. -->
+            <div class="nt-extra">
+              <div class="nt-rows" data-nt-rows></div>
+              <button type="button" class="nt-add" data-nte-add>
+                <span class="nt-add__plus">+</span> 수신자 추가 <b data-nte-cnt>(0/${NT_MAX})</b>
+              </button>
+              <p class="nt-max" data-nte-max hidden>추가 수신자는 최대 ${NT_MAX}명까지 등록할 수 있어요.</p>
+            </div>
           </div>
           <div class="cta-row">
             <button class="btn-back" data-goto="3">이전</button>
@@ -296,7 +319,9 @@ export function mount(root, { nav }) {
     deliv: "sched", date: "", hour: "09", min: "00",
     manager: 0,
     notify: { recipient: true, sender: true, manager: true },
+    notifyExtra: [], // [{ id, name, phone, on }] — 합동 발송 추가 수신자(최대 NT_MAX)
   };
+  let ntSeq = 0;
   /* 데이트피커 선택 범위: 오늘 00:00 ~ +30일. 기본값 = 내일. (in-place 갱신) */
   const dpMin = new Date(); dpMin.setHours(0, 0, 0, 0);
   const dpMax = new Date(dpMin); dpMax.setDate(dpMax.getDate() + 30);
@@ -424,10 +449,9 @@ export function mount(root, { nav }) {
 
   /* ── STEP 2 · 배송지 · 일시 ── */
   function onPhone(t) {
-    let v = t.value.replace(/\D/g, "").slice(0, 11);
-    if (v.length > 7) v = v.slice(0, 3) + "-" + v.slice(3, 7) + "-" + v.slice(7);
-    else if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
-    t.value = v; state.toPhone = v; refreshCtas();
+    t.value = fmtPhone(t.value);
+    state.toPhone = t.value;
+    refreshCtas();
   }
   const ddHour = makeDropdown($("[data-dd-hour]"), {
     unit: "시", options: hourOptions,
@@ -675,6 +699,62 @@ export function mount(root, { nav }) {
     }
   }
 
+  /* ── 합동 발송 추가 수신자 ──────────────────────────────
+     행 슬롯만 setHTML 로 갈아끼운다(renderProducts 와 같은 패턴).
+     추가·삭제 클릭 경로에서만 호출 — 입력 중 호출하면 포커스가 날아간다. */
+  const findExtra = (id) => state.notifyExtra.find((r) => r.id === id);
+  const extraIncomplete = (r) => r.on && (r.name.trim() || r.phone) && !(r.name.trim() && phoneOk(r.phone));
+
+  function renderNotifyExtra() {
+    setHTML($("[data-nt-rows]"), html`
+      ${state.notifyExtra.map((r) => html`
+        <div class="nt-row ${extraIncomplete(r) ? "nt-row--warn" : ""}" data-nte-row="${r.id}">
+          <input class="nt-in nt-in--name" type="text" maxlength="20" data-nte-name data-nte-id="${r.id}"
+                 value="${r.name}" placeholder="이름 (예: 김과장)" aria-label="추가 수신자 이름" />
+          <input class="nt-in nt-in--phone" type="text" inputmode="numeric" data-nte-phone data-nte-id="${r.id}"
+                 value="${r.phone}" placeholder="010-0000-0000" aria-label="추가 수신자 연락처" />
+          <button type="button" class="toggle" role="switch" aria-checked="${r.on ? "true" : "false"}"
+                  data-nte-toggle data-nte-id="${r.id}" aria-label="${r.name || "추가 수신자"} 배송완료 알림 수신">
+            <span class="toggle__knob"></span>
+          </button>
+          <button type="button" class="nt-del" data-nte-del data-nte-id="${r.id}" aria-label="수신자 삭제">${raw(TRASH_SVG)}</button>
+        </div>
+      `)}
+    `);
+    syncAddBtn();
+    syncNotifySummary();
+  }
+  /* 카운터·비활성은 DOM 직접 조작 — 행 슬롯은 건드리지 않는다. */
+  function syncAddBtn() {
+    const n = state.notifyExtra.length;
+    const full = n >= NT_MAX;
+    const cnt = $("[data-nte-cnt]"); if (cnt) cnt.textContent = `(${n}/${NT_MAX})`;
+    const add = $("[data-nte-add]"); if (add) add.disabled = full;
+    const max = $("[data-nte-max]"); if (max) max.toggleAttribute("hidden", !full);
+  }
+
+  /* 배송완료 알림 수신자 요약 — 접수 확인·완료 화면이 공유한다. */
+  function notifyParts() {
+    const base = [];
+    if (state.notify.recipient) base.push("받는분");
+    if (state.notify.sender) base.push("보내는분");
+    if (state.notify.manager) base.push("담당자");
+    const extra = state.notifyExtra.filter((r) => r.on && r.name.trim() && phoneOk(r.phone));
+    return { base, extra };
+  }
+  function notifyLabel() {
+    const { base, extra } = notifyParts();
+    if (!base.length && !extra.length) return "받지 않음";
+    if (!extra.length) return base.join(" · ");
+    if (!base.length) return extra.length === 1 ? extra[0].name : `${extra[0].name} 외 ${extra.length - 1}명`;
+    return `${base.join(" · ")} 외 ${extra.length}명`;
+  }
+  const notifyExtraDetail = () => notifyParts().extra.map((r) => `${r.name} ${r.phone}`).join(" · ");
+  function syncNotifySummary() {
+    const el = $("[data-cf-notify]"); // go(4) 전에는 아직 없다
+    if (el) el.textContent = notifyLabel();
+  }
+
   function renderConfirm() {
     const p = state.product;
     if (!p) return; // 상품 미선택 방어(경조사 전환 후 탭 점프 등 비정상 경로)
@@ -698,6 +778,10 @@ export function mount(root, { nav }) {
       <div class="cf-row"><span class="cl">보내는분</span>
         <span class="cv">${state.sender}</span>
         <button class="edit" data-goto="3">변경</button></div>
+      <!-- 알림 수신자: 컨트롤이 바로 아래 .opt-box 에 있어 '변경' 버튼은 두지 않는다 -->
+      <div class="cf-row"><span class="cl">배송완료 알림</span>
+        <span class="cv" data-cf-notify>${notifyLabel()}</span>
+        <span class="cf-noedit"></span></div>
     `);
     /* 결제 금액: 추가 배송비가 있으면 상품/배송비 내역을 함께 표기 */
     const total = parseWon(p.price) + df.fee;
@@ -719,6 +803,7 @@ export function mount(root, { nav }) {
       <div class="cf-row"><span class="cl">리본 문구</span><span class="cv">${state.ribbon}</span></div>
       <div class="cf-row"><span class="cl">배송</span><span class="cv">${dateLabel()}<small>${state.addr}</small></span></div>
       <div class="cf-row"><span class="cl">담당자</span><span class="cv">${c.name} (${c.phone})</span></div>
+      <div class="cf-row"><span class="cl">배송완료 알림</span><span class="cv">${notifyLabel()}${notifyExtraDetail() ? html`<small>${notifyExtraDetail()}</small>` : ""}</span></div>
       <div class="cf-row"><span class="cl">결제 금액</span><span class="cv num done-amount">${won(parseWon(state.product.price) + deliveryFeeFor(state.addr).fee)}</span></div>
     `);
     $$("[data-panel]").forEach((p) => p.classList.remove("on"));
@@ -734,6 +819,7 @@ export function mount(root, { nav }) {
       step: 1, maxStep: 1, occ: null, viaUrl: false, product: null, ribbon: "", sender: "",
       addr: "", toName: "", toPhone: "", side: "", deliv: "sched", hour: "09", min: "00", manager: 0,
       notify: { recipient: true, sender: true, manager: true },
+      notifyExtra: [],
     });
     dpMin.setTime(Date.now()); dpMin.setHours(0, 0, 0, 0);
     dpMax.setTime(dpMin.getTime()); dpMax.setDate(dpMax.getDate() + 30);
@@ -747,6 +833,7 @@ export function mount(root, { nav }) {
     $("[data-side-req]").setAttribute("hidden", "");
     setHTML($("[data-prod-list]"), "");
     $$("[data-nt]").forEach((t) => t.classList.add("on"));
+    ntSeq = 0; renderNotifyExtra();
     setDeliv("sched");
     ddHour.renderTrigger(); ddMin.renderTrigger(); dpDate.renderTrigger(); ddMgr.renderTrigger(); ddSide.renderTrigger();
     updateCnt(); updateSenderCnt(); applyBizRule();
@@ -792,6 +879,42 @@ export function mount(root, { nav }) {
     const k = t.dataset.nt;
     state.notify[k] = !state.notify[k];
     t.classList.toggle("on", state.notify[k]);
+    syncNotifySummary();
+  });
+  /* 추가 수신자 — 행 재렌더는 추가/삭제(클릭) 경로에서만. */
+  bind("click", "[data-nte-add]", () => {
+    if (state.notifyExtra.length >= NT_MAX) return;
+    const id = "nt" + ++ntSeq;
+    state.notifyExtra.push({ id, name: "", phone: "", on: true });
+    renderNotifyExtra();
+    const el = $(`[data-nte-row="${id}"] [data-nte-name]`);
+    if (el) el.focus();
+  });
+  bind("click", "[data-nte-del]", (e, t) => {
+    state.notifyExtra = state.notifyExtra.filter((r) => r.id !== t.dataset.nteId);
+    renderNotifyExtra();
+  });
+  bind("click", "[data-nte-toggle]", (e, t) => {
+    const r = findExtra(t.dataset.nteId);
+    if (!r) return;
+    r.on = t.getAttribute("aria-checked") !== "true";
+    t.setAttribute("aria-checked", r.on ? "true" : "false");
+    t.closest(".nt-row").classList.toggle("nt-row--warn", extraIncomplete(r));
+    syncNotifySummary();
+  });
+  /* 입력 핸들러는 state 갱신 + 요약 텍스트 패치만 — renderNotifyExtra 를 부르면 포커스가 날아간다. */
+  bind("input", "[data-nte-name]", (e, t) => {
+    const r = findExtra(t.dataset.nteId);
+    if (!r) return;
+    r.name = t.value;
+    syncNotifySummary();
+  });
+  bind("input", "[data-nte-phone]", (e, t) => {
+    const r = findExtra(t.dataset.nteId);
+    if (!r) return;
+    t.value = fmtPhone(t.value);
+    r.phone = t.value;
+    syncNotifySummary();
   });
   bind("click", "[data-submit]", openSubmitConfirm);
   bind("click", "[data-done-new]", resetAll);
