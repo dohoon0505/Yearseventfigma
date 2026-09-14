@@ -758,3 +758,15 @@
 .rdone__btn:hover {
   background: var(--c-auth-cta-hover);
 }
+
+/* 회원가입 3단계 — 사업자등록증 첨부 버튼 */
+.rf-file {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 16px; height: 48px; border-radius: var(--r-lg);
+  border: 1px solid var(--c-border-input); background: var(--c-surface); cursor: pointer; text-align: left;
+}
+.rf-file:hover { border-color: var(--c-text-muted); }
+.rf-file__name { font-size: 14px; color: var(--c-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rf-file__name--empty { color: var(--c-text-faint); }
+.rf-file__re { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--c-blue); }
+.rf__req { color: var(--c-danger-ink); margin-left: 2px; }
