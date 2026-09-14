@@ -65,7 +65,7 @@ export function mount(root, { nav }) {
     { label: "순번", width: "56px", align: "center", render: (r, i) => html`<span class="staff-no">${String(i + 1).padStart(2, "0")}</span>` },
     { label: "이름", width: "1fr", render: (r) => html`<div class="ellipsis"><span class="staff-name">${r.name}</span></div>` },
     { label: "부서", width: "1fr", render: (r) => html`<div class="ellipsis ${r.dept ? "" : "staff-dept--empty"}">${r.dept || "미지정"}</div>` },
-    { label: "연락처", width: "138px", align: "center", render: (r) => html`<span class="staff-phone">${r.phone || "-"}</span>` },
+    { label: "연락처", width: "150px", align: "center", render: (r) => html`<span class="staff-phone">${r.phone || "-"}</span>` },
     {
       label: "아이디", width: "112px", align: "center",
       render: (r) => (r.accountId
@@ -75,10 +75,6 @@ export function mount(root, { nav }) {
     {
       label: "권한", width: "96px", align: "center",
       render: (r) => html`<span class="staff-role ${r.role === "최고관리자" ? "staff-role--su" : ""}">${r.role || "담당자"}</span>`,
-    },
-    {
-      label: "최근 로그인", width: "132px", align: "center",
-      render: (r) => html`<span class="staff-phone">${r.lastLogin || "-"}</span>`,
     },
     {
       label: "알림 수신", width: "120px", align: "center",
@@ -140,8 +136,8 @@ export function mount(root, { nav }) {
     closeModal();
     const isEdit = !!staff;
     const form = isEdit
-      ? { accountId: "", role: "담당자", lastLogin: "", ...staff }
-      : { id: staffNewId(), name: "", dept: "", phone: "", notify: true, accountId: "", role: "담당자", lastLogin: "" };
+      ? { accountId: "", role: "담당자", ...staff }
+      : { id: staffNewId(), name: "", dept: "", phone: "", notify: true, accountId: "", role: "담당자" };
     const isValid = () => !!form.name.trim() && !!form.phone.trim();
     const body = html`
       <div class="hm__head">
