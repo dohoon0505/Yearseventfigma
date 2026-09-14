@@ -174,3 +174,31 @@
   background: var(--c-danger-bg);
   color: var(--c-danger-ink);
 }
+
+/* ── 청구금액 → 근거 주문 드릴다운 (관리자 정산회계) ─────────
+   화면을 떠나지 않고 여러 거래처를 연달아 확인하기 위한 인라인 아코디언. */
+.settle-amount--drill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--c-blue); border-bottom: 1px solid var(--c-user-border);
+}
+.settle-caret {
+  width: 0; height: 0; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor; transition: transform .14s ease;
+}
+.settle-amount--drill[aria-expanded="true"] .settle-caret { transform: rotate(180deg); }
+.settle-drill { background: var(--c-bg); border-bottom: 1px solid var(--c-border-light); padding: 4px 16px 10px; }
+.settle-drill--empty { padding: 12px 16px; font-size: var(--fs-13); color: var(--c-text-muted); }
+.settle-drill__row {
+  display: grid; grid-template-columns: 52px 92px minmax(0, 1fr) 130px 92px; gap: 10px;
+  align-items: center; padding: 7px 0; border-top: 1px solid var(--c-border-light);
+  font-size: var(--fs-13); color: var(--c-text-2);
+}
+.settle-drill__d { color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.settle-drill__m { text-align: right; font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.settle-drill__more {
+  margin-top: 8px; padding: 7px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  color: var(--c-text-2); font-size: var(--fs-13); font-weight: var(--fw-semibold); cursor: pointer;
+}
+.settle-drill__more:hover { border-color: var(--c-text-muted); background: var(--c-bg); }
