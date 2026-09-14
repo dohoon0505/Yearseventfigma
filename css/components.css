@@ -581,6 +581,22 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   text-align: right;
 }
 
+/* ── 표 행 액션 버튼 (수정/삭제) ──────────────────────────
+   USER profile · ADMIN clients/b2c/staff 가 공유한다. 원래 profile.css 에만
+   정의돼 있어 admin 3개 페이지가 전역 CSS 로드 순서에 기대는 암시적 의존이었다.
+   components.css 는 페이지 CSS 보다 먼저 로드돼 페이지별 오버라이드가 자연히 이긴다. */
+.ptbl-edit,
+.ptbl-del {
+  display: inline-flex;
+  padding: 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ptbl-edit { color: var(--c-blue); }
+.ptbl-edit:hover { background: var(--c-blue-soft); }
+.ptbl-del { color: var(--c-danger); }
+.ptbl-del:hover { background: var(--c-danger-bg); }
+
 /* ── Toggle switch ──────────────────────────────────────── */
 .toggle {
   position: relative;

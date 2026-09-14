@@ -51,27 +51,6 @@
   background: #3558c4;
 }
 
-/* table action buttons */
-.ptbl-edit,
-.ptbl-del {
-  display: inline-flex;
-  padding: 6px;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-.ptbl-edit {
-  color: var(--c-blue);
-}
-.ptbl-edit:hover {
-  background: #e8edff;
-}
-.ptbl-del {
-  color: var(--c-danger);
-}
-.ptbl-del:hover {
-  background: #ffeded;
-}
-
 /* ── 정산·회계 담당자 지정 ──────────────────────────────── */
 .ptbl-setbilling {
   padding: 5px 10px;
