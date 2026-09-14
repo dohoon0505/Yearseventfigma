@@ -4,3 +4,6 @@ React-Backup/
 # Tooling / test artifacts
 .playwright-mcp/
 node_modules/
+
+# 생성물 — 원본은 docs/*.md, 재생성은 python tools/build-docs.py
+docs/*.docx
