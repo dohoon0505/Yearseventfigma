@@ -7,6 +7,7 @@ import { html, setHTML, on, qs, qsa, el } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
+import { INVOICE_DAYS } from "../data/admin-mock.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 const TABS = [
@@ -34,6 +35,14 @@ const FIELDS = [
   { key: "address", label: "사업장주소", icon: "map-pin" },
   { key: "status", label: "상태", type: "select", options: STATUS_OPTS, grid: true },
   { key: "joinDate", label: "가입일", icon: "calendar-days", grid: true },
+  /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
+     28개 목록이 잘리지 않고, 인접 grid 짝짓기(fieldsHtml)도 건드리지 않는다. */
+  { section: "계산서 발급" },
+  {
+    key: "invoiceDay", label: "계산서 발급일", type: "select", options: INVOICE_DAYS,
+    ddLabel: (v) => `매월 ${v}일`,
+    help: "매월 지정일에 전월 귀속 거래명세서·계산서가 발급됩니다. 정산기한은 발급일이 속한 달의 말일입니다.",
+  },
 ];
 const REQUIRED = FIELDS.filter((f) => f.required).map((f) => f.key);
 
@@ -170,6 +179,7 @@ export function mount(root, { nav }) {
             <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
             <div class="dd-panel" role="listbox"></div>
           </div>
+          ${f.help ? html`<p class="hm-help">${f.help}</p>` : ""}
         </div>
       `;
     }
@@ -188,7 +198,7 @@ export function mount(root, { nav }) {
     const isEdit = !!client;
     const form = client
       ? { ...client }
-      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: todayStr() };
+      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: todayStr(), invoiceDay: "1" };
     const isValid = () => REQUIRED.every((k) => String(form[k] ?? "").trim());
 
     const fieldsHtml = () => {
@@ -233,6 +243,7 @@ export function mount(root, { nav }) {
       const f = FIELDS.find((x) => x.key === key);
       ddCfs.push(makeDropdown(elc, {
         options: () => f.options,
+        label: f.ddLabel, // 값 ≠ 표시 (예: "20" → "매월 20일"). 미전달 시 값 그대로.
         get: () => form[key],
         set: (v) => { form[key] = v; syncSave(); },
       }));
