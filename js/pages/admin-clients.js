@@ -215,13 +215,18 @@ export function mount(root, { nav }) {
       `
     );
   }
-  const refreshList = () => {
-    const tabs = qs(root, "[data-slot='tabs']");
+  /* 검색은 탭 카운트에 영향이 없다(tabsBody 는 전체 목록을 센다) → 표·요약만 갱신.
+     admin-b2c 의 refreshTableOnly 와 같은 이름·같은 구조. */
+  const refreshTableOnly = () => {
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
-    if (tabs) setHTML(tabs, tabsBody());
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
+  };
+  const refreshList = () => {
+    const tabs = qs(root, "[data-slot='tabs']");
+    if (tabs) setHTML(tabs, tabsBody());
+    refreshTableOnly();
   };
 
   // ── create/edit modal (HModal 규격) ────────────────────
@@ -369,7 +374,7 @@ export function mount(root, { nav }) {
       <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
       <button class="hm-btn hm-btn--danger" data-action="do-reject" disabled>거부 처리</button>
     `;
-    activeModal = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer, onClose: () => {} });
+    activeModal = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer });
     const ta = qs(activeModal.panel, "[data-reason]");
     const btn = qs(activeModal.panel, "[data-action='do-reject']");
     on(activeModal.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
@@ -390,7 +395,7 @@ export function mount(root, { nav }) {
       <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
       <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
     `;
-    activeModal = simpleModal({ title: `${client.companyName} 거래처를 삭제할까요?`, subtitle: client.accountId, size: "sm", body, footer, onClose: () => {} });
+    activeModal = simpleModal({ title: `${client.companyName} 거래처를 삭제할까요?`, subtitle: client.accountId, size: "sm", body, footer });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       store.removeClient(client.id);
       closeModal();
@@ -422,10 +427,7 @@ export function mount(root, { nav }) {
   });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state.search = t.value;
-    const sum = qs(root, "[data-slot='summary']");
-    const tbl = qs(root, "[data-slot='table']");
-    if (sum) setHTML(sum, summaryBody());
-    if (tbl) setHTML(tbl, tableBody());
+    refreshTableOnly();
   });
 
   return () => {

@@ -116,7 +116,7 @@ export function mount(root, { nav }) {
         <button class="hm-btn hm-btn--primary" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
       </div>
     `;
-    activeModal = openModal({ body: body(), onClose: () => {} });
+    activeModal = openModal({ body: body() });
     on(activeModal.panel, "input", "[data-pf]", (e, t) => {
       form[t.dataset.pf] = t.value;
       const pv = qs(activeModal.panel, "[data-slot='preview']");
@@ -174,7 +174,7 @@ export function mount(root, { nav }) {
         <button class="hm-btn hm-btn--primary" data-action="add" ${valid() ? "" : "disabled"}>등록</button>
       </div>
     `;
-    activeModal = openModal({ body: body(), onClose: () => {} });
+    activeModal = openModal({ body: body() });
     const re = () => activeModal.render(body());
     on(activeModal.panel, "input", "[data-pf]", (e, t) => {
       form[t.dataset.pf] = t.value;
@@ -247,7 +247,7 @@ export function mount(root, { nav }) {
         <div class="hm-info"><span><b>${row.name}님은 정산·회계 담당자예요.</b> 정산·회계 담당자는 항상 1명이 지정되어 있어야 하니, 다른 담당자를 정산담당으로 먼저 지정한 뒤 삭제해 주세요.</span></div>
       `;
       const footer = html`<button class="hm-btn hm-btn--primary" data-action="close">확인</button>`;
-      activeModal = simpleModal({ title: "삭제할 수 없어요", size: "sm", body, footer, onClose: () => {} });
+      activeModal = simpleModal({ title: "삭제할 수 없어요", size: "sm", body, footer });
       on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
       return;
     }
@@ -258,7 +258,7 @@ export function mount(root, { nav }) {
       <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
       <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
     `;
-    activeModal = simpleModal({ title: `${row.name} 항목을 삭제할까요?`, size: "sm", body, footer, onClose: () => {} });
+    activeModal = simpleModal({ title: `${row.name} 항목을 삭제할까요?`, size: "sm", body, footer });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       if (kind === "contact") store.setContacts((prev) => prev.filter((c) => c.no !== row.no));
       else store.setProfiles((prev) => prev.filter((p) => p.no !== row.no));

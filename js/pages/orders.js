@@ -247,7 +247,6 @@ export function mount(root, { nav }) {
     activeModal = openModal({
       panelClass: order.hasPhoto ? "modal-panel--split" : "",
       body,
-      onClose: () => {},
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='zoom']", () =>
