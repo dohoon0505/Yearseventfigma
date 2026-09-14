@@ -323,3 +323,6 @@
   color: var(--c-text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .page-order .addr-find:hover { border-color: var(--c-text-muted); background: var(--c-bg); }
+
+/* 배송불가·반입 제한은 경고 톤으로 — 금액 안내와 성격이 다르다(진행이 막힌다). */
+.page-order .deliv-fee-note--block { color: var(--c-danger-ink); }

@@ -8,6 +8,7 @@ import { html, raw, setHTML, on, qs, qsa } from "../dom.js";
 import { store, ALL_PRODUCTS, productKey, receivingContacts } from "../store.js";
 import { pageTitle, makeDropdown, makeDatepicker, simpleModal } from "../ui.js";
 import { deliveryFeeFor } from "../data/delivery-fees.js";
+import { evaluateAddress, matchesProduct } from "../data/intake-rules.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
@@ -336,7 +337,16 @@ export function mount(root, { nav }) {
 
   const valid = {
     1: () => !!(state.occ && state.product),
-    2: () => !!(state.addr && state.toName && (state.deliv !== "sched" || state.date) && (state.occ !== "wed" || state.side)),
+    /* 지역 규칙(구 시스템 503)을 여기서 막는다 — 주소를 다 적고 마지막에 반려되는
+       것보다 입력 즉시 막는 편이 낫다. 배송불가 지역이거나, 고른 상품이 그 배송지의
+       반입 허용 목록 밖이면 진행할 수 없다(안내만으로는 그냥 넘어가 버린다). */
+    2: () => {
+      if (!(state.addr && state.toName && (state.deliv !== "sched" || state.date) && (state.occ !== "wed" || state.side))) return false;
+      const r = evaluateAddress(state.addr);
+      if (r.blocked) return false;
+      if (r.allowOnly.length && state.product && !matchesProduct(r.allowOnly, state.product.product)) return false;
+      return true;
+    },
     3: () => !!(state.ribbon && state.sender),
   };
 
@@ -685,14 +695,27 @@ export function mount(root, { nav }) {
   function renderDelivFeeNote() {
     const el = $("[data-deliv-fee]");
     if (!el) return;
-    const { fee, region } = deliveryFeeFor(state.addr);
-    if (fee > 0) {
-      el.textContent = `${region} 지역은 추가 배송비 +${won(fee)}이 적용돼요.`;
-      el.classList.add("show");
+    /* 한 주소에 세 가지 규칙이 동시에 걸릴 수 있다 — 배송불가 / 반입 가능 상품 제한 /
+       추가 배송비. 우선순위대로 한 번에 판정해 붙여 보여준다(intake-rules). */
+    const r = evaluateAddress(state.addr);
+    const lines = [];
+    let tone = "";
+    if (r.blocked) {
+      lines.push(r.notice + " 다른 배송지를 입력해 주세요.");
+      tone = "deliv-fee-note--block";
     } else {
-      el.textContent = "";
-      el.classList.remove("show");
+      if (r.allowOnly.length) lines.push(r.notice);
+      if (r.fee > 0) lines.push(`${r.region} 지역은 추가 배송비 +${won(r.fee)}이 적용돼요.`);
+      /* 이미 고른 상품이 허용 목록 밖이면 그 사실을 분명히 알린다 — 상품은 1단계에서
+         골랐고 주소는 2단계라 순서상 뒤늦게 드러난다. */
+      if (r.allowOnly.length && state.product && !matchesProduct(r.allowOnly, state.product.product)) {
+        lines.push(`선택하신 ${state.product.product}은(는) 이 배송지에 반입할 수 없어요. 상품을 다시 골라 주세요.`);
+        tone = "deliv-fee-note--block";
+      }
     }
+    if (!lines.length) { el.textContent = ""; el.className = "deliv-fee-note"; return; }
+    el.className = `deliv-fee-note show ${tone}`.trim();
+    el.textContent = lines.join(" ");
   }
 
   /* ── 합동 발송 추가 수신자 ──────────────────────────────
