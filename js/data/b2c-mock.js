@@ -108,7 +108,7 @@ export const B2C_ORDERS = [
 
 /* ── CRUD 헬퍼 (모듈 상태 직접 변경) ───────────────────── */
 let idSeq = B2C_ORDERS.length;
-let noSeq = 6; // 최신 주문번호 시퀀스
+let noSeq = B2C_ORDERS.length; // 최신 주문번호 시퀀스 — 시드가 늘면 따라온다(하드코딩 금지)
 
 export function b2cList() { return B2C_ORDERS; }
 export function b2cNewId() { return "b" + String(++idSeq) + "_" + Date.now().toString(36); }
