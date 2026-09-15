@@ -14,7 +14,8 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { openModal, makeDropdown, makeDatepicker, openLightbox } from "../ui.js";
+import { openModal, makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
+import { HIST_DOT } from "../data/order-history.js";
 
 /* ── 표기 ──────────────────────────────────────────────── */
 export const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
@@ -270,6 +271,7 @@ export function makeImageBox({ get, toast }) {
     openLightbox({ src: o.image, alt: "배송 현장 사진", caption: `${o.orderNo} 배송 현장 사진` });
   };
 
+  let notify = null;
   const onFile = (panel, file) => {
     if (!file) return;
     if (!/^image\//.test(file.type)) { toast("이미지 파일만 업로드할 수 있습니다", "warn"); return; }
@@ -281,11 +283,13 @@ export function makeImageBox({ get, toast }) {
       const box = qs(panel, "[data-slot='imgbox']");
       if (box) { box.classList.add("has"); setHTML(box, inner()); box.title = "클릭하여 크게 보기"; }
       toast("이미지를 업로드했습니다");
+      if (notify) notify();
     };
     reader.readAsDataURL(file);
   };
 
-  const bind = (panel) => {
+  const bind = (panel, onUpload) => {
+    notify = onUpload;
     on(panel, "click", "[data-action='img-upload']", () => qs(panel, "[data-img-input]")?.click());
     on(panel, "click", "[data-action='img-download']", () => {
       const o = get();
@@ -399,4 +403,265 @@ export function openStaffPicker({ current, names, onPick, toast }) {
   on(p, "keydown", "[data-mgr-input]", (e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } });
   if (pick === DIRECT && input) { input.focus(); input.select(); }
   return picker;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   주문 상세 모달 v2 — 시안 '주문관리 모달 리모델링'
+   모드 없는 상시 편집 · 헤더 스테퍼 · 다크 처리 레일 · 요약/이력 레일.
+
+   두 화면은 **필드 서술자 배열만 다르게 주입**한다. 읽기/편집 두 갈래가
+   사라졌으므로 renderFields 하나가 그 자리를 대신한다.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 헤더 ─────────────────────────────────────────────────── */
+export const statusPill = (status) => {
+  const st = ORDER_STATUS_STYLE[status] ?? { bg: "var(--c-surface-3)", color: "var(--c-text-4)" };
+  return html`<span class="ord-hd__pill" style="background:${st.bg};color:${st.color}">
+    <span class="ord-hd__dot" style="background:${st.color}"></span>${status}</span>`;
+};
+
+/* 상태 스테퍼 — **앞으로만**. 되돌리기는 막고, 배송완료는 사진·인수자가 있어야 활성.
+   잠긴 단계도 클릭은 받는다(왜 안 되는지 토스트로 알려주는 편이 친절하다). */
+export function stepper({ status, statuses, canComplete }) {
+  const flow = statuses.filter((s) => s !== "취소");
+  if (status === "취소") {
+    return html`<div class="ord-step">
+      <button class="ord-step__btn is-cancel" disabled><span class="ord-step__mark">✕</span>취소됨</button>
+    </div>`;
+  }
+  const cur = flow.indexOf(status);
+  return html`<div class="ord-step">
+    ${flow.map((s, i) => {
+      const done = i < cur, now = i === cur;
+      /* 뒤로 가는 단계 + 조건 미충족 배송완료 = 잠금 */
+      const locked = i < cur || (s === "배송완료" && !canComplete);
+      const cls = now ? "is-now" : done ? "is-done" : locked ? "is-locked" : "";
+      return html`<button class="ord-step__btn ${cls}" data-action="step" data-v="${s}"
+        ${now ? "disabled" : ""} title="${s}">
+        <span class="ord-step__mark">${done ? "✓" : String(i + 1)}</span>${s}</button>`;
+    })}
+  </div>`;
+}
+
+export const ordMenu = () => html`
+  <div class="ord-menu" role="menu">
+    <button class="ord-menu__item" role="menuitem" data-action="order-cancel">주문취소</button>
+    <button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">주문서 삭제</button>
+  </div>`;
+
+/* 헤더 전체 — 주문번호·상태·메타 / 스테퍼·담당자·더보기·닫기 */
+export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew }) {
+  if (isNew) {
+    return html`
+      <div class="ord-hd__l">
+        <div class="ord-hd__row"><h3 class="ord-hd__no">신규 주문 등록</h3></div>
+        <p class="ord-hd__meta">${meta}</p>
+      </div>
+      <div class="ord-hd__r">
+        ${managerControl(order.manager)}
+        <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>`;
+  }
+  return html`
+    <div class="ord-hd__l">
+      <div class="ord-hd__row">
+        <h3 class="ord-hd__no">${order.orderNo}</h3>
+        ${statusPill(order.status)}
+      </div>
+      <p class="ord-hd__meta">${meta}</p>
+    </div>
+    <div class="ord-hd__r">
+      ${stepper({ status: order.status, statuses, canComplete })}
+      <span class="ord-hd__vdiv"></span>
+      ${managerControl(order.manager)}
+      <div class="ord-more">
+        <button class="ord-iconbtn ${menuOpen ? "is-on" : ""}" data-action="menu" aria-haspopup="menu"
+          aria-expanded="${menuOpen ? "true" : "false"}" aria-label="더보기">⋯</button>
+        ${menuOpen ? ordMenu() : ""}
+      </div>
+      <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+    </div>`;
+}
+
+/* ── 카드 ─────────────────────────────────────────────────── */
+export const card = ({ title, cap, body, slot }) => html`
+  <section class="ord-card">
+    <div class="ord-card__head">
+      <b class="ord-card__t">${title}</b>
+      ${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}
+    </div>
+    <div ${slot ? `data-slot="${slot}"` : ""}>${body}</div>
+  </section>`;
+
+/* ── 상시 편집 필드 ───────────────────────────────────────────
+   서술자: { k, label, type, full, lock, ph, options, fmt, value }
+   type: text · tel · num · won · select · datetime · textarea · static
+   full:true 는 단독 행(96px + 1fr), 아니면 두 개씩 묶어 한 행(96/1fr/96/1fr). */
+function fieldCell(d, order) {
+  const v = d.value ? d.value(order) : (order[d.k] ?? "");
+  if (d.type === "static" || d.lock) {
+    const cls = "ord-in ord-in--lock" + (d.type === "won" ? " ord-in--won" : "");
+    return html`<input class="${cls}" value="${d.type === "won" ? won(v) : v}" data-slot="${d.k || d.label}" disabled />`;
+  }
+  if (d.type === "select") {
+    return html`<div class="dd ord-in" data-dd-f="${d.k}" style="padding:0">
+      <button type="button" class="ord-in dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+      <div class="dd-panel" role="listbox"></div>
+    </div>`;
+  }
+  if (d.type === "datetime") return dtpMarkup();
+  if (d.type === "textarea") {
+    return html`<textarea class="ord-in" data-f="${d.k}" rows="1" placeholder="${d.ph ?? ""}">${v}</textarea>`;
+  }
+  const extra = d.type === "won" ? " ord-in--won" : d.type === "tel" || d.type === "num" ? " ord-in--num" : "";
+  return html`<input class="ord-in${extra}" data-f="${d.k}" value="${d.type === "won" ? won(v) : v}"
+    ${d.type === "tel" || d.type === "num" ? 'inputmode="numeric"' : ""} placeholder="${d.ph ?? ""}" />`;
+}
+
+export function renderFields(defs, order) {
+  const out = [];
+  let buf = [];
+  const flush = () => {
+    if (!buf.length) return;
+    const top = buf.some((d) => d.type === "textarea");
+    out.push(html`<div class="ord-row ${buf.length === 1 ? "ord-row--full" : ""} ${top ? "ord-row--top" : ""}">
+      ${buf.map((d) => html`<label class="ord-k">${d.label}</label>${fieldCell(d, order)}`)}
+    </div>`);
+    buf = [];
+  };
+  for (const d of defs) {
+    if (d.full) { flush(); buf = [d]; flush(); continue; }
+    buf.push(d);
+    if (buf.length === 2) flush();
+  }
+  flush();
+  return out;
+}
+
+/* 자동 높이 textarea — 붙여넣기로 줄이 늘어도 스크롤바가 생기지 않게 */
+export const autosize = (el) => {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.max(34, el.scrollHeight) + "px";
+};
+
+/* ── 처리 레일(다크) ──────────────────────────────────────── */
+export function railV2({ order, imgInner, cap = "배송 현장 기록" }) {
+  return html`
+    <aside class="ord-side">
+      <div class="ord-side__h">
+        <b class="ord-side__t">처리</b>
+        <span class="ord-side__cap">${cap}</span>
+      </div>
+      <div class="ord-drop" data-slot="imgbox" data-action="img-zoom"
+        title="${order.image ? "클릭하여 크게 보기" : "클릭하여 업로드"}">${imgInner}</div>
+      <input type="file" accept="image/*" data-img-input hidden />
+      <div class="hm-field">
+        <label class="ord-side__lbl">인수자 성함</label>
+        <input class="hm-input" data-f="receiver" value="${order.receiver ?? ""}" placeholder="현장에서 수령한 분" />
+      </div>
+      <div class="hm-field">
+        <label class="ord-side__lbl">처리 메모</label>
+        <textarea class="hm-input" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${order.memo ?? ""}</textarea>
+      </div>
+      <p class="ord-side__note">사진·인수자 저장 시 <b>배송완료</b> 전환 · 알림톡 자동 발송</p>
+    </aside>`;
+}
+
+/* ── 요약 · 이력 ──────────────────────────────────────────── */
+/** 배송일시까지 남은시간 — 경과/임박은 색으로 구분한다 */
+export function remainOf(deliverAt) {
+  const d = parseFlexDate(deliverAt);
+  if (!d) return { label: "-", cls: "" };
+  const t = d.getTime() - Date.now();
+  if (t <= 0) return { label: "배송 시간 경과", cls: "is-past" };
+  const dd = Math.floor(t / 86400000);
+  const hh = Math.floor((t % 86400000) / 3600000);
+  const mm = Math.floor((t % 3600000) / 60000);
+  const label = dd ? `${dd}일 ${hh}시간 남음` : hh ? `${hh}시간 ${mm}분 남음` : `${mm}분 남음`;
+  return { label, cls: t < 86400000 ? "is-soon" : "" };
+}
+
+export function summaryBodyV2({ order, rows }) {
+  const r = remainOf(order.deliverAt);
+  return html`
+    <div class="ord-sum__head">
+      <p class="ord-sum__lbl">배송일시까지 남은시간</p>
+      <p class="ord-sum__big ${r.cls}">${r.label}</p>
+    </div>
+    ${rows.map((x) => (x.action
+      ? html`<button class="ord-sum__row" data-action="${x.action}">
+          <span class="ord-sum__k">${x.k}</span>
+          <span class="ord-sum__v ${x.empty ? "is-empty" : ""}">${x.v} ›</span></button>`
+      : html`<div class="ord-sum__row">
+          <span class="ord-sum__k">${x.k}</span>
+          <span class="ord-sum__v" title="${x.v}">${x.v}</span></div>`))}`;
+}
+
+export function historyBody(order) {
+  const list = Array.isArray(order.history) ? order.history : [];
+  if (!list.length) return html`<p class="ord-hist__empty">기록된 처리 이력이 없습니다.</p>`;
+  return html`<div class="ord-hist">
+    ${list.map((h, i) => html`
+      <div class="ord-hist__row ${i === 0 ? "is-latest" : ""}">
+        <span class="ord-hist__dot" style="background:${HIST_DOT[h.type] || "var(--c-text-faint)"}"></span>
+        <span class="ord-hist__lbl" title="${h.label}">${h.label}</span>
+        <span class="ord-hist__at">${String(h.at).slice(5).replace("-", ".")}</span>
+      </div>`)}
+  </div>`;
+}
+
+/* ── 푸터 ─────────────────────────────────────────────────── */
+export function footerV2({ dirty, savedAt }) {
+  const stat = savedAt && !dirty ? `저장됨 · ${savedAt}` : dirty ? `수정한 항목 ${dirty}개` : "변경 없음";
+  const cls = savedAt && !dirty ? "is-saved" : dirty ? "is-dirty" : "";
+  return html`
+    <span class="ord-ft__stat ${cls}" data-slot="dirty">${stat}</span>
+    <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
+    <button class="hm-btn hm-btn--primary" data-action="save" ${dirty ? "" : "disabled"}>
+      ${dirty ? "변경사항 저장" : "저장"}</button>`;
+}
+
+/* ── 주문서 삭제 확인 ────────────────────────────────────────
+   되돌릴 수 없는 일이라 체크 한 번을 받는다(시안). note 를 주면 도메인 경고를
+   덧붙인다 — B2B 는 그 달 청구의 근거라 반드시 알려야 한다. */
+export function openDeleteConfirm({ orderNo, note, onConfirm }) {
+  let ack = false;
+  const m = openModal({
+    panelClass: "modal-panel--ordconfirm",
+    body: html`
+      <div class="hm__head">
+        <div>
+          <p class="hm-eyebrow ord-mono">${orderNo}</p>
+          <h3 id="modal-title">주문서를 삭제할까요?</h3>
+        </div>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      </div>
+      <div class="hm__body">
+        <p class="odlg-desc">목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
+          기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.</p>
+        ${note ? html`<div class="hm-warn" style="margin-top:12px">${note}</div>` : ""}
+        <button class="odlg-check" data-action="ack" aria-pressed="false">
+          <span class="odlg-check__box"></span>
+          <span>되돌릴 수 없음을 확인했습니다</span>
+        </button>
+      </div>
+      <div class="hm__foot">
+        <button class="hm-btn hm-btn--secondary" data-action="close">돌아가기</button>
+        <button class="hm-btn hm-btn--danger" data-action="del-go" disabled>${icon("trash2", { size: 14 })} 삭제</button>
+      </div>`,
+    labelledBy: "modal-title",
+  });
+  const p = m.panel;
+  const chk = qs(p, "[data-action='ack']");
+  const go = qs(p, "[data-action='del-go']");
+  on(p, "click", "[data-action='close']", () => m.close());
+  on(p, "click", "[data-action='ack']", () => {
+    ack = !ack;
+    chk.classList.toggle("is-on", ack);
+    chk.setAttribute("aria-pressed", ack ? "true" : "false");
+    go.disabled = !ack;
+  });
+  on(p, "click", "[data-action='del-go']", () => { if (ack) { m.close(); onConfirm(); } });
+  return m;
 }

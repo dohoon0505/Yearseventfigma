@@ -1267,3 +1267,262 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   font-size: var(--fs-14); font-weight: var(--fw-semibold);
 }
 .ord-dtp__done:hover { background: var(--c-orange-hover); }
+
+/* ══════════════════════════════════════════════════════════════
+   주문 상세 모달 v2 — claude.ai/design '주문관리 모달 리모델링' 이식
+   모드 없는 **상시 편집** · 헤더 스테퍼로 상태 전환 · 좌측 다크 처리 레일 ·
+   우측 요약/이력 레일.
+
+   시안의 Apple 팔레트는 쓰지 않는다(사용자 확정) — 구조만 따르고 색은
+   tokens.css 브랜드에 매핑했다. 시안의 파랑 CTA 자리는 `--c-orange`,
+   입력 focus 만 `--c-indigo`(앱의 모든 폼이 쓰는 규격이라 여기만 다르면 이상하다).
+
+   구 블록(.ord-zone/.ord-doc__*/.ord-form*/.ord-body/.ord-rail/.ord-foot)은
+   거래처 주문관리가 아직 쓰므로 **병존**한다. 그쪽을 옮긴 뒤 한꺼번에 지운다.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 헤더 ─────────────────────────────────────────────────── */
+.modal-panel--ord .ord-hd {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+  flex-shrink: 0; padding: 22px 28px 18px; border-bottom: 1px solid var(--c-fill-1);
+}
+.ord-hd__l { min-width: 0; }
+.ord-hd__row { display: flex; align-items: center; gap: 12px; }
+.ord-hd__no {
+  font-size: var(--fs-28); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  letter-spacing: -0.015em; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ord-hd__pill {
+  display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px;
+  border-radius: var(--r-pill); background: var(--c-surface-2);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.ord-hd__dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
+.ord-hd__meta { margin-top: 6px; font-size: var(--fs-14); color: var(--c-text-4); }
+.ord-hd__r { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.ord-hd__vdiv { width: 1px; height: 20px; background: var(--c-border); flex: 0 0 1px; }
+
+/* ── 상태 스테퍼 — 앞으로만. 배송완료는 사진·인수자가 있어야 활성 ── */
+.ord-step { display: flex; align-items: center; gap: 6px; padding-right: 4px; }
+.ord-step__btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--c-border);
+  background: var(--c-surface); color: var(--c-text-4);
+  font-size: var(--fs-14); white-space: nowrap;
+}
+.ord-step__mark {
+  width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c-fill-1); color: var(--c-text-4);
+  font-size: 11px; font-weight: var(--fw-semibold); flex: 0 0 18px;
+}
+.ord-step__btn.is-done { color: var(--c-text-2); }
+.ord-step__btn.is-done .ord-step__mark { background: var(--c-text-strong); color: var(--c-surface); }
+.ord-step__btn.is-now {
+  background: var(--c-text-strong); border-color: var(--c-text-strong);
+  color: var(--c-surface); font-weight: var(--fw-semibold);
+}
+.ord-step__btn.is-now .ord-step__mark { background: var(--c-fill-1); color: var(--c-text-strong); }
+.ord-step__btn.is-cancel {
+  background: var(--c-danger-bg); border-color: var(--c-danger-bg); color: var(--c-danger-ink);
+  font-weight: var(--fw-semibold);
+}
+.ord-step__btn.is-cancel .ord-step__mark { background: var(--c-danger-ink); color: var(--c-surface); }
+/* 되돌리기 불가 · 배송완료 조건 미충족 — 흐리게 두되 클릭은 받는다(안내 토스트) */
+.ord-step__btn.is-locked { opacity: 0.45; }
+.ord-step__btn.is-locked:hover { background: var(--c-surface); }
+
+/* ── 헤더 우측 버튼 ───────────────────────────────────────── */
+.ord-iconbtn {
+  width: 36px; height: 36px; flex: 0 0 36px; border-radius: var(--r-pill);
+  background: var(--c-surface-2); color: var(--c-text-strong);
+  display: grid; place-items: center; font-size: var(--fs-16); line-height: 1;
+}
+.ord-iconbtn:hover, .ord-iconbtn.is-on { background: var(--c-divider); }
+.ord-more { position: relative; flex: 0 0 36px; }
+.ord-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 200px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-xl); box-shadow: var(--sh-pop); padding: 6px;
+}
+.ord-menu__item {
+  display: block; width: 100%; padding: 10px 12px; border-radius: var(--r-lg);
+  text-align: left; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+}
+.ord-menu__item:hover { background: var(--c-surface-2); }
+.ord-menu__item--danger { color: var(--c-danger-ink); }
+.ord-menu__item--danger:hover { background: var(--c-danger-bg); }
+
+/* ── 본문 ─────────────────────────────────────────────────── */
+.ord-grid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: 324px minmax(0, 1fr);
+}
+.ord-grid--new { grid-template-columns: minmax(0, 1fr); }
+
+/* 좌측 다크 처리 레일 — 배송 현장 기록을 본문과 물리적으로 갈라 놓는다 */
+.ord-side {
+  background: var(--c-rail); padding: 19px;
+  display: flex; flex-direction: column; gap: 13px;
+}
+.ord-side__h { display: flex; align-items: baseline; justify-content: space-between; }
+.ord-side__t { font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-surface); }
+.ord-side__cap { font-size: var(--fs-14); color: var(--c-rail-ink); }
+.ord-side__lbl { display: block; font-size: var(--fs-14); color: var(--c-surface); margin-bottom: 6px; }
+.ord-side .hm-input {
+  height: 38px; padding: 0 12px; font-size: var(--fs-17); font-weight: var(--fw-semibold);
+  color: var(--c-text-strong); background: var(--c-surface); border-color: var(--c-surface);
+  border-radius: var(--r-lg);
+}
+.ord-side textarea.hm-input { height: auto; min-height: 61px; padding: 9px 12px; font-weight: var(--fw-normal); }
+.ord-side .hm-field { margin-bottom: 0; }
+.ord-side__note { margin-top: auto; font-size: var(--fs-14); line-height: 1.6; color: var(--c-surface); }
+
+/* 현장사진 드롭존 — 3:4 고정, hover 오버레이(업로드·다운로드·확대) */
+.ord-drop {
+  position: relative; width: 100%; aspect-ratio: 3 / 4;
+  background: var(--c-rail-2); border: 1px dashed var(--c-rail-line);
+  border-radius: var(--r-xl); overflow: hidden; display: grid; place-items: center; cursor: pointer;
+}
+.ord-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ord-drop .ord-imgbox__ph {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--c-rail-ink); font-size: var(--fs-14); text-align: center;
+}
+
+/* 우측 본문 */
+.ord-pane {
+  padding: 22px 28px 20px; min-width: 0;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.ord-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; min-width: 0; }
+.ord-colL, .ord-colR { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── 카드 ─────────────────────────────────────────────────── */
+.ord-card { border: 1px solid var(--c-border); border-radius: var(--r-2xl); }
+.ord-card__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 12px 20px; background: var(--c-surface-2);
+  border-radius: 17px 17px 0 0; border-bottom: 1px solid var(--c-border);
+}
+.ord-card__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.ord-card__cap { font-size: var(--fs-12); color: var(--c-text-4); }
+
+/* ── 정보 행 + 상시 편집 입력 ─────────────────────────────── */
+.ord-row {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr) 96px minmax(0, 1fr);
+  align-items: center; gap: 0 14px; padding: 10px 20px;
+  border-bottom: 1px solid var(--c-fill-1);
+}
+.ord-row--full { grid-template-columns: 96px minmax(0, 1fr); }
+.ord-row--top { align-items: start; }
+.ord-card .ord-row:last-child { border-bottom: 0; }
+.ord-k { font-size: var(--fs-14); color: var(--c-text-4); }
+.ord-row--top .ord-k { padding-top: 7px; }
+
+/* 기본은 읽기처럼 보이고(투명), 손을 대면 입력으로 바뀐다 */
+.ord-in {
+  width: 100%; height: 36px; padding: 0 8px;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
+}
+.ord-in:hover { background: var(--c-fill-1); }
+.ord-in:focus {
+  outline: none; background: var(--c-surface);
+  border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+.ord-in--num { font-variant-numeric: tabular-nums; }
+.ord-in--won { color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+textarea.ord-in {
+  height: auto; min-height: 34px; padding: 4px 8px; line-height: 1.6;
+  font-weight: var(--fw-normal); resize: none; overflow: hidden;
+}
+/* 읽기 전용(B2B 적용 단가·정산 귀속) — 손댈 수 없음을 hover 없음으로 알린다 */
+.ord-in--lock { color: var(--c-text-2); }
+.ord-in--lock:hover { background: transparent; }
+
+/* ── 요약 · 처리 이력 ─────────────────────────────────────── */
+.ord-sum__head {
+  padding: 18px 20px 16px; background: var(--c-surface-2);
+  border-radius: 17px 17px 0 0; border-bottom: 1px solid var(--c-border);
+}
+.ord-sum__lbl { font-size: var(--fs-14); color: var(--c-text-4); }
+.ord-sum__big {
+  margin-top: 2px; font-size: var(--fs-22); font-weight: var(--fw-semibold);
+  color: var(--c-text-strong); font-variant-numeric: tabular-nums; line-height: 1.3;
+}
+.ord-sum__big.is-soon { color: var(--c-warn-soft-ink); }
+.ord-sum__big.is-past { color: var(--c-danger-ink); }
+.ord-sum__row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 20px; border-bottom: 1px solid var(--c-fill-1); width: 100%; text-align: left;
+}
+.ord-card .ord-sum__row:last-child { border-bottom: 0; }
+button.ord-sum__row:hover { background: var(--c-surface-2); }
+.ord-sum__k { font-size: var(--fs-14); color: var(--c-text-4); flex: 0 0 auto; }
+.ord-sum__v {
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ord-sum__v.is-empty { color: var(--c-warn-soft-ink); }
+
+.ord-hist { max-height: 184px; overflow-y: auto; }
+.ord-hist__row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+  border-bottom: 1px solid var(--c-fill-1);
+}
+.ord-hist__row:last-child { border-bottom: 0; }
+.ord-hist__row.is-latest { background: var(--c-surface-hover); }
+.ord-hist__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; }
+.ord-hist__lbl {
+  flex: 1; min-width: 0; font-size: var(--fs-14); color: var(--c-text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ord-hist__row.is-latest .ord-hist__lbl { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.ord-hist__at { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+.ord-hist__empty { padding: 14px 20px; font-size: var(--fs-13); color: var(--c-text-muted); }
+
+/* ── 푸터 ─────────────────────────────────────────────────── */
+.modal-panel--ord .ord-ft {
+  display: flex; align-items: center; justify-content: flex-end; gap: 16px;
+  flex-shrink: 0; padding: 14px 28px 16px; border-top: 1px solid var(--c-fill-1);
+}
+.ord-ft__stat { font-size: var(--fs-14); color: var(--c-text-4); margin-right: auto; }
+.ord-ft__stat.is-dirty { color: var(--c-warn-soft-ink); }
+.ord-ft__stat.is-saved { color: var(--c-success-ink); }
+.modal-panel--ord .ord-ft .hm-btn {
+  flex: 0 0 auto; height: 40px; padding: 0 22px; border-radius: var(--r-pill);
+  font-size: var(--fs-14);
+}
+
+/* 거래조건 배너(B2B) — 우측 본문 첫 자식. 다크 레일을 가로지르지 않는다 */
+.ord-pane .ord-notebox { margin-bottom: 0; }
+
+/* ── 반응형 ───────────────────────────────────────────────── */
+@media (max-width: 1240px) {
+  .ord-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1000px) {
+  .ord-grid { grid-template-columns: minmax(0, 1fr); }
+  .ord-row { grid-template-columns: 96px minmax(0, 1fr); }
+}
+
+/* ── 확인 다이얼로그(주문서 삭제) ─────────────────────────── */
+.modal-panel--ordconfirm { width: 420px; }
+.odlg-desc { font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); }
+.odlg-check {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px;
+  padding: 14px 16px; background: var(--c-surface-2); border-radius: var(--r-xl); text-align: left;
+  font-size: var(--fs-14); color: var(--c-text-2);
+}
+.odlg-check:hover { background: var(--c-divider); }
+.odlg-check__box {
+  width: 22px; height: 22px; flex: 0 0 22px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border-input-2); background: var(--c-surface);
+  display: grid; place-items: center; color: var(--c-surface);
+  font-size: var(--fs-12); font-weight: var(--fw-bold);
+}
+.odlg-check.is-on .odlg-check__box {
+  background: var(--c-orange); border-color: var(--c-orange);
+}
+.odlg-check.is-on .odlg-check__box::after { content: "✓"; }
