@@ -6,6 +6,7 @@
 import { ALL_PRODUCTS, priceNum } from "../store.js";
 import { staffNames } from "./staff-mock.js";
 import { DATA_NOW } from "./admin-mock.js";
+import { seedHistory, pushHistory } from "./order-history.js";
 import { formatDateLabel, mockDates } from "../util/date.js";
 
 /* 날짜는 DATA_NOW 기준 상대 생성 — 절대값으로 박아두면 시간이 흐르면서
@@ -118,8 +119,10 @@ export function b2cNewId() { return "b" + String(++idSeq) + "_" + Date.now().toS
 export function b2cNextOrderNo() { return `${NO_PREFIX}-${String(++noSeq).padStart(4, "0")}`; }
 export function b2cUpsert(rec) {
   const i = B2C_ORDERS.findIndex((o) => o.id === rec.id);
-  if (i >= 0) B2C_ORDERS[i] = { ...rec };
-  else B2C_ORDERS.unshift({ ...rec }); // 신규는 최상단
+  if (i < 0) { B2C_ORDERS.unshift({ ...rec, history: rec.history || [] }); return; } // 신규는 최상단
+  /* ⚠️ 모달 draft 는 history 를 싣지 않는다(얕은 복사로 배열 참조가 공유되면
+     편집 취소가 이력을 되돌린다). rec 에 없으면 기존 것을 지킨다. */
+  B2C_ORDERS[i] = { ...rec, history: rec.history || B2C_ORDERS[i].history || [] };
 }
 export function b2cRemove(id) {
   const i = B2C_ORDERS.findIndex((o) => o.id === id);
@@ -127,11 +130,24 @@ export function b2cRemove(id) {
 }
 export function b2cSetStatus(id, status) {
   const o = B2C_ORDERS.find((x) => x.id === id);
-  if (!o) return;
+  if (!o || o.status === status) return;
   o.status = status;
-  if (status === "배송완료") o.notified = true; // 배송완료 → 알림톡 자동 발송(API)
+  if (status === "배송완료") {
+    o.notified = true; // 배송완료 → 알림톡 자동 발송(API)
+    pushHistory(o, "delivered", "배송완료 · 알림톡 발송");
+  } else if (status === "취소") {
+    pushHistory(o, "cancel", "주문취소");
+  } else {
+    pushHistory(o, "status", `${status}로 변경`);
+  }
 }
 export function b2cSetManager(id, name) {
   const o = B2C_ORDERS.find((x) => x.id === id);
-  if (o) o.manager = name; // API 미지정 주문에 담당자 배정(별도 모달에서 선택·입력)
+  if (!o || o.manager === name) return;
+  o.manager = name; // API 미지정 주문에 담당자 배정(별도 모달에서 선택·입력)
+  pushHistory(o, "manager", `담당자 ${name} 지정`);
 }
+
+/* 처리 이력 시드 — 각 레코드의 기존 날짜에서 분 오프셋으로만 파생한다.
+   절대 날짜를 새로 쓰면 '오늘' 집계가 깨진다(파일 상단 경고 참조). */
+B2C_ORDERS.forEach((o) => seedHistory(o, "receivedAt"));
