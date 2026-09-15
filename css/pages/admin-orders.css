@@ -5,11 +5,6 @@
    색은 tokens.css 토큰만.
    ============================================================ */
 
-/* 표 셀 표기 */
-.ao-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
-.ao-dim { color: var(--c-text-muted); }
-.ao-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
-
 /* 거래 조건(clientNote)이 있는 거래처 표시 — 목록에서 미리 알아보게 한다.
    상세를 열면 같은 내용이 .ao-note-box 배너로 뜬다. */
 .ao-note {

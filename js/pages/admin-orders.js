@@ -70,15 +70,15 @@ export function mount(root, { nav }) {
   }
 
   const columns = [
-    { label: "주문일시", width: "132px", render: (r) => html`<span class="ao-mono">${r.date}</span>` },
+    { label: "주문일시", width: "132px", render: (r) => html`<span class="ord-mono">${r.date}</span>` },
     {
       label: "거래처", width: "1fr",
       render: (r) => html`<div class="ellipsis" title="${clientName(r)}">${clientName(r)}${clientOf(r)?.clientNote ? html`<span class="ao-note" title="거래 조건 있음">!</span>` : ""}</div>`,
     },
     { label: "발송인", width: "104px", render: (r) => html`<div class="ellipsis">${dash(r.sender)}</div>` },
-    { label: "배송지", width: "1.4fr", render: (r) => html`<div class="ellipsis ao-dim" title="${r.address}">${dash(r.address)}</div>` },
+    { label: "배송지", width: "1.4fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.address}">${dash(r.address)}</div>` },
     { label: "상품", width: "128px", render: (r) => html`<div class="ellipsis">${dash(r.product)}</div>` },
-    { label: "금액", width: "94px", align: "right", render: (r) => html`<span class="ao-amt">${won(r.amount)}</span>` },
+    { label: "금액", width: "94px", align: "right", render: (r) => html`<span class="ord-amt">${won(r.amount)}</span>` },
     { label: "현황", width: "92px", align: "center", render: (r) => statusBadge(r.status) },
     {
       label: "관리", width: "56px", align: "center",
