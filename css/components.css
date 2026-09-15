@@ -559,21 +559,31 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   background: var(--row-tone-hv, var(--c-surface-hover));
 }
 
+/* 주문 목록만 행 전체가 '열기' 다(→ order-screen.js onRowOpen).
+   ⚠️ 여기서 background 를 건드리면 안 된다 — `.table-grid__row:hover`(0,2,0)를
+      이겨 버려 hover 반응이 죽는다(거래처 `.is-group` 이 실제로 그렇다). cursor 만. */
+.page-ordscr .table-grid__row,
+.page-orders .table-grid__row { cursor: pointer; }
+
 /* 주문 목록 행 톤 — 클래스는 util/date.js 의 orderRowTone() 이 돌려준다.
    접두사를 `ordrow--` 로 둔 이유: rowClass 반환값이 날것으로 붙어서
    `is-*` 같은 범용 이름은 `.table-grid__row.is-group`(admin.css)과 부딪힌다. */
 /* 범례 — 견본이 행과 같은 톤 클래스를 쓰므로 색이 어긋날 수 없다 */
 .rt-leg { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .rt-leg__i { display: inline-flex; align-items: center; gap: 5px; color: var(--c-text-muted); }
+/* 견본은 행의 **진한 짝**(--row-dot)을 칠한다. 행과 같은 옅은 색을 쓰면
+   11px 안에서 흰 바탕과 구분이 안 된다. 배송완료만 톤 클래스가 없어 흰색으로
+   남는데, 그게 정확한 표현이라 테두리만 올려 묻히지 않게 한다. */
 .rt-sw {
   width: 11px; height: 11px; flex: 0 0 11px; border-radius: var(--r-sm);
-  border: 1px solid var(--c-border); background: var(--row-tone, var(--c-surface));
+  border: 1px solid var(--c-border-strong); background: var(--row-dot, var(--c-surface));
 }
 
-.ordrow--wait   { --row-tone: var(--c-row-wait);   --row-tone-hv: var(--c-row-wait-hv); }
-.ordrow--today  { --row-tone: var(--c-row-today);  --row-tone-hv: var(--c-row-today-hv); }
-.ordrow--booked { --row-tone: var(--c-row-booked); --row-tone-hv: var(--c-row-booked-hv); }
-.ordrow--void   { --row-tone: var(--c-row-void);   --row-tone-hv: var(--c-row-void-hv); }
+/* --row-dot 은 범례 견본이 쓴다 — 견본이 행과 **같은 클래스**를 쓰므로 색이 어긋날 수 없다 */
+.ordrow--wait   { --row-tone: var(--c-row-wait);   --row-tone-hv: var(--c-row-wait-hv);   --row-dot: var(--c-row-wait-dot); }
+.ordrow--today  { --row-tone: var(--c-row-today);  --row-tone-hv: var(--c-row-today-hv);  --row-dot: var(--c-row-today-dot); }
+.ordrow--booked { --row-tone: var(--c-row-booked); --row-tone-hv: var(--c-row-booked-hv); --row-dot: var(--c-row-booked-dot); }
+.ordrow--void   { --row-tone: var(--c-row-void);   --row-tone-hv: var(--c-row-void-hv);   --row-dot: var(--c-row-void-dot); }
 .table-grid__cell {
   display: flex;
   align-items: center;

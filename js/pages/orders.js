@@ -4,6 +4,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "../ui.js";
+import { onRowOpen } from "../util/order-screen.js";
 import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 
@@ -294,6 +295,11 @@ export function mount(root, { nav }) {
       if (o) openDetail(o);
     }
   });
+  /* 행 아무 데나 눌러도 열린다 — 카메라 버튼은 같은 상세를 여는 명시적 버튼으로 남는다 */
+  const offRow = onRowOpen(root, (id) => {
+    const o = orderData.find((x) => String(x.id) === id);
+    if (o) openDetail(o);
+  });
   const offChange = on(root, "change", "[data-action='imgfilter']", (e, t) => {
     const v = t.dataset.v;
     state.imageFiltersOn = state.imageFiltersOn.includes(v)
@@ -309,5 +315,5 @@ export function mount(root, { nav }) {
     if (cnt) setHTML(cnt, countBody());
   });
 
-  return () => { offClick(); offChange(); offInput(); closeModal(); };
+  return () => { offClick(); offRow(); offChange(); offInput(); closeModal(); };
 }

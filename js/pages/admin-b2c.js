@@ -24,7 +24,7 @@ import { pushHistory } from "../data/order-history.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
-  dateCell, photoFlag, notiFlag, amtCell, editBtn,
+  dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
   makeImageBox, managerControl, openStaffPicker, openDeleteConfirm,
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
@@ -525,6 +525,8 @@ export function mount(root, { nav }) {
     if (a === "new") return openEditor(blankOrder(), true);
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
   });
+  /* 행 아무 데나 눌러도 열린다 — 연필은 같은 일을 하는 명시적 버튼으로 남는다 */
+  const offRow = onRowOpen(root, (id) => { const o = findOrder(id); if (o) openEditor(o, false); });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state[t.dataset.search] = t.value;
     const sum = qs(root, "[data-slot='summary']");
@@ -534,7 +536,7 @@ export function mount(root, { nav }) {
   });
 
   return () => {
-    offList(); offSearch();
+    offList(); offRow(); offSearch();
     dateRange.destroy();
     closeModal();
     toast.destroy();
