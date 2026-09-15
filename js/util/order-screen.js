@@ -274,11 +274,13 @@ export function makeImageBox({ get, toast }) {
 }
 
 
-/* 헤더 인라인 담당자 컨트롤 — 미지정이면 주황 강조로 '지정' 유도. */
-export const managerControl = (name) =>
-  name
-    ? html`<button class="ord-mgr" data-action="pick-manager">담당 ${name} ${icon("pencil", { size: 12 })}</button>`
-    : html`<button class="ord-mgr ord-mgr--empty" data-action="pick-manager">${icon("user-plus", { size: 12 })} 담당자 미지정 · 지정하기</button>`;
+/* 헤더 담당자 pill(시안) — 상태 점 + 라벨. 스테퍼·더보기와 같은 36px pill 열에 선다.
+   점 색이 곧 상태다: 지정=초록, 미지정=주황(면까지 주황이라 눈에 먼저 걸린다). */
+export const managerControl = (name) => html`
+  <button class="ord-mgr ${name ? "" : "ord-mgr--empty"}" data-action="pick-manager"
+    title="${name ? `담당자 ${name} · 눌러서 변경` : "담당자를 지정하세요"}">
+    <span class="ord-mgr__dot"></span>${name ? `담당 ${name}` : "담당자 미지정"}
+  </button>`;
 
 /* ── 담당자 지정 모달 — 메인 위에 스택. 지정은 즉시 반영하고
    폼·레일의 다른 미저장 편집은 건드리지 않는다.
@@ -537,12 +539,19 @@ export function summaryBodyV2({ order, rows }) {
           <span class="ord-sum__v" title="${x.v}">${x.v}</span></div>`))}`;
 }
 
+/* 이력 카드는 max-height 로 잘린다. 최신이 맨 아래라 새로 쌓인 줄이 접힌 영역에
+   숨는다 — 렌더 직후 끝으로 내려 준다. 없으면 아무 일도 하지 않는다. */
+export function histScrollEnd(scope) {
+  const el = scope && scope.querySelector(".ord-hist");
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
 export function historyBody(order) {
   const list = Array.isArray(order.history) ? order.history : [];
   if (!list.length) return html`<p class="ord-hist__empty">기록된 처리 이력이 없습니다.</p>`;
   return html`<div class="ord-hist">
     ${list.map((h, i) => html`
-      <div class="ord-hist__row ${i === 0 ? "is-latest" : ""}">
+      <div class="ord-hist__row ${i === list.length - 1 ? "is-latest" : ""}">
         <span class="ord-hist__dot" style="background:${HIST_DOT[h.type] || "var(--c-text-faint)"}"></span>
         <span class="ord-hist__lbl" title="${h.label}">${h.label}</span>
         <span class="ord-hist__at">${String(h.at).slice(5).replace("-", ".")}</span>

@@ -35,7 +35,7 @@ import {
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn,
   makeImageBox, managerControl, openStaffPicker, openDeleteConfirm,
-  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, footerV2,
+  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
   B2B_STATUSES, b2bList, b2bFind, b2bUpsert, b2bRemove,
@@ -302,6 +302,7 @@ export function mount(root, { nav }) {
       setHTML(el, historyBody(editing));
       const cap = el.parentElement?.querySelector(".ord-card__cap");
       if (cap) cap.textContent = `${(editing.history || []).length}건`;
+      histScrollEnd(el);
     }
   }
   function syncDirty() {
@@ -322,7 +323,8 @@ export function mount(root, { nav }) {
     const prod = qs(panel, "[data-dd-f='product']");
     if (prod) dds.push(makeDropdown(prod, {
       options: () => PRODUCTS.map((p) => p.name),
-      label: (v) => (v ? `${v} · ${won(priceFor(editing.clientId, v))}` : "상품을 선택하세요"),
+      /* 금액은 바로 옆 '주문금액/적용 단가' 칸에 이미 있다 — 상품명만 보여 준다 */
+      label: (v) => v || "상품을 선택하세요",
       get: () => editing.product,
       set: (v) => {
         editing.product = v;
@@ -430,6 +432,7 @@ export function mount(root, { nav }) {
     });
     const panel = activeModal.panel;
     bindControls(panel);
+    histScrollEnd(panel); // 최신 이력이 맨 아래라 처음부터 끝을 보여 준다
 
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => saveOrder());

@@ -26,7 +26,7 @@ import {
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn,
   makeImageBox, managerControl, openStaffPicker, openDeleteConfirm,
-  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, footerV2,
+  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
   staffNames, staffOptions, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
@@ -293,6 +293,7 @@ export function mount(root, { nav }) {
       /* 카드 헤더의 'N건' 은 슬롯 밖이라 따로 고친다 */
       const cap = el.parentElement?.querySelector(".ord-card__cap");
       if (cap) cap.textContent = `${(editing.history || []).length}건`;
+      histScrollEnd(el);
     }
   }
   /* 입력마다 호출된다 — textContent 만 바꾼다(재렌더 금지) */
@@ -315,7 +316,8 @@ export function mount(root, { nav }) {
     const prod = qs(panel, "[data-dd-f='product']");
     if (prod) dds.push(makeDropdown(prod, {
       options: () => B2C_PRODUCTS.map((p) => p.name),
-      label: (v) => (v ? `${v} · ${won(productPrice(v))}` : "상품을 선택하세요"),
+      /* 금액은 바로 옆 '주문금액/적용 단가' 칸에 이미 있다 — 상품명만 보여 준다 */
+      label: (v) => v || "상품을 선택하세요",
       get: () => editing.product,
       set: (v) => {
         editing.product = v;
@@ -433,6 +435,7 @@ export function mount(root, { nav }) {
     });
     const panel = activeModal.panel;
     bindControls(panel);
+    histScrollEnd(panel); // 최신 이력이 맨 아래라 처음부터 끝을 보여 준다
 
     /* 이벤트는 panel 위임으로 1회만 — 슬롯 재렌더에도 전부 생존 */
     on(panel, "click", "[data-action='close']", () => closeModal());
