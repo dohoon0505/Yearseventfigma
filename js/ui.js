@@ -110,7 +110,8 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
     /* 배송일시 피커가 열려 있으면 ESC 는 피커 몫이다. 상시 편집 모달에서 ESC 한 번에
        미저장 편집이 통째로 날아가는 것을 막는다. capture 등록 순서상 이 가드가 아니면
        피커 쪽 stopPropagation 이 늦어 소용이 없다. */
-    if (document.querySelector(".ord-dtp.is-open")) return;
+    const dtp = document.querySelector(".ord-dtp.is-open");
+    if (dtp && overlay.contains(dtp)) return;
     /* 스택된 모달 지원: 최상위(마지막에 열린) 오버레이만 ESC/Tab 처리 —
        오버레이가 1개뿐인 기존 사용처는 항상 최상위라 무영향. */
     const overlays = document.querySelectorAll(".modal-overlay");
@@ -439,6 +440,10 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
       h += `<button type="button" class="${cls}" ${dis ? "disabled" : `data-d="${ymd}"`}>${day}</button>`;
     }
     grid.innerHTML = h;
+    /* ⚠️ 달을 옮기면 주차 수가 바뀌어 패널이 42px 자란다(6주 → 7주 달).
+       열 때 한 번만 배치하면 그 순간 '완료' 버튼이 다시 화면 밖으로 나간다 —
+       실측으로 2027년 1·5·10월에서 19px 잘렸다. 그려 놓고 곧바로 다시 잡는다. */
+    if (root.classList.contains("is-open")) place();
     const m0 = lo();
     prev.disabled = new Date(view.y, view.m, 1) <= new Date(m0.getFullYear(), m0.getMonth(), 1);
     next.disabled = new Date(view.y, view.m + 1, 1) > new Date(max.getFullYear(), max.getMonth(), 1);
@@ -452,8 +457,14 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   function place() {
     if (!trigger || !panel) return;
     const t = trigger.getBoundingClientRect();
+    /* 트리거가 떨어져 나갔거나 숨겨졌다(카드 재렌더 등) → 좌표가 0,0 이라
+       팝오버가 좌상단에 유령처럼 뜬다. 떠 있을 이유가 없으니 닫는다. */
+    if (!root.isConnected || (!t.width && !t.height)) { close(); return; }
     const h = panel.offsetHeight, w = panel.offsetWidth;
-    const vh = window.innerHeight, vw = window.innerWidth;
+    /* client* 는 스크롤바를 뺀 실제 가시영역 — innerWidth 로 재면 패널 오른쪽이
+       스크롤바 밑으로 들어간다. */
+    const vh = document.documentElement.clientHeight;
+    const vw = document.documentElement.clientWidth;
     let top = t.bottom + GAP;
     if (top + h > vh - EDGE) {
       const up = t.top - GAP - h;
