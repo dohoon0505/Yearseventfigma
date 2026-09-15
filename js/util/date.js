@@ -127,3 +127,19 @@ export function orderRowTone(status, deliverAt) {
   if (!d) return "";
   return d <= todayKey() ? "ordrow--today" : "ordrow--booked";
 }
+
+/* 목록 정렬 우선순위 = **행 색 순서**다(노랑 → 핑크 → 파랑 → 흰색 → 회색).
+   색과 순서가 따로 놀면 "노란 줄이 위"라는 눈의 기대가 깨지므로,
+   랭크를 따로 적지 않고 orderRowTone() 의 결과에서 그대로 끌어온다. */
+const TONE_ORDER = ["ordrow--wait", "ordrow--today", "ordrow--booked", "", "ordrow--void"];
+
+/** 주문 하나의 정렬 순위(작을수록 위). 같은 순위끼리는 **원래 순서를 유지**한다
+    (Array.sort 는 안정 정렬 — 기존 최신순 배열이 색 안에서 그대로 살아 있다). */
+export const orderToneRank = (status, deliverAt) => {
+  const i = TONE_ORDER.indexOf(orderRowTone(status, deliverAt));
+  return i < 0 ? TONE_ORDER.indexOf("") : i;
+};
+
+/** filtered() 결과에 바로 꽂는 비교자. `rows.sort(byToneRank((o) => o.deliverAt))` */
+export const byToneRank = (dateOf) => (a, b) =>
+  orderToneRank(a.status, dateOf(a)) - orderToneRank(b.status, dateOf(b));

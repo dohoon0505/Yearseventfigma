@@ -18,7 +18,7 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowToneLegend } from "../ui.js";
-import { getDateRange, formatDateLabel, orderRowTone } from "../util/date.js";
+import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { pushHistory } from "../data/order-history.js";
 import {
@@ -100,7 +100,10 @@ export function mount(root, { nav }) {
       if (!match(o.orderNo, state.qOrderNo)) return false;
       if (!match(o.address, state.qAddress)) return false;
       return true;
-    });
+    })
+      /* 색 순서로 무조건 정렬 — 노랑(접수대기) → 핑크(당일·지연) → 파랑(예약)
+         → 흰색(배송완료) → 회색(취소). 안정 정렬이라 색 안에서는 기존 순서 유지. */
+      .sort(byToneRank((o) => o.deliverAt));
   }
   /* 상태 = 언더라인 탭 (활성: 오렌지 밑줄 + 카운트 강조) */
   function tabsBody() {
