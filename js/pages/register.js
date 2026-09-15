@@ -3,7 +3,7 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { store } from "../store.js";
+import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 
 const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
@@ -309,15 +309,13 @@ export function mount(root, { nav }) {
       /* 셀프 가입은 영업 경로가 'SNS·홈페이지'로 고정된다 — 관리자가 등록하면 비어 있다. */
       salesRoute: "셀프 가입", salesMemo: "", salesDate: joinDate,
     });
-    // 최초 정산·회계 담당자 = 회원가입 시 작성한 담당자 (담당자 저장공간에 등록 후 지정)
-    const contacts = store.get().contacts;
-    const maxNo = contacts.reduce((m, c) => Math.max(m, parseInt(String(c.no), 10) || 0), 0);
-    const no = String(maxNo + 1).padStart(2, "0");
-    store.setContacts((prev) => [...prev, {
-      no, name: f.managerName, role: f.department, phone: f.contact,
-      message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false,
+    /* 최초 정산·회계 담당자 = 회원가입 시 작성한 담당자.
+       ⚠️ 담당자는 거래처별이다 — 로그인 거래처가 아니라 **방금 만든 거래처(id)** 버킷에 넣는다.
+       버킷의 첫 담당자라 setContactsOf 의 불변식이 자동으로 정산담당으로 지정한다. */
+    store.setContactsOf(id, [{
+      id: newContactId(), name: f.managerName, role: f.department, phone: f.contact,
+      message: MSG_RECEIVE, isBilling: true,
     }]);
-    store.setBillingContact(no); // 정산·회계 담당자는 무조건 존재해야 하므로 가입 담당자로 지정
   }
 
   function goPrev() {

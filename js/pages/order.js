@@ -485,10 +485,10 @@ export function mount(root, { nav }) {
   });
   /* 주문 담당자 — 공용 커스텀 드롭다운(index→"이름 · 직위" label 매핑) */
   const ddMgr = makeDropdown($("[data-dd-mgr]"), {
-    options: () => store.get().contacts.map((_, i) => String(i)),
+    options: () => store.contactsOf().map((_, i) => String(i)),
     get: () => String(state.manager),
     set: (v) => { state.manager = +v; },
-    label: (v) => { const c = store.get().contacts[+v]; return c ? `${c.name} · ${c.role}` : "담당자 없음"; },
+    label: (v) => { const c = store.contactsOf()[+v]; return c ? `${c.name} · ${c.role}` : "담당자 없음"; },
   });
   /* 측근(신랑측/신부측) — 청첩 전용 필수선택(빈 값이면 "측근 선택" placeholder) */
   const SIDES = ["신랑측", "신부측"];
@@ -729,7 +729,7 @@ export function mount(root, { nav }) {
     return p ? p.phone : "";
   };
   /* 담당자 저장공간에서 수신함으로 설정된 담당자 — 주문서에 자동 편입된다. */
-  const autoManagers = () => receivingContacts(store.get().contacts);
+  const autoManagers = () => receivingContacts(store.contactsOf());
 
   const fixedRow = (key, label, name, phone, on) => html`
     <div class="nt-row nt-row--fixed">
@@ -857,7 +857,7 @@ export function mount(root, { nav }) {
     `);
   }
   function submit() {
-    const contacts = store.get().contacts;
+    const contacts = store.contactsOf();
     const c = contacts[state.manager] || contacts[0];
     setHTML($("[data-done-box]"), html`
       <div class="cf-row"><span class="cl">상품</span><span class="cv">${state.product.product}</span></div>

@@ -4,22 +4,21 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { store } from "../store.js";
+import { store, MSG_RECEIVE, MSG_NONE, newContactId } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
-
-const MSG_RECEIVE = "모든 배송완료 마다에 메세지를 수신합니다";
-const MSG_NONE = "메세지를 수신하지 않습니다.";
 
 export function mount(root, { nav }) {
   let activeModal = null;
   const closeModal = () => { if (activeModal) { activeModal.close(); activeModal = null; } };
 
-  const editBtn = (kind, no) => html`<button class="ptbl-edit" data-action="edit" data-kind="${kind}" data-no="${no}" aria-label="수정">${icon("pencil", { size: 14 })}</button>`;
-  const delBtn = (kind, no) => html`<button class="ptbl-del" data-action="del" data-kind="${kind}" data-no="${no}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
+  /* 키는 담당자=id, 프로필=no. 담당자의 no 는 표시 순번이라 쓰기마다 다시 매겨진다 —
+     no 로 지목하면 삭제 후 엉뚱한 사람이 바뀐다. */
+  const editBtn = (kind, key) => html`<button class="ptbl-edit" data-action="edit" data-kind="${kind}" data-key="${key}" aria-label="수정">${icon("pencil", { size: 14 })}</button>`;
+  const delBtn = (kind, key) => html`<button class="ptbl-del" data-action="del" data-kind="${kind}" data-key="${key}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
   const billingCell = (r) =>
     r.isBilling
       ? html`<span class="pill pill--blue ptbl-billing">${icon("check-circle", { size: 12 })} 정산·회계 담당</span>`
-      : html`<button class="ptbl-setbilling" data-action="set-billing" data-no="${r.no}">정산담당 지정</button>`;
+      : html`<button class="ptbl-setbilling" data-action="set-billing" data-key="${r.id}">정산담당 지정</button>`;
   const billingSummary = () => {
     const b = store.getBillingContact();
     return b
@@ -43,12 +42,13 @@ export function mount(root, { nav }) {
     { label: "연락처", width: "150px", align: "center", render: (r) => r.phone },
     { label: "메세지 수신여부", width: "1fr", render: (r) => r.message },
     { label: "정산·회계 담당", width: "150px", align: "center", render: (r) => billingCell(r) },
-    { label: "수정", width: "52px", align: "center", render: (r) => editBtn("contact", r.no) },
-    { label: "삭제", width: "52px", align: "center", render: (r) => delBtn("contact", r.no) },
+    { label: "수정", width: "52px", align: "center", render: (r) => editBtn("contact", r.id) },
+    { label: "삭제", width: "52px", align: "center", render: (r) => delBtn("contact", r.id) },
   ];
 
   function render() {
-    const { profiles, contacts } = store.get();
+    const profiles = store.get().profiles;
+    const contacts = store.contactsOf(); // 로그인 거래처의 담당자만
     setHTML(
       root,
       html`
@@ -141,9 +141,7 @@ export function mount(root, { nav }) {
   // ── New Contact ────────────────────────────────────────
   function openNewContact() {
     closeModal();
-    const contacts = store.get().contacts;
-    const nextNo = String(contacts.length + 1).padStart(2, "0");
-    const form = { no: nextNo, name: "", role: "", phone: "", message: MSG_RECEIVE };
+    const form = { id: newContactId(), name: "", role: "", phone: "", message: MSG_RECEIVE };
     const valid = () => !!(form.name && form.role && form.phone);
     const receiving = () => form.message === MSG_RECEIVE;
 
@@ -231,7 +229,7 @@ export function mount(root, { nav }) {
     }
     on(activeModal.panel, "input", "[data-pf]", (e, t) => { form[t.dataset.pf] = t.value; });
     on(activeModal.panel, "click", "[data-action='save']", () => {
-      if (isContact) store.setContacts((prev) => prev.map((c) => (c.no === form.no ? form : c)));
+      if (isContact) store.setContacts((prev) => prev.map((c) => (c.id === form.id ? form : c)));
       else store.setProfiles((prev) => prev.map((p) => (p.no === form.no ? form : p)));
       closeModal();
       render();
@@ -260,7 +258,7 @@ export function mount(root, { nav }) {
     `;
     activeModal = simpleModal({ title: `${row.name} 항목을 삭제할까요?`, size: "sm", body, footer });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
-      if (kind === "contact") store.setContacts((prev) => prev.filter((c) => c.no !== row.no));
+      if (kind === "contact") store.setContacts((prev) => prev.filter((c) => c.id !== row.id));
       else store.setProfiles((prev) => prev.filter((p) => p.no !== row.no));
       closeModal();
       render();
@@ -273,10 +271,11 @@ export function mount(root, { nav }) {
     const a = t.dataset.action;
     if (a === "new-profile") return openNewProfile();
     if (a === "new-contact") return openNewContact();
-    if (a === "set-billing") { store.setBillingContact(t.dataset.no); render(); return; }
+    if (a === "set-billing") { store.setBillingContactOf(null, t.dataset.key); render(); return; }
     const kind = t.dataset.kind;
-    const list = kind === "contact" ? store.get().contacts : store.get().profiles;
-    const row = list.find((x) => x.no === t.dataset.no);
+    const isC = kind === "contact";
+    const list = isC ? store.contactsOf() : store.get().profiles;
+    const row = list.find((x) => (isC ? x.id : x.no) === t.dataset.key);
     if (a === "edit" && row) openEdit(kind, row);
     else if (a === "del" && row) openDelete(kind, row);
   });
