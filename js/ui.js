@@ -468,8 +468,8 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     next.disabled = new Date(view.y, view.m + 1, 1) > new Date(max.getFullYear(), max.getMonth(), 1);
   }
 
-  /* 팝오버는 position:fixed 다(조상 `.ord-grid` 의 overflow 를 탈출하려고 — auto 든
-     hidden 이든 클리핑은 똑같이 한다). 그래서 좌표를 직접 잡아 준다.
+  /* 팝오버는 position:fixed 다(조상 `.ord-grid`(hidden)·`.ord-pane`(auto) 의 overflow 를
+     탈출하려고 — auto 든 hidden 이든 클리핑은 똑같이 한다). 그래서 좌표를 직접 잡아 준다.
      우선순위: 아래 → 위 → 화면 안으로 당기기.
      세 번째가 있어야 세로가 짧은 화면에서도 '완료' 버튼까지 다 보인다 — 패널이
      441px 라 720 화면에는 위아래 어느 쪽도 그만큼 못 내주는 구간이 있다. */
@@ -537,7 +537,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const onDoc = (e) => { if (!root.contains(e.target)) close(); };
   /* 창 크기가 바뀌면 트리거가 움직인다 — fixed 라 따라가지 않으므로 다시 잡는다 */
   const onResize = () => { if (root.classList.contains("is-open")) place(); };
-  /* 조상 스크롤도 마찬가지다(`.ord-grid` 는 세로가 짧으면 스크롤된다). scroll 은
+  /* 조상 스크롤도 마찬가지다(`.ord-pane` 은 세로가 짧으면 스크롤된다). scroll 은
      버블링하지 않으니 capture 로 받는다. 패널 안 시·분 목록 스크롤은 제외. */
   const onScroll = (e) => {
     if (!root.classList.contains("is-open")) return;

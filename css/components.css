@@ -1238,16 +1238,16 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    그래서 두 가지를 강제한다:
      · grid-template-rows: minmax(0,1fr) — 행 높이를 컨테이너에 못박는다.
        auto 면 행이 내용만큼 자라 버려 아래 flex 축소가 아예 일어나지 않는다.
-     · overflow-y: auto — 남는 경우 스크롤바 대신 사진이 줄어든다(.ord-drop).
-   ⚠️ 그래도 **모자라는 구간이 있다**. 세로 710px 미만이면 축소 여력을 다 써도
-      발주정보 카드 하단이 남는다(1280x620 실측 83px). 예전엔 `overflow:hidden`
-      이라 그 부분이 **조용히 잘려 도달 불가**였다 — 1366x768 노트북이 여기 걸린다.
-      스크롤 금지의 취지는 "평소에 스크롤바가 안 보인다"이지 "내용을 버린다"가
-      아니므로 auto 로 둔다: 710px 이상에서는 넘침이 0이라 스크롤바가 아예 없고,
-      짧을 때만 나타난다. 가로는 계속 hidden(레일 그림자가 새는 것을 막는다).
-      `.cli-pane` 이 이미 같은 방식이다. */
+     · overflow: hidden — 남는 경우 스크롤바 대신 사진이 줄어든다(.ord-drop).
+   ⚠️ **스크롤러는 여기가 아니라 `.ord-pane` 이다.** 축소 여력을 다 써도 모자라는
+      구간이 실제로 있는데(짧은 세로 + 긴 발주정보), 그때 컨테이너인 `.ord-grid` 를
+      스크롤시키면 **다크 레일(`.ord-side`)까지 같이 밀린다**. 레일 높이는
+      `minmax(0,1fr)` 로 스크롤포트 높이에 못박혀 있어 밀린 만큼 아래가 비고,
+      `.ord-grid` 에는 배경이 없어 `.modal-panel` 흰색이 드러난다(1280x620 실측 70px,
+      1366x660 실측 61px). 그래서 넘침은 **그리드 아이템인 `.ord-pane` 이 받는다** —
+      거래처 모달의 `.cli-grid`/`.cli-pane` 과 정확히 같은 구조다. */
 .ord-grid {
-  flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  flex: 1; min-height: 0; overflow: hidden;
   display: grid; grid-template-columns: 350px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
@@ -1290,9 +1290,14 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 }
 
 /* 우측 본문 */
+/* 원장 본문 — **넘침을 받는 곳**. 평소엔 넘치지 않아 스크롤바가 없고, 축소 여력
+   (사진 → 거래 조건 카드 → max-height:820px 여백)을 다 쓰고도 모자랄 때만 생긴다.
+   임계는 레코드마다 다르다(1280 폭 실측 ≈700~760px) — 단일 숫자로 적지 말 것.
+   레일은 형제라 붙박이로 남는다(위 `.ord-grid` 주석의 흰 띠 참조). */
 .ord-pane {
   padding: 22px 28px 20px; min-width: 0; min-height: 0;
   display: flex; flex-direction: column; gap: 20px;
+  overflow-y: auto; overscroll-behavior: contain;
 }
 /* 세로도 못박는다(minmax(0,1fr)) — 안 그러면 두 열이 내용만큼 자라 버려
    거래 조건이 긴 거래처에서 본문이 모달 밖으로 밀린다. */
@@ -1432,9 +1437,9 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    **자기 안에서 스크롤**한다. 모달 전체 높이가 거래처 하나 때문에 흔들리면 안 된다. */
 /* 원장 쪽에서 세로가 모자라면 **이 카드가 먼저 양보한다** — 레일의 `.ord-drop` 과 같은 역할.
    이미 자체 스크롤이라 줄어들어도 내용이 사라지지 않는다. 이게 없으면 거래 조건이 긴
-   거래처((주)홈팩·자비스앤빌런즈·뉴트리·한국비철)에서 **1512x900 에서도** 모달 전체에
+   거래처((주)홈팩·자비스앤빌런즈·뉴트리·한국비철)에서 **1512x900 에서도** 원장에
    스크롤바가 붙는다(실측 2~47px 초과). 축소 여력을 다 쓰고도 모자라면 그때
-   `.ord-grid { overflow-y:auto }` 가 마지막 그물이 된다. */
+   `.ord-pane { overflow-y:auto }` 가 마지막 그물이 된다. */
 .ord-note { min-height: 0; display: flex; flex-direction: column; }
 .ord-note > [data-slot] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .ord-note__body {
@@ -1458,7 +1463,12 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 1240px) {
-  .ord-cols { grid-template-columns: minmax(0, 1fr); }
+  /* 1열로 접으면 명시 행이 하나뿐인 `minmax(0,1fr)` 때문에 `.ord-colR` 이 암시적
+     auto 행으로 떨어져 **두 열이 겹쳐 찍힌다**(1100x800 실측: colL 232.7px 칸에
+     462px 내용 → 발주정보가 요약 카드 위로 올라탄다). 1열에서는 높이를 못박을
+     이유가 없으니 행을 내용에 맡기고, 초과분은 `.ord-pane` 스크롤이 받는다. */
+  .ord-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  .ord-colL, .ord-colR { min-height: auto; }
 }
 @media (max-width: 1000px) {
   .ord-grid { grid-template-columns: minmax(0, 1fr); }
