@@ -383,6 +383,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const prev = root.querySelector(".cal-prev");
   const next = root.querySelector(".cal-next");
   const fval = root.querySelector(".ord-dtp__fval");
+  const panel = root.querySelector(".ord-dtp__panel");
   const doneBtn = root.querySelector("[data-dtp-done]");
   const view = { y: 0, m: 0 };
   const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return fmtD(d); })();
@@ -443,6 +444,25 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     next.disabled = new Date(view.y, view.m + 1, 1) > new Date(max.getFullYear(), max.getMonth(), 1);
   }
 
+  /* 팝오버는 position:fixed 다(조상 `.ord-grid { overflow:hidden }` 을 탈출하려고).
+     그래서 좌표를 직접 잡아 준다. 우선순위: 아래 → 위 → 화면 안으로 당기기.
+     세 번째가 있어야 세로가 짧은 화면에서도 '완료' 버튼까지 다 보인다 — 패널이
+     441px 라 720 화면에는 위아래 어느 쪽도 그만큼 못 내주는 구간이 있다. */
+  const GAP = 6, EDGE = 8;
+  function place() {
+    if (!trigger || !panel) return;
+    const t = trigger.getBoundingClientRect();
+    const h = panel.offsetHeight, w = panel.offsetWidth;
+    const vh = window.innerHeight, vw = window.innerWidth;
+    let top = t.bottom + GAP;
+    if (top + h > vh - EDGE) {
+      const up = t.top - GAP - h;
+      top = up >= EDGE ? up : Math.max(EDGE, Math.min(top, vh - EDGE - h));
+    }
+    panel.style.top = Math.round(top) + "px";
+    panel.style.left = Math.round(Math.max(EDGE, Math.min(t.left, vw - EDGE - w))) + "px";
+  }
+
   function open() {
     /* 다른 드롭다운은 닫고 연다 — 이 피커 자신은 .dd 가 아니라 영향을 받지 않는다 */
     document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open"));
@@ -452,6 +472,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     renderGrid();
     renderFoot();
     root.classList.add("is-open");
+    place(); // display:block 이 된 뒤라야 offsetHeight 가 나온다
     if (trigger) trigger.setAttribute("aria-expanded", "true");
   }
 
@@ -466,6 +487,8 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   };
   const onDone = () => close();
   const onDoc = (e) => { if (!root.contains(e.target)) close(); };
+  /* 창 크기가 바뀌면 트리거가 움직인다 — fixed 라 따라가지 않으므로 다시 잡는다 */
+  const onResize = () => { if (root.classList.contains("is-open")) place(); };
   /* capture 단계에서 먼저 먹어 모달이 아니라 피커가 닫히게 한다 */
   const onKey = (e) => {
     if (e.key !== "Escape" || !root.classList.contains("is-open")) return;
@@ -480,6 +503,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   if (doneBtn) doneBtn.addEventListener("click", onDone);
   document.addEventListener("click", onDoc);
   document.addEventListener("keydown", onKey, true);
+  window.addEventListener("resize", onResize);
 
   /* 시·분 드롭다운 — 값은 항상 현재 get() 에서 다시 읽는다(외부에서 바뀔 수 있다) */
   const hDd = makeDropdown(root.querySelector("[data-dtp-h]"), {
@@ -512,6 +536,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
       if (doneBtn) doneBtn.removeEventListener("click", onDone);
       document.removeEventListener("click", onDoc);
       document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("resize", onResize);
       hDd.destroy();
       mDd.destroy();
     },

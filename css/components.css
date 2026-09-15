@@ -1059,13 +1059,18 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 }
 .ord-dtp__trigger .icon { flex: 0 0 auto; color: var(--c-text-muted); }
 
+/* ⚠️ **position: fixed 다.** absolute 로 두면 조상 `.ord-grid { overflow: hidden }`
+      (모달 안 스크롤 금지 규약)에 잘려 '완료' 버튼을 어느 해상도에서도 누를 수 없다
+      — 실측 1920에서 1px, 1280에서 162px 잘렸다. fixed 는 뷰포트 기준이라 조상
+      overflow 를 탈출한다(조상 체인에 transform/filter/contain 이 없어 성립한다 —
+      생기면 다시 갇히니 모달 오버레이에 transform 을 걸지 말 것).
+   ⚠️ left/top 은 **JS가 열 때 계산한다**(ui.js makeDateTimePicker.place()).
+      아래 자리가 모자라면 위로 뒤집고, 양쪽 다 모자라면 화면 안으로 당긴다.
+   ⚠️ overflow 를 막지 말 것 — 안쪽 시/분 드롭다운이 위로 196px 열린다. */
 .ord-dtp__panel {
-  display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; width: 320px;
+  display: none; position: fixed; left: 0; top: 0; z-index: calc(var(--z-modal) + 5); width: 320px;
   background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--r-2xl); box-shadow: var(--sh-pop);
-  /* ⚠️ overflow 를 막지 말 것 — 안쪽 시/분 드롭다운이 위로 196px 열린다.
-     팝오버 자신은 반드시 **아래로**(top) 연다. 위로 열면 .ord-grid 스크롤러
-     상단에 잘려 영영 닿을 수 없다(components.css 위쪽 .dd-panel 주석과 같은 사고). */
   overflow: visible;
 }
 .ord-dtp.is-open .ord-dtp__panel { display: block; }
