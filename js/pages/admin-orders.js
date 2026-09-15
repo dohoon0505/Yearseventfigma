@@ -284,7 +284,7 @@ export function mount(root, { nav }) {
                    담당자가 발주를 결정하기 직전에 한 번 더 보게 한다.
                    껍데기는 요약·처리 이력과 **같은 .ord-card**, 본문 글자만 경고색. */ ""}
               ${c && c.clientNote ? card({
-                title: "거래 조건", cap: c.companyName,
+                title: "거래 조건", cap: c.companyName, cls: "ord-note",
                 body: html`<p class="ord-note__body">${c.clientNote}</p>`,
               }) : ""}
             </div>

@@ -1238,9 +1238,16 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    그래서 두 가지를 강제한다:
      · grid-template-rows: minmax(0,1fr) — 행 높이를 컨테이너에 못박는다.
        auto 면 행이 내용만큼 자라 버려 아래 flex 축소가 아예 일어나지 않는다.
-     · overflow: hidden — 남는 경우 스크롤바 대신 사진이 줄어든다(.ord-drop). */
+     · overflow-y: auto — 남는 경우 스크롤바 대신 사진이 줄어든다(.ord-drop).
+   ⚠️ 그래도 **모자라는 구간이 있다**. 세로 710px 미만이면 축소 여력을 다 써도
+      발주정보 카드 하단이 남는다(1280x620 실측 83px). 예전엔 `overflow:hidden`
+      이라 그 부분이 **조용히 잘려 도달 불가**였다 — 1366x768 노트북이 여기 걸린다.
+      스크롤 금지의 취지는 "평소에 스크롤바가 안 보인다"이지 "내용을 버린다"가
+      아니므로 auto 로 둔다: 710px 이상에서는 넘침이 0이라 스크롤바가 아예 없고,
+      짧을 때만 나타난다. 가로는 계속 hidden(레일 그림자가 새는 것을 막는다).
+      `.cli-pane` 이 이미 같은 방식이다. */
 .ord-grid {
-  flex: 1; min-height: 0; overflow: hidden;
+  flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   display: grid; grid-template-columns: 350px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
@@ -1423,10 +1430,17 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    메모가 아니라 **거래 조건**이라 놓치면 오발주가 난다(→ CLAUDE.md 도메인 규약).
    길이가 거래처마다 천차만별(최장 4줄 → 300px 폭에서 10줄 이상)이라
    **자기 안에서 스크롤**한다. 모달 전체 높이가 거래처 하나 때문에 흔들리면 안 된다. */
+/* 원장 쪽에서 세로가 모자라면 **이 카드가 먼저 양보한다** — 레일의 `.ord-drop` 과 같은 역할.
+   이미 자체 스크롤이라 줄어들어도 내용이 사라지지 않는다. 이게 없으면 거래 조건이 긴
+   거래처((주)홈팩·자비스앤빌런즈·뉴트리·한국비철)에서 **1512x900 에서도** 모달 전체에
+   스크롤바가 붙는다(실측 2~47px 초과). 축소 여력을 다 쓰고도 모자라면 그때
+   `.ord-grid { overflow-y:auto }` 가 마지막 그물이 된다. */
+.ord-note { min-height: 0; display: flex; flex-direction: column; }
+.ord-note > [data-slot] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .ord-note__body {
   padding: 12px 20px; font-size: var(--fs-14); line-height: 1.6;
   color: var(--c-danger-ink); white-space: pre-line;
-  max-height: 168px; overflow-y: auto;
+  flex: 1 1 auto; min-height: 56px; max-height: 168px; overflow-y: auto;
   border-radius: 0 0 17px 17px;
 }
 

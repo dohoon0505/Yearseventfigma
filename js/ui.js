@@ -468,17 +468,34 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     next.disabled = new Date(view.y, view.m + 1, 1) > new Date(max.getFullYear(), max.getMonth(), 1);
   }
 
-  /* 팝오버는 position:fixed 다(조상 `.ord-grid { overflow:hidden }` 을 탈출하려고).
-     그래서 좌표를 직접 잡아 준다. 우선순위: 아래 → 위 → 화면 안으로 당기기.
+  /* 팝오버는 position:fixed 다(조상 `.ord-grid` 의 overflow 를 탈출하려고 — auto 든
+     hidden 이든 클리핑은 똑같이 한다). 그래서 좌표를 직접 잡아 준다.
+     우선순위: 아래 → 위 → 화면 안으로 당기기.
      세 번째가 있어야 세로가 짧은 화면에서도 '완료' 버튼까지 다 보인다 — 패널이
      441px 라 720 화면에는 위아래 어느 쪽도 그만큼 못 내주는 구간이 있다. */
   const GAP = 6, EDGE = 8;
+  /* 트리거를 잘라 내는 스크롤 조상(`.ord-grid` 가 세로 짧을 때 스크롤된다).
+     open() 에서 한 번만 찾는다 — place() 는 스크롤마다 도는데 거기서
+     getComputedStyle 을 조상마다 부르면 스크롤이 눈에 띄게 끊긴다. */
+  let clip = null;
+  function findClip(el) {
+    for (let p = el && el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ov = getComputedStyle(p).overflowY;
+      if (ov === "auto" || ov === "scroll") return p;
+    }
+    return null;
+  }
   function place() {
     if (!trigger || !panel) return;
     const t = trigger.getBoundingClientRect();
     /* 트리거가 떨어져 나갔거나 숨겨졌다(카드 재렌더 등) → 좌표가 0,0 이라
        팝오버가 좌상단에 유령처럼 뜬다. 떠 있을 이유가 없으니 닫는다. */
     if (!root.isConnected || (!t.width && !t.height)) { close(); return; }
+    /* 스크롤로 트리거가 컨테이너 밖으로 밀려났다 → 패널만 허공에 남는다. 같이 닫는다. */
+    if (clip) {
+      const c = clip.getBoundingClientRect();
+      if (t.bottom <= c.top || t.top >= c.bottom) { close(); return; }
+    }
     const h = panel.offsetHeight, w = panel.offsetWidth;
     /* client* 는 스크롤바를 뺀 실제 가시영역 — innerWidth 로 재면 패널 오른쪽이
        스크롤바 밑으로 들어간다. */
@@ -502,6 +519,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     renderGrid();
     renderFoot();
     root.classList.add("is-open");
+    clip = findClip(trigger);
     place(); // display:block 이 된 뒤라야 offsetHeight 가 나온다
     if (trigger) trigger.setAttribute("aria-expanded", "true");
   }
@@ -519,6 +537,13 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const onDoc = (e) => { if (!root.contains(e.target)) close(); };
   /* 창 크기가 바뀌면 트리거가 움직인다 — fixed 라 따라가지 않으므로 다시 잡는다 */
   const onResize = () => { if (root.classList.contains("is-open")) place(); };
+  /* 조상 스크롤도 마찬가지다(`.ord-grid` 는 세로가 짧으면 스크롤된다). scroll 은
+     버블링하지 않으니 capture 로 받는다. 패널 안 시·분 목록 스크롤은 제외. */
+  const onScroll = (e) => {
+    if (!root.classList.contains("is-open")) return;
+    if (panel && e.target.nodeType === 1 && panel.contains(e.target)) return;
+    place();
+  };
   /* capture 단계에서 먼저 먹어 모달이 아니라 피커가 닫히게 한다 */
   const onKey = (e) => {
     if (e.key !== "Escape" || !root.classList.contains("is-open")) return;
@@ -534,6 +559,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   document.addEventListener("click", onDoc);
   document.addEventListener("keydown", onKey, true);
   window.addEventListener("resize", onResize);
+  document.addEventListener("scroll", onScroll, true);
 
   /* 시·분 드롭다운 — 값은 항상 현재 get() 에서 다시 읽는다(외부에서 바뀔 수 있다) */
   const hDd = makeDropdown(root.querySelector("[data-dtp-h]"), {
@@ -567,6 +593,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
       document.removeEventListener("click", onDoc);
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("scroll", onScroll, true);
       hDd.destroy();
       mDd.destroy();
     },
