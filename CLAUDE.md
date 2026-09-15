@@ -17,7 +17,7 @@
 ## 아키텍처 규약
 - 페이지 계약: `mount(root, { nav }) → cleanup`. 이벤트는 `on()` 위임(대상 요소에 1회) — `setHTML` 재렌더에도 생존. `makeDropdown`/`makeDatepicker` 인스턴스만 재렌더마다 `destroy()→재생성`, cleanup에서도 destroy.
 - **색은 tokens.css 토큰만** — raw hex는 tokens.css 밖 금지. **단 예외 2곳**: `invoice-doc.js`·`report-doc.js`는 `window.open`+`document.write`로 새 창에 인쇄 문서를 쓰는데 그 창은 tokens.css를 로드하지 않는다(var()로 바꾸면 PDF 색이 사라짐). `util/xlsx.js`의 ARGB도 엑셀 포맷이라 동일.
-- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css), `openCancelModal`(**js/util/cancel-modal.js** — 주문취소 사유·수수료, B2C·B2B 공용), `openPostcode`/`ensurePostcode`(**js/util/postcode.js**), `attachmentOf`(**js/util/image.js** — 첨부 이미지 축소), `currentClient`/`currentClientName`(**js/util/client.js**).
+- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원 · **날짜만**), `makeDateTimePicker`(날짜+시각 팝오버 — 주문 모달 전용, 값 `YYYY-MM-DDTHH:mm`, 뿌리가 `.dd` 가 아니라 `.ord-dtp`), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css), `openCancelModal`(**js/util/cancel-modal.js** — 주문취소 사유 2열 버튼 그리드·수수료, B2C·B2B 공용), `openStaffPicker`/`openDeleteConfirm`(**js/util/order-screen.js**), `openPostcode`/`ensurePostcode`(**js/util/postcode.js**), `attachmentOf`(**js/util/image.js** — 첨부 이미지 축소), `currentClient`/`currentClientName`(**js/util/client.js**).
 - 공용 클래스는 **components.css**에 둔다 — 페이지 CSS보다 먼저 로드돼 페이지 오버라이드가 자연히 이긴다. 페이지 CSS에 두면 다른 페이지가 전역 로드에 기대는 암시적 의존이 생긴다(`.ptbl-*`·`.bf-*`가 실제로 그랬다).
 - 공개(비로그인) 페이지 선례: `delivery/` = 단독 index.html + `../css/tokens.css`+`base.css` + 전용 CSS + 비모듈 IIFE JS.
 
@@ -28,7 +28,8 @@
 ### CSS
 - 파일 끝에 append 하기 전 **중괄호 균형 확인** — admin.css가 고아 `{`로 끝나 있던 전력(뒤에 추가된 블록 전체가 통째로 무효화됨). `node -e` 중괄호 카운트로 검증.
 - 팝오버(datepicker·드롭다운)를 담는 컨테이너는 `overflow:visible` 필요 — 구 `.orders-filters`가 `overflow:hidden`이라 잘렸던 전력(`.bf-card`로 이관하며 해소).
-- `.dd-panel`은 **위로 열린다**(`bottom: calc(100% + 6px)`). 모달 상단에 드롭다운을 두면 패널이 잘리므로 **하단부에 배치**하거나 `top` 오버라이드가 필요하다.
+- `.dd-panel`은 **위로 열린다**(`bottom: calc(100% + 6px)`). 모달 상단에 드롭다운을 두면 패널이 잘리므로 **하단부에 배치**하거나 `top` 오버라이드가 필요하다. 주문 모달은 문맥이 둘이라 **특이도 (0,3,0)으로 못박아** 뒀다 — `.ord-card` 안은 아래로(카드 상단 필드), `.ord-dtp` 안 시/분은 위로(푸터 바에 가리지 않게). 순서 의존을 없앤 것이니 그대로 둘 것.
+- 공용 `.modal-panel .dd-trigger`(48px·흰 면·테두리, (0,2,0))는 **한 클래스 오버라이드로 못 이긴다.** 주문 모달의 상시편집 드롭다운이 그래서 혼자 튀었다 — `.modal-panel--ord .ord-card .dd-trigger` 로 되돌린다.
 - base.css 전역 `:focus-visible` 링이 커스텀 입력 컨테이너 내부 input에 이중 테두리를 만듦 → 컨테이너가 포커스를 표시하면 내부는 `box-shadow:none; outline:none`.
 - 같은 특이도 셀렉터는 나중 선언이 이김 — 페이지 한정 오버라이드는 특이도를 올려서(`.modal-panel--x .y .z`).
 
@@ -44,8 +45,14 @@
 
 ## 도메인 규약 (확정 사항 — 재논의 금지)
 - B2C 주문 상태: `접수대기 → 주문접수 → 배송완료` + `취소`. 배송완료 시 `notified=true` 자동(알림톡).
-- B2C 모달: 읽기 우선(시안 C) — 저장=모달 유지·읽기 복귀, 상태 액션(주문접수/취소)=즉시 반영, 자동 배송완료=주문접수+사진+인수자 저장 시. 값 타이포 17px bold(요청사항 제외).
-- 담당자 소스: `js/data/staff-mock.js` (시스템 관리>담당자 관련설정). B2C 피커는 `staffNames()` 라이브 파생. 담당자 지정 모달 = 드롭다운 + '직접 입력…' 2단.
+- 주문 상세 모달(**B2C·B2B 공용**, `js/util/order-screen.js` v2 · 시안 '주문관리 모달 리모델링'): **모드 없는 상시 편집.** 읽기↔편집 토글은 제거됐다 — 되살리지 말 것. 구조는 헤더(주문번호 28px·상태 pill·**3단 스테퍼**·담당자 pill·`···` 메뉴) / 좌측 324px **다크 처리 레일**(현장사진 3:4·인수자·메모) / 본문 카드(주문정보·발주정보) / 우측 300px 레일(요약·처리 이력) / 푸터(`수정한 항목 N개`·닫기·저장).
+  - 상태 전환은 **헤더 스테퍼에서만**, **앞으로만** 간다. 되돌리기는 토스트로 막고 주문취소로 유도. `배송완료` pill 은 **사진+인수자가 있어야** 활성(기존 자동 전환 규칙 유지).
+  - 취소·삭제는 푸터가 아니라 **`···` 오버플로 메뉴**. 삭제는 '되돌릴 수 없음' 체크 후 활성.
+  - **입력 중에는 절대 재렌더하지 않는다**(포커스·커서 소실). `editing` 에 write-through 하고 슬롯(`data-slot`)만 부분 갱신 — `renderHd`/`renderSum`/`renderHist`/`syncDirty`.
+  - 두 화면은 **필드 서술자 배열만 다르다**(`{ k, label, type, full, lock, ph, value }`). 셸을 고치면 양쪽이 같이 바뀐다.
+  - 값 타이포 17px semibold(요청사항 제외). 저장=모달 유지.
+- 담당자 소스: `js/data/staff-mock.js` (시스템 관리>담당자 관련설정). 피커는 `staffOptions()` 라이브 파생(이름+부서). 담당자 지정 모달 = **행 리스트**(이름·부서). 목록에서 사라진 기존 담당자는 '목록에 없음' 행으로 **맨 위에 남긴다** — 조용한 재배정이 가장 나쁜 결과다. 담당자 미지정 주문을 열면 이 다이얼로그가 **자동으로 뜬다**(API 자동등록 대응).
+- 주문 처리 이력은 레코드의 `history` 배열(`js/data/order-history.js`). `at` 은 항상 `"YYYY-MM-DD HH:mm"`, 목데이터 시드는 **레코드 날짜에서 분 오프셋으로 파생**한다(절대값 금지). `b2c/b2bUpsert` 는 draft 에 history 가 없어도 **기존 이력을 보존**하고, `setStatus`/`setManager` 는 값이 그대로면 no-op 이라 중복 기록이 쌓이지 않는다.
 - 알림 설정: 담당자당 **카카오 알림톡 수신 ON/OFF 단일 토글**만(이벤트별 세분화 없음 — API 유동적).
 - 공개 거래명세서 토큰: 논리 키는 **(clientId, 사업자번호, 귀속월) 3튜플**. clientId를 빼면 같은 법인의 다른 부서가 한 토큰을 공유해 남의 명세서를 받는다 — `issueLink` 호출부는 반드시 clientId를 실을 것. **본인확인 게이트는 없다**(토큰 = capability URL).
 - 계산서 발급일: 거래처별 `invoiceDay` **1~28일**(기본 `"1"`, 문자열로 저장 — `makeDropdown`이 문자열을 넘기고 선택 표시가 엄격 비교라 숫자면 하이라이트가 죽는다). 발행일 = 귀속월 다음 달 지정일, **정산기한 = 그 발행일이 속한 달의 말일**.
