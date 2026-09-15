@@ -437,8 +437,8 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew 
 }
 
 /* ── 카드 ─────────────────────────────────────────────────── */
-export const card = ({ title, cap, body, slot }) => html`
-  <section class="ord-card">
+export const card = ({ title, cap, body, slot, cls }) => html`
+  <section class="ord-card ${cls || ""}">
     <div class="ord-card__head">
       <b class="ord-card__t">${title}</b>
       ${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}
