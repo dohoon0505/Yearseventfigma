@@ -138,7 +138,7 @@ export function mount(root, { nav }) {
      ③ 접이식 상세(사진·알림 토글 칩 + 검색 4종 그리드) */
   /* 커스텀 datepicker 마크업 (ui.js makeDatepicker 와 짝) */
   const dpMarkup = (which, ph) => html`
-    <div class="dd datepick b2c-dp" data-dp="${which}">
+    <div class="dd datepick ord-dp" data-dp="${which}">
       <button type="button" class="dd-trigger" aria-haspopup="dialog" aria-expanded="false"></button>
       <div class="dd-panel cal-panel" role="dialog" aria-label="${ph} 선택">
         <div class="cal-head">
@@ -212,27 +212,27 @@ export function mount(root, { nav }) {
   }
   /* 컬럼: 주문경로 | 주문접수/배송일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황(배지) | 사진 | 알림 (+관리) */
   const columns = [
-    { label: "주문경로", width: "108px", align: "center", render: (r) => html`<div class="ellipsis b2c-dim">${r.channel}</div>` },
+    { label: "주문경로", width: "108px", align: "center", render: (r) => html`<div class="ellipsis ord-dim">${r.channel}</div>` },
     {
       label: "주문접수 / 배송일시", width: "168px",
-      render: (r) => html`<div class="b2c-dt2">
-        <span class="b2c-dt2__row"><span class="b2c-dt2__lbl">접수</span><span class="b2c-mono">${fmtFull(r.receivedAt)}</span></span>
-        <span class="b2c-dt2__row"><span class="b2c-dt2__lbl b2c-dt2__lbl--dv">배송</span><span class="b2c-mono">${fmtFull(r.deliverAt)}</span></span>
+      render: (r) => html`<div class="ord-dt2">
+        <span class="ord-dt2__row"><span class="ord-dt2__lbl">접수</span><span class="ord-mono">${fmtFull(r.receivedAt)}</span></span>
+        <span class="ord-dt2__row"><span class="ord-dt2__lbl ord-dt2__lbl--dv">배송</span><span class="ord-mono">${fmtFull(r.deliverAt)}</span></span>
       </div>`,
     },
-    { label: "배송지", width: "1.3fr", render: (r) => html`<div class="ellipsis b2c-dim" title="${r.address}">${r.address || "-"}</div>` },
+    { label: "배송지", width: "1.3fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.address}">${r.address || "-"}</div>` },
     { label: "받는분", width: "88px", align: "center", render: (r) => html`<div class="ellipsis">${r.recipientName || "-"}</div>` },
     { label: "상품", width: "122px", render: (r) => html`<div class="ellipsis">${r.product || "-"}</div>` },
-    { label: "금액", width: "96px", align: "right", render: (r) => html`<span class="b2c-amt">${won(r.amount)}</span>` },
-    { label: "메모", width: "1fr", render: (r) => html`<div class="ellipsis b2c-dim" title="${r.memo}">${r.memo || "-"}</div>` },
+    { label: "금액", width: "96px", align: "right", render: (r) => html`<span class="ord-amt">${won(r.amount)}</span>` },
+    { label: "메모", width: "1fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.memo}">${r.memo || "-"}</div>` },
     { label: "현황", width: "92px", align: "center", render: (r) => statusBadge(r.status) },
     {
       label: "사진", width: "52px", align: "center",
-      render: (r) => html`<span class="b2c-flag b2c-flag--photo ${r.image ? "on" : ""}" title="${r.image ? "사진 있음" : "사진 없음"}">${icon("camera", { size: 15 })}</span>`,
+      render: (r) => html`<span class="ord-flag ord-flag--photo ${r.image ? "on" : ""}" title="${r.image ? "사진 있음" : "사진 없음"}">${icon("camera", { size: 15 })}</span>`,
     },
     {
       label: "알림", width: "52px", align: "center",
-      render: (r) => html`<span class="b2c-flag b2c-flag--noti ${r.notified ? "on" : ""}" title="${r.notified ? "알림 발송완료" : "알림 미발송"}">${icon(r.notified ? "bell" : "bell-off", { size: 15 })}</span>`,
+      render: (r) => html`<span class="ord-flag ord-flag--noti ${r.notified ? "on" : ""}" title="${r.notified ? "알림 발송완료" : "알림 미발송"}">${icon(r.notified ? "bell" : "bell-off", { size: 15 })}</span>`,
     },
     {
       label: "관리", width: "56px", align: "center",
@@ -247,7 +247,7 @@ export function mount(root, { nav }) {
 
   function render() {
     setHTML(root, html`
-      <div class="page-admin page-b2c">
+      <div class="page-admin page-ordscr">
         <div class="admin-inner">
           ${pageTitle({
             imgSrc: "./assets/nav-realtime.png",
@@ -337,8 +337,8 @@ export function mount(root, { nav }) {
   function managerControl() {
     const m = editing?.manager;
     return m
-      ? html`<button class="b2c-mgr" data-action="pick-manager">담당 ${m} ${icon("pencil", { size: 12 })}</button>`
-      : html`<button class="b2c-mgr b2c-mgr--empty" data-action="pick-manager">${icon("user-plus", { size: 12 })} 담당자 미지정 · 지정하기</button>`;
+      ? html`<button class="ord-mgr" data-action="pick-manager">담당 ${m} ${icon("pencil", { size: 12 })}</button>`
+      : html`<button class="ord-mgr ord-mgr--empty" data-action="pick-manager">${icon("user-plus", { size: 12 })} 담당자 미지정 · 지정하기</button>`;
   }
 
   /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타(+담당자 컨트롤) + [내용 수정] 토글 ── */
@@ -346,25 +346,25 @@ export function mount(root, { nav }) {
     const o = editing;
     if (isNew) {
       return html`
-        <div class="b2c-head__main">
-          <div class="b2c-head__row"><h3 class="b2c-head__no">신규 B2C 주문 등록</h3></div>
-          <p class="b2c-head__meta"><span class="b2c-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
+        <div class="ord-head__main">
+          <div class="ord-head__row"><h3 class="ord-head__no">신규 B2C 주문 등록</h3></div>
+          <p class="ord-head__meta"><span class="ord-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
         </div>
-        <div class="b2c-head__acts">
+        <div class="ord-head__acts">
           <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
         </div>
       `;
     }
     return html`
-      <div class="b2c-head__main">
-        <div class="b2c-head__row">
-          <h3 class="b2c-head__no b2c-mono">${o.orderNo}</h3>
+      <div class="ord-head__main">
+        <div class="ord-head__row">
+          <h3 class="ord-head__no ord-mono">${o.orderNo}</h3>
           ${statusBadge(o.status)}
         </div>
-        <p class="b2c-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
+        <p class="ord-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
       </div>
-      <div class="b2c-head__acts">
-        <button class="hm-btn hm-btn--secondary b2c-editbtn" data-action="toggle-edit">
+      <div class="ord-head__acts">
+        <button class="hm-btn hm-btn--secondary ord-editbtn" data-action="toggle-edit">
           ${mode === "edit" ? html`${icon("x", { size: 13 })} 수정 취소` : html`${icon("pencil", { size: 13 })} 내용 수정`}
         </button>
         <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
@@ -376,35 +376,35 @@ export function mount(root, { nav }) {
   function readBody() {
     const o = editing;
     const row = (k, v, cls = "") => html`
-      <div class="b2c-doc__row">
-        <span class="b2c-doc__k">${k}</span>
-        <span class="b2c-doc__v ${cls}">${v}</span>
+      <div class="ord-doc__row">
+        <span class="ord-doc__k">${k}</span>
+        <span class="ord-doc__v ${cls}">${v}</span>
       </div>`;
     return html`
-      <div class="b2c-doc">
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">주문정보</div>
+      <div class="ord-doc">
+        <section class="ord-zone">
+          <div class="ord-zone__t">주문정보</div>
           ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
           ${row("주문상품", dash(o.product))}
-          ${row("주문금액", won(o.amount), "b2c-doc__v--price")}
+          ${row("주문금액", won(o.amount), "ord-doc__v--price")}
         </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">발주정보</div>
+        <section class="ord-zone">
+          <div class="ord-zone__t">발주정보</div>
           ${row("배송일시", fmtFull(o.deliverAt))}
-          ${row("배송지", dash(o.address), "b2c-doc__v--pre")}
+          ${row("배송지", dash(o.address), "ord-doc__v--pre")}
           ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
           ${row("리본문구", dash(o.ribbonPhrase))}
           ${row("보내는분", dash(o.ribbonSender))}
         </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">요청사항</div>
-          <p class="b2c-doc__txt">${dash(o.request)}</p>
+        <section class="ord-zone">
+          <div class="ord-zone__t">요청사항</div>
+          <p class="ord-doc__txt">${dash(o.request)}</p>
         </section>
         ${o.status === "취소" ? html`
-          <section class="b2c-zone">
-            <div class="b2c-zone__t">취소 처리</div>
+          <section class="ord-zone">
+            <div class="ord-zone__t">취소 처리</div>
             ${row("취소 사유", dash(o.cancelReason))}
-            ${row("취소 수수료", won(o.cancelFee), "b2c-doc__v--price")}
+            ${row("취소 수수료", won(o.cancelFee), "ord-doc__v--price")}
           </section>` : ""}
       </div>
     `;
@@ -414,38 +414,38 @@ export function mount(root, { nav }) {
   function editBody() {
     const o = editing;
     return html`
-      <div class="b2c-edit">
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">주문정보</div>
-          <div class="b2c-form">
+      <div class="ord-edit">
+        <section class="ord-zone">
+          <div class="ord-zone__t">주문정보</div>
+          <div class="ord-form">
             ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
             ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
             ${ddField("주문상품", "product", { req: true })}
             ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
-            <div class="b2c-form__full">${ddField("주문경로/거래처", "channel")}</div>
+            <div class="ord-form__full">${ddField("주문경로/거래처", "channel")}</div>
           </div>
         </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">발주정보</div>
-          <div class="b2c-form b2c-form--3">
+        <section class="ord-zone">
+          <div class="ord-zone__t">발주정보</div>
+          <div class="ord-form ord-form--3">
             ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
             ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
             ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
-            <div class="hm-field b2c-form__full">
+            <div class="hm-field ord-form__full">
               <label>배송지 주소</label>
               <textarea class="hm-input hm-textarea" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
             </div>
-            <div class="b2c-form__pair">
-              ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "b2c-phrases" })}
+            <div class="ord-form__pair">
+              ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "ord-phrases" })}
               ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
             </div>
           </div>
         </section>
-        <section class="b2c-zone">
-          <div class="b2c-zone__t">요청사항</div>
+        <section class="ord-zone">
+          <div class="ord-zone__t">요청사항</div>
           <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
         </section>
-        <datalist id="b2c-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
+        <datalist id="ord-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
       </div>
     `;
   }
@@ -457,12 +457,12 @@ export function mount(root, { nav }) {
     return html`
       ${hasImg
         ? html`<img src="${editing.image}" alt="배송 현장 사진" />`
-        : html`<div class="b2c-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
-      <div class="b2c-imgover">
-        <button class="b2c-imgact" data-action="img-upload" title="이미지 업로드" aria-label="이미지 업로드">${icon("camera", { size: 18 })}</button>
+        : html`<div class="ord-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
+      <div class="ord-imgover">
+        <button class="ord-imgact" data-action="img-upload" title="이미지 업로드" aria-label="이미지 업로드">${icon("camera", { size: 18 })}</button>
         ${hasImg ? html`
-          <button class="b2c-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>
-          <button class="b2c-imgact" data-action="img-zoom-btn" title="크게 보기" aria-label="크게 보기">${icon("eye", { size: 18 })}</button>
+          <button class="ord-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>
+          <button class="ord-imgact" data-action="img-zoom-btn" title="크게 보기" aria-label="크게 보기">${icon("eye", { size: 18 })}</button>
         ` : ""}
       </div>
     `;
@@ -474,14 +474,14 @@ export function mount(root, { nav }) {
     const o = editing;
     const hasImg = !!o.image;
     return html`
-      <aside class="b2c-rail b2c-zone">
-        <div class="b2c-zone__t">처리 정보</div>
-        <div class="b2c-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
+      <aside class="ord-rail ord-zone">
+        <div class="ord-zone__t">처리 정보</div>
+        <div class="ord-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
           ${imgboxInner()}
         </div>
         <input type="file" accept="image/*" data-img-input hidden />
         ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
-        <div class="hm-field b2c-rail__memo">
+        <div class="hm-field ord-rail__memo">
           <label>처리 메모</label>
           <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
         </div>
@@ -500,9 +500,9 @@ export function mount(root, { nav }) {
     }
     const cancelled = o.status === "취소";
     return html`
-      <button class="hm-btn b2c-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 주문서 삭제</button>
-      <button class="hm-btn b2c-cancelbtn" data-action="order-cancel" ${cancelled ? "disabled" : ""}>${cancelled ? "취소됨" : "주문취소"}</button>
-      ${o.status === "접수대기" ? html`<button class="hm-btn b2c-acceptbtn" data-action="accept">${icon("check", { size: 14 })} 주문접수 처리</button>` : ""}
+      <button class="hm-btn ord-delbtn" data-action="delete">${icon("trash2", { size: 14 })} 주문서 삭제</button>
+      <button class="hm-btn ord-cancelbtn" data-action="order-cancel" ${cancelled ? "disabled" : ""}>${cancelled ? "취소됨" : "주문취소"}</button>
+      ${o.status === "접수대기" ? html`<button class="hm-btn ord-acceptbtn" data-action="accept">${icon("check", { size: 14 })} 주문접수 처리</button>` : ""}
       <button class="hm-btn hm-btn--primary" data-action="save">${icon("save", { size: 14 })} 저장</button>
       <button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>
     `;
@@ -510,12 +510,12 @@ export function mount(root, { nav }) {
 
   function modalBody() {
     return html`
-      <div class="hm__head b2c-head" data-slot="head">${headInner()}</div>
-      <div class="hm__body b2c-body ${isNew ? "b2c-body--new" : ""}">
-        <div class="b2c-main">${mode === "edit" ? editBody() : readBody()}</div>
+      <div class="hm__head ord-head" data-slot="head">${headInner()}</div>
+      <div class="hm__body ord-body ${isNew ? "ord-body--new" : ""}">
+        <div class="ord-main">${mode === "edit" ? editBody() : readBody()}</div>
         ${railBody()}
       </div>
-      <div class="hm__foot b2c-foot" data-slot="foot">${footInner()}</div>
+      <div class="hm__foot ord-foot" data-slot="foot">${footInner()}</div>
     `;
   }
 
@@ -638,7 +638,7 @@ export function mount(root, { nav }) {
     let pick = names.includes(cur) ? cur : cur ? DIRECT : names[0] ?? DIRECT;
     let mgrDd = null;
     const picker = openModal({
-      panelClass: "modal-panel--sm modal-panel--b2cmgr",
+      panelClass: "modal-panel--sm modal-panel--ordmgr",
       body: html`
         <div class="hm__head">
           <div>
@@ -659,7 +659,7 @@ export function mount(root, { nav }) {
             <label>담당자 이름</label>
             <input class="hm-input" data-mgr-input value="${pick === DIRECT ? cur : ""}" placeholder="예) 한신입" autocomplete="off" />
           </div>
-          <p class="b2c-mgrhint">${icon("user", { size: 12 })} 목록에 없는 담당자는 ‘${DIRECT}’을 선택해 입력하세요.</p>
+          <p class="ord-mgrhint">${icon("user", { size: 12 })} 목록에 없는 담당자는 ‘${DIRECT}’을 선택해 입력하세요.</p>
         </div>
         <div class="hm__foot">
           <button class="hm-btn hm-btn--secondary" data-action="mgr-close">취소</button>
@@ -705,7 +705,7 @@ export function mount(root, { nav }) {
     isNew = _isNew;
     mode = isNew ? "edit" : "read"; // 기존 주문은 확인(읽기)이 첫 용도
     activeModal = openModal({
-      panelClass: "modal-panel--b2c",
+      panelClass: "modal-panel--ord",
       body: modalBody(),
       onClose: () => { destroyDds(); activeModal = null; editing = null; },
     });

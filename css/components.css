@@ -926,3 +926,245 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .hm-findrow { display: flex; gap: 8px; align-items: stretch; }
 .hm-findrow .hm-input { flex: 1 1 auto; min-width: 0; }
 .hm-findrow .hm-btn { flex: 0 0 auto; height: auto; padding: 0 16px; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   .ord-* — 주문 관리 화면 공용 (통합주문관리 · 거래처 주문관리)
+   B2C 통합주문관리에서 검증한 뒤 승격했다(.bf-*·.ptbl-* 와 같은 경로).
+   목록 셀 · 읽기 우선 모달 셸 · 구역 카드 · 편집 폼 · 처리 레일.
+
+   ⚠️ 이 블록은 **반드시 파일 끝**에 있어야 한다.
+      `.modal-panel--ord .dd-panel` 은 위쪽 `.modal-panel .dd-panel`(343행)과
+      특이도가 같아(0,2,0) 순서로만 이긴다. 앞으로 옮기면 모달 드롭다운이
+      전부 위로 열려 스크롤 불가 영역에서 잘린다.
+   ⚠️ `.cal-*` 는 `.page-ordscr` 스코프를 벗기지 말 것 — order.css 가
+      `.page-order .cal-*` 로 다른 값을 쓰고 있다.
+   ══════════════════════════════════════════════════════════════ */
+/* 주문 화면은 11열 표라 본문 폭을 넓힌다 — 공용 admin 은 1300px 유지 */
+.page-ordscr .admin-inner { max-width: 1500px; }
+
+/* 필터 카드(.bf-*)는 전 페이지 공용 체계로 승격 → css/components.css 참조.
+   이 파일에는 B2C 전용 datepicker(.ord-dp/.cal-*)만 남긴다. */
+
+/* datepicker 트리거·패널 — 시안 규격(148×36 · r-lg) (.page-ordscr 스코프) */
+.page-ordscr .ord-dp { position: relative; flex: 0 0 auto; }
+.page-ordscr .ord-dp .dd-trigger {
+  height: 36px; width: 148px; padding: 0 30px 0 12px; text-align: left;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2);
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
+  position: relative; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.page-ordscr .ord-dp .dd-trigger::after {
+  content: ""; position: absolute; right: 11px; top: 50%; width: 7px; height: 7px;
+  border-right: 1.6px solid var(--c-text-muted); border-bottom: 1.6px solid var(--c-text-muted);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.18s;
+}
+.page-ordscr .ord-dp.open .dd-trigger::after { transform: translateY(-30%) rotate(225deg); }
+.page-ordscr .ord-dp .dd-trigger:hover { border-color: var(--c-border-field-strong); }
+.page-ordscr .ord-dp.open .dd-trigger { outline: none; border-color: var(--c-orange); box-shadow: var(--ring); }
+.page-ordscr .ord-dp .dd-panel {
+  display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; width: 278px;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop); padding: 14px;
+}
+.page-ordscr .ord-dp.open .dd-panel { display: block; }
+.page-ordscr .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.page-ordscr .cal-title { font-size: 14px; font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.page-ordscr .cal-nav { width: 30px; height: 30px; border-radius: var(--r-md); display: grid; place-items: center; color: var(--c-text-3); font-size: 15px; }
+.page-ordscr .cal-nav:hover { background: var(--c-surface-2); }
+.page-ordscr .cal-nav:disabled { color: var(--c-border-strong); cursor: default; background: none; }
+.page-ordscr .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.page-ordscr .cal-dow { font-size: 11px; color: var(--c-text-faint); text-align: center; padding: 4px 0; font-weight: var(--fw-semibold); }
+.page-ordscr .cal-day { height: 32px; border-radius: var(--r-md); font-size: 13px; color: var(--c-text-2); display: grid; place-items: center; transition: background 0.1s; }
+.page-ordscr .cal-day:hover { background: var(--c-surface-2); }
+.page-ordscr .cal-day.dis { color: var(--c-border-input-2); cursor: default; }
+.page-ordscr .cal-day.dis:hover { background: none; }
+.page-ordscr .cal-day.sel { background: var(--c-blue); color: var(--c-surface); font-weight: var(--fw-bold); }
+.page-ordscr .cal-day.sel:hover { background: var(--c-blue); }
+
+/* ── 목록 셀 ────────────────────────────────────────────── */
+.ord-dim { color: var(--c-text-muted); }
+.ord-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.ord-dt2 .ord-mono, .ord-dim .ord-mono { color: var(--c-text-3); font-size: var(--fs-13); }
+/* 접수/배송 일시 — 한 컬럼에 2줄 스택(라벨 + 전체 날짜시각) */
+.ord-dt2 { display: flex; flex-direction: column; gap: 4px; }
+.ord-dt2__row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ord-dt2__lbl {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: var(--fw-bold); line-height: 1;
+  color: var(--c-text-muted); background: var(--c-surface-3);
+  border-radius: var(--r-sm); padding: 2px 5px;
+}
+.ord-dt2__lbl--dv { color: var(--c-orange-ink); background: var(--c-orange-soft); } /* 배송 강조 */
+.ord-dt2 .ord-mono { font-size: 12.5px; }
+.ord-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+/* 사진·알림 존재여부 플래그 (아이콘 온/오프) */
+.ord-flag { display: inline-flex; color: var(--c-text-faint); }
+.ord-flag--photo.on { color: var(--c-blue); }
+.ord-flag--noti.on { color: var(--c-success-ink); }
+
+/* ══ 모달 셸 — 읽기 우선 · 넓은 가로형 ═══════════════════ */
+.modal-panel--ord {
+  width: min(1400px, 92vw);
+  max-height: 92vh; /* 구역 카드 여백 확보 (공용 88vh보다 여유) */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 본문(.ord-body)만 스크롤 → 헤더·푸터 고정 */
+}
+.modal-panel--ord .hm__head {
+  flex-shrink: 0;
+  align-items: center;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid var(--c-divider);
+}
+.modal-panel--ord .hm__foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--c-divider);
+  padding: 12px 28px 14px;
+}
+
+/* ── 헤더: 주문번호 강조 + 상태 배지 + 메타 + [내용 수정] ── */
+.ord-head__row { display: flex; align-items: center; gap: 12px; }
+.ord-head__no { font-size: 20px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; }
+.ord-head__meta { font-size: var(--fs-13); color: var(--c-text-muted); margin-top: 5px; }
+.ord-head__acts { display: flex; align-items: center; gap: 10px; }
+.ord-editbtn { height: 38px; padding: 0 14px; font-size: var(--fs-13); border-radius: var(--r-lg); }
+/* 메타 라인 인라인 담당자 컨트롤 — 클릭 시 담당자 지정 모달 */
+.ord-mgr {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-3);
+  padding: 1px 6px; border-radius: var(--r-sm); vertical-align: baseline;
+  transition: background 0.14s, color 0.14s;
+}
+.ord-mgr:hover { background: var(--c-surface-3); color: var(--c-text-strong); }
+.ord-mgr .icon { color: var(--c-text-faint); }
+.ord-mgr:hover .icon { color: var(--c-text-3); }
+/* 미지정(API 자동등록) — 주황 강조로 지정 유도 */
+.ord-mgr--empty { color: var(--c-warn-soft-ink); background: var(--c-warn-soft-bg); font-weight: var(--fw-bold); }
+.ord-mgr--empty:hover { color: var(--c-warn-soft-ink); background: var(--c-warn-soft-bg); filter: brightness(0.97); }
+.ord-mgr--empty .icon, .ord-mgr--empty:hover .icon { color: var(--c-warn-soft-ink); }
+/* 담당자 지정 모달 바디 힌트 */
+.ord-mgrhint { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 11.5px; color: var(--c-text-muted); }
+.ord-mgrhint .icon { flex: 0 0 auto; color: var(--c-text-faint); }
+/* 담당자 지정 모달 — 커스텀 드롭다운 패널이 작은 다이얼로그에서 잘리지 않게
+   (공용 .modal-panel 은 overflow-y:auto·패널 위로 전개 → 여기선 visible + 아래로) */
+.modal-panel--ordmgr { overflow: visible; }
+.modal-panel--ordmgr .dd-panel { bottom: auto; top: calc(100% + 6px); }
+
+/* ── 본문: 좌 본문(읽기/편집) + 우 처리 레일 ────────────── */
+.ord-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  padding: 16px 28px 20px;
+}
+.ord-main { min-width: 0; }
+/* 신규 등록: 레일 없이 1열 중앙 폼 */
+.ord-body--new { grid-template-columns: minmax(0, 1fr); }
+.ord-body--new .ord-main { max-width: 760px; width: 100%; margin: 0 auto; }
+
+/* ── 구역 카드 — 읽기·편집·처리 레일 공통 골격 ───────────── */
+.ord-doc, .ord-edit { display: flex; flex-direction: column; gap: 14px; }
+.ord-zone {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-divider);
+  border-radius: var(--r-xl);
+  padding: 14px 18px 16px;
+  min-width: 0;
+}
+.ord-zone__t {
+  font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+/* ── 읽기 문서: 큰 정의행 (주문정보/발주정보) + 요청사항 텍스트 ── */
+.ord-doc__row {
+  display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px;
+  align-items: baseline;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--c-border);
+  line-height: 1.55;
+}
+.ord-zone .ord-doc__row:last-child { border-bottom: none; padding-bottom: 2px; }
+.ord-doc__k { font-size: 13.5px; color: var(--c-text-muted); }
+/* 요청사항 제외 전 항목 동일 강조 — 17px bold (금액만 주황) */
+.ord-doc__v {
+  font-size: 17px; color: var(--c-text-strong); font-weight: var(--fw-bold);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.ord-doc__v--price { color: var(--c-orange-ink); }
+.ord-doc__v--pre { white-space: pre-line; }
+/* 요청사항 구역 — 정의행 없이 본문 텍스트만 */
+.ord-doc__txt { font-size: var(--fs-16); color: var(--c-text); font-weight: var(--fw-medium); line-height: 1.6; white-space: pre-line; padding: 2px 2px 4px; }
+
+/* ── 편집 폼: 구역 카드 안 2열 표준 hm-field(상단 라벨·48px) ── */
+.ord-edit { gap: 10px; }
+.ord-edit .ord-zone { padding: 12px 16px; }
+.ord-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.ord-form--3 { grid-template-columns: 1fr 1fr 1fr; } /* 발주정보: 배송일시·받는분·연락처 한 줄 */
+.ord-form .hm-field { margin-bottom: 0; min-width: 0; }
+.ord-form__full { grid-column: 1 / -1; }
+/* 풀로우 안 2열 페어(리본문구|보내는분) — 3열 그리드 안에서 반반 분할 */
+.ord-form__pair { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; min-width: 0; }
+.ord-form__pair .hm-field { margin-bottom: 0; min-width: 0; }
+.ord-form .hm-textarea { min-height: 52px; }
+
+/* 커스텀 드롭다운(.dd) 전개 방향 오버라이드:
+   공용 모달 규격은 위로 전개(패널 하단 select 클리핑 방지)지만, 이 모달은
+   본문(.ord-body)이 자체 스크롤이라 상단 필드에서 위로 열면 스크롤 불가
+   영역으로 잘린다 → 아래로 전개(하단은 스크롤 오버플로로 도달 가능). */
+.modal-panel--ord .dd-panel { bottom: auto; top: calc(100% + 6px); }
+
+/* ── 처리 레일: 구역 카드 + 현장사진 3:4 · 인수자 · 처리 메모 ── */
+.ord-rail { display: flex; flex-direction: column; gap: 12px; align-self: start; }
+.ord-rail .ord-zone__t { margin-bottom: 0; }
+.ord-rail .hm-field { margin-bottom: 0; }
+.ord-rail__memo .hm-textarea { min-height: 72px; }
+
+/* 현장사진 박스 — 3:4 비율 고정, hover 오버레이(업로드·다운로드·확대) */
+.ord-imgbox {
+  position: relative; width: 100%;
+  aspect-ratio: 3 / 4;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-lg); overflow: hidden;
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.ord-imgbox img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ord-imgbox__ph { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--c-text-faint); font-size: var(--fs-12); }
+.ord-imgover {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--c-modal-dim); opacity: 0; transition: opacity 0.15s;
+}
+.ord-imgbox:hover .ord-imgover,
+.ord-imgbox:focus-within .ord-imgover { opacity: 1; }
+.ord-imgact {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--c-surface); color: var(--c-text-2); opacity: 0.92;
+  display: grid; place-items: center; transition: opacity 0.15s, color 0.15s;
+}
+.ord-imgact:hover { opacity: 1; color: var(--c-text-strong); }
+
+/* ── 푸터: 좌(주문서 삭제 · 주문취소) / 우(주문접수 처리 · 저장 · 닫기) ── */
+.ord-foot { justify-content: flex-end; }
+.ord-foot .hm-btn { flex: 0 0 auto; min-width: 88px; }
+.ord-foot .ord-delbtn { background: var(--c-surface); border: 1px solid var(--c-danger); color: var(--c-danger-ink); }
+.ord-foot .ord-delbtn:hover:not(:disabled) { background: var(--c-danger-bg); }
+.ord-foot .ord-cancelbtn { margin-right: auto; background: var(--c-surface); border: 1px solid var(--c-warn); color: var(--c-warn-soft-ink); }
+.ord-foot .ord-cancelbtn:hover:not(:disabled) { background: var(--c-warn-soft-bg); }
+.ord-foot .ord-cancelbtn:disabled { opacity: 1; background: var(--c-warn-soft-bg); border-color: var(--c-warn-soft-bg); cursor: default; }
+/* 주문접수 처리 — 접수대기 전용 워크플로 액션(파랑 소프트, hover 시 반전) */
+.ord-foot .ord-acceptbtn { background: var(--c-blue-soft); border: 1px solid var(--c-user-border); color: var(--c-blue); }
+.ord-foot .ord-acceptbtn:hover:not(:disabled) { background: var(--c-blue); border-color: var(--c-blue); color: var(--c-surface); }
+
+/* ── 반응형: 좁은 폭에서 레일을 아래로(본문 스크롤 허용) ──── */
+@media (max-width: 1100px) {
+  .ord-body { grid-template-columns: minmax(0, 1fr); }
+  .ord-rail { align-self: stretch; }
+}
+@media (max-width: 640px) {
+  .ord-form, .ord-form--3, .ord-form__pair { grid-template-columns: 1fr; }
+  .ord-doc__row { grid-template-columns: 96px minmax(0, 1fr); }
+}
