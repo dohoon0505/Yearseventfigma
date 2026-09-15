@@ -1223,15 +1223,22 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-menu__item--danger:hover { background: var(--c-danger-bg); }
 
 /* ── 본문 ─────────────────────────────────────────────────── */
+/* ⚠️ **모달 안에서는 스크롤하지 않는다.** 전체가 한 화면에 들어와야 담당자가
+   스크롤 없이 주문 하나를 끝낼 수 있다(처리 이력 카드만 예외 — 자체 스크롤).
+   그래서 두 가지를 강제한다:
+     · grid-template-rows: minmax(0,1fr) — 행 높이를 컨테이너에 못박는다.
+       auto 면 행이 내용만큼 자라 버려 아래 flex 축소가 아예 일어나지 않는다.
+     · overflow: hidden — 남는 경우 스크롤바 대신 사진이 줄어든다(.ord-drop). */
 .ord-grid {
-  flex: 1; min-height: 0; overflow-y: auto;
+  flex: 1; min-height: 0; overflow: hidden;
   display: grid; grid-template-columns: 350px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 .ord-grid--new { grid-template-columns: minmax(0, 1fr); }
 
 /* 좌측 다크 처리 레일 — 배송 현장 기록을 본문과 물리적으로 갈라 놓는다 */
 .ord-side {
-  background: var(--c-rail); padding: 19px;
+  background: var(--c-rail); padding: 19px; min-height: 0;
   display: flex; flex-direction: column; gap: 13px;
 }
 .ord-side__h { display: flex; align-items: baseline; justify-content: space-between; }
@@ -1251,8 +1258,11 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-side__note { margin-top: auto; font-size: var(--fs-14); line-height: 1.6; color: var(--c-surface); }
 
 /* 현장사진 드롭존 — 3:4 고정, hover 오버레이(업로드·다운로드·확대) */
+/* 세로가 모자라면 **사진이 먼저 양보한다** — 레일에서 유일하게 줄일 수 있는 칸이다.
+   min-height:0 이 없으면 flex 기본값(auto)이 축소를 막아 3:4 를 그대로 고집한다. */
 .ord-drop {
   position: relative; width: 100%; aspect-ratio: 3 / 4;
+  flex: 0 1 auto; min-height: 96px;
   background: var(--c-rail-2); border: 1px dashed var(--c-rail-line);
   border-radius: var(--r-xl); overflow: hidden; display: grid; place-items: center; cursor: pointer;
 }
@@ -1264,11 +1274,16 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 
 /* 우측 본문 */
 .ord-pane {
-  padding: 22px 28px 20px; min-width: 0;
+  padding: 22px 28px 20px; min-width: 0; min-height: 0;
   display: flex; flex-direction: column; gap: 20px;
 }
-.ord-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; min-width: 0; }
-.ord-colL, .ord-colR { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+/* 세로도 못박는다(minmax(0,1fr)) — 안 그러면 두 열이 내용만큼 자라 버려
+   거래 조건이 긴 거래처에서 본문이 모달 밖으로 밀린다. */
+.ord-cols {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr);
+  gap: 24px; min-width: 0; flex: 1 1 auto; min-height: 0;
+}
+.ord-colL, .ord-colR { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 
 /* ── 카드 ─────────────────────────────────────────────────── */
 .ord-card { border: 1px solid var(--c-border); border-radius: var(--r-2xl); }
@@ -1391,7 +1406,22 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 
 /* 거래조건 배너(B2B) — 우측 본문 첫 자식. 다크 레일을 가로지르지 않는다 */
-.ord-pane .ord-notebox { margin-bottom: 0; }
+/* 거래 조건은 요약 레일 맨 아래. 길이가 거래처마다 천차만별(최장 4줄 → 300px
+   폭에서 10줄 이상)이라 **자기 안에서 스크롤**하게 둔다. 그래야 모달 전체
+   높이가 거래처 하나 때문에 흔들리지 않는다(처리 이력 카드와 같은 취급). */
+.ord-pane .ord-notebox { margin-bottom: 0; flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+
+/* 세로가 짧은 화면(13~14" 노트북) — 사진 축소만으로는 본문이 안 들어간다.
+   밀도를 올리는 건 마지막 수단이라 여백만 깎고 글자 크기는 건드리지 않는다. */
+@media (max-height: 820px) {
+  .ord-pane { padding: 14px 24px 14px; gap: 12px; }
+  .ord-colL, .ord-colR { gap: 10px; }
+  .ord-row { padding: 5px 20px; }
+  .ord-card__head { padding: 8px 20px; }
+  .ord-sum__head { padding: 12px 20px 10px; }
+  .ord-sum__row { padding: 9px 20px; }
+  .ord-side { padding: 14px; gap: 9px; }
+}
 
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 1240px) {

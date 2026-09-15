@@ -263,8 +263,6 @@ export function mount(root, { nav }) {
       <div class="ord-grid ${isNew ? "ord-grid--new" : ""}">
         ${isNew ? "" : railV2({ order: editing, imgInner: imgBox.inner() })}
         <div class="ord-pane">
-          ${c && c.clientNote ? html`
-            <div class="hm-warn ord-notebox"><span><b>거래 조건</b><br />${c.clientNote}</span></div>` : ""}
           <div class="ord-cols">
             <div class="ord-colL">
               ${card({ title: "주문정보", cap: "거래처 접수 내용", body: renderFields(ORDER_FIELDS(), editing) })}
@@ -276,6 +274,10 @@ export function mount(root, { nav }) {
                 title: "처리 이력", cap: `${(editing.history || []).length}건`,
                 body: historyBody(editing), slot: "hist",
               })}
+              ${/* 거래 조건은 메모가 아니라 거래 조건이다 — 요약 레일 맨 아래에 붙여
+                   담당자가 발주를 결정하기 직전에 한 번 더 보게 한다. */ ""}
+              ${c && c.clientNote ? html`
+                <div class="hm-warn ord-notebox"><span><b>거래 조건</b><br />${c.clientNote}</span></div>` : ""}
             </div>
           </div>
         </div>
