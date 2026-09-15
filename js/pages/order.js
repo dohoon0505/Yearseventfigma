@@ -10,6 +10,7 @@ import { pageTitle, makeDropdown, makeDatepicker, simpleModal } from "../ui.js";
 import { deliveryFeeFor } from "../data/delivery-fees.js";
 import { evaluateAddress, matchesProduct } from "../data/intake-rules.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
+import { BIZ, hourOptions, minOptions } from "../util/date.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -61,11 +62,9 @@ const MOCK_URL_DB = {
   },
 };
 
-/* 배송 가능 시간 규정: 09:00 ~ 18:30 */
-const BIZ = { openH: 9, closeH: 18, closeM: 30 };
+/* 배송 가능 시간 규정(09:00~18:30)은 관리자 주문 모달의 배송일시 피커와 공유한다
+   → util/date.js. 한쪽만 고치면 포털에서 받은 시각을 관리자가 못 고른다. */
 const pad2 = (n) => String(n).padStart(2, "0");
-const hourOptions = () => Array.from({ length: BIZ.closeH - BIZ.openH + 1 }, (_, i) => pad2(BIZ.openH + i));
-const minOptions = (hour) => (+hour === BIZ.closeH ? ["00", "10", "20", "30"] : ["00", "10", "20", "30", "40", "50"]);
 /* 배송 시간대 구분:
    beforeOpen 00:00~09:00 · biz 09:00~18:30 · afterClose 18:30~24:00
    즉시배송 버튼은 biz/beforeOpen 에는 '즉시배송', afterClose 에는 '익일 빠른배송'으로 전환.

@@ -4,6 +4,7 @@
    ============================================================ */
 import { html, raw, setHTML, qsa } from "./dom.js";
 import { icon } from "./icons.js";
+import { hourOptions, minOptions, clampMin } from "./util/date.js";
 
 /* ── PageTitle (ports PageTitle.tsx) ────────────────────── */
 export function pageTitle({ icon, imgSrc, title, action } = {}) {
@@ -92,6 +93,10 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
   }
   function onKey(e) {
     if (document.querySelector(".lightbox")) return; /* 라이트박스 우선 */
+    /* 배송일시 피커가 열려 있으면 ESC 는 피커 몫이다. 상시 편집 모달에서 ESC 한 번에
+       미저장 편집이 통째로 날아가는 것을 막는다. capture 등록 순서상 이 가드가 아니면
+       피커 쪽 stopPropagation 이 늦어 소용이 없다. */
+    if (document.querySelector(".ord-dtp.is-open")) return;
     /* 스택된 모달 지원: 최상위(마지막에 열린) 오버레이만 ESC/Tab 처리 —
        오버레이가 1개뿐인 기존 사용처는 항상 최상위라 무영향. */
     const overlays = document.querySelectorAll(".modal-overlay");
@@ -334,6 +339,166 @@ export function makeDatepicker(root, { get, set, min, max, placeholder } = {}) {
       grid.removeEventListener("click", onGrid);
       document.removeEventListener("click", onDoc);
       document.removeEventListener("keydown", onKey);
+    },
+  };
+}
+
+/* ── 날짜 + 시각 통합 피커 (주문 모달 배송일시 전용) ────────────
+   makeDateTimePicker(rootEl, { get, set, min, max }) → { renderTrigger, close, destroy }
+   get()/set(v) 는 **"YYYY-MM-DDTHH:mm"** — datetime-local 과 같은 포맷이다.
+
+   왜 makeDatepicker 를 확장하지 않았나
+   - makeDatepicker 는 날짜만 다루고 필터 카드 2곳·주문 4단계가 쓴다. 시각을
+     끼워 넣으면 그 세 곳의 값 포맷이 바뀐다.
+   - 이 피커는 시/분을 **안쪽 .dd 드롭다운 두 개**로 갖는다. 그런데 makeDropdown 은
+     열릴 때 `.dd.open` 을 전부 닫는다 — 바깥 껍데기가 .dd 면 시 드롭다운을 여는
+     순간 달력이 닫힌다. 그래서 바깥은 `.ord-dtp.is-open` 이라는 독자 상태를 쓴다.
+   - ESC 는 capture 단계에서 먼저 잡아 모달 대신 피커만 닫는다(openLightbox 와 같은 수법).
+
+   rootEl 안에 있어야 할 것: .ord-dtp__trigger · .ord-dtp__panel ·
+   (.cal-prev/.cal-title/.cal-next) · .cal-grid · [data-dtp-h] · [data-dtp-m] ·
+   .ord-dtp__fval · [data-dtp-done]  — 마크업 팩토리는 util/order-screen.js 의 dtpMarkup(). */
+export function makeDateTimePicker(root, { get, set, min, max } = {}) {
+  const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  const p2 = (n) => String(n).padStart(2, "0");
+  const fmtD = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  const trigger = root.querySelector(".ord-dtp__trigger");
+  const title = root.querySelector(".cal-title");
+  const grid = root.querySelector(".cal-grid");
+  const prev = root.querySelector(".cal-prev");
+  const next = root.querySelector(".cal-next");
+  const fval = root.querySelector(".ord-dtp__fval");
+  const doneBtn = root.querySelector("[data-dtp-done]");
+  const view = { y: 0, m: 0 };
+  const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return fmtD(d); })();
+  /* 기존 주문의 배송일이 과거일 수 있다(배송완료 건). min 을 오늘로 고정하면 그 달로
+     이동조차 못 하고 현재 값 셀이 잠긴다 → 값이 min 보다 이르면 min 을 넓힌다. */
+  const lo = () => {
+    const v = (get() || "").split("T")[0];
+    if (!v) return min;
+    const d = new Date(v + "T00:00:00");
+    return d < min ? d : min;
+  };
+
+  /* 값이 비었으면 min 날짜 09:00 을 기준으로 삼는다(빈 문자열을 쪼개면 NaN). */
+  const parts = () => {
+    const v = get() || "";
+    const [d, t] = String(v).split("T");
+    return { d: d || fmtD(min), t: (t || "09:00").slice(0, 5) };
+  };
+  const emit = (d, t) => { set(`${d}T${t}`); renderTrigger(); renderFoot(); };
+
+  function label(v) {
+    const { d, t } = (() => { const [a, b] = String(v || "").split("T"); return { d: a, t: (b || "").slice(0, 5) }; })();
+    if (!d) return "배송일시 선택";
+    const [y, mo, da] = d.split("-").map(Number);
+    return `${p2(mo)}월 ${p2(da)}일 (${DOW[new Date(y, mo - 1, da).getDay()]}) ${t}`;
+  }
+  const renderTrigger = () => { if (trigger) trigger.textContent = label(get()); };
+  const renderFoot = () => { if (fval) fval.textContent = label(get()); };
+
+  const close = () => {
+    if (!root.classList.contains("is-open")) return;
+    root.classList.remove("is-open");
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+  };
+
+  function renderGrid() {
+    const sel = parts().d;
+    title.textContent = `${view.y}년 ${view.m + 1}월`;
+    const first = new Date(view.y, view.m, 1);
+    const last = new Date(view.y, view.m + 1, 0);
+    let h = DOW.map((w, i) => `<span class="cal-dow${i === 0 ? " sun" : i === 6 ? " sat" : ""}">${w}</span>`).join("");
+    for (let i = 0; i < first.getDay(); i++) h += "<span></span>";
+    for (let day = 1; day <= last.getDate(); day++) {
+      const d = new Date(view.y, view.m, day);
+      const ymd = fmtD(d);
+      const dis = d < lo() || d > max;
+      const wk = d.getDay();
+      const cls = "cal-day"
+        + (dis ? " dis" : "")
+        + (ymd === sel ? " sel" : "")
+        + (ymd === today ? " today" : "")
+        + (wk === 0 ? " sun" : wk === 6 ? " sat" : "");
+      h += `<button type="button" class="${cls}" ${dis ? "disabled" : `data-d="${ymd}"`}>${day}</button>`;
+    }
+    grid.innerHTML = h;
+    const m0 = lo();
+    prev.disabled = new Date(view.y, view.m, 1) <= new Date(m0.getFullYear(), m0.getMonth(), 1);
+    next.disabled = new Date(view.y, view.m + 1, 1) > new Date(max.getFullYear(), max.getMonth(), 1);
+  }
+
+  function open() {
+    /* 다른 드롭다운은 닫고 연다 — 이 피커 자신은 .dd 가 아니라 영향을 받지 않는다 */
+    document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open"));
+    const d0 = new Date(parts().d + "T00:00:00");
+    view.y = d0.getFullYear();
+    view.m = d0.getMonth();
+    renderGrid();
+    renderFoot();
+    root.classList.add("is-open");
+    if (trigger) trigger.setAttribute("aria-expanded", "true");
+  }
+
+  const onTrigger = () => (root.classList.contains("is-open") ? close() : open());
+  const onPrev = () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } renderGrid(); };
+  const onNext = () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderGrid(); };
+  const onGrid = (e) => {
+    const b = e.target.closest("[data-d]");
+    if (!b) return;
+    emit(b.dataset.d, parts().t);
+    renderGrid();
+  };
+  const onDone = () => close();
+  const onDoc = (e) => { if (!root.contains(e.target)) close(); };
+  /* capture 단계에서 먼저 먹어 모달이 아니라 피커가 닫히게 한다 */
+  const onKey = (e) => {
+    if (e.key !== "Escape" || !root.classList.contains("is-open")) return;
+    e.stopPropagation();
+    close();
+  };
+
+  if (trigger) trigger.addEventListener("click", onTrigger);
+  prev.addEventListener("click", onPrev);
+  next.addEventListener("click", onNext);
+  grid.addEventListener("click", onGrid);
+  if (doneBtn) doneBtn.addEventListener("click", onDone);
+  document.addEventListener("click", onDoc);
+  document.addEventListener("keydown", onKey, true);
+
+  /* 시·분 드롭다운 — 값은 항상 현재 get() 에서 다시 읽는다(외부에서 바뀔 수 있다) */
+  const hDd = makeDropdown(root.querySelector("[data-dtp-h]"), {
+    options: hourOptions,
+    get: () => parts().t.slice(0, 2),
+    set: (v) => {
+      const p = parts();
+      emit(p.d, `${v}:${clampMin(v, p.t.slice(3, 5))}`); // 18시로 옮기면 40/50분은 30분으로 당겨진다
+      mDd.renderTrigger();
+    },
+    label: (v) => `${v}시`,
+  });
+  const mDd = makeDropdown(root.querySelector("[data-dtp-m]"), {
+    options: () => minOptions(parts().t.slice(0, 2)),
+    get: () => parts().t.slice(3, 5),
+    set: (v) => { const p = parts(); emit(p.d, `${p.t.slice(0, 2)}:${v}`); },
+    label: (v) => `${v}분`,
+  });
+
+  renderTrigger();
+  renderFoot();
+  return {
+    renderTrigger,
+    close,
+    destroy() {
+      if (trigger) trigger.removeEventListener("click", onTrigger);
+      prev.removeEventListener("click", onPrev);
+      next.removeEventListener("click", onNext);
+      grid.removeEventListener("click", onGrid);
+      if (doneBtn) doneBtn.removeEventListener("click", onDone);
+      document.removeEventListener("click", onDoc);
+      document.removeEventListener("keydown", onKey, true);
+      hDd.destroy();
+      mDd.destroy();
     },
   };
 }
