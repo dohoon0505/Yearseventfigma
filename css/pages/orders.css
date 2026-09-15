@@ -110,6 +110,7 @@
   color: var(--c-text-4);
 }
 .orders-count {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   font-size: var(--fs-13);
   color: var(--c-text-muted);
 }

@@ -23,7 +23,7 @@
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowToneLegend } from "../ui.js";
 import { getDateRange, formatDateLabel, orderRowTone } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { pushHistory } from "../data/order-history.js";
@@ -118,7 +118,7 @@ export function mount(root, { nav }) {
       count: t.v === "all" ? all.length : all.filter((o) => o.status === t.v).length,
     }));
   }
-  const summaryBody = () => html`조회 <strong>${filtered().length}</strong>건`;
+  const summaryBody = () => html`<span>조회 <strong>${filtered().length}</strong>건</span>${rowToneLegend()}`;
   const srch = (key, label, ph) => ({ key, label, ph, value: state[key] });
 
   function filterBody() {

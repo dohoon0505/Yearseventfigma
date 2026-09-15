@@ -562,6 +562,14 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 /* 주문 목록 행 톤 — 클래스는 util/date.js 의 orderRowTone() 이 돌려준다.
    접두사를 `ordrow--` 로 둔 이유: rowClass 반환값이 날것으로 붙어서
    `is-*` 같은 범용 이름은 `.table-grid__row.is-group`(admin.css)과 부딪힌다. */
+/* 범례 — 견본이 행과 같은 톤 클래스를 쓰므로 색이 어긋날 수 없다 */
+.rt-leg { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.rt-leg__i { display: inline-flex; align-items: center; gap: 5px; color: var(--c-text-muted); }
+.rt-sw {
+  width: 11px; height: 11px; flex: 0 0 11px; border-radius: var(--r-sm);
+  border: 1px solid var(--c-border); background: var(--row-tone, var(--c-surface));
+}
+
 .ordrow--wait   { --row-tone: var(--c-row-wait);   --row-tone-hv: var(--c-row-wait-hv); }
 .ordrow--today  { --row-tone: var(--c-row-today);  --row-tone-hv: var(--c-row-today-hv); }
 .ordrow--booked { --row-tone: var(--c-row-booked); --row-tone-hv: var(--c-row-booked-hv); }
@@ -954,6 +962,8 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    ══════════════════════════════════════════════════════════════ */
 /* 주문 화면은 11열 표라 본문 폭을 넓힌다 — 공용 admin 은 1300px 유지 */
 .page-ordscr .admin-inner { max-width: 1500px; }
+/* 요약줄: 좌 건수 · 우 범례. 주문 화면에만 건다(다른 admin 화면은 그대로). */
+.page-ordscr .admin-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
 /* 필터 카드(.bf-*)는 전 페이지 공용 체계로 승격 → css/components.css 참조.
    이 파일에는 B2C 전용 datepicker(.ord-dp/.cal-*)만 남긴다. */

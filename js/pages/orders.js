@@ -3,7 +3,7 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
+import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "../ui.js";
 import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone } from "../util/date.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 
@@ -143,7 +143,8 @@ export function mount(root, { nav }) {
     return tableGrid({ columns, rows: filtered(), rowKey: (r) => r.id, rowClass: (r) => orderRowTone(r.status, r.date) });
   }
   function countBody() {
-    return html`총 <strong>${filtered().length}</strong>건`;
+    /* 포털 주문에는 '취소' 상태가 없다 — 없는 색을 범례에 올리지 않는다. */
+    return html`<span>총 <strong>${filtered().length}</strong>건</span>${rowToneLegend({ cancel: false })}`;
   }
 
   function render() {

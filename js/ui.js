@@ -6,6 +6,20 @@ import { html, raw, setHTML, qsa } from "./dom.js";
 import { icon } from "./icons.js";
 import { hourOptions, minOptions, clampMin } from "./util/date.js";
 
+/* ── 주문 목록 행 색 범례 ────────────────────────────────
+   색만 깔아 두면 "이 분홍은 뭐죠"를 매번 묻는다(시인성 우선 규약).
+   견본은 행과 **같은 `ordrow--*` 클래스**를 쓴다 — 색을 따로 적으면 언젠가
+   행과 어긋난다. 톤 클래스가 넘겨 주는 `--row-tone` 을 그대로 받아 칠한다.
+   `cancel:false` 는 취소 상태가 없는 화면(거래처 포털)용. */
+export const rowToneLegend = ({ cancel = true } = {}) => html`
+  <span class="rt-leg">
+    <span class="rt-leg__i"><i class="rt-sw ordrow--wait"></i>접수대기</span>
+    <span class="rt-leg__i"><i class="rt-sw ordrow--today"></i>당일·지연</span>
+    <span class="rt-leg__i"><i class="rt-sw ordrow--booked"></i>예약</span>
+    <span class="rt-leg__i"><i class="rt-sw"></i>배송완료</span>
+    ${cancel ? html`<span class="rt-leg__i"><i class="rt-sw ordrow--void"></i>취소</span>` : ""}
+  </span>`;
+
 /* ── PageTitle (ports PageTitle.tsx) ────────────────────── */
 export function pageTitle({ icon, imgSrc, title, action } = {}) {
   return html`
