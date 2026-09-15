@@ -9,7 +9,7 @@ import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
 import { fileSizeLabel } from "../util/image.js";
-import { INVOICE_DAYS } from "../data/admin-mock.js";
+import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -44,6 +44,10 @@ const FIELDS = [
   { key: "email", label: "계산서 이메일", grid: true },
   { section: "기타" },
   { key: "address", label: "사업장주소", find: true },
+  {
+    key: "channel", label: "매출 채널", type: "select", options: CLIENT_CHANNELS,
+    help: "'일반' 외 채널은 대쉬보드에서 B2B 합계와 분리해 자기 매출 카드를 갖습니다.",
+  },
   { key: "status", label: "상태", type: "select", options: STATUS_OPTS, grid: true },
   { key: "joinDate", label: "가입일", grid: true },
   /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
@@ -295,8 +299,8 @@ export function mount(root, { nav }) {
     closeModal();
     const isEdit = !!client;
     const form = client
-      ? { salesRoute: "미지정", salesDate: "", salesMemo: "", bizLicense: null, clientNote: "", ...client }
-      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1", clientNote: "", bizLicense: null, salesRoute: "미지정", salesDate: "", salesMemo: "" };
+      ? { salesRoute: "미지정", salesDate: "", salesMemo: "", bizLicense: null, clientNote: "", channel: "일반", ...client }
+      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1", clientNote: "", channel: "일반", bizLicense: null, salesRoute: "미지정", salesDate: "", salesMemo: "" };
     /* 사업자번호 중복은 "같은 법인의 부서 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
        대신 부서를 비워두면 목록에서 두 레코드를 구분할 수 없으므로 그때만 부서를 필수로 올린다. */
     const dupes = () => store.get().clients.filter(

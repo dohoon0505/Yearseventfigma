@@ -30,6 +30,14 @@ const fmtDot = (d) => `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pad(d.get
      주문 화면에서 담당자에게 노출한다. 지우지 말 것.
    ─ 법무법인 한결 2건(C008·C015)은 같은 사업자번호의 부서 분리 — 정상 시나리오다.
    ─ 비밀번호는 이관하지 않는다(관리자 화면에서 임시비밀번호 발급 방식). */
+/* 매출을 별도 KPI 로 떼어 보는 거래처 채널.
+   '일반' 이 기본이고, 그 외 값은 대쉬보드에서 B2B 합계에서 빠져 자기 카드를 갖는다.
+   고이메모리얼는 사업 성격이 달라 매출을 따로 보고 있어 채널로 분리했다 —
+   같은 성격의 거래처가 늘면 이 목록에 값을 추가하고 거래처 레코드에 지정하면 된다. */
+export const CLIENT_CHANNELS = ["일반", "고이"];
+/** 거래처의 채널. 값이 없으면 일반. */
+export const channelOf = (client) => (client && client.channel) || "일반";
+
 export const INITIAL_CLIENTS = [
   { id: "C001", accountId: "hanbit", companyName: "한빛과학(주)", bizNumber: "000-00-00001", ceoName: "한빛과학", managerName: "", department: "", contact: "010-0000-0101", email: "", address: "서울특별시 강남구 예시로 101 한빛빌딩", status: "활성", joinDate: "2024-12-11", invoiceDay: "1", clientNote: "화환 6만" },
   { id: "C002", accountId: "saebom", companyName: "새봄푸드(주)", bizNumber: "000-00-00002", ceoName: "이서연", managerName: "", department: "", contact: "010-0000-0102", email: "", address: "서울특별시 송파구 예시로 202", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
@@ -37,7 +45,7 @@ export const INITIAL_CLIENTS = [
   { id: "C004", accountId: "nuri", companyName: "푸른누리협회", bizNumber: "000-00-00004", ceoName: "최유진", managerName: "", department: "", contact: "", email: "", address: "인천광역시 미추홀구 예시로 404, 3층", status: "활성", joinDate: "2026-03-24", invoiceDay: "1", clientNote: "기본 50 · 고급 60 · 특대 75" },
   { id: "C005", accountId: "badahyang", companyName: "(주)바다향", bizNumber: "000-00-00005", ceoName: "정도윤", managerName: "", department: "", contact: "010-0000-0105", email: "", address: "부산광역시 사하구 예시로 505", status: "활성", joinDate: "2026-06-11", invoiceDay: "1", clientNote: "" },
   { id: "C006", accountId: "matkkal", companyName: "(주)맛깔채", bizNumber: "000-00-00006", ceoName: "강하은", managerName: "", department: "", contact: "010-0000-0106", email: "", address: "서울특별시 송파구 예시로 202", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
-  { id: "C007", accountId: "goimemorial", companyName: "고이메모리얼", bizNumber: "000-00-00007", ceoName: "조민재", managerName: "", department: "", contact: "010-0000-0107", email: "", address: "서울특별시 관악구 예시로 707, 2층", status: "활성", joinDate: "2025-02-19", invoiceDay: "1", clientNote: "" },
+  { id: "C007", accountId: "goimemorial", companyName: "고이메모리얼", bizNumber: "000-00-00007", ceoName: "조민재", managerName: "", department: "", contact: "010-0000-0107", email: "", address: "서울특별시 관악구 예시로 707, 2층", status: "활성", joinDate: "2025-02-19", invoiceDay: "1", clientNote: "", channel: "고이" },
   { id: "C008", accountId: "hangyeol-jms", companyName: "법무법인 한결", bizNumber: "000-00-00008", ceoName: "윤서아", managerName: "", department: "정민수 변호사", contact: "010-0000-0108", email: "", address: "서울특별시 종로구 예시로 808 한결빌딩", status: "활성", joinDate: "2025-06-09", invoiceDay: "1", clientNote: "정민수 변호사님" },
   { id: "C009", accountId: "singsing", companyName: "(주)싱싱마켓", bizNumber: "000-00-00009", ceoName: "강하은", managerName: "", department: "", contact: "010-0000-0102", email: "", address: "경기도 이천시 예시로 909", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
   { id: "C010", accountId: "daesung", companyName: "(주)대성금속", bizNumber: "000-00-00010", ceoName: "임수빈", managerName: "", department: "", contact: "010-0000-0110", email: "", address: "충청남도 아산시 예시로 110", status: "활성", joinDate: "2025-09-24", invoiceDay: "1", clientNote: "★ 기본상품 50\n필요 시 특대 75로 진행" },

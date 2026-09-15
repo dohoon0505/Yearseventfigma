@@ -7,7 +7,7 @@ import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
 /** @typedef {{no:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
-/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,password?:string}} Client */
+/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string}} Client */
 /* password 는 셀프 가입(register.js)으로 만든 레코드에만 있다. 이관 시드에는 없다 —
    관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
 

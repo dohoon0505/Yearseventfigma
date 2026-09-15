@@ -65,9 +65,12 @@ let offClick = null;
 let currentVariant = null;
 let deadlineTimer = null;
 
-/* 영업시간 — 향후 테넌트별 설정으로 이전 예정. 정책 변경 시 이 두 값만 수정. */
+/* 영업시간 — 향후 테넌트별 설정으로 이전 예정. 정책 변경 시 이 두 값만 수정.
+   대쉬보드가 B2B 주문의 도착 기준(마감 시각)으로도 쓰므로 export 한다 —
+   같은 숫자를 두 곳에 적으면 정책이 바뀔 때 한쪽만 고쳐진다. */
 const BIZ_OPEN_MIN = 9 * 60;        // 09:00 접수 시작
 const BIZ_CLOSE_MIN = 18 * 60 + 30; // 18:30 당일배송 마감
+export const BIZ_HOURS = { openMin: BIZ_OPEN_MIN, closeMin: BIZ_CLOSE_MIN };
 
 /* 당일배송 마감(18:30) 안내 — 헤더 배지.
    영업시간(09:00~18:30) 내엔 마감 카운트다운, 그 외엔 마감 안내. */
