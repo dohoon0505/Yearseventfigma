@@ -6,7 +6,8 @@
    만들면 반드시 다시 어긋나므로, **같은 픽셀을 그리는 코드**는 여기 모은다.
 
    ■ 여기 있는 것 — 표기 헬퍼 · 필터 카드 마크업 · 표 셀 렌더러 ·
-     모달 구역/정의행/필드 · 처리 레일(현장사진) · 담당자 지정 모달.
+     모달 셸(헤더 스테퍼·카드·상시편집 필드·다크 레일·요약·이력·푸터) ·
+     담당자 지정 · 주문서 삭제 확인.
    ■ 여기 없는 것 — filtered() · columns · 모달 본문 조립 · 저장 규칙.
      데이터 스키마와 도메인 규칙이 달라 억지로 합치면 분기 지옥이 된다.
 
@@ -39,11 +40,6 @@ export function parseFlexDate(s) {
   return y && m && d ? new Date(y, m - 1, d, hh, mm) : null;
 }
 
-/* 값들을 구분자로 연결 — 전부 비면 "-" (읽기 모드 정의행용) */
-export const joinVals = (sep, ...xs) => {
-  const v = xs.filter((x) => x != null && String(x).trim());
-  return v.length ? v.join(sep) : "-";
-};
 
 /* ── 상태 ──────────────────────────────────────────────── */
 /* 화면마다 색이 다르면 같은 상태를 매번 다시 배워야 한다 — 단일 맵. */
@@ -210,41 +206,6 @@ export const amtCell = (n) => html`<span class="ord-amt">${won(n)}</span>`;
 export const editBtn = (id) =>
   html`<button class="ptbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
 
-/* ── 모달 조각 ─────────────────────────────────────────── */
-export const zone = (title, inner, extra = "") => html`
-  <section class="ord-zone ${extra}">
-    <div class="ord-zone__t">${title}</div>
-    ${inner}
-  </section>`;
-
-export const docRow = (k, v, cls = "") => html`
-  <div class="ord-doc__row">
-    <span class="ord-doc__k">${k}</span>
-    <span class="ord-doc__v ${cls}">${v}</span>
-  </div>`;
-
-export function ddField(label, key, opts = {}) {
-  return html`
-    <div class="hm-field">
-      <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-      <div class="dd" data-dd-f="${key}">
-        <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-        <div class="dd-panel" role="listbox"></div>
-      </div>
-    </div>`;
-}
-
-export function txtField(label, key, value, opts = {}) {
-  const type = opts.type || "text";
-  return html`
-    <div class="hm-field">
-      <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-      <input class="hm-input" type="${type}" data-f="${key}" value="${value ?? ""}"
-        ${opts.list ? `list="${opts.list}"` : ""} ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""}
-        placeholder="${opts.placeholder ?? ""}" ${opts.min != null ? `min="${opts.min}"` : ""} />
-    </div>`;
-}
-
 /* ── 처리 레일 현장사진 — 업로드·다운로드·라이트박스 ──────
    FileReader · data-URL · <a download> · 오버레이 버튼 제외 분기까지
    두 화면이 글자 하나까지 같아야 하는 덩어리. 복붙하면 한쪽만 고쳐진다. */
@@ -312,21 +273,6 @@ export function makeImageBox({ get, toast }) {
   return { inner, bind };
 }
 
-/* 처리 레일 — 현장사진 3:4 · 인수자 · 처리 메모. 읽기/편집 모드와 무관하게 항상 활성. */
-export function railBody({ order, imgInner, receiverLabel = "인수자 성함", receiverPh = "배송 완료 시 실제 인수자" }) {
-  return html`
-    <aside class="ord-rail ord-zone">
-      <div class="ord-zone__t">처리 정보</div>
-      <div class="ord-imgbox ${order.image ? "has" : ""}" data-slot="imgbox" data-action="img-zoom"
-           title="${order.image ? "클릭하여 크게 보기" : "클릭하여 업로드"}">${imgInner}</div>
-      <input type="file" accept="image/*" data-img-input hidden />
-      ${txtField(receiverLabel, "receiver", order.receiver, { placeholder: receiverPh })}
-      <div class="hm-field ord-rail__memo">
-        <label>처리 메모</label>
-        <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${order.memo ?? ""}</textarea>
-      </div>
-    </aside>`;
-}
 
 /* 헤더 인라인 담당자 컨트롤 — 미지정이면 주황 강조로 '지정' 유도. */
 export const managerControl = (name) =>
@@ -494,8 +440,10 @@ function fieldCell(d, order) {
     return html`<input class="${cls}" value="${d.type === "won" ? won(v) : v}" data-slot="${d.k || d.label}" disabled />`;
   }
   if (d.type === "select") {
-    return html`<div class="dd ord-in" data-dd-f="${d.k}" style="padding:0">
-      <button type="button" class="ord-in dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+    /* 셸(.ord-fdd)만 남기고 트리거는 클래스를 안 준다 — 공용 `.modal-panel .dd-trigger`
+       (0,2,0)가 어차피 이기므로, 톤은 아래 .ord-fdd 스코프 규칙에서 되돌린다. */
+    return html`<div class="dd ord-fdd" data-dd-f="${d.k}">
+      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
       <div class="dd-panel" role="listbox"></div>
     </div>`;
   }
