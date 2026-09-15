@@ -1526,3 +1526,38 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   background: var(--c-orange); border-color: var(--c-orange);
 }
 .odlg-check.is-on .odlg-check__box::after { content: "✓"; }
+
+/* ── 취소 다이얼로그 — 사유 2열 버튼 그리드(시안) ─────────── */
+.modal-panel--ordcancel { width: 460px; }
+.cx-box {
+  margin-bottom: 20px; padding: 14px 16px; background: var(--c-surface-2);
+  border-radius: var(--r-xl); font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-2);
+}
+.cx-box b { color: var(--c-danger-ink); }
+.cx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cx-opt {
+  height: 44px; padding: 0 14px; border-radius: var(--r-xl); text-align: left;
+  font-size: var(--fs-14); color: var(--c-text-2);
+  background: var(--c-surface); border: 1px solid var(--c-border-input);
+}
+.cx-opt:hover { border-color: var(--c-border-field-strong); }
+.cx-opt.is-sel {
+  border-color: var(--c-orange); background: var(--c-orange-soft);
+  color: var(--c-orange-ink); font-weight: var(--fw-semibold);
+}
+
+/* ── 담당자 지정 — 행 리스트(이름 + 부서) ─────────────────── */
+.odlg-rows { display: flex; flex-direction: column; gap: 2px; }
+.odlg-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-radius: var(--r-xl); text-align: left; background: var(--c-surface);
+}
+.odlg-row:hover { background: var(--c-surface-2); }
+.odlg-row__name { font-size: var(--fs-17); color: var(--c-text-strong); }
+.odlg-row__dept { font-size: var(--fs-14); color: var(--c-text-4); }
+.odlg-row.is-sel { background: var(--c-orange); }
+.odlg-row.is-sel .odlg-row__name { color: var(--c-surface); font-weight: var(--fw-semibold); }
+.odlg-row.is-sel .odlg-row__dept { color: var(--c-orange-soft); }
+.odlg-row.is-sel:hover { background: var(--c-orange-hover); }
+/* 직원 디렉터리에서 삭제된 기존 담당자 — 조용히 재배정되지 않게 남겨 둔다 */
+.odlg-row--orphan .odlg-row__dept { color: var(--c-warn-soft-ink); }

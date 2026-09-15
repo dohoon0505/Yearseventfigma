@@ -12,7 +12,7 @@
 
    짝이 되는 스타일은 css/components.css 의 `.ord-*` 블록(파일 끝).
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { openModal, makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
@@ -338,71 +338,61 @@ export const managerControl = (name) =>
    폼·레일의 다른 미저장 편집은 건드리지 않는다.
    onPick(v) 가 false 를 돌려주면 토스트 없이 닫기만 한다. ── */
 export function openStaffPicker({ current, names, onPick, toast }) {
-  const DIRECT = "직접 입력…";
-  const cur = current || "";
-  /* names 는 **함수**다 — 담당자 목록은 시스템 관리에서 실시간으로 바뀌므로
-     열 때마다 다시 읽어야 한다(정적 배열로 받으면 방금 추가한 담당자가 안 뜬다). */
+  /* names 는 **함수**다 — 담당자 목록은 시스템 관리에서 실시간으로 바뀐다.
+     정적 배열로 받으면 방금 추가한 담당자가 안 뜬다. */
   const list = names();
-  /* 현재값이 목록에 있으면 그 값, 목록 밖 커스텀이면 '직접 입력…'(+프리필), 미지정이면 첫 직원 */
-  let pick = list.includes(cur) ? cur : cur ? DIRECT : list[0] ?? DIRECT;
-  let dd = null;
-  const picker = openModal({
-    panelClass: "modal-panel--sm modal-panel--ordmgr",
+  const cur = current || "";
+  /* 목록에 없는 기존 담당자(직원이 삭제된 경우)는 맨 위에 남겨 둔다 —
+     조용히 다른 사람으로 재배정되는 것이 가장 나쁜 결과다. */
+  const orphan = cur && !list.some((s) => s.name === cur);
+  const rows = orphan ? [{ name: cur, dept: "목록에 없음", orphan: true }, ...list] : list;
+  let pick = cur || "";
+  const m = openModal({
+    panelClass: "modal-panel--ordconfirm",
     body: html`
       <div class="hm__head">
         <div>
-          <h3>담당자 지정</h3>
+          <h3 id="modal-title">담당자 지정</h3>
           <p>이 주문을 담당할 직원을 선택하세요.</p>
         </div>
-        <button class="hm__x" data-action="mgr-close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
       </div>
       <div class="hm__body">
-        <div class="hm-field">
-          <label>담당자</label>
-          <div class="dd" data-mgr-dd>
-            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-            <div class="dd-panel" role="listbox"></div>
-          </div>
+        <div class="odlg-rows" role="radiogroup" aria-label="담당자">
+          ${rows.map((s) => html`
+            <button class="odlg-row ${s.name === pick ? "is-sel" : ""} ${s.orphan ? "odlg-row--orphan" : ""}"
+              data-pick="${s.name}" role="radio" aria-checked="${s.name === pick ? "true" : "false"}">
+              <span class="odlg-row__name">${s.name}</span>
+              <span class="odlg-row__dept">${s.dept}</span>
+            </button>`)}
         </div>
-        <div class="hm-field" data-mgr-custom ${pick === DIRECT ? "" : "hidden"}>
-          <label>담당자 이름</label>
-          <input class="hm-input" data-mgr-input value="${pick === DIRECT ? cur : ""}" placeholder="예) 한신입" autocomplete="off" />
-        </div>
-        <p class="ord-mgrhint">${icon("user", { size: 12 })} 목록에 없는 담당자는 ‘${DIRECT}’을 선택해 입력하세요.</p>
       </div>
       <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="mgr-close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="mgr-confirm">${icon("check", { size: 14 })} 지정</button>
-      </div>
-    `,
-    onClose: () => { if (dd) dd.destroy(); }, // 문서 리스너 정리
+        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
+        <button class="hm-btn hm-btn--primary" data-action="mgr-go" ${pick ? "" : "disabled"}>
+          ${icon("check", { size: 14 })} 지정</button>
+      </div>`,
+    labelledBy: "modal-title",
   });
-  const p = picker.panel;
-  const customField = qs(p, "[data-mgr-custom]");
-  const input = qs(p, "[data-mgr-input]");
-  /* '직접 입력…' 선택 시에만 텍스트 입력 필드 노출(+포커스) */
-  const syncCustom = () => {
-    const direct = pick === DIRECT;
-    if (customField) customField.hidden = !direct;
-    if (direct && input) { input.focus(); input.select(); }
-  };
-  dd = makeDropdown(qs(p, "[data-mgr-dd]"), {
-    options: () => [...names(), DIRECT],
-    get: () => pick,
-    set: (v) => { pick = v; syncCustom(); },
+  const p = m.panel;
+  const go = qs(p, "[data-action='mgr-go']");
+  on(p, "click", "[data-action='close']", () => m.close());
+  on(p, "click", "[data-pick]", (e, t) => {
+    pick = t.dataset.pick;
+    qsa(p, "[data-pick]").forEach((b) => {
+      const on_ = b.dataset.pick === pick;
+      b.classList.toggle("is-sel", on_);
+      b.setAttribute("aria-checked", on_ ? "true" : "false");
+    });
+    go.disabled = false;
   });
-  const confirm = () => {
-    const v = pick === DIRECT ? (input?.value || "").trim() : pick;
-    if (!v) { toast("담당자를 선택하거나 입력하세요", "warn"); if (pick === DIRECT) input?.focus(); return; }
-    if (onPick(v) === false) { picker.close(); return; }
-    picker.close();
-    toast(`담당자를 ${v}(으)로 지정했습니다`);
-  };
-  on(p, "click", "[data-action='mgr-close']", () => picker.close());
-  on(p, "click", "[data-action='mgr-confirm']", () => confirm());
-  on(p, "keydown", "[data-mgr-input]", (e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } });
-  if (pick === DIRECT && input) { input.focus(); input.select(); }
-  return picker;
+  on(p, "click", "[data-action='mgr-go']", () => {
+    if (!pick) { toast("담당자를 선택하세요", "warn"); return; }
+    if (onPick(pick) === false) { m.close(); return; }
+    m.close();
+    toast(`담당자를 ${pick}(으)로 지정했습니다`);
+  });
+  return m;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -490,7 +480,7 @@ export const card = ({ title, cap, body, slot }) => html`
       <b class="ord-card__t">${title}</b>
       ${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}
     </div>
-    <div ${slot ? `data-slot="${slot}"` : ""}>${body}</div>
+    <div data-slot="${slot || ""}">${body}</div>
   </section>`;
 
 /* ── 상시 편집 필드 ───────────────────────────────────────────
@@ -514,8 +504,9 @@ function fieldCell(d, order) {
     return html`<textarea class="ord-in" data-f="${d.k}" rows="1" placeholder="${d.ph ?? ""}">${v}</textarea>`;
   }
   const extra = d.type === "won" ? " ord-in--won" : d.type === "tel" || d.type === "num" ? " ord-in--num" : "";
+  const numeric = d.type === "tel" || d.type === "num" || d.type === "won";
   return html`<input class="ord-in${extra}" data-f="${d.k}" value="${d.type === "won" ? won(v) : v}"
-    ${d.type === "tel" || d.type === "num" ? 'inputmode="numeric"' : ""} placeholder="${d.ph ?? ""}" />`;
+    inputmode="${numeric ? "numeric" : "text"}" placeholder="${d.ph ?? ""}" />`;
 }
 
 export function renderFields(defs, order) {

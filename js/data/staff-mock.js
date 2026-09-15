@@ -38,7 +38,8 @@ let idSeq = STAFF.length;
 export function staffList() { return STAFF; }
 /* B2C 담당자 피커 등에서 쓰는 라이브 이름 목록 — 디렉터리 편집이 즉시 반영된다.
    운영 계정(system)은 사람이 아니므로 배정 대상에서 뺀다. */
-export function staffNames() { return STAFF.filter((s) => !s.system).map((s) => s.name); }
+export function staffOptions() { return STAFF.filter((s) => !s.system).map((s) => ({ name: s.name, dept: s.dept })); }
+export function staffNames() { return staffOptions().map((s) => s.name); }
 export function staffNewId() { return "s" + String(++idSeq) + "_" + Date.now().toString(36); }
 export function staffAdd(rec) { STAFF.push({ ...rec }); }
 export function staffUpdate(rec) {

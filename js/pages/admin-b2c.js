@@ -29,7 +29,7 @@ import {
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, footerV2,
 } from "../util/order-screen.js";
 import {
-  staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
+  staffNames, staffOptions, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
   productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
@@ -288,7 +288,12 @@ export function mount(root, { nav }) {
   function renderHist() {
     const p = panelOf(); if (!p || isNew) return;
     const el = qs(p, "[data-slot='hist']");
-    if (el) setHTML(el, historyBody(editing));
+    if (el) {
+      setHTML(el, historyBody(editing));
+      /* 카드 헤더의 'N건' 은 슬롯 밖이라 따로 고친다 */
+      const cap = el.parentElement?.querySelector(".ord-card__cap");
+      if (cap) cap.textContent = `${(editing.history || []).length}건`;
+    }
   }
   /* 입력마다 호출된다 — textContent 만 바꾼다(재렌더 금지) */
   function syncDirty() {
@@ -375,7 +380,7 @@ export function mount(root, { nav }) {
     if (!editing) return;
     openStaffPicker({
       current: editing.manager,
-      names: staffNames,
+      names: staffOptions,
       toast,
       onPick: (v) => {
         if (!editing) return false;
