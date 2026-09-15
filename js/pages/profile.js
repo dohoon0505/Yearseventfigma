@@ -4,7 +4,7 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { store, MSG_RECEIVE, MSG_NONE, newContactId } from "../store.js";
+import { store, MSG_RECEIVE, MSG_NONE, newContactId, newProfileId } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown } from "../ui.js";
 
 export function mount(root, { nav }) {
@@ -32,8 +32,8 @@ export function mount(root, { nav }) {
     { label: "직위", width: "100px", align: "center", render: (r) => r.role },
     { label: "배송완료 수신번호", width: "160px", align: "center", render: (r) => r.phone },
     { label: "고정문구", width: "1fr", render: (r) => r.greeting },
-    { label: "수정", width: "52px", align: "center", render: (r) => editBtn("profile", r.no) },
-    { label: "삭제", width: "52px", align: "center", render: (r) => delBtn("profile", r.no) },
+    { label: "수정", width: "52px", align: "center", render: (r) => editBtn("profile", r.id) },
+    { label: "삭제", width: "52px", align: "center", render: (r) => delBtn("profile", r.id) },
   ];
   const contactCols = [
     { label: "순번", width: "54px", align: "center", render: (r) => r.no },
@@ -60,7 +60,7 @@ export function mount(root, { nav }) {
                 <div class="psec-title__l"><span class="psec-bar"></span><span class="psec-titletext">📋 발송인 프로필관리</span></div>
                 <button class="psec-addbtn" data-action="new-profile">${icon("user-plus", { size: 14 })} 신규 프로필 등록</button>
               </div>
-              ${tableGrid({ columns: profileCols, rows: profiles, rowKey: (r) => r.no, compact: true })}
+              ${tableGrid({ columns: profileCols, rows: profiles, rowKey: (r) => r.id, compact: true })}
             </div>
             <div class="psec">
               <div class="psec-title">
@@ -92,7 +92,7 @@ export function mount(root, { nav }) {
     closeModal();
     const profiles = store.get().profiles;
     const nextNo = String(profiles.length + 1).padStart(2, "0");
-    const form = { no: nextNo, name: "", role: "", phone: "", greeting: "" };
+    const form = { id: newProfileId(), no: nextNo, name: "", role: "", phone: "", greeting: "" };
     const auto = () => (form.name || form.role ? `올해의경조사 ${form.role} ${form.name}`.trim() : "");
     const valid = () => !!(form.name && form.role && form.phone);
 
@@ -230,7 +230,7 @@ export function mount(root, { nav }) {
     on(activeModal.panel, "input", "[data-pf]", (e, t) => { form[t.dataset.pf] = t.value; });
     on(activeModal.panel, "click", "[data-action='save']", () => {
       if (isContact) store.setContacts((prev) => prev.map((c) => (c.id === form.id ? form : c)));
-      else store.setProfiles((prev) => prev.map((p) => (p.no === form.no ? form : p)));
+      else store.setProfiles((prev) => prev.map((p) => (p.id === form.id ? form : p)));
       closeModal();
       render();
     });
@@ -259,7 +259,7 @@ export function mount(root, { nav }) {
     activeModal = simpleModal({ title: `${row.name} 항목을 삭제할까요?`, size: "sm", body, footer });
     on(activeModal.panel, "click", "[data-action='do-del']", () => {
       if (kind === "contact") store.setContacts((prev) => prev.filter((c) => c.id !== row.id));
-      else store.setProfiles((prev) => prev.filter((p) => p.no !== row.no));
+      else store.setProfiles((prev) => prev.filter((p) => p.id !== row.id));
       closeModal();
       render();
     });
@@ -275,7 +275,7 @@ export function mount(root, { nav }) {
     const kind = t.dataset.kind;
     const isC = kind === "contact";
     const list = isC ? store.contactsOf() : store.get().profiles;
-    const row = list.find((x) => (isC ? x.id : x.no) === t.dataset.key);
+    const row = list.find((x) => x.id === t.dataset.key);
     if (a === "edit" && row) openEdit(kind, row);
     else if (a === "del" && row) openDelete(kind, row);
   });

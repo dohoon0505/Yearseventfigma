@@ -48,11 +48,11 @@ export const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 /* ── Initial mock data ──────────────────────────────────── */
 const INITIAL_PROFILES = [
-  { no: "01", name: "홍길동", role: "대표이사",   phone: "010-0000-0000", greeting: "(주)올해의경조사 대표이사 홍길동" },
-  { no: "02", name: "정소빈", role: "대표변호사", phone: "010-0000-0000", greeting: "올해표현(유) 대표변호사 정소빈" },
-  { no: "03", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
-  { no: "04", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
-  { no: "05", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
+  { id: "pf1", no: "01", name: "홍길동", role: "대표이사",   phone: "010-0000-0000", greeting: "(주)올해의경조사 대표이사 홍길동" },
+  { id: "pf2", no: "02", name: "정소빈", role: "대표변호사", phone: "010-0000-0000", greeting: "올해표현(유) 대표변호사 정소빈" },
+  { id: "pf3", no: "03", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
+  { id: "pf4", no: "04", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
+  { id: "pf5", no: "05", name: "임직원", role: "일동",        phone: "010-0000-0000", greeting: "(주)올해의경조사 임직원 일동" },
 ];
 
 /* 담당자의 배송완료 알림 수신 여부. 주문서의 알림 수신자 명단이 이 값으로 파생되므로
@@ -73,6 +73,10 @@ const INITIAL_CONTACTS = [
 const FIRST_CLIENT = INITIAL_CLIENTS[0] ? INITIAL_CLIENTS[0].id : "C001";
 let ctSeq = 100;
 export const newContactId = () => `ct${++ctSeq}`;
+/* 프로필도 안정 id 를 갖는다 — `no` 는 `reindexNo` 가 쓰기마다 다시 매기는 표시
+   순번이라 주문이 프로필을 지목하는 키로 쓸 수 없다(담당자에서 이미 겪은 것). */
+let pfSeq = 100;
+export const newProfileId = () => `pf${++pfSeq}`;
 
 /* ── Reactive store ─────────────────────────────────────── */
 /* ⚠️ 키를 올리지 않는다. 올리면 담당자뿐 아니라 거래처 편집·단가·프로필까지 **전부** 버려진다.
@@ -116,7 +120,7 @@ function hydrate() {
     if (!raw) return;
     const data = JSON.parse(raw);
     state = {
-      profiles: Array.isArray(data.profiles) ? reindexNo(data.profiles) : state.profiles,
+      profiles: Array.isArray(data.profiles) ? hydrateProfiles(data.profiles) : state.profiles,
       contactsByClient: hydrateContacts(data),
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
       // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다.
@@ -131,6 +135,12 @@ function hydrate() {
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
   }
+}
+
+/* 구 저장본(id 없음)에 안정 id 를 그 자리에서 발급한다 — KEY 를 올리지 않고
+   이관하는 이 레포의 방식(hydrateContacts·fixBilling 과 같은 수법). */
+function hydrateProfiles(arr) {
+  return reindexNo((arr || []).map((p) => ({ ...p, id: p.id || newProfileId() })));
 }
 
 /* 버킷 하나의 불변식 — 비어 있지 않으면 정산담당이 정확히 1명. */

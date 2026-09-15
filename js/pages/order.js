@@ -297,6 +297,8 @@ export function mount(root, { nav }) {
     notify: { recipient: true, sender: true },
     /* 담당자는 담당자 저장공간(store.contacts)의 수신 설정에서 자동 편입된다.
        이 주문에서만 끈 담당자의 번호(no)를 여기 담는다 — 저장공간 설정은 건드리지 않는다. */
+    /* 이 주문에서만 끈 담당자 — **Contact.id** 로 지목한다. `no` 는 조회마다
+       배열 인덱스로 파생돼, 담당자 1명을 지우면 다른 사람 알림이 꺼진다. */
     managerOff: new Set(),
     notifyExtra: [], // [{ id, name, phone, on }] — 합동 발송 추가 수신자(최대 NT_MAX)
   };
@@ -727,8 +729,8 @@ export function mount(root, { nav }) {
         <div class="nt-row nt-row--fixed">
           <span class="nt-kind">담당자</span>
           <span class="nt-who"><b>${c.name}</b><span>${c.phone}</span><em class="nt-auto">자동</em></span>
-          <button type="button" class="toggle" role="switch" aria-checked="${state.managerOff.has(c.no) ? "false" : "true"}"
-                  data-ntm="${c.no}" aria-label="담당자 ${c.name} 배송완료 알림 수신">
+          <button type="button" class="toggle" role="switch" aria-checked="${state.managerOff.has(c.id) ? "false" : "true"}"
+                  data-ntm="${c.id}" aria-label="담당자 ${c.name} 배송완료 알림 수신">
             <span class="toggle__knob"></span>
           </button>
         </div>`)}
@@ -765,7 +767,7 @@ export function mount(root, { nav }) {
     const base = [];
     if (state.notify.recipient) base.push("받는분");
     if (state.notify.sender) base.push("보내는분");
-    const mgrs = autoManagers().filter((c) => !state.managerOff.has(c.no));
+    const mgrs = autoManagers().filter((c) => !state.managerOff.has(c.id));
     const extra = state.notifyExtra.filter((r) => r.on && r.name.trim() && phoneOk(r.phone));
     return { base, mgrs, extra };
   }
@@ -928,9 +930,9 @@ export function mount(root, { nav }) {
   });
   bind("click", "[data-ntm]", (e, t) => {
     /* 담당자 행은 이 주문에서만 끈다 — 담당자 저장공간 설정은 건드리지 않는다. */
-    const no = t.dataset.ntm;
+    const id = t.dataset.ntm; /* Contact.id — 표시 순번(no)이 아니다 */
     const on = t.getAttribute("aria-checked") !== "true";
-    if (on) state.managerOff.delete(no); else state.managerOff.add(no);
+    if (on) state.managerOff.delete(id); else state.managerOff.add(id);
     t.setAttribute("aria-checked", on ? "true" : "false");
     syncNotifySummary();
   });
