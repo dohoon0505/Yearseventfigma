@@ -774,19 +774,19 @@ export function mount(root, { nav }) {
     });
   }
 
+  /* 삭제 확인은 모달 안(⋯ 메뉴)과 목록이 **같은 다이얼로그**를 쓴다 —
+     같은 파괴적 동작이 자리에 따라 다른 확인 절차를 요구하면 안 된다.
+     `openDeleteConfirm` 은 '되돌릴 수 없음' 체크를 해야 삭제가 열린다. */
   function openDelete(client) {
     closeModal();
-    const body = html`<div class="hm-warn"><span><b>삭제한 거래처는 되돌릴 수 없습니다.</b> 계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다.</span></div>`;
-    const footer = html`
-      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-      <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
-    `;
-    activeModal = simpleModal({ title: `${client.companyName} 거래처를 삭제할까요?`, subtitle: client.accountId, size: "sm", body, footer });
-    on(activeModal.panel, "click", "[data-action='do-del']", () => {
-      store.removeClient(client.id);
-      closeModal();
-      refreshList();
-      toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
+    openDeleteConfirm({
+      orderNo: client.companyName,
+      note: "계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다. 거래를 멈추는 것이라면 삭제 대신 정지를 쓰세요.",
+      onConfirm: () => {
+        store.removeClient(client.id);
+        refreshList();
+        toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
+      },
     });
   }
 
