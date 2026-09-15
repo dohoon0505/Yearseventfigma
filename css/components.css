@@ -1150,7 +1150,10 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-dtp__done:hover { background: var(--c-orange-hover); }
 .ord-hd__l { min-width: 0; }
 .ord-hd__row { display: flex; align-items: center; gap: 12px; }
-.ord-hd__no {
+/* ⚠️ 헤더 컨테이너가 `.hm__head .ord-hd` 라 공용 `.hm__head h3`(0,1,1)가
+   클래스 하나(0,1,0)를 이긴다 — 그대로 두면 28px 시안 타이틀이 17px bold 로 찍힌다.
+   `.ord-hd` 를 앞에 붙여 (0,2,0) 으로 올린다. */
+.ord-hd .ord-hd__no {
   font-size: var(--fs-28); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   letter-spacing: -0.015em; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
