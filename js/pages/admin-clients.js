@@ -276,8 +276,8 @@ export function mount(root, { nav }) {
         정산기한은 그 발급일이 속한 달의 말일(이번 주기 ${end}일)입니다.</p>`;
     }
     if (f.type === "seg") {
-      return html`<div class="cli-seg" role="radiogroup" aria-label="${f.label}">
-        ${f.options.map((v) => html`<button type="button" class="cli-seg__btn ${form[f.k] === v ? "is-on" : ""}"
+      return html`<div class="seg-pill" role="radiogroup" aria-label="${f.label}">
+        ${f.options.map((v) => html`<button type="button" class="seg-pill__btn ${form[f.k] === v ? "is-on" : ""}"
           data-seg="${f.k}" data-v="${v}" role="radio" aria-checked="${form[f.k] === v ? "true" : "false"}">${v}</button>`)}
       </div>`;
     }
@@ -397,13 +397,13 @@ export function mount(root, { nav }) {
     /* ── 레일 ── */
     const railBody = () => html`
       <div class="ord-side__h"><b class="ord-side__t">계정</b><span class="ord-side__cap">${isEdit ? "아이디 변경 불가" : "새 계정"}</span></div>
-      <div class="cli-railcard">
-        <p class="cli-railcard__k">접속 아이디</p>
+      <div class="rail-card">
+        <p class="rail-card__k">접속 아이디</p>
         ${isEdit
-          ? html`<p class="cli-railcard__v">${form.accountId || "-"}</p>`
+          ? html`<p class="rail-card__v">${form.accountId || "-"}</p>`
           : html`<input class="hm-input" data-cf="accountId" value="${form.accountId ?? ""}" placeholder="영문·숫자" />`}
-        <button type="button" class="cli-railbtn" data-action="reset-pw">임시비밀번호 발급</button>
-        <p class="cli-railcard__out">${pwOut || "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다."}</p>
+        <button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
+        <p class="rail-card__out">${pwOut || "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다."}</p>
       </div>
       ${isEdit ? html`
         <div class="ord-side__h"><b class="ord-side__t">변경 이력</b><span class="ord-side__cap">${log.length}건</span></div>
