@@ -5,11 +5,14 @@
    한다 — 목록 → 필터 → 상세 → 상태 전환. 두 화면이 같은 마크업을 각자
    만들면 반드시 다시 어긋나므로, **같은 픽셀을 그리는 코드**는 여기 모은다.
 
-   ■ 여기 있는 것 — 표기 헬퍼 · 필터 카드 마크업 · 표 셀 렌더러 ·
-     모달 셸(헤더 스테퍼·카드·상시편집 필드·다크 레일·요약·이력·푸터) ·
+   ■ 여기 있는 것 — 필터 카드 마크업 · 표 셀 렌더러 ·
+     **상세 모달 셸**(헤더 스테퍼·다크 처리 레일·요약·이력·푸터) ·
      담당자 지정 · 주문서 삭제 확인.
    ■ 여기 없는 것 — filtered() · columns · 모달 본문 조립 · 저장 규칙.
      데이터 스키마와 도메인 규칙이 달라 억지로 합치면 분기 지옥이 된다.
+   ■ **주문서 등록 모달(order-create.js)은 다른 모달이다 — 서로 import 하지 않는다.**
+     둘이 공유하는 폼 프리미티브(card·renderFields·dtpMarkup·won…)는
+     중립 지대인 util/order-fields.js 에 있고, 아래에서 재수출만 한다.
 
    짝이 되는 스타일은 css/components.css 의 `.ord-*` 블록(파일 끝).
    ============================================================ */
@@ -17,29 +20,11 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { openModal, makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
+import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
 
-/* ── 표기 ──────────────────────────────────────────────── */
-export const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
-export const pad2 = (n) => String(n).padStart(2, "0");
-export const dash = (v) => (v != null && String(v).trim() ? v : "-");
-
-/* 이 프로젝트에는 주문 날짜 포맷이 셋이다 —
-     B2C 접수 "2026-09-15 15:20" · B2B 주문 "2026/09/15 09:10"
-     배송희망 "2026-09-16T11:00"(datetime-local)
-   한 셀에 둘이 같이 들어가므로(접수/배송 2행) 표시 단계에서 모양을 맞춘다.
-   ⚠️ 저장 포맷은 건드리지 말 것 — util/date.js 의 parseOrderDate 는
-      슬래시로만 쪼갠다. 바꾸면 기간 필터가 통째로 NaN 이 된다. */
-export const fmtFull = (s) => (s ? String(s).replace(/\//g, "-").replace("T", " ") : "-");
-
-/* 위 세 포맷을 전부 받는 파서 (없거나 깨지면 null) */
-export function parseFlexDate(s) {
-  if (!s) return null;
-  const [datePart, timePart] = String(s).replace(/\//g, "-").replace("T", " ").split(" ");
-  const [y, m, d] = (datePart || "").split("-").map(Number);
-  const [hh = 0, mm = 0] = (timePart || "00:00").split(":").map(Number);
-  return y && m && d ? new Date(y, m - 1, d, hh, mm) : null;
-}
-
+/* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
+   새 코드는 order-fields.js 에서 직접 가져올 것. */
+export { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize };
 
 /* ── 상태 ──────────────────────────────────────────────── */
 /* 화면마다 색이 다르면 같은 상태를 매번 다시 배워야 한다 — 단일 맵. */
@@ -95,43 +80,6 @@ export const dpMarkup = (which, ph) => html`
         <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
       </div>
       <div class="cal-grid"></div>
-    </div>
-  </div>`;
-
-/* 배송일시 피커 마크업 — ui.js 의 makeDateTimePicker 와 짝.
-   ⚠️ 바깥 껍데기에 `.dd` 를 붙이지 말 것. makeDropdown 이 열릴 때 `.dd.open` 을
-      전부 닫으므로, 안에 든 시/분 드롭다운을 여는 순간 달력이 스스로 닫힌다. */
-export const dtpMarkup = () => html`
-  <div class="ord-dtp" data-dtp>
-    <button type="button" class="ord-dtp__trigger" aria-haspopup="dialog" aria-expanded="false"></button>
-    <div class="ord-dtp__panel" role="dialog" aria-label="배송일시 선택">
-      <div class="cal-head">
-        <button type="button" class="cal-nav cal-prev" aria-label="이전 달">‹</button>
-        <span class="cal-title"></span>
-        <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
-      </div>
-      <div class="cal-grid"></div>
-      <div class="ord-dtp__time">
-        <span class="ord-dtp__tlbl">배송 시간</span>
-        <div class="ord-dtp__row">
-          <div class="dd" data-dtp-h>
-            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-            <div class="dd-panel" role="listbox"></div>
-          </div>
-          <span class="ord-dtp__colon">:</span>
-          <div class="dd" data-dtp-m>
-            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-            <div class="dd-panel" role="listbox"></div>
-          </div>
-        </div>
-      </div>
-      <div class="ord-dtp__foot">
-        <span>
-          <span class="ord-dtp__flbl">선택한 배송일시</span>
-          <b class="ord-dtp__fval"></b>
-        </span>
-        <button type="button" class="ord-dtp__done" data-dtp-done>완료</button>
-      </div>
     </div>
   </div>`;
 
@@ -435,71 +383,6 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew 
       <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
     </div>`;
 }
-
-/* ── 카드 ─────────────────────────────────────────────────── */
-export const card = ({ title, cap, body, slot, cls }) => html`
-  <section class="ord-card ${cls || ""}">
-    <div class="ord-card__head">
-      <b class="ord-card__t">${title}</b>
-      ${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}
-    </div>
-    <div data-slot="${slot || ""}">${body}</div>
-  </section>`;
-
-/* ── 상시 편집 필드 ───────────────────────────────────────────
-   서술자: { k, label, type, full, lock, ph, options, fmt, value }
-   type: text · tel · num · won · select · datetime · textarea · static
-   full:true 는 단독 행(96px + 1fr), 아니면 두 개씩 묶어 한 행(96/1fr/96/1fr). */
-function fieldCell(d, order) {
-  const v = d.value ? d.value(order) : (order[d.k] ?? "");
-  if (d.type === "static" || d.lock) {
-    const cls = "ord-in ord-in--lock" + (d.type === "won" ? " ord-in--won" : "");
-    return html`<input class="${cls}" value="${d.type === "won" ? won(v) : v}" data-slot="${d.k || d.label}" disabled />`;
-  }
-  if (d.type === "select") {
-    /* 셸(.ord-fdd)만 남기고 트리거는 클래스를 안 준다 — 공용 `.modal-panel .dd-trigger`
-       (0,2,0)가 어차피 이기므로, 톤은 아래 .ord-fdd 스코프 규칙에서 되돌린다. */
-    return html`<div class="dd ord-fdd" data-dd-f="${d.k}">
-      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-      <div class="dd-panel" role="listbox"></div>
-    </div>`;
-  }
-  if (d.type === "datetime") return dtpMarkup();
-  if (d.type === "textarea") {
-    return html`<textarea class="ord-in" data-f="${d.k}" rows="1" placeholder="${d.ph ?? ""}">${v}</textarea>`;
-  }
-  const extra = d.type === "won" ? " ord-in--won" : d.type === "tel" || d.type === "num" ? " ord-in--num" : "";
-  const numeric = d.type === "tel" || d.type === "num" || d.type === "won";
-  return html`<input class="ord-in${extra}" data-f="${d.k}" value="${d.type === "won" ? won(v) : v}"
-    inputmode="${numeric ? "numeric" : "text"}" placeholder="${d.ph ?? ""}" />`;
-}
-
-export function renderFields(defs, order) {
-  const out = [];
-  let buf = [];
-  const flush = () => {
-    if (!buf.length) return;
-    const top = buf.some((d) => d.type === "textarea");
-    out.push(html`<div class="ord-row ${buf.length === 1 ? "ord-row--full" : ""} ${top ? "ord-row--top" : ""}">
-      ${buf.map((d) => html`<label class="ord-k">${d.label}</label>${fieldCell(d, order)}`)}
-    </div>`);
-    buf = [];
-  };
-  for (const d of defs) {
-    if (d.full) { flush(); buf = [d]; flush(); continue; }
-    buf.push(d);
-    if (buf.length === 2) flush();
-  }
-  flush();
-  return out;
-}
-
-/* 자동 높이 textarea — 붙여넣기로 줄이 늘어도 스크롤바가 생기지 않게 */
-export const autosize = (el) => {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = Math.max(34, el.scrollHeight) + "px";
-};
 
 /* ── 처리 레일(다크) ──────────────────────────────────────── */
 export function railV2({ order, imgInner, cap = "배송 현장 기록" }) {
