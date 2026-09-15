@@ -36,6 +36,26 @@ const IN_CAT = (c) => ALL_PRODUCTS.filter((p) => p.category === c);
 const norm = (v) => (typeof v === "number" && v > 0 ? v : 0);
 const baseOf = (p) => priceNum(p.price);
 
+/** 실효 단가 — 저장 후 **실제로 적용될** 값. 정가와 같은 오버라이드는 '정가'와 같은 상태다.
+ *  맞춤 개수와 가격변동이 서로 다른 정의를 쓰면 "맞춤 0 인데 변경 1건"처럼 화면이 모순된다. */
+const effOf = (p, v) => { const n = norm(v); return n > 0 && n !== baseOf(p) ? n : 0; };
+
+/* 오타 방어 상한 — 카탈로그 최고가가 12만원이라 1,000만원이면 충분히 넉넉하다. */
+const MAX_PRICE = 10000000;
+/** 입력 원문 → `{ ok, n }`. 숫자·쉼표·공백만 받는다.
+ *  ⚠️ 숫자 이외를 **지우면 안 된다**. `replace(/[^0-9]/g,"")` 는 구분자를 없애며
+ *  자릿수를 옮긴다 — `12345.67` → 1,234,567(100배), `1e9` → 19, `-1` → 1, `007` → 7.
+ *  단가는 청구 근거라 조용히 다른 수가 되는 것이 가장 나쁘다. 그래서 **거부**한다. */
+function parseAmount(raw) {
+  const t = String(raw == null ? "" : raw).trim();
+  if (!t) return { ok: true, n: 0 };
+  /* 앞자리 0 도 거부한다 — `007` 이 7원이 되는 건 오타를 값으로 받아들이는 것이다 */
+  if (!/^[1-9][0-9,\s]*$/.test(t)) return { ok: false, n: 0 };
+  const n = parseInt(t.replace(/[,\s]/g, ""), 10);
+  if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_PRICE) return { ok: false, n: 0 };
+  return { ok: true, n };
+}
+
 export function mount(root, { nav }) {
   const clients = () => store.get().clients;
   const state = {
@@ -64,10 +84,7 @@ export function mount(root, { nav }) {
 
   /** 정가와 다른 단가가 걸린 상품 수(현재 편집 기준) */
   const customCount = (cid) =>
-    ALL_PRODUCTS.filter((p) => {
-      const v = norm(mapOf(cid)[productKey(p)]);
-      return v > 0 && v !== baseOf(p);
-    }).length;
+    ALL_PRODUCTS.filter((p) => effOf(p, mapOf(cid)[productKey(p)]) > 0).length;
 
   /** 저장값과 달라진 키들 — 저장 전 변경 패널의 단일 소스 */
   const changedKeys = (cid) => {
@@ -75,15 +92,17 @@ export function mount(root, { nav }) {
     if (!d) return [];
     const s = savedOf(cid);
     const keys = new Set([...Object.keys(s), ...Object.keys(d)]);
-    return [...keys].filter((k) => BY_KEY.has(k) && norm(s[k]) !== norm(d[k]));
+    /* 실효값으로 비교한다 — 정가와 같은 값을 적었다 지운 것은 '변동'이 아니다.
+       (맞춤 카운트와 같은 정의를 써야 네 숫자가 어긋나지 않는다) */
+    return [...keys].filter((k) => {
+      const p = BY_KEY.get(k);
+      return p && effOf(p, s[k]) !== effOf(p, d[k]);
+    });
   };
   const isDirty = (cid) => changedKeys(cid).length > 0;
 
   const catCustom = (cid, cat) =>
-    IN_CAT(cat).filter((p) => {
-      const v = norm(mapOf(cid)[productKey(p)]);
-      return v > 0 && v !== baseOf(p);
-    }).length;
+    IN_CAT(cat).filter((p) => effOf(p, mapOf(cid)[productKey(p)]) > 0).length;
 
   const shownClients = () => {
     const q = state.q.trim().toLowerCase();
@@ -100,10 +119,7 @@ export function mount(root, { nav }) {
   const covBody = () => {
     const cs = clients();
     const n = cs.filter((c) =>
-      ALL_PRODUCTS.some((p) => {
-        const v = norm(savedOf(c.id)[productKey(p)]);
-        return v > 0 && v !== baseOf(p);
-      })
+      ALL_PRODUCTS.some((p) => effOf(p, savedOf(c.id)[productKey(p)]) > 0)
     ).length;
     const dirty = cs.filter((c) => isDirty(c.id)).length;
     return html`거래처 <strong>${cs.length}</strong>곳 중 <strong>${n}</strong>곳에 맞춤 단가 ·
@@ -133,7 +149,7 @@ export function mount(root, { nav }) {
     const key = productKey(p);
     const base = baseOf(p);
     const v = norm(mapOf(state.clientId)[key]);
-    const custom = v > 0 && v !== base;
+    const custom = effOf(p, v) > 0;
     return html`
       <div class="prc-row">
         <span class="prc-row__nm" title="${p.product}">${p.product}</span>
@@ -202,7 +218,7 @@ export function mount(root, { nav }) {
         })}
       </ul>
       <div class="prc-pend__ft">
-        <button type="button" class="btn btn-secondary" data-action="revert">되돌리기</button>
+        <button type="button" class="btn btn-ghost" data-action="revert">되돌리기</button>
         <button type="button" class="prc-save" data-action="save">${icon("save", { size: 15 })} ${keys.length}건 저장</button>
       </div>`;
   };
@@ -246,11 +262,31 @@ export function mount(root, { nav }) {
 
   /* ── 부분 갱신 ─────────────────────────────────────────
      입력 중에는 아코디언을 절대 다시 그리지 않는다(포커스·커서 소실). */
-  const put = (slot, body) => { const e = qs(root, `[data-slot='${slot}']`); if (e) setHTML(e, body); };
+  /* ⚠️ `setHTML` 은 Html 인스턴스가 아니면 이스케이프 없이 innerHTML 에 넣는다.
+     회사명은 가입 화면의 자유 입력이라 평문을 그대로 넘기면 태그가 실행된다 —
+     문자열은 여기서 한 번 감싸 render() 와 같은 경로를 타게 한다. */
+  const put = (slot, body) => {
+    const e = qs(root, `[data-slot='${slot}']`);
+    if (e) setHTML(e, typeof body === "string" ? html`${body}` : body);
+  };
   const syncPend = () => {
     put("pend", pendBody());
     const p = qs(root, "[data-slot='pend']");
-    if (p) p.classList.toggle("is-on", isDirty(state.clientId));
+    if (!p) return;
+    const on = isDirty(state.clientId);
+    const was = p.classList.contains("is-on");
+    p.classList.toggle("is-on", on);
+    /* 패널은 하단 고정이라 본문 위에 뜬다 — 그만큼 아래에 자리를 비워 두지 않으면
+       **지금 입력 중인 칸**이 덮인다(문서 끝 행에서 첫 타건에 바로 일어난다). */
+    const inner = qs(root, ".admin-inner");
+    if (inner) inner.style.setProperty("--prc-pend-h", on ? `${p.offsetHeight}px` : "0px");
+    /* 패널이 **막 나타나는 순간**(첫 타건)에는 예약 공간이 아직 스크롤에 반영되지 않아
+       입력 중인 칸이 덮인다. 그 한 번만 칸을 화면 안으로 끌어온다 —
+       매 타건마다 하면 화면이 계속 흔들린다. */
+    if (on && !was) {
+      const a = document.activeElement;
+      if (a && a.dataset && a.dataset.pk) a.scrollIntoView({ block: "center" });
+    }
   };
   const syncCounts = () => {
     put("cap", capBody());
@@ -285,12 +321,15 @@ export function mount(root, { nav }) {
       if (sec) sec.classList.toggle("is-open", !state.closed.has(cat));
       t.setAttribute("aria-expanded", state.closed.has(cat) ? "false" : "true");
     } else if (a === "reset-all") {
+      /* 되돌릴 것이 없는데 "저장해야 반영됩니다"라고 하면 지시를 따를 수단이 화면에 없다 */
+      if (!customCount(state.clientId)) { toast("이미 전 상품이 정가입니다"); return; }
       const d = draftFor(state.clientId);
       Object.keys(d).forEach((k) => delete d[k]);
       put("acc", accBody());
       syncCounts();
       syncPend();
-      toast(`${nameOf(state.clientId)} 단가를 모두 정가로 되돌렸습니다 · 저장해야 반영됩니다`, "warn");
+      const n = changedKeys(state.clientId).length;
+      toast(`${nameOf(state.clientId)} 맞춤 단가 ${n}건을 정가로 되돌렸습니다 · 저장해야 반영됩니다`, "warn");
     } else if (a === "revert") {
       delete state.drafts[state.clientId];
       put("acc", accBody());
@@ -301,6 +340,9 @@ export function mount(root, { nav }) {
       const n = changedKeys(state.clientId).length;
       store.setClientPrices(state.clientId, state.drafts[state.clientId] || {});
       delete state.drafts[state.clientId];
+      /* 입력칸을 저장값으로 다시 쓴다 — 없으면 거절된 원문이 화면에 남아
+         저장된 값과 보이는 값이 갈린다(패널은 저장과 함께 사라진다). */
+      put("acc", accBody());
       syncCounts();
       syncPend();
       toast(`${nameOf(state.clientId)} 단가 ${n}건을 저장했습니다`, "ok");
@@ -318,21 +360,39 @@ export function mount(root, { nav }) {
     const key = t.dataset.pk;
     const p = BY_KEY.get(key);
     if (!p) return;
-    const n = parseInt(String(t.value).replace(/[^0-9]/g, ""), 10);
+    const { ok, n } = parseAmount(t.value);
+    t.classList.toggle("is-bad", !ok);
+    t.setAttribute("aria-invalid", ok ? "false" : "true");
+    if (!ok) return; /* 거부 — draft 를 건드리지 않는다(잘못 읽힌 수가 저장되는 것보다 낫다) */
     const d = draftFor(state.clientId);
-    if (n > 0) d[key] = n; else delete d[key];
-    const v = norm(d[key]);
     const base = baseOf(p);
+    /* 정가와 같은 값은 오버라이드가 아니다 — 저장해 두면 나중에 정가가 오를 때
+       그 잔재가 조용히 할인으로 되살아난다. */
+    if (n > 0 && n !== base) d[key] = n; else delete d[key];
+    const v = norm(d[key]);
     const b = qs(root, `[data-badge="${key}"]`);
-    if (b) setHTML(b, badge(v > 0 && v !== base, v, base));
+    if (b) setHTML(b, badge(effOf(p, v) > 0, n, base));
     syncCounts();
     syncPend();
+  });
+
+  /* 포커스가 빠지면 칸을 draft 기준으로 다시 쓴다 — 거절된 원문(`12345.67`)이나
+     서식 없는 숫자가 남아 커밋값과 갈리지 않게. 포커스가 없으니 커서 규약과 무관하다.
+     `blur` 는 버블링하지 않아 위임이 안 된다 — `focusout` 을 쓴다. */
+  const offBlur = on(root, "focusout", "[data-pk]", (e, t) => {
+    const key = t.dataset.pk;
+    if (!BY_KEY.has(key)) return;
+    const v = norm(mapOf(state.clientId)[key]);
+    t.value = v > 0 ? v.toLocaleString("ko-KR") : "";
+    t.classList.remove("is-bad");
+    t.setAttribute("aria-invalid", "false");
   });
 
   return () => {
     offClick();
     offSearch();
     offInput();
+    offBlur();
     toast.destroy();
   };
 }

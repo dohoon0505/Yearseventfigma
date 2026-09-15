@@ -245,4 +245,18 @@ export const store = {
   clientPriceFor(clientId, key) {
     return state.clientPrices?.[clientId]?.[key];
   },
+  /** 적용 단가(원) — 거래처 계약 단가가 있으면 그것, 없으면 카탈로그 정가.
+   *  `product` 는 카탈로그 레코드 또는 상품명 문자열.
+   *
+   *  ⚠️ **이 규칙을 복제하지 말 것.** 포털 상품안내·포털 주문 퍼널·관리자 주문서가
+   *  각자 같은 로직을 들고 있었고, 그 중 주문 퍼널만 빠져 있어 같은 거래처가
+   *  상품안내에서는 계약가를, 결제 화면에서는 정가를 보고 있었다. */
+  appliedPrice(clientId, product) {
+    const p = typeof product === "string"
+      ? ALL_PRODUCTS.find((x) => x.product === product)
+      : product;
+    if (!p) return 0;
+    const custom = state.clientPrices?.[clientId]?.[productKey(p)];
+    return typeof custom === "number" && custom > 0 ? custom : priceNum(p.price);
+  },
 };

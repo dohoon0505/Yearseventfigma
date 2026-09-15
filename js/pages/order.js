@@ -6,6 +6,7 @@
    ============================================================ */
 import { html, raw, setHTML, on, qs, qsa } from "../dom.js";
 import { store, ALL_PRODUCTS, productKey, receivingContacts } from "../store.js";
+import { currentClient } from "../util/client.js";
 import { pageTitle, makeDropdown, makeDatepicker, simpleModal } from "../ui.js";
 import { deliveryFeeFor } from "../data/delivery-fees.js";
 import { evaluateAddress, matchesProduct } from "../data/intake-rules.js";
@@ -15,6 +16,11 @@ import { BIZ, hourOptions, minOptions } from "../util/date.js";
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
+
+/* 적용 단가 — 카탈로그 정가(`p.price`)가 아니라 **이 거래처의 계약 단가**를 쓴다.
+   예전엔 이 화면만 정가를 써서, 같은 거래처가 '상품 규격 안내'에서는 계약가를
+   보고 결제 화면에서는 정가를 보는 어긋남이 있었다(관리자 기업별 상품단가 참조). */
+const appliedOf = (p) => store.appliedPrice((currentClient() || {}).id || null, p);
 
 /* 연락처 자동 하이픈 — 순수 포맷. 받는분·추가 수신자 입력이 공유한다. */
 const fmtPhone = (v) => {
@@ -412,7 +418,7 @@ export function mount(root, { nav }) {
         <button class="prod-row ${state.product && productKey(state.product) === productKey(p) ? "sel" : ""}" data-prod="${productKey(p)}">
           <span class="radio"></span>
           <span class="pi"><b>${p.product}</b><span>${p.category} · 표준 규격 · 당일배송 가능</span></span>
-          <span class="pp num">${p.price}</span>
+          <span class="pp num">${won(appliedOf(p))}</span>
         </button>
       `)}
     `);
@@ -650,7 +656,7 @@ export function mount(root, { nav }) {
       }
     }
     const body = html`
-      <div class="hm-info"><span><b>${state.product.product}</b> · <b class="num">${won(parseWon(state.product.price) + deliveryFeeFor(state.addr).fee)}</b>으로 주문을 접수합니다. 접수 후에는 리본문구·보내는분을 수정할 수 없어요.</span></div>
+      <div class="hm-info"><span><b>${state.product.product}</b> · <b class="num">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</b>으로 주문을 접수합니다. 접수 후에는 리본문구·보내는분을 수정할 수 없어요.</span></div>
     `;
     const footer = html`
       <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
@@ -845,11 +851,11 @@ export function mount(root, { nav }) {
         <span class="cf-noedit"></span></div>
     `);
     /* 결제 금액: 추가 배송비가 있으면 상품/배송비 내역을 함께 표기 */
-    const total = parseWon(p.price) + df.fee;
+    const total = appliedOf(p) + df.fee;
     setHTML($("[data-cf-pay]"), html`
       ${df.fee > 0
         ? html`<div class="cf-brk">
-            <div class="cf-brk__row"><span class="k">상품 금액</span><span class="v num">${p.price}</span></div>
+            <div class="cf-brk__row"><span class="k">상품 금액</span><span class="v num">${won(appliedOf(p))}</span></div>
             <div class="cf-brk__row"><span class="k">추가 배송비 <em>${df.region} 지역</em></span><span class="v num">+${won(df.fee)}</span></div>
           </div>`
         : ""}
@@ -865,7 +871,7 @@ export function mount(root, { nav }) {
       <div class="cf-row"><span class="cl">배송</span><span class="cv">${dateLabel()}<small>${state.addr}</small></span></div>
       <div class="cf-row"><span class="cl">담당자</span><span class="cv">${c.name} (${c.phone})</span></div>
       <div class="cf-row"><span class="cl">배송완료 알림</span><span class="cv">${notifyLabel()}${notifyExtraDetail() ? html`<small>${notifyExtraDetail()}</small>` : ""}</span></div>
-      <div class="cf-row"><span class="cl">결제 금액</span><span class="cv num done-amount">${won(parseWon(state.product.price) + deliveryFeeFor(state.addr).fee)}</span></div>
+      <div class="cf-row"><span class="cl">결제 금액</span><span class="cv num done-amount">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</span></div>
     `);
     $$("[data-panel]").forEach((p) => p.classList.remove("on"));
     $('[data-panel="done"]').classList.add("on");
