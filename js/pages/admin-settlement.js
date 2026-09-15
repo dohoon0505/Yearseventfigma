@@ -308,7 +308,7 @@ export function mount(root, { nav }) {
         ${top.map((o) => html`
           <div class="settle-drill__row">
             <span class="settle-drill__d">${o.date.slice(5, 10)}</span>
-            <span class="settle-drill__s">${o.sender}</span>
+            <span class="settle-drill__s">${o.ordererName}</span>
             <span class="settle-drill__a ellipsis" title="${o.address}">${o.address}</span>
             <span class="settle-drill__p">${o.product}</span>
             <span class="settle-drill__m">${Number(o.amount).toLocaleString("ko-KR")}원</span>
