@@ -28,7 +28,7 @@ import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util
 import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
 import { openOrderCreate } from "../util/order-create.js";
-import { openRowPicker, MANUAL } from "../util/order-dialogs.js";
+import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts } from "../store.js";
@@ -538,6 +538,7 @@ export function mount(root, { nav }) {
     createModal = openOrderCreate({
       title: "B2B 거래처 주문 등록",
       subtitle: "거래처 계약단가로 접수하고, 월 마감 후 계산서로 청구합니다",
+      autofill: true,
       toast,
       steps: [
         { key: "s1", title: "거래처", cap: "주문의 성격을 정합니다",
@@ -582,6 +583,19 @@ export function mount(root, { nav }) {
       })());
     });
     on(panel, "click", "[data-ccli]", (e, t) => cPickClient(t.dataset.ccli));
+    on(panel, "click", "[data-action='autofill']", () => {
+      openAutofill({ toast, onApply: (r) => {
+        cDraft.address = r.addr;
+        cDraft.recipientName = r.toName;
+        cDraft.recipientPhone = r.toPhone;
+        if (r.kind === "wed" && r.dayOffset != null) {
+          const d = new Date(); d.setDate(d.getDate() + r.dayOffset);
+          cDraft.deliverAt = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${r.hour}:${r.min}`;
+        }
+        createModal.rerenderStep("s2"); createModal.rerenderRail();
+        createModal.syncFooter(); createModal.markTouched();
+      } });
+    });
     on(panel, "click", "[data-action='cpick-mgr']", () => {
       openStaffPicker({ current: cDraft.manager, names: staffOptions, toast,
         onPick: (v) => { cDraft.manager = v; createModal.rerenderStep("s1"); createModal.syncFooter(); } });

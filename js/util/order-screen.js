@@ -21,6 +21,7 @@ import { icon } from "../icons.js";
 import { openModal, makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
 import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
+import { openRowPicker } from "./order-dialogs.js";
 
 /* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
    새 코드는 order-fields.js 에서 직접 가져올 것. */
@@ -256,54 +257,16 @@ export function openStaffPicker({ current, names, onPick, toast }) {
   /* 목록에 없는 기존 담당자(직원이 삭제된 경우)는 맨 위에 남겨 둔다 —
      조용히 다른 사람으로 재배정되는 것이 가장 나쁜 결과다. */
   const orphan = cur && !list.some((s) => s.name === cur);
-  const rows = orphan ? [{ name: cur, dept: "목록에 없음", orphan: true }, ...list] : list;
-  let pick = cur || "";
-  const m = openModal({
-    panelClass: "modal-panel--ordconfirm",
-    body: html`
-      <div class="hm__head">
-        <div>
-          <h3 id="modal-title">담당자 지정</h3>
-          <p>이 주문을 담당할 직원을 선택하세요.</p>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <div class="odlg-rows" role="radiogroup" aria-label="담당자">
-          ${rows.map((s) => html`
-            <button class="odlg-row ${s.name === pick ? "is-sel" : ""} ${s.orphan ? "odlg-row--orphan" : ""}"
-              data-pick="${s.name}" role="radio" aria-checked="${s.name === pick ? "true" : "false"}">
-              <span class="odlg-row__name">${s.name}</span>
-              <span class="odlg-row__dept">${s.dept}</span>
-            </button>`)}
-        </div>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="mgr-go" ${pick ? "" : "disabled"}>
-          ${icon("check", { size: 14 })} 지정</button>
-      </div>`,
-    labelledBy: "modal-title",
+  const rows = (orphan ? [{ name: cur, dept: "", orphan: true }, ...list] : list)
+    .map((s) => ({ v: s.name, name: s.name, sub: s.dept, orphan: s.orphan }));
+  /* 껍데기는 `openRowPicker` 하나다 — 고아 행·radiogroup·확인 게이트·
+     `onPick === false` 의 토스트 생략이 세 다이얼로그에서 갈리지 않게. */
+  return openRowPicker({
+    title: "담당자 지정", desc: "이 주문을 담당할 직원을 선택하세요.",
+    rows, current: cur, confirmLabel: " 지정", confirmIcon: "check", toast,
+    empty: "지정할 수 있는 담당자가 없습니다.",
+    onPick, pickedMsg: (v) => `담당자를 ${v}(으)로 지정했습니다`,
   });
-  const p = m.panel;
-  const go = qs(p, "[data-action='mgr-go']");
-  on(p, "click", "[data-action='close']", () => m.close());
-  on(p, "click", "[data-pick]", (e, t) => {
-    pick = t.dataset.pick;
-    qsa(p, "[data-pick]").forEach((b) => {
-      const on_ = b.dataset.pick === pick;
-      b.classList.toggle("is-sel", on_);
-      b.setAttribute("aria-checked", on_ ? "true" : "false");
-    });
-    go.disabled = false;
-  });
-  on(p, "click", "[data-action='mgr-go']", () => {
-    if (!pick) { toast("담당자를 선택하세요", "warn"); return; }
-    if (onPick(pick) === false) { m.close(); return; }
-    m.close();
-    toast(`담당자를 ${pick}(으)로 지정했습니다`);
-  });
-  return m;
 }
 
 /* ══════════════════════════════════════════════════════════════

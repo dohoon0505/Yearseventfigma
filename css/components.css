@@ -1927,6 +1927,11 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* 직접 입력 — 목록에 없는 사람을 적는 경로. 목록과 섞이지 않게 위에 선을 긋는다.
    ⚠️ 이 블록이 없으면 담당자 0명인 거래처에서 주문 등록이 막힌다(이관 데이터 18/19곳). */
 .odlg-manual { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-divider); }
+
+/* 자동작성 — 링크 한 칸과 그 자리에서 답하는 안내 두 줄 */
+.odlg-auto { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.odlg-auto__err { font-size: var(--fs-13); color: var(--c-danger); line-height: 1.6; }
+.odlg-auto__hint { font-size: var(--fs-12); color: var(--c-text-ghost); line-height: 1.7; word-break: keep-all; }
 .odlg-manual__f { display: flex; gap: 8px; padding: 8px 12px 2px; }
 .odlg-manual__f .ord-in { flex: 1; min-width: 0; }
 
