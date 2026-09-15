@@ -17,7 +17,7 @@
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowToneLegend } from "../ui.js";
 import { getDateRange, formatDateLabel, orderRowTone } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { pushHistory } from "../data/order-history.js";
@@ -112,7 +112,7 @@ export function mount(root, { nav }) {
     });
   }
   function summaryBody() {
-    return html`조회 <strong>${filtered().length}</strong>건`;
+    return html`<span>조회 <strong>${filtered().length}</strong>건</span>${rowToneLegend()}`;
   }
 
   /* ══ 필터 블록 — claude_design '필터 영역 리디자인' 시안 ══
