@@ -1623,27 +1623,30 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-st__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
 
 /* ── 레일 카드 ─────────────────────────────────────────────── */
-.cli-railcard {
+/* 다크 레일 위 정보 카드 · 세그먼트 — `--cli` 전용이 아니라 **공용**이다.
+   주문서 등록 모달의 레일(정산 안내·계약단가 요약)과 결제 상태 세그먼트가
+   같은 모양을 쓴다. 여섯 번째 사본을 만들지 않으려고 이름에서 cli 를 뗐다. */
+.rail-card {
   background: var(--c-rail-2); border: 1px solid var(--c-rail-line);
   border-radius: var(--r-xl); padding: 15px;
 }
-.cli-railcard__k { font-size: var(--fs-14); color: var(--c-rail-ink); }
-.cli-railcard__v {
+.rail-card__k { font-size: var(--fs-14); color: var(--c-rail-ink); }
+.rail-card__v {
   margin-top: 2px; font-size: var(--fs-21); font-weight: var(--fw-semibold);
   color: var(--c-surface); font-variant-numeric: tabular-nums; word-break: break-all;
 }
-.cli-railbtn {
+.rail-card__btn {
   width: 100%; margin-top: 13px; height: 38px; border-radius: var(--r-pill);
   background: var(--c-surface); color: var(--c-text-strong);
   font-size: var(--fs-14); font-weight: var(--fw-semibold);
 }
-.cli-railbtn:hover { background: var(--c-surface-2); }
-.cli-railcard__out {
+.rail-card__btn:hover { background: var(--c-surface-2); }
+.rail-card__out {
   margin-top: 9px; font-size: var(--fs-12); line-height: 1.5;
   color: var(--c-rail-ink); word-break: break-all;
 }
 /* 레일 안 입력칸(신규 등록 시 접속 아이디) — 다크 면 위라 흰 면으로 뒤집는다 */
-.cli-railcard .hm-input {
+.rail-card .hm-input {
   height: 36px; padding: 0 10px; margin-top: 4px;
   font-size: var(--fs-17); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
 }
@@ -1706,14 +1709,14 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-banner__btn--ok:hover { background: var(--c-orange-hover); }
 
 /* ── 매출 채널 세그먼트 ────────────────────────────────────── */
-.cli-seg { display: flex; gap: 6px; }
-.cli-seg__btn {
+.seg-pill { display: flex; gap: 6px; }
+.seg-pill__btn {
   height: 36px; padding: 0 16px; border-radius: var(--r-pill);
   border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text-4);
   font-size: var(--fs-14); transition: background 0.14s, color 0.14s, border-color 0.14s;
 }
-.cli-seg__btn:hover { background: var(--c-surface-2); }
-.cli-seg__btn.is-on {
+.seg-pill__btn:hover { background: var(--c-surface-2); }
+.seg-pill__btn.is-on {
   background: var(--c-text-strong); border-color: var(--c-text-strong);
   color: var(--c-surface); font-weight: var(--fw-semibold);
 }
