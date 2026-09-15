@@ -4,7 +4,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "../ui.js";
-import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone } from "../util/date.js";
+import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 
 /* 배송 현장사진은 2:3 세로형으로 촬영·수신된다. (데모: 카테고리별 샘플) */
@@ -62,9 +62,6 @@ const orderData = [
   { id: 16, manager: "김총무", date: at(lastMonth(6), "09:00"), address: "제주 제주시 첨단로 242 제주첨단과학기술단지 컨벤션홀", sender: "경영지원팀", profile: "주식회사 싱크플로 경영지원팀", product: "관엽화분(대)", amount: "130,000원", status: "배송완료", hasPhoto: false },
 ].map((o) => (o.status === "배송완료" ? { ...o, hasPhoto: true } : o)); // 배송완료 주문은 배송 현장사진이 항상 첨부됨
 
-// 주문현황 정렬 우선순위(상단→하단): 접수대기 → 주문접수 → 배송완료
-const STATUS_RANK = { "접수대기": 0, "주문접수": 1, "배송완료": 2 };
-
 /* 주문현황 색 의미 — 상태 칩·배지·상세 모달이 공유하는 단일 스타일 맵.
    색은 tokens.css 토큰만(b2c-mock.js 의 B2C_STATUS_STYLE 과 같은 형태). */
 const STATUS_STYLE = {
@@ -116,8 +113,10 @@ export function mount(root, { nav }) {
         if (state.address && !o.address.includes(state.address)) return false;
         return true;
       })
-      // 주문현황 우선순위 내림차순(접수대기 상단 → 배송완료 하단). 동순위는 기존 순서 유지.
-      .sort((a, b) => (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99));
+      /* 행 색 순서로 무조건 정렬 — 노랑(접수대기) → 핑크(당일·지연) → 파랑(예약)
+         → 흰색(배송완료). 구 STATUS_RANK 는 주문접수를 한 덩어리로 봤는데,
+         색이 당일/예약을 가르므로 순서도 같이 갈라야 눈의 기대와 맞는다. */
+      .sort(byToneRank((o) => o.date));
   }
 
   const columns = [
