@@ -511,16 +511,25 @@ export function railV2({ order, imgInner, cap = "배송 현장 기록" }) {
 
 /* ── 요약 · 이력 ──────────────────────────────────────────── */
 /** 배송일시까지 남은시간 — 경과/임박은 색으로 구분한다 */
+/* 일·시간·분 — 큰 단위 둘만, 0 인 작은 단위는 뺀다
+   ("3일 2시간" · "3일" · "2시간 40분" · "1시간" · "15분") */
+const spanOf = (ms) => {
+  const dd = Math.floor(ms / 86400000);
+  const hh = Math.floor((ms % 86400000) / 3600000);
+  const mm = Math.floor((ms % 3600000) / 60000);
+  if (dd) return hh ? `${dd}일 ${hh}시간` : `${dd}일`;
+  if (hh) return mm ? `${hh}시간 ${mm}분` : `${hh}시간`;
+  return `${mm}분`;
+};
+
 export function remainOf(deliverAt) {
   const d = parseFlexDate(deliverAt);
   if (!d) return { label: "-", cls: "" };
   const t = d.getTime() - Date.now();
-  if (t <= 0) return { label: "배송 시간 경과", cls: "is-past" };
-  const dd = Math.floor(t / 86400000);
-  const hh = Math.floor((t % 86400000) / 3600000);
-  const mm = Math.floor((t % 3600000) / 60000);
-  const label = dd ? `${dd}일 ${hh}시간 남음` : hh ? `${hh}시간 ${mm}분 남음` : `${mm}분 남음`;
-  return { label, cls: t < 86400000 ? "is-soon" : "" };
+  /* 지났으면 **얼마나** 지났는지까지 적는다 — '경과'만 있으면 15분 늦은 건과
+     사흘 묵은 건이 같아 보여 어느 쪽을 먼저 잡을지 판단할 수 없다. */
+  if (t <= 0) return { label: `${spanOf(-t)} 경과`, cls: "is-past" };
+  return { label: `${spanOf(t)} 남음`, cls: t < 86400000 ? "is-soon" : "" };
 }
 
 export function summaryBodyV2({ order, rows }) {

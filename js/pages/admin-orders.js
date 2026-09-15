@@ -275,9 +275,12 @@ export function mount(root, { nav }) {
                 body: historyBody(editing), slot: "hist",
               })}
               ${/* 거래 조건은 메모가 아니라 거래 조건이다 — 요약 레일 맨 아래에 붙여
-                   담당자가 발주를 결정하기 직전에 한 번 더 보게 한다. */ ""}
-              ${c && c.clientNote ? html`
-                <div class="hm-warn ord-notebox"><span><b>거래 조건</b><br />${c.clientNote}</span></div>` : ""}
+                   담당자가 발주를 결정하기 직전에 한 번 더 보게 한다.
+                   껍데기는 요약·처리 이력과 **같은 .ord-card**, 본문 글자만 경고색. */ ""}
+              ${c && c.clientNote ? card({
+                title: "거래 조건", cap: c.companyName,
+                body: html`<p class="ord-note__body">${c.clientNote}</p>`,
+              }) : ""}
             </div>
           </div>
         </div>

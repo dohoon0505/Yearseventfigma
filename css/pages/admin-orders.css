@@ -8,16 +8,11 @@
    ============================================================ */
 
 /* 거래 조건(clientNote) — 메모가 아니라 거래 조건이다((주)홈팩: "무조건 특대상품").
-   목록에서 미리 알아보게 하고, 상세를 열면 같은 내용이 배너로 뜬다. */
+   목록에서 미리 알아보게 하고, 상세를 열면 요약 레일 맨 아래 카드로 전문이 뜬다
+   (카드 본문은 components.css 의 .ord-note__body). */
 .ord-note {
   display: inline-flex; align-items: center; justify-content: center;
   width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
   background: var(--c-danger-bg); color: var(--c-danger-ink);
   font-size: 10px; font-weight: var(--fw-bold); line-height: 1; vertical-align: middle;
-}
-/* 모달 최상단 배너 — 다크 레일 오른쪽 본문(.ord-pane)의 첫 자식이다.
-   .ord-pane 이 flex 라 가로 전폭을 자연히 차지한다(구 order:-1 해킹 불필요). */
-.ord-notebox {
-  margin-bottom: 0;
-  white-space: pre-line;
 }
