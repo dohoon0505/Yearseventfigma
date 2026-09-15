@@ -5,6 +5,7 @@
    ============================================================ */
 import { mountShell, unmountShell, setActiveNav } from "./shell.js";
 import { getRole } from "./session.js";
+import { closeAllModals } from "./ui.js";
 
 const routes = [
   { hash: "#/", redirect: "#/login" },
@@ -71,6 +72,8 @@ async function render() {
     }
     cleanup = null;
   }
+  /* 페이지가 모르는 스택 모달(담당자 피커 등)이 다음 화면을 덮지 않도록 */
+  closeAllModals();
 
   let target;
   if (route.shell) {

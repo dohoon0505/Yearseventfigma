@@ -70,6 +70,11 @@ export function tableGrid({ columns, rows, rowKey, rowClass, compact = false, fi
 }
 
 /* ── Modal chrome with ESC / backdrop / focus-trap ──────── */
+/* 열려 있는 모달 전부 — 라우트가 바뀔 때 일괄 정리한다.
+   페이지 cleanup 은 **자기가 연 것만** 안다. 주문 모달 위에 스택되는 담당자 피커처럼
+   컴포넌트가 스스로 연 모달은 페이지가 모르므로 남아서 다음 화면을 덮는다. */
+const OPEN_MODALS = new Set();
+
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
@@ -91,11 +96,13 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
   const panel = overlay.querySelector(".modal-panel");
   setHTML(panel, body);
   document.body.appendChild(overlay);
+  OPEN_MODALS.add(close); /* function 선언이라 호이스팅된다 */
 
   let closed = false;
   function close() {
     if (closed) return;
     closed = true;
+    OPEN_MODALS.delete(close);
     document.removeEventListener("keydown", onKey, true);
     overlay.remove();
     if (prevFocus && prevFocus.focus) prevFocus.focus();
@@ -147,6 +154,18 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
       focusFirst();
     },
   };
+}
+
+/** 열려 있는 모달을 전부 닫는다(최근에 연 것부터). 라우터가 화면 전환 때 호출한다. */
+export function closeAllModals() {
+  [...OPEN_MODALS].reverse().forEach((close) => {
+    try {
+      close();
+    } catch (e) {
+      console.error("[modal] close failed", e);
+    }
+  });
+  OPEN_MODALS.clear();
 }
 
 /** openLightbox({ src, alt, caption }) — 이미지 원본 비율 확대 보기.
