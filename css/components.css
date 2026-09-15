@@ -1864,6 +1864,72 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-chan__f { font-size: var(--fs-12); color: var(--c-text-faint); }
 .ordnew-chan__card.is-on .ordnew-chan__f { color: var(--c-orange-ink); }
 
+/* 거래처 검색 · 목록 (B2B step1) */
+.ordnew-clisrch {
+  display: flex; align-items: center; gap: 8px; margin: 12px 20px 10px;
+  height: 40px; padding: 0 13px; border-radius: var(--r-pill);
+  background: var(--c-surface-2); border: 1px solid var(--c-border-field);
+}
+.ordnew-clisrch:focus-within { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.ordnew-clisrch__ic { color: var(--c-text-faint); flex: 0 0 auto; }
+.ordnew-clisrch input {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  font-size: var(--fs-14); color: var(--c-text);
+}
+/* 컨테이너가 포커스를 표시하므로 내부 링은 끈다 — 전역 :focus-visible 은 box-shadow 다 */
+.ordnew-clisrch input:focus-visible { box-shadow: none; outline: none; }
+.ordnew-clisrch input::placeholder { color: var(--c-text-faint); }
+.ordnew-clilist { max-height: 232px; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 6px; }
+.ordnew-cli {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 11px 14px; border-radius: var(--r-lg); border: 1px solid transparent; background: none;
+}
+.ordnew-cli:hover { background: var(--c-surface-hover); }
+.ordnew-cli.is-on { background: var(--c-orange-soft); border-color: var(--c-orange); }
+.ordnew-cli__nm {
+  font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ordnew-cli__sub { font-size: var(--fs-13); color: var(--c-text-muted); white-space: nowrap; }
+.ordnew-cli__badge {
+  flex: 0 0 auto; padding: 2px 8px; border-radius: var(--r-pill);
+  background: var(--c-fill-1); color: var(--c-text-3); font-size: var(--fs-12);
+}
+.ordnew-cli__ch { margin-left: auto; flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-faint); }
+.ordnew-cli__empty { padding: 26px 16px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); line-height: 1.7; }
+
+/* 단가 기준 한 줄 — 계약과 다르면 경고색으로 */
+.ordnew-basis { font-size: var(--fs-14); color: var(--c-text-muted); }
+
+/* 다크 레일 위 알림 수신자 행 */
+.ordnew-nt { display: flex; flex-direction: column; gap: 7px; }
+.ordnew-nt__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ordnew-nt__who { display: flex; flex-direction: column; min-width: 0; }
+.ordnew-nt__who b {
+  font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-surface);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ordnew-nt__who span { font-size: var(--fs-11); color: var(--c-rail-ink); }
+.ordnew-nt__auto {
+  margin-left: 5px; padding: 1px 6px; border-radius: var(--r-pill);
+  background: var(--c-rail-2); color: var(--c-rail-ink); font-size: var(--fs-11); font-style: normal;
+}
+.ordnew-nt .toggle { flex: 0 0 auto; transform: scale(0.84); transform-origin: right center; }
+
+/* 행 리스트 다이얼로그 — 이름·부서 옆 세 번째 칸(연락처) */
+.odlg-row__main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.odlg-row__meta {
+  flex: 0 0 auto; font-size: var(--fs-14); color: var(--c-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.odlg-empty { padding: 26px 8px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); line-height: 1.7; }
+
+/* 직접 입력 — 목록에 없는 사람을 적는 경로. 목록과 섞이지 않게 위에 선을 긋는다.
+   ⚠️ 이 블록이 없으면 담당자 0명인 거래처에서 주문 등록이 막힌다(이관 데이터 18/19곳). */
+.odlg-manual { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-divider); }
+.odlg-manual__f { display: flex; gap: 8px; padding: 8px 12px 2px; }
+.odlg-manual__f .ord-in { flex: 1; min-width: 0; }
+
 /* 값을 다이얼로그로 고르는 칸 */
 .ord-pick { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ord-pick__v {

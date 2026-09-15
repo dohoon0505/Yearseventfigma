@@ -84,7 +84,7 @@ const FOCUSABLE =
  * - render(newBody): swap panel content (state-driven modals) and re-focus-trap
  * - any element with [data-modal-close] (e.g. backdrop, X button) closes it
  */
-export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
+export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } = {}) {
   const prevFocus = document.activeElement;
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
@@ -125,6 +125,11 @@ export function openModal({ panelClass = "", body, labelledBy, onClose } = {}) {
     if (overlay !== overlays[overlays.length - 1]) return;
     if (e.key === "Escape") {
       e.preventDefault();
+      /* 닫기 전에 한 번 물어볼 기회 — `false` 를 돌려주면 닫지 않는다.
+         ⚠️ 호출부가 자기 capture 리스너로 ESC 를 가로채는 것은 소용이 없다.
+            이 핸들러가 `openModal` 안에서 **먼저** 등록되므로 같은 단계에서는
+            등록 순서가 이긴다(등록 위저드의 이중 확인이 실제로 죽어 있었다). */
+      if (onEsc && onEsc() === false) return;
       close();
     } else if (e.key === "Tab") {
       const f = qsa(panel, FOCUSABLE);

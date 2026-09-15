@@ -27,9 +27,11 @@ import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowT
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
+import { openOrderCreate } from "../util/order-create.js";
+import { openRowPicker, MANUAL } from "../util/order-dialogs.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
-import { store, ALL_PRODUCTS, productKey, priceNum } from "../store.js";
+import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts } from "../store.js";
 import { staffNames, staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -68,7 +70,6 @@ export function mount(root, { nav }) {
   const DP_MAX = new Date(new Date().getFullYear() + 2, 11, 31);
   let activeModal = null;
   let editing = null;      // 편집 작업본 — 모든 입력이 write-through
-  let isNew = false;
   const dds = [];
   const toast = makeToast();
 
@@ -261,10 +262,10 @@ export function mount(root, { nav }) {
     const c = clientOf(editing);
     return html`
       <div class="hm__head ord-hd" data-slot="hd">
-        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen, isNew })}
+        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen })}
       </div>
-      <div class="ord-grid ${isNew ? "ord-grid--new" : ""}">
-        ${isNew ? "" : railV2({ order: editing, imgInner: imgBox.inner() })}
+      <div class="ord-grid">
+        ${railV2({ order: editing, imgInner: imgBox.inner() })}
         <div class="ord-pane">
           <div class="ord-cols">
             <div class="ord-colL">
@@ -273,7 +274,7 @@ export function mount(root, { nav }) {
             </div>
             <div class="ord-colR">
               <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
-              ${isNew ? "" : card({
+              ${card({
                 title: "처리 이력", cap: `${(editing.history || []).length}건`,
                 body: historyBody(editing), slot: "hist",
               })}
@@ -296,7 +297,7 @@ export function mount(root, { nav }) {
   function renderHd() {
     const p = panelOf(); if (!p) return;
     setHTML(qs(p, "[data-slot='hd']"),
-      ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen, isNew }));
+      ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen }));
   }
   function renderSum() {
     const p = panelOf(); if (!p) return;
@@ -304,7 +305,7 @@ export function mount(root, { nav }) {
     if (el) setHTML(el, summaryBodyV2({ order: editing, rows: summaryRows() }));
   }
   function renderHist() {
-    const p = panelOf(); if (!p || isNew) return;
+    const p = panelOf(); if (!p) return;
     const el = qs(p, "[data-slot='hist']");
     if (el) {
       setHTML(el, historyBody(editing));
@@ -323,6 +324,414 @@ export function mount(root, { nav }) {
     }
     const btn = qs(p, "[data-action='save']");
     if (btn) { btn.disabled = !n; btn.textContent = n ? "변경사항 저장" : "저장"; }
+  }
+
+
+  /* ══ 주문서 등록 모달 (B2B) ═══════════════════════════════
+     ⚠️ 상세 모달과 **다른 모달**이다 — 셸도 핸들도 따로다. `activeModal`/`editing`
+     을 건드리지 않는다(`openEditor` 첫 줄이 `closeModal()` 이라 서로를 닫는다).
+
+     시안: B2B 는 **거래처**가 주문의 성격을 정한다 — 계약단가·거래 조건·월 청구가
+     거기서 갈린다. 그래서 1단계가 통째로 거래처 선택이다.
+     ─────────────────────────────────────────────────────── */
+  let createModal = null;   // ← 상세 모달의 activeModal 과 **별개 핸들**
+  let cDraft = null;
+  let cQuery = "";
+  const cDds = [];
+  const cDestroy = () => { cDds.forEach((d) => d.destroy()); cDds.length = 0; };
+
+  const cClient = () => clients().find((c) => c.id === cDraft.clientId) || null;
+  const cContacts = () => (cDraft.clientId ? store.contactsOf(cDraft.clientId) : []);
+  const cRequester = () => cContacts().find((x) => x.id === cDraft.requesterId) || null;
+  /* 요청자 표시·필수 판정의 단일 소스. 담당자 목록에서 고른 사람과 직접 적은 사람을
+     같은 줄로 다룬다 — 화면이 둘을 구분할 이유가 없다(저장 스키마만 id 유무로 갈린다). */
+  const cReqLine = () => {
+    const c = cRequester();
+    if (c) return `${c.name}${c.role ? ` · ${c.role}` : ""}`;
+    if (String(cDraft.requesterName || "").trim()) {
+      return `${cDraft.requesterName}${cDraft.requesterPhone ? ` · ${cDraft.requesterPhone}` : " · 직접 입력"}`;
+    }
+    return "";
+  };
+  const cProfile = () => store.get().profiles.find((p) => p.id === cDraft.profileId) || null;
+  const profileText = (p) => (p ? (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}` : "");
+
+  /* 거래처 변경 시 초기화 대상 — 계약단가·거래 조건·담당자가 전부 거래처에 매인다.
+     ⚠️ 배송지·받는분·리본문구는 **유지**한다. 거래처 하나 잘못 골랐다고 다 지우면
+        아무도 안 쓴다. */
+  function cPickClient(id) {
+    if (cDraft.clientId === id) return; /* 동일값 재선택이 채워둔 값을 날리지 않게 */
+    cDraft.clientId = id;
+    cDraft.requesterId = ""; cDraft.requesterName = ""; cDraft.requesterPhone = "";
+    cDraft.product = ""; cDraft.amount = 0; cDraft.notifyOff = [];
+    createModal.rerenderStep("s1"); createModal.rerenderStep("s2");
+    createModal.rerenderRail(); createModal.markTouched();
+  }
+
+  /* 계약단가 판정 — 규칙은 store.contractPrice 단일 소스를 쓴다(복제 금지). */
+  function cBasis() {
+    if (!cDraft.product) return "상품 선택 후 자동 적용";
+    const base = priceNum((ALL_PRODUCTS.find((p) => p.product === cDraft.product) || {}).price);
+    const c = store.contractPrice(cDraft.clientId, cDraft.product);
+    const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
+    if (c == null || c === base) return "계약단가 미등록 · 기준단가 적용";
+    return cur === c ? "계약단가 적용" : `계약단가(${won(c)})와 다름`;
+  }
+
+  /* 등록 모달의 발주정보 = 상세와 같은 배열 + 시안의 '발송 프로필' 한 줄.
+     배열을 다시 타이핑하지 않는다 — 한 화면 안에서 두 모달이 갈린다. */
+  const CREATE_DELIVER = [
+    ...DELIVER_FIELDS.filter((d) => d.k !== "ribbonSender"),
+    { k: "ribbonSender", label: "발송 프로필", type: "pick", full: true, ph: "저장된 프로필에서 불러오세요" },
+  ];
+
+  function openCreate() {
+    cDraft = draftOrder();
+    cQuery = "";
+
+    /* ── step1: 거래처 ── */
+    const cliRows = () => {
+      const shared = sharedBizKeys(clients());
+      const q = cQuery.trim().toLowerCase();
+      /* 정지·반려 거래처의 주문이 그 달 청구에 들어가면 안 된다 — 활성만 노출. */
+      return clients().filter((c) => c.status === "활성").filter((c) => {
+        if (!q) return true;
+        return [displayName(c, shared), c.accountId, c.bizNumber, c.department]
+          .some((v) => String(v || "").toLowerCase().includes(q));
+      });
+    };
+    const cliListBody = () => {
+      const shared = sharedBizKeys(clients());
+      const rows = cliRows();
+      if (!rows.length) {
+        return html`<p class="ordnew-cli__empty">'${cQuery}' 로 찾은 활성 거래처가 없습니다.
+          <br />정지·반려 상태의 거래처에는 주문을 등록할 수 없습니다.</p>`;
+      }
+      return html`${rows.map((c) => html`
+        <button type="button" class="ordnew-cli ${cDraft.clientId === c.id ? "is-on" : ""}"
+          data-ccli="${c.id}" aria-pressed="${cDraft.clientId === c.id ? "true" : "false"}">
+          <span class="ordnew-cli__nm">${displayName(c, shared)}</span>
+          <span class="ordnew-cli__sub">${c.bizNumber}${c.department ? ` · ${c.department}` : ""}</span>
+          ${c.clientNote ? html`<span class="ordnew-cli__badge">거래 조건</span>` : ""}
+          <span class="ordnew-cli__ch">${c.channel || "일반"}</span>
+        </button>`)}`;
+    };
+    const step1Body = () => html`
+      <section class="ord-card">
+        <div class="ord-card__head">
+          <b class="ord-card__t">거래처</b>
+          <span class="ord-card__cap">계약단가·거래 조건·월 청구 기준이 함께 정해집니다</span>
+        </div>
+        <div class="ordnew-clisrch">
+          ${icon("search", { size: 14, cls: "ordnew-clisrch__ic" })}
+          <input type="text" data-ccliq value="${cQuery}" placeholder="거래처명 · 사업자번호 · 담당 부서로 검색" aria-label="거래처 검색" />
+        </div>
+        <div class="ordnew-clilist" data-slot="clilist">${cliListBody()}</div>
+        <div class="ord-row">
+          <label class="ord-k">주문 요청자</label>
+          <div class="ord-pick">
+            <span class="ord-pick__v ${cReqLine() ? "" : "is-empty"}">
+              ${cReqLine() || (cDraft.clientId ? "선택하세요" : "거래처를 먼저 선택하세요")}</span>
+            <button type="button" class="ord-pick__btn" data-action="cpick-req" ${cDraft.clientId ? "" : "disabled"}>선택</button>
+          </div>
+          <label class="ord-k">주문 담당자</label>
+          <div class="ord-pick">
+            <span class="ord-pick__v ${cDraft.manager ? "" : "is-empty"}">${cDraft.manager || "지정하지 않음"}</span>
+            <button type="button" class="ord-pick__btn" data-action="cpick-mgr">${cDraft.manager ? "변경" : "선택"}</button>
+          </div>
+        </div>
+      </section>`;
+
+    /* ── step2: 상품·단가 + 발주정보 ── */
+    const step2Body = () => {
+      const c = cClient();
+      return html`
+        <section class="ord-card">
+          <div class="ord-card__head">
+            <b class="ord-card__t">상품 · 단가</b>
+            <span class="ord-card__cap">${store.contractCount(cDraft.clientId)
+              ? "이 거래처의 상품별 계약단가가 적용됩니다" : "계약단가 미등록 · 기준단가가 적용됩니다"}</span>
+          </div>
+          ${renderFields(ORDER_FIELDS(), cDraft)}
+          <div class="ord-row ord-row--full">
+            <label class="ord-k">단가 기준</label>
+            <span class="ordnew-basis" data-slot="basis">${cBasis()}</span>
+          </div>
+        </section>
+        ${c && c.clientNote ? card({ title: "거래 조건", cap: c.companyName, cls: "ord-note",
+            body: html`<p class="ord-note__body">${c.clientNote}</p>` }) : ""}
+        ${card({ title: "발주정보", cap: "화원 전달 내용",
+                 body: renderFields(CREATE_DELIVER, cDraft) })}`;
+    };
+
+    /* ── 레일 ── */
+    const notifyRows = () => {
+      const rows = [];
+      if (String(cDraft.recipientName || "").trim()) {
+        rows.push({ key: "recipient", name: cDraft.recipientName, sub: cDraft.recipientPhone || "연락처 미입력 · 발송 불가",
+                    locked: !String(cDraft.recipientPhone || "").trim(), kind: "받는분" });
+      }
+      const pf = cProfile();
+      if (pf) rows.push({ key: "sender", name: profileText(pf), sub: pf.phone, locked: false, kind: "보내는분" });
+      /* 직접 입력한 요청자는 담당자 저장공간에 없어 아래 자동 편입에 걸리지 않는다.
+         주문을 요청한 사람이야말로 배송완료를 가장 먼저 알아야 한다 — 따로 싣는다. */
+      if (!cDraft.requesterId && String(cDraft.requesterName || "").trim()) {
+        rows.push({ key: "requester", name: cDraft.requesterName,
+                    sub: cDraft.requesterPhone || "연락처 미입력 · 발송 불가",
+                    locked: !String(cDraft.requesterPhone || "").trim(), kind: "주문 요청자" });
+      }
+      receivingContacts(cContacts()).forEach((ct) => {
+        rows.push({ key: `ct:${ct.id}`, name: ct.name, sub: ct.phone || "연락처 미등록",
+                    locked: !String(ct.phone || "").trim(), kind: "주문 요청자·담당자", auto: true });
+      });
+      return rows;
+    };
+    const railBody = (i) => {
+      const c = cClient();
+      if (!c) {
+        return html`<div class="ord-side__h"><b class="ord-side__t">거래처 미선택</b></div>
+          <p class="ord-side__note">거래처를 고르면 계약단가·계산서 발행일·거래 조건이 여기에 표시됩니다.</p>`;
+      }
+      const n = store.contractCount(c.id);
+      const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
+      return html`
+        <div class="ord-side__h"><b class="ord-side__t">${c.companyName}</b></div>
+        <p class="ord-side__cap">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`].filter(Boolean).join(" · ")}</p>
+        <div class="rail-card">
+          <p class="rail-card__k">계약단가</p>
+          <p class="rail-card__v">${cDraft.product ? won(store.contractPrice(c.id, cDraft.product) ?? 0) || "미등록" : `${n}개 상품 등록`}</p>
+          <p class="rail-card__k" style="margin-top:9px">계산서 발행</p>
+          <p class="rail-card__v">매월 ${Number(c.invoiceDay) || 1}일</p>
+          <p class="rail-card__k" style="margin-top:9px">이번 발주</p>
+          <p class="rail-card__v">${cur ? `${won(cur)} · 1건` : "상품 선택 전"}</p>
+        </div>
+        ${i === 1 ? html`
+          <div class="ordnew-nt" data-slot="railnoti">
+            <p class="ord-side__lbl">배송완료 알림 수신</p>
+            ${notifyRows().length ? notifyRows().map((r) => html`
+              <div class="ordnew-nt__row">
+                <span class="ordnew-nt__who">
+                  <b>${r.name}</b>${r.auto ? html`<em class="ordnew-nt__auto">자동</em>` : ""}
+                  <span>${r.sub}</span>
+                </span>
+                <button type="button" class="toggle" role="switch" data-cnt="${r.key}"
+                  aria-checked="${!r.locked && !cDraft.notifyOff.includes(r.key) ? "true" : "false"}"
+                  aria-label="${r.name} 배송완료 알림 수신" ${r.locked ? "disabled" : ""}><span class="toggle__knob"></span></button>
+              </div>`)
+              : html`<p class="ord-side__cap">받는분·발송 프로필을 입력하면 명단이 만들어집니다.</p>`}
+          </div>` : ""}
+        <p class="ord-side__note">거래처를 바꾸면 계약단가·요청자·알림 설정이 초기화됩니다.</p>`;
+    };
+
+    const missing1 = () => {
+      const out = [];
+      if (!cDraft.clientId) out.push("거래처");
+      if (!String(cDraft.requesterName || "").trim()) out.push("주문 요청자");
+      return out;
+    };
+    const missing2 = () => {
+      const need = [["product", "주문상품"], ["address", "배송지"], ["recipientName", "받는분"],
+                    ["ribbonPhrase", "리본문구"], ["profileId", "발송 프로필"]];
+      return need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+    };
+
+    createModal = openOrderCreate({
+      title: "B2B 거래처 주문 등록",
+      subtitle: "거래처 계약단가로 접수하고, 월 마감 후 계산서로 청구합니다",
+      toast,
+      steps: [
+        { key: "s1", title: "거래처", cap: "주문의 성격을 정합니다",
+          render: step1Body, bind: () => [], required: missing1,
+          hint: () => { const c = cClient(); return c ? `${c.companyName} · 매월 ${Number(c.invoiceDay) || 1}일 계산서로 청구합니다` : ""; } },
+        { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
+          render: step2Body, bind: bindCreateControls, required: missing2,
+          hint: () => {
+            const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
+            const on = notifyRows().filter((r) => !r.locked && !cDraft.notifyOff.includes(r.key)).length;
+            return `${won(cur)} (VAT 별도) · 알림 ${on}명${cDraft.manager ? ` · 담당 ${cDraft.manager}` : ""}`;
+          } },
+      ],
+      rail: railBody,
+      submitLabel: "주문 등록",
+      onSubmit: submitCreate,
+      onClose: () => { cDestroy(); createModal = null; cDraft = null; },
+    });
+    bindCreateDelegates(createModal.panel);
+  }
+
+  /* 등록 모달 전용 위임 — 셸 패널에 1회. 슬롯 부분 갱신에도 생존한다. */
+  function bindCreateDelegates(panel) {
+    on(panel, "input", "[data-ccliq]", (e, t) => {
+      cQuery = t.value;
+      const box = qs(panel, "[data-slot='clilist']");
+      if (box) setHTML(box, (() => {
+        const shared = sharedBizKeys(clients());
+        const q = cQuery.trim().toLowerCase();
+        const rows = clients().filter((c) => c.status === "활성").filter((c) => !q
+          || [displayName(c, shared), c.accountId, c.bizNumber, c.department].some((v) => String(v || "").toLowerCase().includes(q)));
+        if (!rows.length) return html`<p class="ordnew-cli__empty">'${cQuery}' 로 찾은 활성 거래처가 없습니다.
+          <br />정지·반려 상태의 거래처에는 주문을 등록할 수 없습니다.</p>`;
+        return html`${rows.map((c) => html`
+          <button type="button" class="ordnew-cli ${cDraft.clientId === c.id ? "is-on" : ""}"
+            data-ccli="${c.id}" aria-pressed="${cDraft.clientId === c.id ? "true" : "false"}">
+            <span class="ordnew-cli__nm">${displayName(c, shared)}</span>
+            <span class="ordnew-cli__sub">${c.bizNumber}${c.department ? ` · ${c.department}` : ""}</span>
+            ${c.clientNote ? html`<span class="ordnew-cli__badge">거래 조건</span>` : ""}
+            <span class="ordnew-cli__ch">${c.channel || "일반"}</span>
+          </button>`)}`;
+      })());
+    });
+    on(panel, "click", "[data-ccli]", (e, t) => cPickClient(t.dataset.ccli));
+    on(panel, "click", "[data-action='cpick-mgr']", () => {
+      openStaffPicker({ current: cDraft.manager, names: staffOptions, toast,
+        onPick: (v) => { cDraft.manager = v; createModal.rerenderStep("s1"); createModal.syncFooter(); } });
+    });
+    on(panel, "click", "[data-action='cpick-req']", () => {
+      const rows = cContacts().map((c) => ({
+        v: c.id, name: c.name || "이름 없음",
+        sub: [c.role, c.isBilling ? "정산 담당" : ""].filter(Boolean).join(" · "),
+        meta: c.phone || "연락처 미등록",
+      }));
+      openRowPicker({
+        title: "주문 요청자 선택", width: 460,
+        desc: `${(cClient() || {}).companyName || ""}의 담당자 프로필에서 선택합니다. 이 담당자가 주문을 요청한 사람으로 기록됩니다.`,
+        rows, current: cDraft.requesterId || (String(cDraft.requesterName || "").trim() ? MANUAL : ""),
+        confirmLabel: "선택", toast,
+        empty: "이 거래처에 등록된 담당자가 없습니다. 아래에서 직접 입력하세요.",
+        manual: { label: "직접 입력", hint: "담당자 프로필에 없는 요청자 — 이 주문에만 기록됩니다" },
+        onPick: (v, mv) => {
+          if (v === MANUAL) {
+            /* 저장공간에는 넣지 않는다 — 주문 한 건의 사실로만 남긴다(고아 행과 같은 원칙). */
+            cDraft.requesterId = ""; cDraft.requesterName = mv.name; cDraft.requesterPhone = mv.phone;
+          } else {
+            const c = cContacts().find((x) => x.id === v);
+            cDraft.requesterId = v;
+            cDraft.requesterName = c ? c.name : ""; cDraft.requesterPhone = c ? (c.phone || "") : "";
+          }
+          createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.syncFooter();
+        },
+        pickedMsg: (v, mv) => `주문 요청자를 ${v === MANUAL ? mv.name : (cContacts().find((x) => x.id === v) || {}).name || ""}(으)로 지정했습니다`,
+      });
+    });
+    /* `fieldCell` 의 type:"pick" 버튼 — 발송 프로필 */
+    on(panel, "click", "[data-pick='ribbonSender']", () => openProfilePicker());
+    on(panel, "click", "[data-action='cpick-pf']", () => openProfilePicker());
+    function openProfilePicker() {
+      const rows = store.get().profiles.map((p2) => ({
+        v: p2.id, name: profileText(p2), sub: `${p2.role} ${p2.name}`.trim(), meta: p2.phone || "",
+      }));
+      openRowPicker({
+        title: "발송 프로필 선택", width: 480,
+        desc: "리본에 인쇄될 보내는분 명의입니다. 저장된 프로필에서 불러옵니다.",
+        rows, current: cDraft.profileId, confirmLabel: "불러오기", toast,
+        empty: "저장된 발송 프로필이 없습니다.",
+        onPick: (v) => {
+          cDraft.profileId = v;
+          const pf = store.get().profiles.find((x) => x.id === v);
+          cDraft.ribbonSender = profileText(pf);   /* 리본 문자열은 스냅샷이다 */
+          createModal.rerenderStep("s2"); createModal.rerenderRail(); createModal.syncFooter();
+        },
+        pickedMsg: () => "발송 프로필을 불러왔습니다",
+      });
+    }
+    on(panel, "click", "[data-cnt]", (e, t) => {
+      const k = t.dataset.cnt;
+      const on2 = t.getAttribute("aria-checked") !== "true";
+      cDraft.notifyOff = on2 ? cDraft.notifyOff.filter((x) => x !== k) : [...cDraft.notifyOff, k];
+      t.setAttribute("aria-checked", on2 ? "true" : "false");
+      createModal.syncFooter();
+    });
+    on(panel, "input", "[data-f]", (e, t) => {
+      const k = t.dataset.f;
+      cDraft[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
+      if (t.tagName === "TEXTAREA") autosize(t);
+      if (k === "amount") { const b = qs(panel, "[data-slot='basis']"); if (b) b.textContent = cBasis(); }
+      if (k === "recipientName" || k === "recipientPhone") createModal.rerenderRail();
+    });
+  }
+
+  /* step2 의 드롭다운·피커 */
+  function bindCreateControls(pane) {
+    cDestroy();
+    const prod = qs(pane, "[data-dd-f='product']");
+    if (prod) cDds.push(makeDropdown(prod, {
+      options: () => PRODUCTS.map((p) => p.name),
+      label: (v) => v || "상품을 선택하세요",
+      get: () => cDraft.product,
+      set: (v) => {
+        if (cDraft.product === v) return; /* 동일값 재선택이 협의 금액을 덮지 않게 */
+        cDraft.product = v;
+        cDraft.amount = priceFor(cDraft.clientId, v);
+        const amt = qs(pane, "[data-slot='amount']");
+        if (amt) amt.value = won(cDraft.amount); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
+        const b = qs(pane, "[data-slot='basis']"); if (b) b.textContent = cBasis();
+        createModal && createModal.rerenderRail();
+        createModal && createModal.syncFooter();
+      },
+    }));
+    const dtp = qs(pane, "[data-dtp]");
+    if (dtp) cDds.push(makeDateTimePicker(dtp, {
+      get: () => cDraft.deliverAt,
+      set: (v) => { cDraft.deliverAt = v; createModal && createModal.syncFooter(); },
+      min: DP_MIN, max: DP_MAX,
+    }));
+    qsa(pane, "textarea.ord-in").forEach(autosize);
+    return cDds.slice();
+  }
+
+  function submitCreate() {
+    const req = cRequester();
+    const pf = cProfile();
+    const rec = {
+      ...cDraft,
+      id: b2bNewId(), orderNo: b2bNextOrderNo(),
+      amount: Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0,
+      /* 요청자 스냅샷은 고를 때 이미 draft 에 적혔다 — 여기서 목록으로 다시 파생하면
+         직접 입력한 요청자가 저장 직전에 증발한다. 목록에 있는 사람만 최신값으로 갱신. */
+      requesterName: req ? req.name : cDraft.requesterName,
+      requesterPhone: req ? (req.phone || "") : cDraft.requesterPhone,
+      ribbonSender: cDraft.ribbonSender || profileText(pf),
+      /* 저장 시점 스냅샷 — id 로 지목하고 이름·번호를 함께 남긴다. 담당자가 나중에
+         지워져도 이 주문이 "누구에게 보냈는지"를 잃지 않는다. */
+      notifyList: notifySnapshot(),
+    };
+    delete rec.notifyOff;
+    delete rec.history;
+    b2bUpsert(rec);
+    const stored = findOrder(rec.id);
+    if (stored) pushHistory(stored, "created", `주문 접수 · ${(cClient() || {}).companyName || ""}`.trim());
+    createModal && createModal.close();
+    ensureVisible(rec);
+  }
+
+  function notifySnapshot() {
+    const out = [];
+    if (String(cDraft.recipientName || "").trim() && String(cDraft.recipientPhone || "").trim()
+        && !cDraft.notifyOff.includes("recipient")) {
+      out.push({ kind: "recipient", name: cDraft.recipientName, phone: cDraft.recipientPhone, on: true });
+    }
+    const pf = cProfile();
+    if (pf && !cDraft.notifyOff.includes("sender")) {
+      out.push({ kind: "sender", profileId: pf.id, name: profileText(pf), phone: pf.phone, on: true });
+    }
+    if (!cDraft.requesterId && String(cDraft.requesterName || "").trim()
+        && String(cDraft.requesterPhone || "").trim() && !cDraft.notifyOff.includes("requester")) {
+      out.push({ kind: "contact", name: cDraft.requesterName, phone: cDraft.requesterPhone, on: true });
+    }
+    receivingContacts(cContacts()).forEach((ct) => {
+      if (!String(ct.phone || "").trim() || cDraft.notifyOff.includes(`ct:${ct.id}`)) return;
+      out.push({ kind: "contact", contactId: ct.id, name: ct.name, phone: ct.phone, on: true });
+    });
+    return out;
+  }
+
+  /* 목록이 현재 탭·기간을 그대로 적용하므로 방금 등록한 주문이 안 보일 수 있다. */
+  function ensureVisible(rec) {
+    refreshList();
+    if (filtered().some((o) => o.id === rec.id)) { toast(`${rec.orderNo} 주문을 등록했습니다`, "ok"); return; }
+    state.tab = "all"; state.dateQuick = "전체"; state.dateStart = ""; state.dateEnd = "";
+    render();
+    toast(`${rec.orderNo} 등록 · 보이도록 목록 필터를 초기화했습니다`, "ok");
   }
 
   function destroyDds() { dds.forEach((d) => d.destroy()); dds.length = 0; }
@@ -362,7 +771,7 @@ export function mount(root, { nav }) {
     const n = dirtyCount();
     const merged = { ...editing, amount: Number(String(editing.amount).replace(/[^0-9]/g, "")) || 0 };
     let autoDone = false;
-    if (!isNew && merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
+    if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
       merged.status = "배송완료";
       merged.notified = true;
       autoDone = true;
@@ -373,7 +782,6 @@ export function mount(root, { nav }) {
     if (stored && n) pushHistory(stored, "edit", `주문 정보 수정 ${n}건`);
     if (stored && autoDone) pushHistory(stored, "delivered", "배송완료 · 알림톡 발송");
     refreshList();
-    if (isNew) { closeModal(); toast("신규 주문을 등록했습니다"); return; }
     editing = { ...merged, history: stored ? stored.history : [] };
     baseline = { ...editing };
     const d = new Date();
@@ -391,7 +799,7 @@ export function mount(root, { nav }) {
       onPick: (v) => {
         if (!editing) return false;
         editing.manager = v;
-        if (!isNew) b2bSetManager(editing.id, v);
+        b2bSetManager(editing.id, v);
         const stored = findOrder(editing.id);
         if (stored) editing.history = stored.history;
         if (baseline) baseline.manager = v;
@@ -403,7 +811,7 @@ export function mount(root, { nav }) {
 
   /* 스테퍼 — 앞으로만. 배송완료는 사진·인수자가 있어야 한다. */
   function stepTo(next) {
-    if (!editing || isNew) return;
+    if (!editing) return;
     const flow = B2B_STATUSES.filter((s) => s !== "취소");
     const cur = flow.indexOf(editing.status);
     const to = flow.indexOf(next);
@@ -422,14 +830,13 @@ export function mount(root, { nav }) {
     if (p) qs(p, ".ord-step__btn.is-now")?.focus();
   }
 
-  function openEditor(order, _isNew) {
+  function openEditor(order) {
     closeModal();
     const { history: _h, ...draft } = order;
     editing = { ...draft, history: order.history || [] };
     baseline = { ...editing };
     savedAt = "";
     menuOpen = false;
-    isNew = _isNew;
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
@@ -492,20 +899,26 @@ export function mount(root, { nav }) {
       syncDirty();
     });
     /* 담당자 미지정(포털 자동 유입) 주문은 열자마자 지정을 받는다 */
-    if (!isNew && !editing.manager) openManagerModal();
+    if (!editing.manager) openManagerModal();
   }
 
-  function blankOrder() {
+  function draftOrder() {
     const now = new Date();
-    const c = clients()[0];
     return {
-      id: b2bNewId(), orderNo: b2bNextOrderNo(), clientId: c ? c.id : "",
+      /* ⚠️ id·주문번호를 여기서 만들지 않는다 — 열기만 하고 닫아도 번호가 소모된다.
+         거래처도 못박지 않는다: 예전엔 `clients()[0]` 이 박혀 있어 "거래처는 필수"
+         가드가 절대 실패하지 않는 죽은 검사였다. 담당자도 미지정으로 시작한다. */
+      id: "", orderNo: "", clientId: "",
       date: `${now.getFullYear()}/${pad2(now.getMonth() + 1)}/${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
       ordererName: "", address: "", deliverAt: "",
       recipientName: "", recipientPhone: "", ribbonPhrase: "", ribbonSender: "",
       image: "", notified: false, product: "", amount: 0,
-      status: "접수대기", receiver: "", manager: staffNames()[0] ?? "",
+      status: "접수대기", receiver: "", manager: "",
       request: "", memo: "", cancelFee: 0, cancelReason: "", history: [],
+      /* 시안 신규 — id 로 지목하고 스냅샷으로 표시한다(담당자가 지워져도 주문은
+         "누구에게 보냈는지"를 잃지 않는다). */
+      requesterId: "", requesterName: "", requesterPhone: "",
+      profileId: "", notifyOff: [],
     };
   }
 
@@ -534,7 +947,7 @@ export function mount(root, { nav }) {
       refreshFilters(); return;
     }
     if (a === "detail-toggle") { state.detailOpen = !state.detailOpen; refreshFilters(); return; }
-    if (a === "new") { openEditor(blankOrder(), true); return; }
+    if (a === "new") { openCreate(); return; }
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); }
   });
   /* 검색은 필터 카드를 재렌더하지 않는다 — 입력 포커스가 날아간다 */
