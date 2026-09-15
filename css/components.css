@@ -542,8 +542,13 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   background: var(--c-surface-3);
   border-bottom: 1px solid var(--c-border);
 }
+/* 배경은 톤 변수로 받는다(기본값 없으면 기존 그대로) — 주문 목록이 상태·배송일에
+   따라 행을 칠하는데, `:hover` 가 (0,2,0)라 톤을 단일 클래스로 덮으면 **hover 반응이
+   죽는다**(거래처 `.is-group` 행이 실제로 그렇다). 변수로 받아 한 곳에서 칠하면
+   특이도 싸움이 없고, 톤을 안 쓰는 다른 표 5곳은 기본값으로 무변경이다. */
 .table-grid__row {
   display: grid;
+  background: var(--row-tone, transparent);
   border-bottom: 1px solid var(--c-border);
   transition: background-color 0.15s;
 }
@@ -551,8 +556,16 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   border-bottom: 0;
 }
 .table-grid__row:hover {
-  background: var(--c-surface-hover);
+  background: var(--row-tone-hv, var(--c-surface-hover));
 }
+
+/* 주문 목록 행 톤 — 클래스는 util/date.js 의 orderRowTone() 이 돌려준다.
+   접두사를 `ordrow--` 로 둔 이유: rowClass 반환값이 날것으로 붙어서
+   `is-*` 같은 범용 이름은 `.table-grid__row.is-group`(admin.css)과 부딪힌다. */
+.ordrow--wait   { --row-tone: var(--c-row-wait);   --row-tone-hv: var(--c-row-wait-hv); }
+.ordrow--today  { --row-tone: var(--c-row-today);  --row-tone-hv: var(--c-row-today-hv); }
+.ordrow--booked { --row-tone: var(--c-row-booked); --row-tone-hv: var(--c-row-booked-hv); }
+.ordrow--void   { --row-tone: var(--c-row-void);   --row-tone-hv: var(--c-row-void-hv); }
 .table-grid__cell {
   display: flex;
   align-items: center;

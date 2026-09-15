@@ -4,7 +4,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
-import { getDateRange, parseOrderDate, formatDateLabel } from "../util/date.js";
+import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone } from "../util/date.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 
 /* 배송 현장사진은 2:3 세로형으로 촬영·수신된다. (데모: 카테고리별 샘플) */
@@ -138,7 +138,9 @@ export function mount(root, { nav }) {
   ];
 
   function tableBody() {
-    return tableGrid({ columns, rows: filtered(), rowKey: (r) => r.id });
+    /* ⚠️ 포털의 `date` 는 접수일이 아니라 **배송요청일시**다(열 라벨 '배송요청일시').
+       관리자 화면의 deliverAt 자리에 이 값을 넣어야 같은 주문이 같은 색으로 보인다. */
+    return tableGrid({ columns, rows: filtered(), rowKey: (r) => r.id, rowClass: (r) => orderRowTone(r.status, r.date) });
   }
   function countBody() {
     return html`총 <strong>${filtered().length}</strong>건`;
