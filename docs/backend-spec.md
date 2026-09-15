@@ -299,6 +299,7 @@
 | `joinDate` | date | ✔ | |
 | `invoiceDay` | string | ✔ | `"1"`~`"28"`. 기본 `"1"` — **문자열로 저장** |
 | `clientNote` | text | — | 구 '거래처 참고사항'. **거래 조건** |
+| `channel` | enum | ✔ | 매출 채널. 기본 `일반`. 그 외 값은 대쉬보드에서 B2B 합계와 분리돼 자기 KPI 카드를 갖는다 |
 | `bizLicense` | file | 가입 시 ✔ | 사업자등록증. 관리자 등록 건은 없을 수 있음 |
 | `salesRoute` | enum | — | `미지정`·`우체국 문서발송`·`업체 방문영업`·`SNS`·`셀프 가입`·`지인 소개`·`기타` |
 | `salesDate` | date | — | 영업·요청일 |
@@ -465,7 +466,7 @@ B2B·B2C 를 **한 테이블 + `kind` 컬럼**으로 둘지, 두 테이블로 �
 | 구분 | 컬럼 |
 |---|---|
 | 공통 | `id`·`order_no`·`status`·`address`·`product_name`·`amount`·`ordered_at`·`delivered_at`·`photo_url`·`receiver`·`memo`·`cancel_reason`·`cancel_fee`·`staff_id` |
-| B2B 전용 | `client_id`·`sender`·`request`·`settle_period`(YYYY-MM) |
+| B2B 전용 | `client_id`·`sender`·`request`·`settle_period`(YYYY-MM)·`desired_arrival_at` |
 | B2C 전용 | `channel`·`orderer_name`·`orderer_phone`·`ribbon_phrase`·`ribbon_sender`·`notified` |
 
 **상태**: `PENDING`(접수대기) → `ACCEPTED`(주문접수) → `DELIVERED`(배송완료),
@@ -475,6 +476,11 @@ B2B·B2C 를 **한 테이블 + `kind` 컬럼**으로 둘지, 두 테이블로 �
 - `DELIVERED` 는 `photo_url` 과 `receiver` 가 모두 있어야 한다.
 - `CANCELED` 는 `cancel_reason` 이 있어야 한다.
 - `settle_period` 는 `ordered_at` 의 년·월. **명세서 발급 후에는 변경 불가.**
+
+> ⚠ **`desired_arrival_at`(희망 도착시각)은 현재 프런트 목데이터에 없습니다.**
+> B2C 는 `deliverAt` 로 받고 있으나 B2B 는 받지 않아, 대쉬보드 액션 큐가
+> 주문일의 당일배송 마감(18:30)을 도착 기준으로 대신 씁니다. 서버 전환 시
+> B2B 주문에도 필드를 두고 포털 주문 2단계에서 입력받는 것이 맞습니다 (→ 10.4 Q9).
 
 ## 5.4 Settlement · InvoiceLink
 
@@ -664,6 +670,7 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
   "invoiceDay": 1,
   "clientNote": "김동선 변호사님",
   "salesRoute": "미지정",
+  "channel": "일반",
   "bizLicense": { "name": "사업자등록증.png", "size": 34816, "url": "/files/xxx" },
   "sharedBizNumber": true
 } }
@@ -837,11 +844,56 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
 
 ## 6.8 대쉬보드
 
-| 메서드 | 경로 | 권한 |
+화면 블록과 1:1로 대응합니다(→ 4.8). 모두 staff 권한.
+
+| 메서드 | 경로 | 대응 블록 |
 |---|---|---|
-| GET | `/api/dashboard/queues` | staff |
-| GET | `/api/dashboard/today` | staff |
-| GET | `/api/dashboard/monthly?period=YYYY-MM` | staff |
+| GET | `/api/dashboard/kpi?period=YYYY-MM` | KPI 5장 |
+| GET | `/api/dashboard/queue?type=pending\|photo` | 액션 큐 |
+| GET | `/api/dashboard/revenue-trend?months=6` | 통합매출 추이 |
+| GET | `/api/dashboard/product-mix?period=YYYY-MM&channel=` | 상품별 이용 비중 |
+| GET | `/api/dashboard/contracts?unit=month\|year` | 거래처 계약 통계 |
+| GET | `/api/dashboard/settlement-progress?period=YYYY-MM` | 정산 진행 |
+
+가입 승인 대기 카드는 전용 엔드포인트 없이 `/api/clients?status=PENDING` 을 씁니다.
+
+`GET /api/dashboard/kpi?period=2026-09`:
+
+```json
+{ "data": {
+  "period": "2026-09",
+  "cards": [
+    { "key": "total",   "label": "통합매출", "amount": 1795000, "count": 28, "prevAmount": 1230000 },
+    { "key": "b2c",     "label": "B2C",     "amount": 335000,  "count": 5,  "prevAmount": 0 },
+    { "key": "b2b",     "label": "B2B",     "amount": 1360000, "count": 21, "prevAmount": 1180000 },
+    { "key": "고이",     "label": "고이",     "amount": 100000,  "count": 2,  "prevAmount": 50000, "channel": true },
+    { "key": "unpaid",  "label": "미수금",   "amount": 36380000, "prevAmount": 34855000, "danger": true }
+  ]
+} }
+```
+
+> **증감률은 클라이언트가 계산합니다.** 서버는 `amount` 와 `prevAmount` 만
+> 내려주십시오 — 기준이 0일 때 '전월 기록 없음'으로 표시할지, 무한대로 볼지는
+> 표시 규칙이고 서버가 정할 일이 아닙니다.
+>
+> `b2b` 는 **채널이 `일반` 인 거래처만** 집계한 값입니다. `channel: true` 카드가
+> 나머지 채널이며, `total` 은 둘을 모두 포함합니다.
+
+`GET /api/dashboard/queue?type=pending`:
+
+```json
+{ "data": [
+  { "id": "t1", "kind": "b2b", "orderNo": "B2B-0001",
+    "who": "태원과학(주)", "address": "서울 종로구 대학로 101 서울대학교병원 장례식장 3호실",
+    "product": "3단화환(고급형)", "amount": 60000,
+    "arrivalAt": "2026-09-15T18:30:00+09:00", "arrivalEstimated": true }
+] }
+```
+
+> `arrivalEstimated: true` 는 **희망 도착시각이 없어 마감시각으로 추정**했다는
+> 뜻입니다(B2B). 화면이 추정값임을 표시할 수 있어야 합니다.
+>
+> 정렬은 `arrivalAt` 오름차순 — 급한 건이 항상 위에 옵니다.
 
 집계 전용 테이블을 만들지 말고 주문·정산 테이블에서 파생하십시오. 화면 간
 숫자가 어긋나면 대쉬보드는 쓰이지 않습니다.
@@ -1156,6 +1208,7 @@ C008·C015 는 같은 사업자번호를 쓰는 **부서 분리** 사례입니�
 | Q6 | 자동 동의 약관 | 문구 확정 및 사전 고지 방식 |
 | Q7 | 거래처 신용 한도 | 후불이므로 미수 누적 시 주문 차단 기준이 필요한지 |
 | Q8 | 모바일 | 포털 반응형 범위와 일정 |
+| Q9 | B2B 희망 도착시각 | 포털 주문에서 받을지. 지금은 마감시각(18:30)으로 추정한다 (→ 5.3) |
 
 ## 10.5 용어집
 
