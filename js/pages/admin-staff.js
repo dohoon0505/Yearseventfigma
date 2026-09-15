@@ -12,6 +12,7 @@ import { html, setHTML, on, qs } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown } from "../ui.js";
+import { onPhoneInput } from "../util/phone.js";
 import {
   staffList, staffAdd, staffUpdate, staffRemove, staffSetNotify, staffNewId, STAFF_ROLES,
 } from "../data/staff-mock.js";
@@ -29,15 +30,6 @@ export function mount(root, { nav }) {
   const toast = makeToast();
 
   function closeModal() { const m = activeModal; activeModal = null; if (m) m.close(); }
-  /* 연락처 자동 하이픈 (admin-b2c formatPhone 과 동일 규칙) */
-  function formatPhone(t) {
-    let v = t.value.replace(/\D/g, "").slice(0, 11);
-    if (v.length > 7) v = v.slice(0, 3) + "-" + v.slice(3, 7) + "-" + v.slice(7);
-    else if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
-    t.value = v;
-    return v;
-  }
-
   /* ── 목록 ─────────────────────────────────────────────── */
   function filtered() {
     const q = state.search.trim();
@@ -220,7 +212,7 @@ export function mount(root, { nav }) {
     const syncSave = () => { const b = qs(panel, "[data-action='save']"); if (b) b.disabled = !isValid(); };
     on(panel, "input", "[data-f]", (e, t) => {
       const k = t.dataset.f;
-      form[k] = k === "phone" ? formatPhone(t) : t.value;
+      form[k] = k === "phone" ? onPhoneInput(t) : t.value;
       syncSave();
     });
     on(panel, "click", "[data-action='modal-notify']", (e, t) => {

@@ -20,6 +20,7 @@ import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowToneLegend } from "../ui.js";
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
+import { onPhoneInput } from "../util/phone.js";
 import { pushHistory } from "../data/order-history.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -29,7 +30,7 @@ import {
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
-  staffNames, staffOptions, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
+  staffNames, staffOptions, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS,
   productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
@@ -375,14 +376,6 @@ export function mount(root, { nav }) {
     toast(autoDone ? "배송완료 처리됨 · 고객 알림톡이 자동 발송됩니다" : "주문 정보를 저장했습니다");
   }
 
-  /* 입력 중 3-4-4 하이픈 (커서는 끝으로 — 중간 편집은 드물다) */
-  function formatPhone(t) {
-    const d = t.value.replace(/\D/g, "").slice(0, 11);
-    t.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
-      : d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d;
-    return t.value;
-  }
-
   function openManagerModal() {
     if (!editing) return;
     openStaffPicker({
@@ -487,7 +480,7 @@ export function mount(root, { nav }) {
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
-      if (k === "ordererPhone" || k === "recipientPhone") editing[k] = formatPhone(t);
+      if (k === "ordererPhone" || k === "recipientPhone") editing[k] = onPhoneInput(t);
       else if (k === "amount") editing[k] = t.value;
       else editing[k] = t.value;
       if (t.tagName === "TEXTAREA") autosize(t);

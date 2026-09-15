@@ -26,6 +26,7 @@ import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowToneLegend } from "../ui.js";
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
+import { onPhoneInput } from "../util/phone.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum } from "../store.js";
@@ -381,13 +382,6 @@ export function mount(root, { nav }) {
     toast(autoDone ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "주문 정보를 저장했습니다");
   }
 
-  function formatPhone(t) {
-    const d = t.value.replace(/\D/g, "").slice(0, 11);
-    t.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
-      : d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d;
-    return t.value;
-  }
-
   function openManagerModal() {
     if (!editing) return;
     openStaffPicker({
@@ -492,7 +486,7 @@ export function mount(root, { nav }) {
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
-      editing[k] = k === "recipientPhone" ? formatPhone(t) : t.value;
+      editing[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
       if (k === "receiver" || k === "image") renderHd();
       syncDirty();
