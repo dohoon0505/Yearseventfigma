@@ -102,8 +102,9 @@ export function mount(root, { nav }) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   }
 
-  /** 자식 필드(담당자명·부서) 매칭 — 이 경우에만 그룹을 자동으로 펼친다. */
-  const matchesChild = (c, q) => (c.managerName || "").includes(q) || (c.department || "").includes(q);
+  /** 자식 필드(계정 구분) 매칭 — 이 경우에만 그룹을 자동으로 펼친다.
+      담당자명은 더 이상 거래처 레코드에서 관리하지 않으므로 검색 대상에서 뺐다. */
+  const matchesChild = (c, q) => (c.department || "").includes(q);
   const matchesParent = (c, q) => c.companyName.includes(q) || c.bizNumber.includes(q);
 
   function filtered() {
@@ -159,14 +160,15 @@ export function mount(root, { nav }) {
             <span class="cli-badge">부서 ${r.count}</span>
           </button>`;
         }
-        if (r.kind === "child") return html`<div class="cli-child ellipsis">${c.department || "부서 미지정"}</div>`;
+        if (r.kind === "child") return html`<div class="cli-child ellipsis">${c.department || "계정 구분 없음"}</div>`;
         return html`<div class="ellipsis">${c.companyName}</div>`;
       },
     },
     { label: "사업자번호", width: "128px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.bizNumber) },
     { label: "대표자명", width: "84px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.ceoName) },
-    { label: "담당자", width: "84px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.managerName) },
-    { label: "연락처", width: "136px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.contact) },
+    /* 담당자·연락처 열은 뺐다 — 모달에서 더는 편집하지 않아 이관 19곳 전부 영구히
+       빈 칸이 된다. 연락 주체는 거래처별 담당자 표로 일원화됐다. */
+    { label: "계정 구분", width: "136px", align: "center", render: (r) => (r.kind === "group" ? dash : (r.client.department || dash)) },
     { label: "상태", width: "92px", align: "center", render: (r) => (r.kind === "group" ? dash : statusPill(r.client.status)) },
     { label: "가입일", width: "108px", align: "center", render: (r) => (r.kind === "group" ? dash : r.client.joinDate) },
     {
