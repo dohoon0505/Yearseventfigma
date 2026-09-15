@@ -1168,3 +1168,102 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   .ord-form, .ord-form--3, .ord-form__pair { grid-template-columns: 1fr; }
   .ord-doc__row { grid-template-columns: 96px minmax(0, 1fr); }
 }
+
+/* ── 배송일시 피커(날짜 + 시각) — 주문 모달 전용 ─────────────
+   ⚠️ 필터 카드의 `.page-ordscr .cal-*` 와 **다른 규칙이다.** openModal 이
+      오버레이를 document.body 에 붙이는 탓에 모달 안에서는 .page-ordscr
+      스코프가 닿지 않는다. 그래서 여기서 다시 쓴다(중복이 아니라 별개 문맥).
+   ⚠️ 바깥 껍데기는 `.dd` 가 아니라 `.ord-dtp.is-open` 이다 — makeDropdown 이
+      열릴 때 `.dd.open` 을 전부 닫으므로, .dd 면 시 드롭다운이 달력을 닫는다. */
+.ord-dtp { position: relative; width: 100%; }
+.ord-dtp__trigger {
+  width: 100%; height: 36px; padding: 0 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums; text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ord-dtp__trigger:hover { background: var(--c-fill-1); }
+.ord-dtp.is-open .ord-dtp__trigger {
+  background: var(--c-surface); border-color: var(--c-orange); box-shadow: var(--ring);
+}
+.ord-dtp__trigger .icon { flex: 0 0 auto; color: var(--c-text-muted); }
+
+.ord-dtp__panel {
+  display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; width: 320px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-2xl); box-shadow: var(--sh-pop);
+  /* ⚠️ overflow 를 막지 말 것 — 안쪽 시/분 드롭다운이 위로 196px 열린다.
+     팝오버 자신은 반드시 **아래로**(top) 연다. 위로 열면 .ord-body 스크롤러
+     상단에 잘려 영영 닿을 수 없다(components.css 위쪽 .dd-panel 주석과 같은 사고). */
+  overflow: visible;
+}
+.ord-dtp.is-open .ord-dtp__panel { display: block; }
+.ord-dtp .cal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+.ord-dtp .cal-title { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.ord-dtp .cal-nav {
+  width: 30px; height: 30px; border-radius: var(--r-lg); display: grid; place-items: center;
+  color: var(--c-text-3); font-size: 15px;
+}
+.ord-dtp .cal-nav:hover:not(:disabled) { background: var(--c-surface-2); }
+.ord-dtp .cal-nav:disabled { color: var(--c-border-strong); cursor: default; }
+.ord-dtp .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 14px 12px; }
+.ord-dtp .cal-dow {
+  font-size: var(--fs-12); color: var(--c-text-muted); text-align: center;
+  padding: 2px 0; font-weight: var(--fw-semibold);
+}
+.ord-dtp .cal-dow.sun { color: var(--c-danger-ink); }
+.ord-dtp .cal-day {
+  height: 40px; border-radius: var(--r-xl); display: grid; place-items: center;
+  font-size: var(--fs-14); color: var(--c-text-2); font-variant-numeric: tabular-nums;
+  transition: background 0.1s;
+}
+.ord-dtp .cal-day.sun { color: var(--c-danger-ink); }
+.ord-dtp .cal-day.sat { color: var(--c-text-4); }
+.ord-dtp .cal-day:hover:not(.dis):not(.sel) { background: var(--c-surface-2); }
+.ord-dtp .cal-day.dis { color: var(--c-border-input-2); cursor: default; }
+.ord-dtp .cal-day.today:not(.sel) { box-shadow: inset 0 0 0 1.5px var(--c-orange); font-weight: var(--fw-bold); }
+.ord-dtp .cal-day.sel {
+  background: var(--c-text-strong); color: var(--c-surface); font-weight: var(--fw-bold);
+}
+
+/* 배송 시간 — 시/분 드롭다운. 패널이 **위로** 열려야 한다(아래는 푸터 바에 가린다).
+   .modal-panel--ord .dd-panel(아래로 전개)보다 선택자가 길어 순서와 무관하게 이긴다. */
+.ord-dtp__time { padding: 10px 14px 12px; border-top: 1px solid var(--c-fill-1); }
+.ord-dtp__tlbl { display: block; font-size: var(--fs-12); color: var(--c-text-4); margin-bottom: 6px; }
+.ord-dtp__row { display: flex; align-items: center; gap: 8px; }
+.ord-dtp__row .dd { position: relative; flex: 1; min-width: 0; }
+.ord-dtp__colon { flex: 0 0 auto; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-muted); }
+.modal-panel--ord .ord-dtp .dd-trigger {
+  width: 100%; height: 38px; padding: 0 30px 0 12px; text-align: left;
+  font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
+  font-variant-numeric: tabular-nums;
+}
+.modal-panel--ord .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
+.modal-panel--ord .ord-dtp .dd.open .dd-trigger {
+  border-color: var(--c-orange); box-shadow: var(--ring);
+}
+.modal-panel--ord .ord-dtp .dd-panel {
+  bottom: calc(100% + 6px); top: auto; max-height: 196px;
+}
+
+.ord-dtp__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; background: var(--c-surface-2); border-top: 1px solid var(--c-border);
+}
+.ord-dtp__flbl { display: block; font-size: var(--fs-12); color: var(--c-text-4); }
+.ord-dtp__fval {
+  display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold);
+  color: var(--c-text-strong); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ord-dtp__done {
+  flex: 0 0 auto; height: 34px; padding: 0 18px; border-radius: var(--r-pill);
+  background: var(--c-orange); color: var(--c-surface);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold);
+}
+.ord-dtp__done:hover { background: var(--c-orange-hover); }

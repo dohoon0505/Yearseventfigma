@@ -101,6 +101,43 @@ export const dpMarkup = (which, ph) => html`
     </div>
   </div>`;
 
+/* 배송일시 피커 마크업 — ui.js 의 makeDateTimePicker 와 짝.
+   ⚠️ 바깥 껍데기에 `.dd` 를 붙이지 말 것. makeDropdown 이 열릴 때 `.dd.open` 을
+      전부 닫으므로, 안에 든 시/분 드롭다운을 여는 순간 달력이 스스로 닫힌다. */
+export const dtpMarkup = () => html`
+  <div class="ord-dtp" data-dtp>
+    <button type="button" class="ord-dtp__trigger" aria-haspopup="dialog" aria-expanded="false"></button>
+    <div class="ord-dtp__panel" role="dialog" aria-label="배송일시 선택">
+      <div class="cal-head">
+        <button type="button" class="cal-nav cal-prev" aria-label="이전 달">‹</button>
+        <span class="cal-title"></span>
+        <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
+      </div>
+      <div class="cal-grid"></div>
+      <div class="ord-dtp__time">
+        <span class="ord-dtp__tlbl">배송 시간</span>
+        <div class="ord-dtp__row">
+          <div class="dd" data-dtp-h>
+            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+            <div class="dd-panel" role="listbox"></div>
+          </div>
+          <span class="ord-dtp__colon">:</span>
+          <div class="dd" data-dtp-m>
+            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+            <div class="dd-panel" role="listbox"></div>
+          </div>
+        </div>
+      </div>
+      <div class="ord-dtp__foot">
+        <span>
+          <span class="ord-dtp__flbl">선택한 배송일시</span>
+          <b class="ord-dtp__fval"></b>
+        </span>
+        <button type="button" class="ord-dtp__done" data-dtp-done>완료</button>
+      </div>
+    </div>
+  </div>`;
+
 /* 필터 카드 전체 — 두 화면이 **같은 골격**을 쓰도록 여기서 조립한다.
    ① 상태 언더라인 탭 + 플로우 ② 기준 세그 · 기간 범위 · 퀵 · 배송지 검색 ·
    상세 토글 ③ 접이식 상세(사진·알림 칩 + 검색 4종) */

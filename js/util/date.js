@@ -72,3 +72,19 @@ export function mockDates(base) {
     lastMonth: (day) => new Date(base.getFullYear(), base.getMonth() - 1, day),
   };
 }
+
+/* ── 배송 가능 시간 규정 ────────────────────────────────────
+   09:00 ~ 18:30. 주문 4단계(order.js)와 관리자 주문 모달의 배송일시 피커가
+   같은 규칙을 써야 한다 — 한쪽만 고치면 포털에서 받은 시각을 관리자가 못 고른다. */
+export const BIZ = { openH: 9, closeH: 18, closeM: 30 };
+const p2 = (n) => String(n).padStart(2, "0");
+export const hourOptions = () =>
+  Array.from({ length: BIZ.closeH - BIZ.openH + 1 }, (_, i) => p2(BIZ.openH + i));
+/** 마감 시각(18시)에는 30분까지만 — 18:40 은 영업시간 밖이다. */
+export const minOptions = (hour) =>
+  (+hour === BIZ.closeH ? ["00", "10", "20", "30"] : ["00", "10", "20", "30", "40", "50"]);
+/** 시를 바꿔 분이 범위를 벗어나면 마지막 유효값으로 당긴다(18시 + 50분 → 30분). */
+export const clampMin = (hour, min) => {
+  const opts = minOptions(hour);
+  return opts.includes(min) ? min : opts[opts.length - 1];
+};
