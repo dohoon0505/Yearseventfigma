@@ -4,7 +4,7 @@
    실서비스에서는 서버 API로 대체.
    ============================================================ */
 import { ALL_PRODUCTS, priceNum } from "../store.js";
-import { staffNames } from "./staff-mock.js";
+import { staffNames, staffOptions } from "./staff-mock.js";
 import { DATA_NOW } from "./admin-mock.js";
 import { seedHistory, pushHistory } from "./order-history.js";
 import { formatDateLabel, mockDates } from "../util/date.js";
@@ -23,7 +23,7 @@ const dlv = (d, t) => `${formatDateLabel(d)}T${t}`;
 /* ── 드롭다운(select) 옵션 ─────────────────────────────── */
 /* 담당자 이름 목록은 시스템 관리 > 담당자 디렉터리(staff-mock)에서 파생 —
    담당자 관련설정에서 추가/삭제하면 B2C 담당자 피커에도 그대로 반영된다. */
-export { staffNames };
+export { staffNames, staffOptions };
 export const B2C_STAFF = staffNames(); // 하위호환 스냅샷(라이브 목록은 staffNames() 사용)
 export const B2C_CHANNELS = ["네이버 스토어", "카카오톡 채널", "전화 주문", "자사몰", "인스타그램 DM", "거래처 직접"];
 /* 워크플로: 접수대기(신규 유입) → 주문접수(담당자 확인) → 배송완료(사진+인수자 저장 시 자동) */

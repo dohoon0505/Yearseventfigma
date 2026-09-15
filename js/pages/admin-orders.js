@@ -28,7 +28,7 @@ import { getDateRange, formatDateLabel } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum } from "../store.js";
-import { staffNames } from "../data/staff-mock.js";
+import { staffNames, staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, joinVals, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
@@ -472,7 +472,7 @@ export function mount(root, { nav }) {
     if (!editing) return;
     openStaffPicker({
       current: editing.manager,
-      names: staffNames,
+      names: staffOptions,
       toast,
       onPick: (v) => {
         if (!editing) return false;

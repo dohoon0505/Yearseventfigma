@@ -12,8 +12,8 @@
    수수료는 B2B 에서 그 달 정산에 가산되므로 금액이 걸린 입력이다.
    되돌릴 수 없는 동작이라 한 번 더 확인받는다(주문 접수 확인과 같은 패턴).
    ============================================================ */
-import { html, on, qs } from "../dom.js";
-import { simpleModal, makeDropdown } from "../ui.js";
+import { html, on, qs, qsa } from "../dom.js";
+import { simpleModal } from "../ui.js";
 
 export const CANCEL_REASONS = [
   "고객 단순 변심",
@@ -35,17 +35,16 @@ const numOnly = (v) => String(v).replace(/[^0-9]/g, "");
  */
 export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) {
   const form = { reason: CANCEL_REASONS[0], etc: "", fee: "" };
-  let dd = null;
 
   const body = html`
-    <div class="hm-warn" style="margin-bottom:16px;">
+    <div class="cx-box">
       <span><b>취소는 되돌릴 수 없습니다.</b> 주문금액 ${won(amount)} 건입니다.</span>
     </div>
     <div class="hm-field">
       <label>취소 사유<span class="req">*</span></label>
-      <div class="dd" data-dd-reason>
-        <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-        <div class="dd-panel" role="listbox"></div>
+      <div class="cx-grid" role="radiogroup" aria-label="취소 사유">
+        ${CANCEL_REASONS.map((r) => html`<button type="button" class="cx-opt ${r === CANCEL_REASONS[0] ? "is-sel" : ""}"
+          data-cx-reason="${r}" role="radio" aria-checked="${r === CANCEL_REASONS[0] ? "true" : "false"}">${r}</button>`)}
       </div>
     </div>
     <div class="hm-field" data-etc-wrap hidden>
@@ -69,22 +68,24 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) 
   const m = simpleModal({
     title: "주문을 취소할까요?",
     subtitle: orderNo,
-    body, footer, size: "sm",
-    onClose: () => { if (dd) { dd.destroy(); dd = null; } },
+    body, footer, size: "",
+    panelClass: "modal-panel--ordcancel", // 시안 460px — 사유 2열 그리드가 들어간다
   });
 
   const etcWrap = qs(m.panel, "[data-etc-wrap]");
   const goBtn = qs(m.panel, "[data-cx-go]");
   const syncGo = () => { goBtn.disabled = form.reason === "기타" && !form.etc.trim(); };
 
-  dd = makeDropdown(qs(m.panel, "[data-dd-reason]"), {
-    options: () => CANCEL_REASONS,
-    get: () => form.reason,
-    set: (v) => {
-      form.reason = v;
-      etcWrap.hidden = v !== "기타";
-      syncGo();
-    },
+  /* 사유는 버튼 그리드 — 6개뿐이라 한눈에 보이는 편이 낫다(시안) */
+  on(m.panel, "click", "[data-cx-reason]", (e, t) => {
+    form.reason = t.dataset.cxReason;
+    qsa(m.panel, "[data-cx-reason]").forEach((b) => {
+      const on_ = b.dataset.cxReason === form.reason;
+      b.classList.toggle("is-sel", on_);
+      b.setAttribute("aria-checked", on_ ? "true" : "false");
+    });
+    etcWrap.hidden = form.reason !== "기타";
+    syncGo();
   });
 
   on(m.panel, "input", "[data-cx]", (e, t) => {
