@@ -46,13 +46,9 @@ const TABS = tabDefs(B2B_STATUSES);
 /* B2C 는 접수일/배송일, B2B 는 주문일/배송일 — 필드 이름이 date 라 라벨이 다르다 */
 const DATE_BASIS = [{ v: "ordered", label: "주문일" }, { v: "deliver", label: "배송일" }];
 const PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, key: productKey(p), base: priceNum(p.price) }));
-/* 적용 단가 = 거래처 계약 단가(기업별 상품단가)가 있으면 그것, 없으면 카탈로그 정가 */
-const priceFor = (clientId, name) => {
-  const p = PRODUCTS.find((x) => x.name === name);
-  if (!p) return 0;
-  const custom = store.clientPriceFor(clientId, p.key);
-  return typeof custom === "number" && custom > 0 ? custom : p.base;
-};
+/* 적용 단가는 `store.appliedPrice` 단일 소스에 맡긴다 — 여기에 규칙을 복제하면
+   포털과 관리자 화면이 갈린다(실제로 갈렸던 전력이 있다). */
+const priceFor = (clientId, name) => store.appliedPrice(clientId, name);
 /* 정산 귀속월 — 주문일시에서 파생("2026/09/15 09:10" → "2026년 09월") */
 function periodLabel(dateStr) {
   const d = parseFlexDate(dateStr);
@@ -338,6 +334,10 @@ export function mount(root, { nav }) {
       label: (v) => v || "상품을 선택하세요",
       get: () => editing.product,
       set: (v) => {
+        /* ⚠️ 같은 상품을 다시 눌러도 이 set 이 돈다(makeDropdown 에 동일값 가드가 없다).
+           그때 금액을 다시 파생시키면 주문에 적힌 **협의 금액이 정가로 덮인다** —
+           `amount` 는 DIRTY_KEYS 에 없어 '수정한 항목' 에도 안 잡히고 저장까지 따라간다. */
+        if (editing.product === v) return;
         editing.product = v;
         /* 적용 단가는 (거래처 × 상품)에서 파생 — 직접 입력받지 않는다 */
         editing.amount = priceFor(editing.clientId, v);

@@ -85,6 +85,9 @@
 .prc-shell {
   display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px;
   align-items: start;
+  /* 하단 고정 변경 패널이 본문 위에 뜨므로 그 높이만큼 아래를 비워 둔다
+     (JS 가 실측해 `--prc-pend-h` 를 실어 준다). 없으면 마지막 행이 덮인다. */
+  padding-bottom: var(--prc-pend-h, 0px);
 }
 /* 거래처 pane — 상품 표가 길어도 목록은 따라다녀야 비교가 된다 */
 .prc-side {
@@ -106,6 +109,10 @@
   font-size: var(--fs-13); color: var(--c-text);
 }
 .prc-side__srch input::placeholder { color: var(--c-text-faint); }
+/* 컨테이너가 포커스를 표시하므로 내부 input 의 전역 링은 끈다.
+   base.css 전역 `:focus-visible` 은 outline 이 아니라 **box-shadow** 로 링을 그린다 —
+   `outline:none` 만 쓰면 이중 테두리가 남는다(이 프로젝트에서 반복된 함정). */
+.prc-side__srch input:focus-visible { box-shadow: none; outline: none; }
 .prc-side__list { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; }
 .prc-side__empty { padding: 20px 10px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); }
 .prc-cli {
@@ -196,6 +203,8 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .prc-in input:focus { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+/* 거부된 입력(소수점·음수·지수·상한 초과) — 값은 커밋되지 않았다는 표시 */
+.prc-in input.is-bad { border-color: var(--c-danger); box-shadow: var(--ring-error); }
 .prc-in input::placeholder { color: var(--c-text-faint); font-weight: var(--fw-normal); }
 .prc-in__won { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-muted); }
 .prc-row__bdg { display: flex; justify-content: center; }
@@ -209,6 +218,8 @@
   /* 하단 고정 — 상품 표가 20행이라 문서 끝에 두면 저장 버튼이 화면 밖에 남는다.
      `.admin-inner` 가 flex column 이라 sticky 가 먹으려면 **마지막 자식**이어야 한다. */
   position: sticky; bottom: 0; z-index: 5;
+  /* 원장 열 폭으로 제한 — 전체 폭이면 좌측 거래처 pane 을 덮는다(둘 다 sticky 다) */
+  margin-left: calc(260px + 16px);
   background: var(--c-warn-soft-bg); border: 1px solid var(--c-warn-border);
   border-radius: var(--r-xl); padding: 14px 18px;
   box-shadow: var(--sh-card);
@@ -228,7 +239,8 @@
 .prc-pend__ft { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .prc-save {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 18px; border-radius: var(--r-md);
+  /* `.btn` 계열과 높이를 맞춘다 — 테두리 1px 를 빼면 옆의 '되돌리기'와 2px 어긋난다 */
+  padding: 10px var(--sp-5); border: 1px solid transparent; border-radius: var(--r-md);
   background: var(--c-orange); color: var(--c-surface);
   font-size: var(--fs-14); font-weight: var(--fw-semibold);
   transition: background 0.15s;
@@ -243,6 +255,7 @@
   .prc-shell { grid-template-columns: minmax(0, 1fr); }
   .prc-side { position: static; }
   .prc-side__list { max-height: 220px; }
+  .prc-pend.is-on { margin-left: 0; } /* 1열에서는 가릴 pane 이 없다 */
 }
 
 /* ── 정산회계: 조회 기간 빠른 선택(이번달/저번달) ────────── */

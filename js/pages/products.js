@@ -32,10 +32,7 @@ export function mount(root, { nav }) {
         **맞춤 단가가 통째로 무시**됐다 — 다른 화면은 전부 폴백이 있어 회사명만
         맞고 금액만 정가로 나오는, 알아채기 어려운 어긋남이었다. */
   const clientId = (currentClient() || {}).id || null;
-  const priceFor = (p) => {
-    const ov = store.get().clientPrices[clientId]?.[productKey(p)];
-    return typeof ov === "number" && ov > 0 ? won(ov) : p.price;
-  };
+  const priceFor = (p) => won(store.appliedPrice(clientId, p));
 
   const columns = [
     {
