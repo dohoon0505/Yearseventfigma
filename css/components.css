@@ -1720,6 +1720,22 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-hint { margin: 4px 0 2px; padding-left: 8px; font-size: var(--fs-12); line-height: 1.5; color: var(--c-warn-soft-ink); }
 .ord-in.is-warn { background: var(--c-warn-soft-bg); border-color: var(--c-warn-border); }
 
+/* ── 담당자 표 ─────────────────────────────────────────────
+   행이 담당자 수만큼 늘어나므로 **표만 잘라 안에서 스크롤**한다 —
+   모달 높이가 거래처 한 곳 때문에 흔들리면 안 된다(처리 이력·거래 조건과 같은 취급). */
+.cli-mgr__body { max-height: 236px; overflow-y: auto; }
+.cli-mgr__body .table-grid { border: 0; border-radius: 0; }
+.cli-mgr__body .table-grid__cell { padding: 4px 8px; }
+.cli-mgr__body .ord-in { height: 32px; font-size: var(--fs-15); }
+.cli-mgr__empty { padding: 16px 20px; font-size: var(--fs-13); color: var(--c-text-muted); }
+.cli-mgr__foot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 20px 12px; border-top: 1px solid var(--c-fill-1);
+}
+.cli-mgr__note { font-size: var(--fs-12); color: var(--c-text-muted); }
+/* 정산담당 행의 삭제 자리 — 버튼이 아니라 잠긴 표시다(포털과 같은 불변식) */
+.cli-mgr__lock { display: inline-flex; padding: 6px; color: var(--c-text-dim); cursor: not-allowed; }
+
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 1180px) { .cli-rows { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1000px) { .cli-grid { grid-template-columns: minmax(0, 1fr); } }

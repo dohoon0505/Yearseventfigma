@@ -6,7 +6,7 @@
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { store } from "../store.js";
+import { store, MSG_RECEIVE, MSG_NONE, newContactId } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { fileSizeLabel } from "../util/image.js";
@@ -480,6 +480,59 @@ export function mount(root, { nav }) {
     const renderFt = () => { const e = slot("ft"); if (e) setHTML(e, ftBody()); };
     const renderBanner = () => { const e = slot("banner"); if (e) setHTML(e, banners()); };
 
+    /* ── 담당자 표 ─────────────────────────────────────────────
+       거래처별 담당자(store.contactsByClient). 포털의 담당자 저장공간과 **같은 데이터**라
+       여기서 고치면 거래처 화면에도 그대로 보인다.
+
+       불변식은 포털과 맞춘다 — 정산·회계 담당자는 항상 1명이고 **직접 삭제할 수 없다**
+       (다른 사람을 먼저 지정해야 한다). 두 화면이 다른 규칙을 쓰면 버그로 읽힌다.
+       신규 등록 중에는 감춘다 — 거래처가 저장되기 전에 담당자를 넣으면 취소했을 때
+       주인 없는 버킷이 남는다. */
+    const mgrRows = () => store.contactsOf(form.id);
+    const mgrCols = [
+      { label: "이름", width: "1fr", render: (r) => html`<input class="ord-in" data-mc="name" data-id="${r.id}" value="${r.name ?? ""}" placeholder="성함" />` },
+      { label: "부서·직위", width: "1fr", render: (r) => html`<input class="ord-in" data-mc="role" data-id="${r.id}" value="${r.role ?? ""}" placeholder="예) 총무팀 과장" />` },
+      { label: "연락처", width: "150px", render: (r) => html`<input class="ord-in ord-in--num" data-mc="phone" data-id="${r.id}" value="${r.phone ?? ""}" placeholder="010-0000-0000" />` },
+      {
+        label: "알림톡 수신", width: "96px", align: "center",
+        render: (r) => html`<button type="button" class="toggle" role="switch" data-mc-msg="${r.id}"
+          aria-checked="${r.message === MSG_RECEIVE ? "true" : "false"}"
+          aria-label="${r.name || "담당자"} 배송완료 알림톡 수신"><span class="toggle__knob"></span></button>`,
+      },
+      {
+        label: "정산담당", width: "128px", align: "center",
+        render: (r) => (r.isBilling
+          ? html`<span class="pill pill--blue ptbl-billing">${icon("check-circle", { size: 12 })} 정산담당</span>`
+          : html`<button class="ptbl-setbilling" data-mc-bill="${r.id}">지정</button>`),
+      },
+      {
+        label: "삭제", width: "52px", align: "center",
+        render: (r) => (r.isBilling
+          ? html`<span class="cli-mgr__lock" title="정산담당은 바로 삭제할 수 없습니다 — 다른 담당자를 먼저 지정하세요">${icon("trash2", { size: 14 })}</span>`
+          : html`<button class="ptbl-del" data-mc-del="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`),
+      },
+    ];
+    const mgrBody = () => {
+      if (!isEdit) return "";
+      const rows = mgrRows();
+      return html`<section class="ord-card cli-mgr">
+        <div class="ord-card__head">
+          <b class="ord-card__t">담당자</b>
+          <span class="ord-card__cap">${rows.length}명 · 수신 ON 은 모든 주문의 알림 대상</span>
+        </div>
+        <div class="cli-mgr__body">
+          ${rows.length
+            ? tableGrid({ columns: mgrCols, rows, rowKey: (r) => r.id, compact: true })
+            : html`<p class="cli-mgr__empty">등록된 담당자가 없습니다. 아래에서 추가하세요 — 첫 담당자가 정산담당이 됩니다.</p>`}
+        </div>
+        <div class="cli-mgr__foot">
+          <button type="button" class="cli-minibtn" data-action="mgr-add">${icon("user-plus", { size: 14 })} 담당자 추가</button>
+          <span class="cli-mgr__note">거래처 담당자 저장공간과 같은 명단입니다 — 여기서 고치면 거래처 화면에도 반영됩니다.</span>
+        </div>
+      </section>`;
+    };
+    const renderMgr = () => { const e = slot("mgr"); if (e) setHTML(e, mgrBody()); };
+
     /* 드롭다운(발급일·유입 경로) — 재렌더가 없으므로 한 번만 만든다.
        ⚠️ 패널은 공용 기본값대로 **위로** 연다. `--cli` 에는 아래로 뒤집는 규칙이 없다. */
     function bindDds() {
@@ -519,6 +572,50 @@ export function mount(root, { nav }) {
       }
     }
     syncStatics();
+    renderMgr();
+
+    /* 담당자 편집 — 입력은 write-through 만(재렌더하면 커서가 날아간다),
+       구조가 바뀌는 동작(추가·삭제·정산담당)만 표를 다시 그린다. */
+    const patchContact = (id, patch) =>
+      store.setContactsOf(form.id, (prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+
+    on(panel, "input", "[data-mc]", (e, t) => {
+      patchContact(t.dataset.id, { [t.dataset.mc]: t.value });
+      const cap = qs(panel, ".cli-mgr .ord-card__cap");
+      if (cap) cap.textContent = `${mgrRows().length}명 · 수신 ON 은 모든 주문의 알림 대상`;
+    });
+    on(panel, "click", "[data-mc-msg]", (e, t) => {
+      const id = t.dataset.mcMsg;
+      const cur = mgrRows().find((c) => c.id === id);
+      const next = cur && cur.message === MSG_RECEIVE ? MSG_NONE : MSG_RECEIVE;
+      patchContact(id, { message: next });
+      t.setAttribute("aria-checked", next === MSG_RECEIVE ? "true" : "false");
+    });
+    on(panel, "click", "[data-mc-bill]", (e, t) => {
+      store.setBillingContactOf(form.id, t.dataset.mcBill);
+      const c = mgrRows().find((x) => x.id === t.dataset.mcBill);
+      push(`정산담당 지정 · ${c ? c.name || "이름 없음" : ""}`);
+      renderMgr(); renderRail();
+      toast("정산·회계 담당자를 변경했습니다");
+    });
+    on(panel, "click", "[data-mc-del]", (e, t) => {
+      const id = t.dataset.mcDel;
+      const c = mgrRows().find((x) => x.id === id);
+      store.setContactsOf(form.id, (prev) => prev.filter((x) => x.id !== id));
+      push(`담당자 삭제 · ${c ? c.name || "이름 없음" : ""}`);
+      renderMgr(); renderRail();
+      toast(`${c && c.name ? c.name + " " : ""}담당자를 삭제했습니다`, "warn");
+    });
+    on(panel, "click", "[data-action='mgr-add']", () => {
+      const empty = mgrRows().length === 0;
+      store.setContactsOf(form.id, (prev) => [...prev, {
+        id: newContactId(), name: "", role: "", phone: "", message: MSG_RECEIVE, isBilling: empty,
+      }]);
+      push("담당자 추가");
+      renderMgr(); renderRail();
+      const last = qsa(panel, "[data-mc='name']").pop();
+      if (last) last.focus();
+    });
 
     /* 상시 편집 — 값은 write-through 하고 **재렌더하지 않는다** */
     on(panel, "input", "[data-cf]", (e, t) => {
