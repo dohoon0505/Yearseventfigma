@@ -20,6 +20,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
+  ".pdf": "application/pdf", // 문서 생성물을 브라우저에서 바로 확인하기 위함
 };
 
 createServer(async (req, res) => {

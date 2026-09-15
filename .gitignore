@@ -7,3 +7,9 @@ node_modules/
 
 # 생성물 — 원본은 docs/*.md, 재생성은 python tools/build-docs.py
 docs/*.docx
+
+# 문서 미리보기(로컬 확인용 — 커밋 금지)
+.preview/
+
+# 파이썬 캐시
+__pycache__/
