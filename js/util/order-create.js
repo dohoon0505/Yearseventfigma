@@ -97,9 +97,9 @@ export function openOrderCreate(spec) {
     panelClass: "modal-panel--ordnew",
     labelledBy: "modal-title",
     body: body(),
+    onEsc: () => onEscHook(),
     onClose: () => {
       dispose();
-      document.removeEventListener("keydown", onEsc, true);
       spec.onClose && spec.onClose();
     },
   });
@@ -164,20 +164,19 @@ export function openOrderCreate(spec) {
   }
 
   /* ── ESC 이중 확인 ──
-     2단계를 채우다 ESC 한 번에 전부 날아가는 경로를 막는다. capture 로 먼저 먹는다
-     (makeDateTimePicker 가 쓰는 것과 같은 수법). 배송일시 피커가 열려 있으면
-     openModal 이 이미 걸러 주므로 여기까지 오지 않는다. */
-  function onEsc(e) {
-    if (e.key !== "Escape" || !touched || escArmed) return;
-    const overlays = document.querySelectorAll(".modal-overlay");
-    if (overlays[overlays.length - 1] !== modal.panel.parentElement) return; /* 위에 다이얼로그가 있으면 그쪽 몫 */
-    e.preventDefault();
-    e.stopPropagation();
+     2단계를 채우다 ESC 한 번에 전부 날아가는 경로를 막는다.
+     ⚠️ 자기 capture 리스너로는 막을 수 없다 — `openModal` 의 핸들러가 먼저 등록돼
+        같은 단계에서 이긴다. `onEsc` 훅으로 넘겨 **닫기 직전에** 끼어든다.
+     최상위 오버레이 판정·배송일시 피커 양보는 `openModal` 이 이미 끝낸 뒤라 여기선 안 본다. */
+  function onEscHook() {
+    if (!touched || escArmed) return true;
     escArmed = true;
-    setTimeout(() => { escArmed = false; }, 2000);
+    /* 토스트가 떠 있는 동안만 유효하다 — 안내가 사라진 뒤의 ESC 는 다시 첫 번째다.
+       (toast.js 의 DURATION 2600ms 에 맞춘다. 2초로 두면 문구를 읽는 사이 창이 닫혔다.) */
+    setTimeout(() => { escArmed = false; }, 2600);
     spec.toast && spec.toast("작성 중인 내용이 있습니다 · 한 번 더 누르면 닫힙니다", "warn");
+    return false;
   }
-  document.addEventListener("keydown", onEsc, true);
 
   /* ── 이벤트(위임 1회 — 부분 갱신에도 생존) ── */
   on(modal.panel, "click", "[data-action]", (e, t) => {
@@ -191,8 +190,12 @@ export function openOrderCreate(spec) {
     }
   });
   /* 한 글자라도 치면 ESC 가드가 켜진다. 필수 카운터는 매 입력마다 다시 센다 —
-     푸터 텍스트/버튼만 건드리고 본문은 재렌더하지 않는다(커서 유지). */
-  on(modal.panel, "input", "input,textarea", () => { touched = true; syncFooter(); });
+     푸터 텍스트/버튼만 건드리고 본문은 재렌더하지 않는다(커서 유지).
+     ⚠️ 세는 시점을 **마이크로태스크로 미룬다.** 이 위임은 셸이 먼저 걸므로 호출부의
+        write-through(`draft[k] = t.value`)보다 **앞서** 실행된다 — 그대로 세면 푸터가
+        항상 한 입력 늦고, 마지막 필수 칸을 채워도 등록 버튼이 비활성인 채 남는다
+        (B2C 에서 리본문구를 다 적고도 등록이 막혔다). */
+  on(modal.panel, "input", "input,textarea", () => { touched = true; queueMicrotask(syncFooter); });
   on(modal.panel, "click", ".ordnew-pane [data-action], .ordnew-pane button", () => { touched = true; });
 
   steps.forEach((_, i) => { bindStep(i); if (i !== 0) setDisabled(i, true); });

@@ -266,7 +266,24 @@ export const store = {
       ? ALL_PRODUCTS.find((x) => x.product === product)
       : product;
     if (!p) return 0;
-    const custom = state.clientPrices?.[clientId]?.[productKey(p)];
-    return typeof custom === "number" && custom > 0 ? custom : priceNum(p.price);
+    return this.contractPrice(clientId, p) ?? priceNum(p.price);
+  },
+  /** 계약 단가만 — 등록돼 있지 않으면 `null`(정가로 떨어지기 **전**의 사실).
+   *  주문서가 "계약단가 적용 / 계약단가와 다름 / 미등록"을 구분해야 해서 필요하다.
+   *  판정 규칙을 호출부에 복제하지 말 것 — appliedPrice 도 이 함수를 쓴다. */
+  contractPrice(clientId, product) {
+    const p = typeof product === "string"
+      ? ALL_PRODUCTS.find((x) => x.product === product)
+      : product;
+    if (!p) return null;
+    const c = state.clientPrices?.[clientId]?.[productKey(p)];
+    return typeof c === "number" && c > 0 ? c : null;
+  },
+  /** 이 거래처에 **정가와 다른** 단가가 걸린 상품 수(등록 여부 판정의 단일 소스). */
+  contractCount(clientId) {
+    return ALL_PRODUCTS.filter((p) => {
+      const c = this.contractPrice(clientId, p);
+      return c != null && c !== priceNum(p.price);
+    }).length;
   },
 };
