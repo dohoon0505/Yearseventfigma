@@ -142,10 +142,11 @@ export function mount(root, { nav }) {
 
   /* ══ 표 — 통합주문관리와 같은 11열 ═══════════════════════ */
   const columns = [
+    /* 거래 조건(clientNote)은 목록에 표시하지 않는다 — 상세 모달의 '거래 조건'
+       카드가 전문을 띄우므로 목록 배지는 중복이다. */
     {
       label: "거래처", width: "150px",
-      render: (r) => html`<div class="ellipsis" title="${clientName(r)}">${clientName(r)}${
-        clientOf(r)?.clientNote ? html`<span class="ord-note" title="거래 조건 있음">!</span>` : ""}</div>`,
+      render: (r) => html`<div class="ellipsis" title="${clientName(r)}">${clientName(r)}</div>`,
     },
     { label: "주문 / 배송일시", width: "168px", render: (r) => dateCell(r.date, r.deliverAt, "주문") },
     { label: "배송지", width: "1.3fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.address}">${r.address || "-"}</div>` },
