@@ -2,7 +2,8 @@
    order-history.js — 주문 처리 이력.
 
    주문 모달 우측의 '처리 이력' 카드가 읽는다. 접수 → 담당자 지정 → 상태 변경
-   → 저장 → 취소를 시각과 함께 쌓는다.
+   → 저장 → 취소를 시각과 함께 쌓는다. **배열은 시간순(오래된 것이 [0])** 이고
+   화면도 같은 방향이다 — 새 이력은 카드 아래쪽에 붙는다.
 
    ⚠️ 시각은 **"YYYY-MM-DD HH:mm" 한 포맷으로 통일**한다. 이 프로젝트엔 이미
       주문 날짜 포맷이 셋이라(B2C 접수 대시 · B2B 주문 슬래시 · 배송희망 T)
@@ -43,11 +44,12 @@ export function histAt(dateStr, addMin = 0) {
 
 export const histEntry = (type, label, at) => ({ type, label, at: at || stamp(new Date()) });
 
-/** 최신이 위 — 카드가 시간 역순으로 읽힌다 */
+/** 최신이 **아래** — 카드가 위에서 아래로 시간순으로 읽힌다(대화 로그와 같은 방향).
+    새 줄은 항상 끝에 붙으므로 카드를 맨 아래로 스크롤해 줘야 한다(→ histScrollEnd). */
 export function pushHistory(order, type, label, at) {
   if (!order) return;
   if (!Array.isArray(order.history)) order.history = [];
-  order.history.unshift(histEntry(type, label, at));
+  order.history.push(histEntry(type, label, at));
 }
 
 /* ── 시드 ─────────────────────────────────────────────────
@@ -73,6 +75,6 @@ export function seedHistory(order, receivedKey = "receivedAt") {
     }
   }
 
-  order.history = list.reverse(); // 최신이 위
+  order.history = list; // 시간순 — 접수가 맨 위, 최신이 맨 아래
   return order;
 }
