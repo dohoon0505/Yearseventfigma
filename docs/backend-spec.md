@@ -324,14 +324,20 @@
 | `orderNo` | string | `B2B-0000` |
 | `clientId` | ref | 거래처 |
 | `date` | datetime | 주문일시 |
-| `sender` | string | 발송인(부서·이름) |
+| `ordererName` | string | 발송인(부서·이름). 주문을 넣은 거래처 담당자 |
+| `deliverAt` | datetime | **배송 희망일시**. 포털 주문 2단계 입력값 |
 | `address` | string | 배송지 |
+| `recipientName` | string | 받는분 |
+| `recipientPhone` | string | 받는분 연락처 |
+| `ribbonPhrase` | string | 리본 경조사어 |
+| `ribbonSender` | string | 리본 보내는분(보통 거래처명 + 임직원 일동) |
 | `product` | string | 카탈로그 상품명 |
-| `amount` | int | **거래처 적용 단가** (기본 단가가 아님) |
+| `amount` | int | **거래처 적용 단가**. (거래처 × 상품)에서 파생 — `clientPrices` 에 계약 단가가 있으면 그것, 없으면 카탈로그 정가 |
 | `status` | enum | `접수대기`·`주문접수`·`배송완료`·`취소` |
-| `hasPhoto` | bool | 현장사진 |
-| `receiver` | string | 인수자 |
-| `staff` | string | 내부 처리 담당자 |
+| `image` | url | 배송 현장 사진. 있음/없음이 곧 사진 열·필터 값 |
+| `notified` | bool | 배송완료 알림톡 발송 여부 |
+| `receiver` | string | 인수자(현장 수령인). 받는분과 다른 값이다 |
+| `manager` | string | 내부 처리 담당자 |
 | `request` | text | 요청사항 (거래처 입력) |
 | `memo` | text | 처리 메모 (관리자 입력) |
 | `cancelReason` | enum+ | 코드값 6종 또는 직접 입력 |
@@ -342,6 +348,27 @@
 
 **정산 귀속월** = 주문일시의 년·월. 주문이 어느 달 정산에 들어가는지가
 모달에 표시됩니다.
+
+**화면은 B2C 통합주문관리(4.4)와 동일합니다.** 같은 일을 하는 두 화면이
+다르게 생기면 담당자가 화면마다 조작을 다시 배웁니다. 필터 카드 3층 ·
+11열 표 · 읽기 우선 2열 모달 · 읽기↔편집 토글 · 담당자 지정 · 현장사진
+업로드까지 같은 코드를 씁니다(`js/util/order-screen.js`).
+
+의도적으로 다른 것만 아래와 같습니다.
+
+| 항목 | B2B | B2C |
+|---|---|---|
+| 표 1열 | 거래처(+거래조건 `!`) | 주문경로 |
+| 날짜 기준 | 주문일 / 배송일 | 접수일 / 배송일 |
+| 주문정보 존 | 거래처·발송인·**정산 귀속**·주문상품·**적용 단가** | 주문자·주문상품·주문금액 |
+| 모달 최상단 | 거래조건 배너(clientNote) | — |
+| 주문취소 안내 | 수수료가 그 달 정산에 가산 | 제작 착수 전이면 0원 |
+| 주문서 삭제 | 확인 모달(귀속월·금액 고지) | 즉시 삭제 |
+
+**편집 잠금** — `clientId`·`amount`·정산 귀속월은 편집 모드에서도 읽기
+전용입니다. 후불 정산의 청구 근거라 여기서 바뀌면 정산 드릴다운(4.7)과
+청구서가 어긋납니다. 상품을 바꾸면 `amount` 는 계약 단가에서 다시
+파생됩니다 — 직접 입력받지 마십시오.
 
 ## 4.4 주문 (B2C · `#/admin/b2c`)
 
@@ -466,8 +493,9 @@ B2B·B2C 를 **한 테이블 + `kind` 컬럼**으로 둘지, 두 테이블로 �
 | 구분 | 컬럼 |
 |---|---|
 | 공통 | `id`·`order_no`·`status`·`address`·`product_name`·`amount`·`ordered_at`·`delivered_at`·`photo_url`·`receiver`·`memo`·`cancel_reason`·`cancel_fee`·`staff_id` |
-| B2B 전용 | `client_id`·`sender`·`request`·`settle_period`(YYYY-MM)·`desired_arrival_at` |
-| B2C 전용 | `channel`·`orderer_name`·`orderer_phone`·`ribbon_phrase`·`ribbon_sender`·`notified` |
+| 공통(추가) | `desired_arrival_at`·`recipient_name`·`recipient_phone`·`ribbon_phrase`·`ribbon_sender`·`notified` |
+| B2B 전용 | `client_id`·`orderer_name`·`request`·`settle_period`(YYYY-MM) |
+| B2C 전용 | `channel`·`orderer_phone` |
 
 **상태**: `PENDING`(접수대기) → `ACCEPTED`(주문접수) → `DELIVERED`(배송완료),
 그리고 `CANCELED`(취소). 전이는 4.3·3.3 참조.
@@ -477,10 +505,13 @@ B2B·B2C 를 **한 테이블 + `kind` 컬럼**으로 둘지, 두 테이블로 �
 - `CANCELED` 는 `cancel_reason` 이 있어야 한다.
 - `settle_period` 는 `ordered_at` 의 년·월. **명세서 발급 후에는 변경 불가.**
 
-> ⚠ **`desired_arrival_at`(희망 도착시각)은 현재 프런트 목데이터에 없습니다.**
-> B2C 는 `deliverAt` 로 받고 있으나 B2B 는 받지 않아, 대쉬보드 액션 큐가
-> 주문일의 당일배송 마감(18:30)을 도착 기준으로 대신 씁니다. 서버 전환 시
-> B2B 주문에도 필드를 두고 포털 주문 2단계에서 입력받는 것이 맞습니다 (→ 10.4 Q9).
+> **`desired_arrival_at` 은 B2B·B2C 공통입니다(결정됨).** 포털 주문 2단계에서
+> 받는 값이고, 프런트 목데이터에도 양쪽 다 실려 있습니다. 두 주문 화면이
+> 같은 '주문 / 배송일시' 2행 셀을 쓰므로 한쪽에만 두면 열이 비어 버립니다.
+>
+> ⚠ **`photo_url` 과 `notified` 도 공통입니다.** B2B 에 있던 `hasPhoto`(bool)는
+> 없앴습니다 — 사진의 존재 여부와 사진 자체를 따로 들고 있으면 반드시
+> 어긋납니다. 대쉬보드의 '사진 미등록' 큐도 `photo_url` 로 판정합니다.
 
 ## 5.4 Settlement · InvoiceLink
 
@@ -710,7 +741,8 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
   "deliverAt": "2026-09-16T11:00",
   "deliveryMode": "scheduled",
   "ribbonPhrase": "삼가 고인의 명복을 빕니다",
-  "sender": "(주)진양코퍼레이션 대표이사 한상현",
+  "ribbonSender": "(주)진양코퍼레이션 대표이사 한상현",
+  "ordererName": "총무팀 한상현",
   "request": "빈소 입구 우측에 배치 부탁드립니다.",
   "notifyRecipients": [
     { "kind": "recipient", "name": "고 김태수", "phone": "010-3921-4400" },
@@ -1208,7 +1240,7 @@ C008·C015 는 같은 사업자번호를 쓰는 **부서 분리** 사례입니�
 | Q6 | 자동 동의 약관 | 문구 확정 및 사전 고지 방식 |
 | Q7 | 거래처 신용 한도 | 후불이므로 미수 누적 시 주문 차단 기준이 필요한지 |
 | Q8 | 모바일 | 포털 반응형 범위와 일정 |
-| Q9 | B2B 희망 도착시각 | 포털 주문에서 받을지. 지금은 마감시각(18:30)으로 추정한다 (→ 5.3) |
+| ~~Q9~~ | ~~B2B 희망 도착시각~~ | **해소** — `desired_arrival_at` 을 B2B·B2C 공통 필드로 확정. 포털 주문 2단계에서 받는다 (→ 5.3) |
 
 ## 10.5 용어집
 
