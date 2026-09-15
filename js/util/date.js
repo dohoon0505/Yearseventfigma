@@ -88,3 +88,42 @@ export const clampMin = (hour, min) => {
   const opts = minOptions(hour);
   return opts.includes(min) ? min : opts[opts.length - 1];
 };
+
+/* ── 주문 목록 행 색 톤 ──────────────────────────────────────
+   세 주문 화면(#/admin/b2c · #/admin/orders · #/app/orders)이 **한 함수**를 쓴다.
+   화면마다 따로 계산하면 같은 주문이 화면마다 다른 색으로 보인다.
+
+   ⚠️ 레코드에 배송모드 필드가 없다. 주문 퍼널의 '즉시배송/날짜지정'(order.js
+      state.deliv)은 피커를 자동으로 채워 줄 뿐인 **화면용 임시값**이라 제출
+      시점엔 둘이 구별되지 않는다 → 당일/예약은 **배송요청일과 오늘을 비교해
+      파생**한다. 서버 전환 때 모드를 필드로 둘지는 열린 질문(→ backend-spec 10장).
+
+   ⚠️ 달력일 비교는 **문자열로** 한다. Date 로 만들어 비교하면 자정 경계·타임존에서
+      하루가 밀린다. 세 포맷(대시/슬래시/T)이 앞 10자리는 모두 YYYY?MM?DD 라
+      구분자만 통일하면 사전순 비교가 곧 날짜 비교다. */
+
+/** 세 포맷 어느 것이든 → "YYYY-MM-DD" (빈 값이면 ""). */
+export const dayKey = (s) => String(s || "").replace(/\//g, "-").replace("T", " ").slice(0, 10);
+
+/** 오늘의 dayKey. getDateRange 와 같이 **호출 시점** new Date() 를 쓴다 —
+    목데이터의 DATA_NOW 는 모듈 로드 시각에 고정이라, 탭을 자정 너머로 열어두면
+    하루 어긋난다(새로고침하면 맞는다). 이미 있는 성질이라 여기만 다르게 가지 않는다. */
+export const todayKey = () => formatDateLabel(new Date());
+
+/** 주문 목록 행에 붙일 톤 클래스.
+      취소            → ordrow--void   (연회색)
+      배송완료        → ""             (흰색 = 기본)
+      접수대기        → ordrow--wait   (연노랑, 배송일 무관)
+      주문접수 + 당일 → ordrow--today  (연핑크) — 배송일이 오늘이거나 **이미 지난** 건.
+                        지연은 가장 급한 건이라 '지금 처리할 것' 덩어리에 넣는다.
+      주문접수 + 예약 → ordrow--booked (연파랑)
+    배송일을 못 읽으면 색을 칠하지 않는다(틀린 색보다 무색이 낫다). */
+export function orderRowTone(status, deliverAt) {
+  if (status === "취소") return "ordrow--void";
+  if (status === "배송완료") return "";
+  if (status === "접수대기") return "ordrow--wait";
+  if (status !== "주문접수") return "";
+  const d = dayKey(deliverAt);
+  if (!d) return "";
+  return d <= todayKey() ? "ordrow--today" : "ordrow--booked";
+}

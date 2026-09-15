@@ -18,7 +18,7 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker } from "../ui.js";
-import { getDateRange, formatDateLabel } from "../util/date.js";
+import { getDateRange, formatDateLabel, orderRowTone } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { pushHistory } from "../data/order-history.js";
 import {
@@ -152,7 +152,9 @@ export function mount(root, { nav }) {
   function tableBody() {
     const rows = filtered();
     if (rows.length === 0) return html`<div class="admin-empty">조건에 맞는 B2C 주문이 없습니다.</div>`;
-    return tableGrid({ columns, rows, rowKey: (r) => r.id, compact: true });
+    /* 행 배경 = 상태 + 배송일(→ util/date.js). 현황 배지 한 칸만 보고
+       '오늘 나갈 건'을 찾던 걸 표 전체가 덩어리로 알려 준다. */
+    return tableGrid({ columns, rows, rowKey: (r) => r.id, rowClass: (r) => orderRowTone(r.status, r.deliverAt), compact: true });
   }
 
   function render() {

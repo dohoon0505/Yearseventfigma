@@ -177,6 +177,18 @@
   --c-auth-ink: #3a3a3a; /* 밝은 면 위 강조 텍스트 */
   --c-auth-cta-hover: #d94a1c; /* 가입 CTA hover */
 
+  /* ── 주문 목록 행 톤 (상태 + 배송일 → util/date.js orderRowTone) ───────
+     행 위에 글자가 그대로 앉으므로 **아주 옅게**. hover 는 한 단계만 진하게.
+     배송완료는 기본 흰색이라 토큰이 없다. */
+  --c-row-wait: #fffbe6;      /* 접수대기 — 연노랑 */
+  --c-row-wait-hv: #fff5cc;
+  --c-row-today: #fff1f4;     /* 주문접수 · 오늘/지연 — 연핑크 */
+  --c-row-today-hv: #ffe3e9;
+  --c-row-booked: #eff4ff;    /* 주문접수 · 예약 — 연파랑 */
+  --c-row-booked-hv: #e2ebff;
+  --c-row-void: #f5f5f6;      /* 취소 — 연회색 */
+  --c-row-void-hv: #ececee;
+
   /* ── 기타 ─────────────────────── */
   --c-blue-hover: #3558c4; /* 파랑 버튼·링크 hover */
   --c-notice-bg: #fff5f5; /* 주문현황 경고 안내 배경 */
