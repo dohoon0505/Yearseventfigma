@@ -21,6 +21,7 @@ import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowT
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
+import { openOrderCreate } from "../util/order-create.js";
 import { pushHistory } from "../data/order-history.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -30,7 +31,7 @@ import {
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
-  staffNames, staffOptions, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS,
+  staffNames, staffOptions, B2C_CHANNELS, B2C_CHANNEL_META, B2C_PAY_STATES, B2C_STATUSES, B2C_PRODUCTS,
   productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
@@ -39,12 +40,15 @@ import {
 const TABS = tabDefs(B2C_STATUSES);
 const DATE_BASIS = [{ v: "received", label: "접수일" }, { v: "deliver", label: "배송일" }];
 
-function blankOrder() {
+/* 등록 작업본 — **주문번호·id 를 여기서 만들지 않는다.** 모달을 열 때 채번하면
+   등록하지 않고 닫아도 번호가 영구히 소모된다(예전 동작). 담당자도 비워 둔다 —
+   미지정으로 시작해야 '주문 담당자' 선택이 의미를 갖는다. */
+function draftOrder() {
   const now = new Date();
   const receivedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   return {
-    id: b2cNewId(), orderNo: b2cNextOrderNo(), receivedAt,
-    manager: staffNames()[0] ?? "", channel: B2C_CHANNELS[0],
+    id: "", orderNo: "", receivedAt,
+    manager: "", channel: "", payStatus: "",
     ordererName: "", ordererPhone: "", ribbonPhrase: "", ribbonSender: "",
     image: "", product: "", amount: 0,
     deliverAt: "", request: "", recipientName: "", recipientPhone: "",
@@ -65,7 +69,6 @@ export function mount(root, { nav }) {
   const DP_MAX = new Date(new Date().getFullYear() + 2, 11, 31);
   let activeModal = null;
   let editing = null;      // 편집 작업본 (입력은 전부 여기로 write-through)
-  let isNew = false;
   const dds = [];          // makeDropdown 인스턴스 (renderModal 마다 destroy→재생성)
   const toast = makeToast();
 
@@ -256,10 +259,10 @@ export function mount(root, { nav }) {
   function modalBody() {
     return html`
       <div class="hm__head ord-hd" data-slot="hd">
-        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2C_STATUSES, canComplete: canComplete(), menuOpen, isNew })}
+        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2C_STATUSES, canComplete: canComplete(), menuOpen })}
       </div>
-      <div class="ord-grid ${isNew ? "ord-grid--new" : ""}">
-        ${isNew ? "" : railV2({ order: editing, imgInner: imgBox.inner() })}
+      <div class="ord-grid">
+        ${railV2({ order: editing, imgInner: imgBox.inner() })}
         <div class="ord-pane">
           <div class="ord-cols">
             <div class="ord-colL">
@@ -268,7 +271,7 @@ export function mount(root, { nav }) {
             </div>
             <div class="ord-colR">
               <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
-              ${isNew ? "" : card({
+              ${card({
                 title: "처리 이력", cap: `${(editing.history || []).length}건`,
                 body: historyBody(editing), slot: "hist",
               })}
@@ -284,7 +287,7 @@ export function mount(root, { nav }) {
   function renderHd() {
     const p = panelOf(); if (!p) return;
     setHTML(qs(p, "[data-slot='hd']"),
-      ordHeader({ order: editing, meta: metaLine(), statuses: B2C_STATUSES, canComplete: canComplete(), menuOpen, isNew }));
+      ordHeader({ order: editing, meta: metaLine(), statuses: B2C_STATUSES, canComplete: canComplete(), menuOpen }));
   }
   function renderSum() {
     const p = panelOf(); if (!p) return;
@@ -292,7 +295,7 @@ export function mount(root, { nav }) {
     if (el) setHTML(el, summaryBodyV2({ order: editing, rows: summaryRows() }));
   }
   function renderHist() {
-    const p = panelOf(); if (!p || isNew) return;
+    const p = panelOf(); if (!p) return;
     const el = qs(p, "[data-slot='hist']");
     if (el) {
       setHTML(el, historyBody(editing));
@@ -313,6 +316,204 @@ export function mount(root, { nav }) {
     }
     const btn = qs(p, "[data-action='save']");
     if (btn) { btn.disabled = !n; btn.textContent = n ? "변경사항 저장" : "저장"; }
+  }
+
+
+  /* ══ 주문서 등록 모달 (B2C) ═══════════════════════════════
+     ⚠️ 상세 모달과 **다른 모달**이다 — 셸도(util/order-create.js) 핸들도 따로다.
+     `activeModal`/`editing` 을 건드리지 않는다. 같은 변수를 쓰면 하나를 열 때
+     다른 하나가 닫힌다(`openEditor` 첫 줄이 `closeModal()` 이다).
+
+     시안: 1단계가 주문의 성격을 정한다(유입 경로·결제 상태), 2단계가 주문 내용.
+     ─────────────────────────────────────────────────────── */
+  let createModal = null;   // ← 상세 모달의 activeModal 과 **별개 핸들**
+  let cDraft = null;
+  const cDds = [];
+  const cDestroy = () => { cDds.forEach((d) => d.destroy()); cDds.length = 0; };
+
+  const chanMeta = (v) => B2C_CHANNEL_META[v] || { desc: "", fee: "" };
+
+  function openCreate() {
+    cDraft = draftOrder();
+
+    /* ── step1: 주문경로 · 결제 ── */
+    const step1Body = () => html`
+      <section class="ord-card">
+        <div class="ord-card__head">
+          <b class="ord-card__t">주문경로</b>
+          <span class="ord-card__cap">수수료·정산 주기가 함께 결정됩니다</span>
+        </div>
+        <div class="ordnew-chan" data-slot="chan">
+          ${B2C_CHANNELS.map((v) => html`
+            <button type="button" class="ordnew-chan__card ${cDraft.channel === v ? "is-on" : ""}"
+              data-cchan="${v}" aria-pressed="${cDraft.channel === v ? "true" : "false"}">
+              <span class="ordnew-chan__n">${v}</span>
+              <span class="ordnew-chan__d">${chanMeta(v).desc}</span>
+              <span class="ordnew-chan__f">${chanMeta(v).fee}</span>
+            </button>`)}
+        </div>
+        <div class="ord-row">
+          <label class="ord-k">결제 상태</label>
+          <div class="seg-pill" role="radiogroup" aria-label="결제 상태" data-slot="cpay">
+            ${B2C_PAY_STATES.map((v) => html`
+              <button type="button" class="seg-pill__btn ${cDraft.payStatus === v ? "is-on" : ""}"
+                data-cpay="${v}" role="radio" aria-checked="${cDraft.payStatus === v ? "true" : "false"}">${v}</button>`)}
+          </div>
+          <label class="ord-k">접수일시</label>
+          <input class="ord-in ord-in--num" data-cf="receivedAt" value="${cDraft.receivedAt}" />
+        </div>
+        <div class="ord-row ord-row--full">
+          <label class="ord-k">주문 담당자</label>
+          <div class="ord-pick" data-slot="cmgr">
+            <span class="ord-pick__v ${cDraft.manager ? "" : "is-empty"}">${cDraft.manager || "지정하지 않음"}</span>
+            <button type="button" class="ord-pick__btn" data-action="cpick-mgr">${cDraft.manager ? "변경" : "선택"}</button>
+          </div>
+        </div>
+      </section>`;
+
+    /* ── step2: 주문 내용 — 상세 모달과 **같은 서술자 배열**을 읽는다 ── */
+    const step2Body = () => html`
+      ${card({ title: "주문자 · 결제", cap: [cDraft.channel, cDraft.payStatus].filter(Boolean).join(" · ") || "경로 미선택",
+               body: renderFields(ORDER_FIELDS, cDraft) })}
+      ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(DELIVER_FIELDS, cDraft) })}`;
+
+    /* ── 레일 ── */
+    const railBody = (i) => {
+      const m = chanMeta(cDraft.channel);
+      return html`
+        <div class="ord-side__h"><b class="ord-side__t">${cDraft.channel || "주문경로 미선택"}</b></div>
+        ${cDraft.channel ? html`
+          <div class="rail-card">
+            <p class="rail-card__k">유입</p><p class="rail-card__v">${m.desc}</p>
+            <p class="rail-card__k" style="margin-top:9px">정산</p><p class="rail-card__v">${m.fee}</p>
+            ${cDraft.payStatus ? html`<p class="rail-card__k" style="margin-top:9px">결제</p><p class="rail-card__v">${cDraft.payStatus}</p>` : ""}
+          </div>` : ""}
+        ${i === 1 && cDraft.product ? html`
+          <div class="rail-card">
+            <p class="rail-card__k">주문상품</p><p class="rail-card__v">${cDraft.product}</p>
+            <p class="rail-card__k" style="margin-top:9px">주문금액</p><p class="rail-card__v">${won(Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0)}</p>
+          </div>` : ""}
+        <p class="ord-side__note">경로는 정산 집계의 기준입니다. 실제 유입 경로와 다르게 두면 매출이 어긋납니다.</p>`;
+    };
+
+    const missing1 = () => {
+      const out = [];
+      if (!cDraft.channel) out.push("주문경로");
+      if (!cDraft.payStatus) out.push("결제 상태");
+      return out;
+    };
+    const missing2 = () => {
+      const need = [["ordererName", "주문자"], ["product", "주문상품"], ["address", "배송지"],
+                    ["recipientName", "받는분"], ["ribbonPhrase", "리본문구"]];
+      return need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+    };
+
+    createModal = openOrderCreate({
+      title: "B2C 주문 등록",
+      subtitle: "유입 경로와 결제 상태를 기준으로 접수합니다",
+      toast,
+      steps: [
+        { key: "s1", title: "주문경로 · 결제", cap: "주문의 성격을 정합니다",
+          render: step1Body, bind: () => [], required: missing1,
+          hint: () => `${cDraft.channel} · ${chanMeta(cDraft.channel).fee}` },
+        { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
+          render: step2Body, bind: bindCreateControls, required: missing2,
+          hint: () => "등록 준비 완료 · 접수대기로 저장됩니다" },
+      ],
+      rail: railBody,
+      submitLabel: "주문 등록",
+      onSubmit: submitCreate,
+      onClose: () => { cDestroy(); createModal = null; cDraft = null; },
+    });
+    bindCreateDelegates(createModal.panel);
+  }
+
+  /* step2 의 드롭다운·피커 — 셸이 스텝을 버리지 않으므로 한 번만 만든다. */
+  /* 등록 모달 전용 위임 — 셸 패널에 1회. 슬롯 부분 갱신에도 생존한다. */
+  function bindCreateDelegates(panel) {
+    on(panel, "click", "[data-cchan]", (e, t) => {
+      if (cDraft.channel === t.dataset.cchan) return;
+      cDraft.channel = t.dataset.cchan;
+      createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.markTouched();
+    });
+    on(panel, "click", "[data-cpay]", (e, t) => {
+      if (cDraft.payStatus === t.dataset.cpay) return;
+      cDraft.payStatus = t.dataset.cpay;
+      createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.markTouched();
+    });
+    on(panel, "click", "[data-action='cpick-mgr']", () => {
+      openStaffPicker({
+        current: cDraft.manager, names: staffOptions, toast,
+        onPick: (v) => { cDraft.manager = v; createModal.rerenderStep("s1"); },
+      });
+    });
+    /* 값 입력은 draft 로 write-through — 행을 다시 그리지 않는다(커서 유지). */
+    on(panel, "input", "[data-cf]", (e, t) => { cDraft[t.dataset.cf] = t.value; });
+    on(panel, "input", "[data-f]", (e, t) => {
+      const k = t.dataset.f;
+      cDraft[k] = (k === "ordererPhone" || k === "recipientPhone") ? onPhoneInput(t) : t.value;
+      if (t.tagName === "TEXTAREA") autosize(t);
+      if (k === "amount" || k === "product") createModal.rerenderRail();
+    });
+  }
+
+  function bindCreateControls(pane) {
+    cDestroy();
+    const prod = qs(pane, "[data-dd-f='product']");
+    if (prod) cDds.push(makeDropdown(prod, {
+      options: () => B2C_PRODUCTS.map((p) => p.name),
+      label: (v) => v || "상품을 선택하세요",
+      get: () => cDraft.product,
+      set: (v) => {
+        if (cDraft.product === v) return; /* 동일값 재선택이 금액을 덮지 않게 */
+        cDraft.product = v;
+        const price = productPrice(v);
+        if (price > 0) {
+          cDraft.amount = price;
+          const amt = qs(pane, "[data-f='amount']");
+          if (amt) amt.value = won(price); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
+        }
+        createModal && createModal.rerenderRail();
+        createModal && createModal.syncFooter();
+      },
+    }));
+    const dtp = qs(pane, "[data-dtp]");
+    if (dtp) cDds.push(makeDateTimePicker(dtp, {
+      get: () => cDraft.deliverAt,
+      set: (v) => { cDraft.deliverAt = v; createModal && createModal.syncFooter(); },
+      min: DP_MIN, max: DP_MAX,
+    }));
+    qsa(pane, "textarea.ord-in").forEach(autosize);
+    return cDds.slice();
+  }
+
+  /* 채번·이력·목록 복귀는 **호출부 책임**(셸은 데이터 계약을 모른다). */
+  function submitCreate() {
+    const rec = {
+      ...cDraft,
+      id: b2cNewId(), orderNo: b2cNextOrderNo(),
+      amount: Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0,
+    };
+    delete rec.history;
+    b2cUpsert(rec);
+    const stored = findOrder(rec.id);
+    /* 첫 이력은 '주문 접수'다 — 예전엔 '주문 정보 수정 N건'으로 시작했다. */
+    if (stored) pushHistory(stored, "created", `주문 접수 · ${rec.channel}`);
+    createModal && createModal.close();
+    ensureVisible(rec);
+  }
+
+  /* 목록이 현재 탭·기간을 그대로 적용하므로 방금 등록한 주문이 안 보일 수 있다.
+     말없이 사라지는 것도, 말없이 필터를 푸는 것도 나쁘다 — 안 보일 때만 풀고 알린다. */
+  function ensureVisible(rec) {
+    refreshList();
+    if (filtered().some((o) => o.id === rec.id)) {
+      toast(`${rec.orderNo} 주문을 등록했습니다`, "ok");
+      return;
+    }
+    state.tab = "all"; state.dateQuick = "전체"; state.dateStart = ""; state.dateEnd = "";
+    render();
+    toast(`${rec.orderNo} 등록 · 보이도록 목록 필터를 초기화했습니다`, "ok");
   }
 
   /* ── 드롭다운·피커 수명주기 ───────────────────────────── */
@@ -356,7 +557,7 @@ export function mount(root, { nav }) {
     const merged = { ...editing, amount: Number(String(editing.amount).replace(/[^0-9]/g, "")) || 0 };
     let autoDone = false;
     /* 자동 배송완료 — 주문접수 + 사진 + 인수자 */
-    if (!isNew && merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
+    if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
       merged.status = "배송완료";
       merged.notified = true;
       autoDone = true;
@@ -367,7 +568,6 @@ export function mount(root, { nav }) {
     if (stored && n) pushHistory(stored, "edit", `주문 정보 수정 ${n}건`);
     if (stored && autoDone) pushHistory(stored, "delivered", "배송완료 · 알림톡 발송");
     refreshList();
-    if (isNew) { closeModal(); toast("신규 주문을 등록했습니다"); return; }
     editing = { ...merged, history: stored ? stored.history : [] };
     baseline = { ...editing };
     const d = new Date();
@@ -385,7 +585,7 @@ export function mount(root, { nav }) {
       onPick: (v) => {
         if (!editing) return false;
         editing.manager = v;
-        if (!isNew) b2cSetManager(editing.id, v); // 담당자만 즉시 반영 + 이력 기록
+        b2cSetManager(editing.id, v); // 담당자만 즉시 반영 + 이력 기록
         const stored = findOrder(editing.id);
         if (stored) editing.history = stored.history;
         if (baseline) baseline.manager = v; // 담당자는 즉시 저장이라 dirty 가 아니다
@@ -397,7 +597,7 @@ export function mount(root, { nav }) {
 
   /* 스테퍼 — 앞으로만. 배송완료는 사진·인수자가 있어야 한다. */
   function stepTo(next) {
-    if (!editing || isNew) return;
+    if (!editing) return;
     const flow = B2C_STATUSES.filter((s) => s !== "취소");
     const cur = flow.indexOf(editing.status);
     const to = flow.indexOf(next);
@@ -418,14 +618,13 @@ export function mount(root, { nav }) {
     if (p) qs(p, ".ord-step__btn.is-now")?.focus(); // 재렌더로 사라진 버튼의 포커스 복구
   }
 
-  function openEditor(order, _isNew) {
+  function openEditor(order) {
     closeModal();
     const { history: _h, ...draft } = order; // ⚠️ history 는 draft 에 싣지 않는다
     editing = { ...draft, history: order.history || [] };
     baseline = { ...editing };
     savedAt = "";
     menuOpen = false;
-    isNew = _isNew;
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
@@ -488,7 +687,7 @@ export function mount(root, { nav }) {
       syncDirty();
     });
     /* API 자동등록(담당자 미지정) 주문을 열면 담당자 지정을 우선 노출 */
-    if (!isNew && !editing.manager) openManagerModal();
+    if (!editing.manager) openManagerModal();
   }
 
   render();
@@ -515,8 +714,8 @@ export function mount(root, { nav }) {
       return;
     }
     if (a === "detail-toggle") { state.detailOpen = !state.detailOpen; refreshFilters(); return; }
-    if (a === "new") return openEditor(blankOrder(), true);
-    if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); return; }
+    if (a === "new") return openCreate();
+    if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o); return; }
   });
   /* 행 아무 데나 눌러도 열린다 — 연필은 같은 일을 하는 명시적 버튼으로 남는다 */
   const offRow = onRowOpen(root, (id) => { const o = findOrder(id); if (o) openEditor(o, false); });

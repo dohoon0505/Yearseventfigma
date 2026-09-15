@@ -1121,17 +1121,21 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-dtp__row { display: flex; align-items: center; gap: 8px; }
 .ord-dtp__row .dd { position: relative; flex: 1; min-width: 0; }
 .ord-dtp__colon { flex: 0 0 auto; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-muted); }
-.modal-panel--ord .ord-dtp .dd-trigger {
+.modal-panel--ord .ord-dtp .dd-trigger,
+.modal-panel--ordnew .ord-dtp .dd-trigger {
   width: 100%; height: 38px; padding: 0 30px 0 12px; text-align: left;
   font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
   font-variant-numeric: tabular-nums;
 }
 .modal-panel--ord .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
-.modal-panel--ord .ord-dtp .dd.open .dd-trigger {
+.modal-panel--ordnew .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
+.modal-panel--ord .ord-dtp .dd.open .dd-trigger,
+.modal-panel--ordnew .ord-dtp .dd.open .dd-trigger {
   border-color: var(--c-orange); box-shadow: var(--ring);
 }
 .modal-panel--ord .ord-dtp .dd-panel { max-height: 196px; }
+.modal-panel--ordnew .ord-dtp .dd-panel { max-height: 196px; }
 
 .ord-dtp__foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -1251,7 +1255,6 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   display: grid; grid-template-columns: 350px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
-.ord-grid--new { grid-template-columns: minmax(0, 1fr); }
 
 /* 좌측 다크 처리 레일 — 배송 현장 기록을 본문과 물리적으로 갈라 놓는다 */
 .ord-side {
@@ -1354,7 +1357,8 @@ textarea.ord-in {
 /* 카드 안 드롭다운(주문상품) — 공용 `.modal-panel .dd-trigger`(0,2,0)는 48px·흰 면·
    테두리라 상시편집 필드 사이에서 혼자 튄다. 같은 특이도 이상으로 되돌려
    옆 input 과 높이(36px)·값 타이포(17px semibold)·hover/focus 거동을 맞춘다. */
-.modal-panel--ord .ord-card .dd-trigger {
+.modal-panel--ord .ord-card .dd-trigger,
+.modal-panel--ordnew .ord-card .dd-trigger {
   height: 36px; padding: 0 26px 0 8px;
   font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
@@ -1363,9 +1367,13 @@ textarea.ord-in {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .modal-panel--ord .ord-card .dd-trigger::after { right: 9px; width: 7px; height: 7px; }
+.modal-panel--ordnew .ord-card .dd-trigger::after { right: 9px; width: 7px; height: 7px; }
 .modal-panel--ord .ord-card .dd-trigger:hover { background: var(--c-fill-1); border-color: transparent; }
+.modal-panel--ordnew .ord-card .dd-trigger:hover { background: var(--c-fill-1); border-color: transparent; }
 .modal-panel--ord .ord-card .dd.open .dd-trigger,
-.modal-panel--ord .ord-card .dd-trigger:focus {
+.modal-panel--ordnew .ord-card .dd.open .dd-trigger,
+.modal-panel--ord .ord-card .dd-trigger:focus,
+.modal-panel--ordnew .ord-card .dd-trigger:focus {
   background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
 }
 
@@ -1540,8 +1548,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
       시/분 패널이 아래로 열렸다(푸터 바에 가려 선택 불가). 특이도를 낮추지 말 것. */
 /* 카드 안 드롭다운(주문상품) — 카드 상단 필드라 위로 열면 잘린다 → 아래로 (0,3,0) */
 .modal-panel--ord .ord-card .dd-panel { top: calc(100% + 6px); bottom: auto; }
+.modal-panel--ordnew .ord-card .dd-panel { top: calc(100% + 6px); bottom: auto; }
 /* 단, 카드 안이라도 배송일시 피커의 시/분은 위로 — 아래는 푸터 바가 가린다 → (0,4,0) */
 .modal-panel--ord .ord-card .ord-dtp .dd-panel { bottom: calc(100% + 6px); top: auto; }
+.modal-panel--ordnew .ord-card .ord-dtp .dd-panel { bottom: calc(100% + 6px); top: auto; }
 
 /* ══════════════════════════════════════════════════════════════
    .cli-* / .modal-panel--cli — 거래처 정보 수정 모달 (시안 1a)
@@ -1774,4 +1784,105 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   .cli-rows { gap: 12px; }
   .modal-panel--cli .ord-row { padding: 6px 20px; }
   .cli-note__body textarea { min-height: 96px; }
+}
+
+/* ── 주문서 등록 모달 (order-create) ──────────────────────
+   ⚠️ 상세 모달(`--ord`)과 **다른 모달**이다. 폭(시안 1240 vs 상세 1400)과
+   드롭다운 방향 규칙이 패널 클래스에 묶여 있어 `--ord` 를 재사용할 수 없다.
+   대신 `.ord-card*`·`.ord-row`·`.ord-k`·`.ord-in*`·`.ord-ft*` 는 그대로 쓴다
+   (거래처 모달이 세운 선례). 드롭다운 3벌은 위에서 선택자 그룹으로 확장했다. */
+.modal-panel--ordnew {
+  width: min(1240px, 94vw); max-height: 92vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: hmPopOrd 0.18s ease; /* ⚠️ transform 없는 것 — fixed 팝오버가 갇힌다 */
+}
+.ordnew-hd {
+  flex-shrink: 0; align-items: center; justify-content: space-between;
+  padding: 18px 28px 15px; border-bottom: 1px solid var(--c-divider);
+}
+.ordnew-hd__l { min-width: 0; }
+.ordnew-hd .ordnew-hd__l h3 {
+  font-size: var(--fs-22); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  letter-spacing: -0.015em;
+}
+.ordnew-hd__sub { margin-top: 3px; font-size: var(--fs-14); color: var(--c-text-muted); }
+.ordnew-hd__r { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.ordnew-auto {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--c-border);
+  background: var(--c-surface-2); color: var(--c-text-2);
+  font-size: var(--fs-14); font-weight: var(--fw-medium);
+}
+.ordnew-auto:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+
+/* 본문 — 레일 288px(시안). `.ord-grid`(350px)를 덮지 않는다(상세로 샌다).
+   넘침은 `.ord-pane` 이 받는다 — 컨테이너를 스크롤시키면 레일이 밀려 흰 띠가 생긴다. */
+.ordnew-grid {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: grid; grid-template-columns: 288px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+}
+.ordnew-rail { gap: 16px; }
+.ordnew-railbody { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+/* 2단 세로 스텝 — `.ord-step` 은 36px 가로 pill 이라 쓸 수 없다 */
+.ordnew-steps { list-style: none; margin: 0; padding: 0 0 15px; border-bottom: 1px solid var(--c-rail-line); }
+.ordnew-step {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center;
+  column-gap: 10px; row-gap: 2px; padding: 5px 0;
+}
+.ordnew-step__n {
+  grid-row: span 2; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--c-rail-ink); color: var(--c-rail-ink);
+  font-size: var(--fs-12); font-weight: var(--fw-semibold);
+}
+.ordnew-step.is-now .ordnew-step__n { background: var(--c-orange); border-color: var(--c-orange); color: var(--c-surface); }
+.ordnew-step.is-done .ordnew-step__n { background: var(--c-rail-2); border-color: var(--c-rail-2); color: var(--c-surface); }
+.ordnew-step__t { font-size: var(--fs-14); color: var(--c-rail-ink); }
+.ordnew-step.is-now .ordnew-step__t { color: var(--c-surface); font-weight: var(--fw-semibold); }
+.ordnew-step__c { font-size: var(--fs-12); color: var(--c-rail-ink); }
+
+/* 스텝 본문 — 두 스텝이 동시에 DOM 에 있고 hidden 으로 갈린다 */
+.ordnew-pane { display: flex; flex-direction: column; gap: 20px; }
+.ordnew-pane[hidden] { display: none; }
+
+/* 주문경로 카드 3열 — 고르는 순간 정산 기준이 정해지므로 수수료를 같이 보여 준다 */
+.ordnew-chan {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  padding: 12px 20px 4px;
+}
+.ordnew-chan__card {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: 11px 13px; border-radius: var(--r-lg);
+  border: 1px solid var(--c-border); background: var(--c-surface);
+}
+.ordnew-chan__card:hover { border-color: var(--c-border-strong); }
+.ordnew-chan__card.is-on { background: var(--c-orange-soft); border-color: var(--c-orange); }
+.ordnew-chan__n { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.ordnew-chan__card.is-on .ordnew-chan__n { color: var(--c-orange-ink); }
+.ordnew-chan__d { font-size: var(--fs-13); color: var(--c-text-muted); }
+.ordnew-chan__f { font-size: var(--fs-12); color: var(--c-text-faint); }
+.ordnew-chan__card.is-on .ordnew-chan__f { color: var(--c-orange-ink); }
+
+/* 값을 다이얼로그로 고르는 칸 */
+.ord-pick { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ord-pick__v {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+}
+.ord-pick__v.is-empty { font-weight: var(--fw-normal); color: var(--c-text-faint); }
+.ord-pick__btn {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border); background: var(--c-surface);
+  font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-text-3);
+}
+.ord-pick__btn:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+
+/* 켜짐/꺼짐 칸 — 상태의 유일한 소스는 aria-checked */
+.ord-tgl { display: flex; align-items: center; gap: 10px; }
+.ord-tgl__lbl { font-size: var(--fs-13); color: var(--c-text-muted); }
+
+@media (max-width: 1100px) {
+  .ordnew-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ordnew-rail { max-height: 220px; overflow-y: auto; }
 }
