@@ -39,7 +39,6 @@ import { b2bList } from "../data/b2b-mock.js";
 const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
 const num = (n) => Number(n || 0).toLocaleString("ko-KR");
 const pad2 = (n) => String(n).padStart(2, "0");
-const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 
 /* 프로젝트에 날짜 포맷이 셋 있다 — B2C 접수일시 "YYYY-MM-DD HH:mm",
    B2B 주문일시 "YYYY/MM/DD HH:mm", B2C 배송희망 "YYYY-MM-DDTHH:mm"(datetime-local).
@@ -444,8 +443,6 @@ export function mount(root, { nav }) {
             title: "대쉬보드",
             action: html`<span class="dsh-scope">${ymLabel(DATA_NOW)} · 주문 접수 기준</span>`,
           })}
-          <p class="dsh-asof">${DATA_NOW.getFullYear()}년 ${pad2(DATA_NOW.getMonth() + 1)}월 ${pad2(DATA_NOW.getDate())}일 (${DOW[DATA_NOW.getDay()]}) 기준</p>
-
           <div class="dsh-kpis" data-slot="kpi">${kpiBody()}</div>
 
           <div class="dsh-cols">
