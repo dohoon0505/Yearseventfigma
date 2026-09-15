@@ -1400,14 +1400,17 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ord-hist__empty { padding: 14px 20px; font-size: var(--fs-13); color: var(--c-text-muted); }
 
 /* ── 푸터 ─────────────────────────────────────────────────── */
-.modal-panel--ord .ord-ft {
+/* `.ord-ft` 는 주문·거래처 두 모달이 공유한다 — 스코프를 걸지 않는다.
+   ⚠️ 아래 `.hm-btn` 규칙이 없으면 `.hm__foot .hm-btn { flex: 1 }`(위쪽)이 이겨
+      버튼 두 개가 푸터 전체 폭으로 늘어난다. */
+.ord-ft {
   display: flex; align-items: center; justify-content: flex-end; gap: 16px;
   flex-shrink: 0; padding: 14px 28px 16px; border-top: 1px solid var(--c-fill-1);
 }
 .ord-ft__stat { font-size: var(--fs-14); color: var(--c-text-4); margin-right: auto; }
 .ord-ft__stat.is-dirty { color: var(--c-warn-soft-ink); }
 .ord-ft__stat.is-saved { color: var(--c-success-ink); }
-.modal-panel--ord .ord-ft .hm-btn {
+.ord-ft .hm-btn {
   flex: 0 0 auto; height: 40px; padding: 0 22px; border-radius: var(--r-pill);
   font-size: var(--fs-14);
 }
@@ -1512,3 +1515,217 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-card .dd-panel { top: calc(100% + 6px); bottom: auto; }
 /* 단, 카드 안이라도 배송일시 피커의 시/분은 위로 — 아래는 푸터 바가 가린다 → (0,4,0) */
 .modal-panel--ord .ord-card .ord-dtp .dd-panel { bottom: calc(100% + 6px); top: auto; }
+
+/* ══════════════════════════════════════════════════════════════
+   .cli-* / .modal-panel--cli — 거래처 정보 수정 모달 (시안 1a)
+
+   주문 모달과 **같은 언어**다: 1400px · 좌측 다크 레일 + 우측 원장 카드 ·
+   모드 없는 상시 편집. 그래서 `.ord-hd*`·`.ord-side*`·`.ord-card*`·`.ord-row`·
+   `.ord-in`·`.ord-ft*`·`.ord-menu*` 를 그대로 재사용하고 여기엔 **다른 것만** 둔다.
+
+   ⚠️ 패널 클래스를 `--ord` 로 재사용하면 안 된다. `.modal-panel--ord .ord-card
+      .dd-panel`(0,3,0)이 드롭다운을 아래로 뒤집는데, 이 모달의 발급일·유입 경로는
+      공용 기본값대로 **위로** 열려야 한다(카드 하단 필드라 아래로 열면 잘린다).
+   ══════════════════════════════════════════════════════════════ */
+@keyframes hmPopCli { from { opacity: 0; } to { opacity: 1; } }
+.modal-panel--cli {
+  width: min(1400px, 92vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* transform 없는 등장 — 도는 동안 containing block 이 되면 fixed 팝오버가 갇힌다 */
+  animation: hmPopCli 0.18s ease;
+}
+.modal-panel--cli .hm__head {
+  flex-shrink: 0; align-items: center; padding: 18px 28px 14px; border-bottom: 1px solid var(--c-fill-1);
+}
+.modal-panel--cli .ord-ft { background: var(--c-surface-2); }
+/* 라벨 칸이 주문 모달(96px)보다 넓다 — '사업장주소'·'계정 구분'이 두 줄로 접힌다 */
+.modal-panel--cli .ord-row { grid-template-columns: 104px minmax(0, 1fr); padding: 10px 20px; }
+/* 카드 안 드롭다운 톤 — `--ord` 쪽과 같은 이유(공용 48px·흰 면이 상시편집 사이에서 튄다) */
+.modal-panel--cli .ord-card .dd-trigger {
+  height: 36px; padding: 0 26px 0 8px;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.modal-panel--cli .ord-card .dd-trigger::after { right: 9px; width: 7px; height: 7px; }
+.modal-panel--cli .ord-card .dd-trigger:hover { background: var(--c-fill-1); border-color: transparent; }
+.modal-panel--cli .ord-card .dd.open .dd-trigger,
+.modal-panel--cli .ord-card .dd-trigger:focus {
+  background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+
+/* ── 본문 배치 ─────────────────────────────────────────────── */
+.cli-grid {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: grid; grid-template-columns: 324px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+}
+.cli-pane {
+  padding: 22px 28px 20px; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; gap: 16px; overflow-y: auto;
+}
+/* ⚠️ 원장의 직계 자식은 **줄어들지 않는다**. .cli-pane 이 flex column 이라 기본값
+   (flex-shrink:1)이면 거래 조건 카드가 제목 줄만 남기고 눌린다(실제로 그랬다). */
+.cli-pane > * { flex: 0 0 auto; }
+.cli-rows {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px; min-width: 0; align-items: start;
+}
+
+/* ── 헤더 ─────────────────────────────────────────────────── */
+.cli-deptchip {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: var(--r-pill);
+  background: var(--c-surface-2); font-size: var(--fs-14); color: var(--c-text-4); white-space: nowrap;
+}
+/* 상태 pill — 주문 스테퍼와 달리 **양방향**이다(정지했다 다시 활성으로 되돌릴 수 있어야 한다) */
+.cli-st { display: inline-flex; align-items: center; gap: 6px; }
+.cli-st__btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--c-border);
+  background: var(--c-surface); color: var(--c-text-4);
+  font-size: var(--fs-14); white-space: nowrap;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.cli-st__btn:hover { background: var(--c-surface-2); }
+.cli-st__btn.is-on {
+  background: var(--c-text-strong); border-color: var(--c-text-strong);
+  color: var(--c-surface); font-weight: var(--fw-semibold);
+}
+.cli-st__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
+
+/* ── 레일 카드 ─────────────────────────────────────────────── */
+.cli-railcard {
+  background: var(--c-rail-2); border: 1px solid var(--c-rail-line);
+  border-radius: var(--r-xl); padding: 15px;
+}
+.cli-railcard__k { font-size: var(--fs-14); color: var(--c-rail-ink); }
+.cli-railcard__v {
+  margin-top: 2px; font-size: var(--fs-21); font-weight: var(--fw-semibold);
+  color: var(--c-surface); font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.cli-railbtn {
+  width: 100%; margin-top: 13px; height: 38px; border-radius: var(--r-pill);
+  background: var(--c-surface); color: var(--c-text-strong);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold);
+}
+.cli-railbtn:hover { background: var(--c-surface-2); }
+.cli-railcard__out {
+  margin-top: 9px; font-size: var(--fs-12); line-height: 1.5;
+  color: var(--c-rail-ink); word-break: break-all;
+}
+/* 레일 안 입력칸(신규 등록 시 접속 아이디) — 다크 면 위라 흰 면으로 뒤집는다 */
+.cli-railcard .hm-input {
+  height: 36px; padding: 0 10px; margin-top: 4px;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
+}
+
+/* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 목록만 잘라 안에서 스크롤한다. */
+.cli-hist {
+  max-height: 300px; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cli-hist__row { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: var(--r-lg); }
+.cli-hist__row.is-latest { background: var(--c-rail-2); }
+.cli-hist__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--c-rail-line); }
+.cli-hist__lbl {
+  flex: 1; min-width: 0; font-size: var(--fs-14); color: var(--c-surface);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cli-hist__row.is-latest .cli-hist__lbl { font-weight: var(--fw-semibold); }
+.cli-hist__at { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-rail-ink); font-variant-numeric: tabular-nums; }
+.cli-hist__empty { font-size: var(--fs-12); line-height: 1.6; color: var(--c-rail-ink); }
+
+/* ── 거래 조건 카드 — 머리가 어둡다. 메모가 아니라 지켜야 하는 조건임을 톤으로 알린다 ──
+   ⚠️ `.ord-card` 가 아니라 별도 클래스다. overflow:hidden 을 쓰는데 `.ord-card` 에는
+      그걸 걸면 안 된다(주문상품 드롭다운이 카드 밖으로 나가야 한다 → CLAUDE.md).
+      이 카드엔 드롭다운이 없어 안전하다 — 금지 규칙을 조용히 일반화하지 않으려고 이름을 갈랐다. */
+.cli-note {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--c-text-strong); border-radius: var(--r-2xl); overflow: hidden;
+}
+.cli-note__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 12px 20px; background: var(--c-text-strong);
+}
+.cli-note__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-surface); }
+.cli-note__cap { font-size: var(--fs-12); color: var(--c-rail-ink); }
+.cli-note__body { flex: 1; display: flex; flex-direction: column; padding: 12px 20px 14px; }
+.cli-note__body textarea {
+  width: 100%; flex: 1; min-height: 132px; padding: 8px 10px;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); line-height: 1.7; color: var(--c-text-strong);
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
+  font-family: inherit; resize: vertical; transition: background 0.15s, border-color 0.15s;
+}
+.cli-note__body textarea:hover { background: var(--c-fill-1); }
+.cli-note__body textarea:focus {
+  outline: none; background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+.cli-note__help { margin-top: 8px; font-size: var(--fs-12); line-height: 1.5; color: var(--c-text-4); }
+
+/* ── 배너(승인대기 · 반려) ─────────────────────────────────── */
+.cli-banner {
+  display: flex; align-items: center; gap: 16px; padding: 14px 18px;
+  border-radius: var(--r-xl); font-size: var(--fs-14); line-height: 1.6;
+}
+.cli-banner__msg { flex: 1; min-width: 0; }
+.cli-banner--wait { background: var(--c-warn-soft-bg); border: 1px solid var(--c-warn-border); color: var(--c-warn-soft-ink); }
+.cli-banner--rej { background: var(--c-danger-bg); border: 1px solid var(--c-danger-border); color: var(--c-danger-ink); }
+.cli-banner__acts { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.cli-banner__btn { height: 36px; padding: 0 16px; border-radius: var(--r-pill); font-size: var(--fs-14); font-weight: var(--fw-semibold); }
+.cli-banner__btn--rej { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-danger-ink); }
+.cli-banner__btn--ok { background: var(--c-orange); color: var(--c-surface); }
+.cli-banner__btn--ok:hover { background: var(--c-orange-hover); }
+
+/* ── 매출 채널 세그먼트 ────────────────────────────────────── */
+.cli-seg { display: flex; gap: 6px; }
+.cli-seg__btn {
+  height: 36px; padding: 0 16px; border-radius: var(--r-pill);
+  border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text-4);
+  font-size: var(--fs-14); transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.cli-seg__btn:hover { background: var(--c-surface-2); }
+.cli-seg__btn.is-on {
+  background: var(--c-text-strong); border-color: var(--c-text-strong);
+  color: var(--c-surface); font-weight: var(--fw-semibold);
+}
+
+/* ── 값 옆 보조 버튼 · 읽기 문단 · 힌트 ─────────────────────── */
+.cli-inline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cli-inline .ord-in, .cli-inline .cli-attachbtn { flex: 1; min-width: 0; }
+.cli-minibtn {
+  flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: var(--r-pill);
+  background: var(--c-surface-2); color: var(--c-text-strong);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold);
+}
+.cli-minibtn:hover { background: var(--c-divider); }
+.cli-attachbtn {
+  height: 36px; padding: 0 8px; border-radius: var(--r-lg); background: transparent; text-align: left;
+  display: flex; flex-direction: column; justify-content: center; overflow: hidden;
+}
+.cli-attachbtn:hover { background: var(--c-fill-1); }
+.cli-attachbtn__n {
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cli-attachbtn__n.is-empty { font-size: var(--fs-15); font-weight: var(--fw-normal); color: var(--c-text-muted); }
+.cli-attachbtn__m { font-size: var(--fs-12); color: var(--c-text-4); }
+/* 드롭다운 전개 방향 — 이 모달은 공용 기본값(**위로**)을 그대로 쓴다. 단 카드 첫 줄에
+   있는 발급일만 아래로 연다: 위 공간이 113px 뿐인데 패널이 240px 라 잘린다(실측).
+   유입 경로는 원장 아래쪽이라 위로 여는 기본값이 맞다(위 639px / 아래 75px). */
+.modal-panel--cli .cli-fdd--down .dd-panel { top: calc(100% + 6px); bottom: auto; }
+
+.cli-static { padding: 8px 8px 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); }
+.cli-hint { margin: 4px 0 2px; padding-left: 8px; font-size: var(--fs-12); line-height: 1.5; color: var(--c-warn-soft-ink); }
+.ord-in.is-warn { background: var(--c-warn-soft-bg); border-color: var(--c-warn-border); }
+
+/* ── 반응형 ───────────────────────────────────────────────── */
+@media (max-width: 1180px) { .cli-rows { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1000px) { .cli-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-height: 820px) {
+  .cli-pane { padding: 14px 24px; gap: 12px; }
+  .cli-rows { gap: 12px; }
+  .modal-panel--cli .ord-row { padding: 6px 20px; }
+  .cli-note__body textarea { min-height: 96px; }
+}

@@ -8,6 +8,7 @@ import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
+import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
@@ -26,48 +27,62 @@ const TABS = [
   { value: "반려", label: "반려" },
 ];
 
-const FIELDS = [
-  { section: "계정 정보" },
-  { key: "accountId", label: "접속 아이디", grid: true, lockOnEdit: true, required: true },
-  /* 비밀번호는 입력칸을 두지 않는다 — 관리자가 거래처 계정 비밀번호를 읽을 수 있던
-     구조를 없애기 위함. 재설정이 필요하면 임시비밀번호를 발급해 전달한다. */
-  { key: "password", type: "action", label: "비밀번호", grid: true, action: "임시비밀번호 발급",
-    help: "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다." },
-  { section: "회사 정보" },
-  { key: "companyName", label: "회사명", required: true },
-  { key: "bizNumber", label: "사업자번호", grid: true, required: true, hint: true },
-  { key: "ceoName", label: "대표자명", grid: true, required: true },
-  { section: "담당자 정보" },
-  { key: "managerName", label: "담당자명", grid: true, required: true },
-  { key: "department", label: "부서·직위", grid: true, hint: true },
-  { key: "contact", label: "연락처", grid: true, required: true },
-  { key: "email", label: "계산서 이메일", grid: true },
-  { section: "기타" },
-  { key: "address", label: "사업장주소", find: true },
-  {
-    key: "channel", label: "매출 채널", type: "select", options: CLIENT_CHANNELS,
-    help: "'일반' 외 채널은 대쉬보드에서 B2B 합계와 분리해 자기 매출 카드를 갖습니다.",
-  },
-  { key: "status", label: "상태", type: "select", options: STATUS_OPTS, grid: true },
-  { key: "joinDate", label: "가입일", grid: true },
-  /* 발급일은 모달 맨 아래 전폭 — .dd-panel 이 위로 열리므로(components.css) 하단일수록
-     28개 목록이 잘리지 않고, 인접 grid 짝짓기(fieldsHtml)도 건드리지 않는다. */
-  { section: "증빙 · 영업" },
-  { key: "bizLicense", type: "attach", label: "사업자등록증" },
-  { key: "salesRoute", label: "유입 경로", type: "select", options: SALES_ROUTES, grid: true },
-  { key: "salesDate", label: "영업·요청일", grid: true },
-  { key: "salesMemo", label: "영업 메모", placeholder: "예) 3월 방문 상담, 경조화환 월 20건 예상" },
-  { section: "계산서 발급" },
-  {
-    key: "invoiceDay", label: "계산서 발급일", type: "select", options: INVOICE_DAYS,
-    ddLabel: (v) => `매월 ${v}일`,
-    help: "매월 지정일에 전월 귀속 거래명세서·계산서가 발급됩니다. 정산기한은 발급일이 속한 달의 말일입니다.",
-  },
+/* ── 필드 서술자 — 시안의 원장 카드 단위로 나눈다 ──────────────
+   서술자: { k, label, req, type, ph, options, ddLabel, help, num, find }
+   type: (없음)=text · select · seg · textarea · attach · static
+   ⚠️ `managerName`·`contact` 는 **없앴다**(시안). 이관 실데이터 19곳 전부 비어 있었고,
+      연락 주체는 담당자 저장공간으로 일원화된다. `accountId`·`password` 는 레일,
+      `status` 는 헤더 pill 로 옮겼다. */
+const CARD_COMPANY = [
+  { k: "companyName", label: "회사명", req: true },
+  { k: "bizNumber", label: "사업자번호", req: true, num: true, biz: true },
+  { k: "ceoName", label: "대표자명", req: true, ph: "사업자등록증 기준" },
+  /* '부서·직위'가 아니라 **계정 구분**이다 — 같은 사업자번호를 가르는 라벨.
+     실데이터도 그 용도로 쓰고 있다(법무법인 세종 C008 '김동선 변호사' / C015 '이병한 변호사'). */
+  { k: "department", label: "계정 구분", hint: true, ph: "예) 김동선 변호사 · 총무팀" },
+  { k: "address", label: "사업장주소", find: true },
 ];
-const REQUIRED = FIELDS.filter((f) => f.required).map((f) => f.key);
+const CARD_BILL = [
+  /* 아래로 연다 — 카드 첫 줄이라 위 공간이 113px 뿐이고 패널은 240px 다(유입 경로는 반대) */
+  { k: "invoiceDay", label: "발급일", type: "select", down: true, options: () => INVOICE_DAYS, ddLabel: (v) => `매월 ${v}일` },
+  { k: "email", label: "계산서 이메일", ph: "세금계산서 수신 주소" },
+  { type: "static", label: "정산 일정" },
+  { k: "channel", label: "매출 채널", type: "seg", options: CLIENT_CHANNELS,
+    help: "'일반' 외 채널은 대쉬보드에서 B2B 합계와 분리해 자기 매출 카드를 갖습니다." },
+];
+const CARD_SALES = [
+  { k: "bizLicense", label: "사업자등록증", type: "attach" },
+  { k: "joinDate", label: "가입일", num: true },
+  { k: "salesRoute", label: "유입 경로", type: "select", options: () => SALES_ROUTES },
+  { k: "salesDate", label: "영업·요청일", num: true, ph: "2025-06-20" },
+  { k: "salesMemo", label: "영업 메모", type: "textarea", ph: "예) 3월 방문 상담, 경조화환 월 20건 예상" },
+];
+/** 저장 게이트 — [키, 사람이 읽을 이름]. 중복 사업자번호가 있으면 계정 구분이 여기 붙는다. */
+const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"]];
+
+/* 상태 점 색 — 화면마다 다르면 같은 상태를 다시 배워야 한다(주문 ORDER_STATUS_STYLE 과 같은 취지) */
+const STATUS_DOT = {
+  "활성": "var(--c-success-ink)",
+  "승인대기": "var(--c-warn-soft-ink)",
+  "정지": "var(--c-danger-ink)",
+  "반려": "var(--c-text-4)",
+};
+
+/** 사업자번호 입력 정형 — 숫자만 남겨 `###-##-#####` 로. 10자리를 넘기지 않는다. */
+function fmtBiz(v) {
+  const d = String(v || "").replace(/\D/g, "").slice(0, 10);
+  if (d.length > 5) return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+  if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return d;
+}
+/** 그 달의 말일 — 정산기한 문구에 쓴다(윤년 포함, 하드코딩 금지). */
+const monthEnd = (y, m) => new Date(y, m + 1, 0).getDate();
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
 const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s}</span>`;
+
+/** 지금 시각 "오후 2:53" — 변경 이력·저장 표시에 쓴다(주문 모달과 같은 포맷). */
+const nowHM = () => new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
 
 function nextId(clients) {
   const max = clients.reduce((m, c) => Math.max(m, parseInt(String(c.id).replace(/\D/g, ""), 10) || 0), 0);
@@ -88,7 +103,7 @@ export function mount(root, { nav }) {
   }
 
   /** 자식 필드(담당자명·부서) 매칭 — 이 경우에만 그룹을 자동으로 펼친다. */
-  const matchesChild = (c, q) => c.managerName.includes(q) || (c.department || "").includes(q);
+  const matchesChild = (c, q) => (c.managerName || "").includes(q) || (c.department || "").includes(q);
   const matchesParent = (c, q) => c.companyName.includes(q) || c.bizNumber.includes(q);
 
   function filtered() {
@@ -241,58 +256,71 @@ export function mount(root, { nav }) {
     refreshTableOnly();
   };
 
-  // ── create/edit modal (HModal 규격) ────────────────────
-  function field(f, form, isEdit) {
-    if (f.type === "attach") {
-      const a = form[f.key];
-      if (!a) {
-        return html`<div class="hm-field"><label>${f.label}</label><p class="hm-help">첨부 없음 — 관리자가 등록한 거래처이거나 이관 전 계정입니다.</p></div>`;
-      }
-      return html`
-        <div class="hm-field">
-          <label>${f.label}</label>
-          <div class="cli-attach">
-            ${a.dataUrl
-              ? html`<img class="cli-attach__img" src="${a.dataUrl}" alt="사업자등록증 미리보기" data-action="attach-zoom" />`
-              : html`<span class="cli-attach__none">미리보기 없음</span>`}
-            <span class="cli-attach__meta"><b>${a.name}</b><span>${fileSizeLabel(a.size)}</span></span>
-          </div>
-          <p class="hm-help">가입 승인 심사용 증빙입니다. 사업자번호·대표자명이 등록증과 일치하는지 확인하세요.</p>
-        </div>`;
+  /* ══════════════════════════════════════════════════════════
+     거래처 정보 수정 모달 — 시안 1a(원장 + 좌측 다크 레일).
+     주문 모달과 같은 언어다: 상시 편집 · 헤더에 정체성과 상태 · 카드로 묶은 원장.
+
+     ⚠️ 입력 중에는 **절대 재렌더하지 않는다.** form 에 write-through 만 하고
+        슬롯(data-slot)만 부분 갱신한다 — 재렌더하면 포커스와 커서가 날아간다.
+     ══════════════════════════════════════════════════════════ */
+
+  /** 한 필드 셀. 값은 항상 form 에서 읽는다. */
+  function cliCell(f, form, lockId) {
+    if (f.type === "static") {
+      const d = Number(form.invoiceDay) || 1;
+      const now = new Date();
+      const end = monthEnd(now.getFullYear(), now.getMonth() + 1);
+      return html`<p class="cli-static">매월 ${d}일에 전월 귀속 거래명세서·계산서가 발급되고,
+        정산기한은 그 발급일이 속한 달의 말일(이번 주기 ${end}일)입니다.</p>`;
     }
-    if (f.type === "action") {
-      return html`
-        <div class="hm-field">
-          <label>${f.label}</label>
-          <button type="button" class="hm-btn hm-btn--secondary hm-field__act" data-action="reset-pw">${f.action}</button>
-          <p class="hm-help" data-pwout>${f.help}</p>
-        </div>
-      `;
+    if (f.type === "seg") {
+      return html`<div class="cli-seg" role="radiogroup" aria-label="${f.label}">
+        ${f.options.map((v) => html`<button type="button" class="cli-seg__btn ${form[f.k] === v ? "is-on" : ""}"
+          data-seg="${f.k}" data-v="${v}" role="radio" aria-checked="${form[f.k] === v ? "true" : "false"}">${v}</button>`)}
+      </div>`;
     }
     if (f.type === "select") {
-      // 상태 선택은 공용 커스텀 드롭다운(makeDropdown)으로 — openClientModal에서 연결
-      return html`
-        <div class="hm-field">
-          <label>${f.label}</label>
-          <div class="dd" data-dd-cf="${f.key}">
-            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-            <div class="dd-panel" role="listbox"></div>
-          </div>
-          ${f.help ? html`<p class="hm-help">${f.help}</p>` : ""}
-        </div>
-      `;
+      return html`<div class="dd cli-fdd ${f.down ? "cli-fdd--down" : ""}" data-dd-cf="${f.k}">
+        <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+        <div class="dd-panel" role="listbox"></div>
+      </div>`;
     }
-    // 접속 아이디는 수정 시 변경 불가 → 비활성 입력
-    const locked = f.lockOnEdit && isEdit;
-    return html`
-      <div class="hm-field">
-        <label for="cf-${f.key}">${f.label}${f.required ? html`<span class="req">*</span>` : ""}${f.hint ? html`<span class="req" data-reqmark="${f.key}" hidden>*</span>` : ""}</label>
-        ${f.find ? html`<div class="hm-findrow">` : ""}
-        <input class="hm-input" id="cf-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key] ?? ""}" placeholder="${f.label}" ${locked ? "disabled" : ""} />
-        ${f.find ? html`<button type="button" class="hm-btn hm-btn--secondary" data-addr-find hidden>주소검색</button></div>` : ""}
-        ${f.hint ? html`<p class="hm-help" data-hint="${f.key}"></p>` : ""}
+    if (f.type === "textarea") {
+      return html`<textarea class="ord-in" data-cf="${f.k}" rows="2" placeholder="${f.ph ?? ""}">${form[f.k] ?? ""}</textarea>`;
+    }
+    if (f.type === "attach") {
+      const a = form.bizLicense;
+      return html`<div class="cli-inline">
+        <button type="button" class="cli-attachbtn" data-action="attach-zoom" ${a ? "" : "disabled"}>
+          <span class="cli-attachbtn__n ${a ? "" : "is-empty"}">${a ? a.name : "첨부자료 없음"}</span>
+          ${a ? html`<span class="cli-attachbtn__m">${fileSizeLabel(a.size)}</span>` : ""}
+        </button>
+      </div>`;
+    }
+    const cls = "ord-in" + (f.num ? " ord-in--num" : "");
+    const input = html`<input class="${cls}" data-cf="${f.k}" value="${form[f.k] ?? ""}" placeholder="${f.ph ?? ""}" />`;
+    if (f.find) {
+      return html`<div class="cli-inline">${input}
+        <button type="button" class="cli-minibtn" data-addr-find hidden>주소검색</button></div>`;
+    }
+    if (lockId && f.k === "accountId") return input;
+    return input;
+  }
+
+  /** 카드 하나 — 행마다 라벨 + 셀, 힌트가 붙는 필드는 아래에 한 줄 더. */
+  function cliCard(title, cap, defs, form) {
+    return html`<section class="ord-card">
+      <div class="ord-card__head"><b class="ord-card__t">${title}</b>${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}</div>
+      <div>
+        ${defs.map((f) => html`
+          <div class="ord-row ord-row--full ${f.type === "textarea" ? "ord-row--top" : ""}">
+            <label class="ord-k">${f.label}${f.req ? html`<span class="req">*</span>` : ""}</label>
+            ${cliCell(f, form)}
+          </div>
+          ${f.hint || f.biz ? html`<p class="cli-hint" data-hint="${f.k}"></p>` : ""}
+          ${f.help ? html`<p class="cli-hint" style="color:var(--c-text-4)">${f.help}</p>` : ""}`)}
       </div>
-    `;
+    </section>`;
   }
 
   function openClientModal(client) {
@@ -300,128 +328,316 @@ export function mount(root, { nav }) {
     const isEdit = !!client;
     const form = client
       ? { salesRoute: "미지정", salesDate: "", salesMemo: "", bizLicense: null, clientNote: "", channel: "일반", ...client }
-      : { id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "", managerName: "", department: "", contact: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()), invoiceDay: "1", clientNote: "", channel: "일반", bizLicense: null, salesRoute: "미지정", salesDate: "", salesMemo: "" };
-    /* 사업자번호 중복은 "같은 법인의 부서 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
-       대신 부서를 비워두면 목록에서 두 레코드를 구분할 수 없으므로 그때만 부서를 필수로 올린다. */
+      : {
+          id: nextId(store.get().clients), accountId: "", password: "", companyName: "", bizNumber: "", ceoName: "",
+          /* 모달에서 편집하지는 않지만 키는 남긴다 — 정산 명세서·주문 모달의 거래처 대표
+             연락처가 계속 읽는다. 가입 폼(register.js)은 여전히 값을 채운다. */
+          managerName: "", contact: "",
+          department: "", email: "", address: "", status: "활성", joinDate: formatDateLabel(new Date()),
+          invoiceDay: "1", clientNote: "", channel: "일반", bizLicense: null,
+          salesRoute: "미지정", salesDate: "", salesMemo: "",
+        };
+    let menuOpen = false;
+    let pwOut = "";
+    let savedAt = "";
+    const touched = {};
+    const log = []; // 변경 이력 — 세션 한정(Client 에 이력 스키마가 없다)
+
+    /* 사업자번호 중복은 "같은 법인의 계정 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
+       대신 계정 구분을 비우면 목록에서 두 레코드를 구분할 수 없으므로 그때만 필수로 올린다. */
     const dupes = () => store.get().clients.filter(
       (c) => c.id !== form.id && normalizeBiz(c.bizNumber) && normalizeBiz(c.bizNumber) === normalizeBiz(form.bizNumber)
     );
-    const deptRequired = () => dupes().length > 0;
-    const isValid = () =>
-      REQUIRED.every((k) => String(form[k] ?? "").trim()) &&
-      (!deptRequired() || !!String(form.department ?? "").trim());
-
-    const fieldsHtml = () => {
-      const out = [];
-      let i = 0;
-      while (i < FIELDS.length) {
-        const f = FIELDS[i];
-        if (f.section) { out.push(html`<div class="hm-section">${f.section}</div>`); i++; continue; }
-        if (f.grid && FIELDS[i + 1] && FIELDS[i + 1].grid) {
-          out.push(html`<div class="hm-grid2">${field(f, form, isEdit)}${field(FIELDS[i + 1], form, isEdit)}</div>`);
-          i += 2;
-        } else { out.push(field(f, form, isEdit)); i++; }
-      }
+    const missing = () => {
+      const out = REQUIRED.filter(([k]) => !String(form[k] ?? "").trim()).map(([, l]) => l);
+      if (isEdit ? false : !String(form.accountId ?? "").trim()) out.unshift("접속 아이디");
+      if (dupes().length && !String(form.department ?? "").trim()) out.push("계정 구분");
       return out;
     };
+    const dirty = () => Object.keys(touched).length;
+    const push = (label) => { log.push({ label, at: nowHM() }); };
 
-    const rejectNote = isEdit && form.status === "반려" && form.rejectReason
-      ? html`<div class="hm-warn" style="margin-bottom:16px;"><span><b>거부 사유:</b> ${form.rejectReason}</span></div>`
-      : "";
-    const body = html`
-      <div class="hm__head">
-        <div>
-          <h3>${isEdit ? "거래처 정보 수정" : "신규 거래처 등록"}</h3>
-          <p>${isEdit ? "거래처 계정·회사·담당자 정보를 수정합니다." : "신규 거래처 계정과 정보를 등록합니다."}</p>
+    /* ── 헤더 ── */
+    const hdBody = () => {
+      const shared = sharedBizKeys(store.get().clients);
+      const showDept = isEdit && form.department && shared.has(normalizeBiz(form.bizNumber));
+      const meta = [form.accountId || "아이디 미정", isEdit ? `가입 ${form.joinDate}` : "신규 등록",
+        form.bizNumber ? `사업자 ${form.bizNumber}` : null, `계산서 매월 ${Number(form.invoiceDay) || 1}일`]
+        .filter(Boolean).join(" · ");
+      return html`
+        <div class="ord-hd__l">
+          <div class="ord-hd__row">
+            <h3 class="ord-hd__no" id="modal-title">${form.companyName || (isEdit ? "거래처" : "신규 거래처 등록")}</h3>
+            ${isEdit ? html`<span class="ord-hd__pill" style="background:var(--c-surface-2);color:var(--c-text-strong)">
+              <span class="ord-hd__dot" style="background:${STATUS_DOT[form.status] || "var(--c-text-4)"}"></span>${form.status}</span>` : ""}
+            ${showDept ? html`<span class="cli-deptchip">${form.department}</span>` : ""}
+          </div>
+          <p class="ord-hd__meta">${meta}</p>
         </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+        <div class="ord-hd__r">
+          ${isEdit ? html`<div class="cli-st">
+            ${STATUS_OPTS.map((s) => html`<button type="button" class="cli-st__btn ${form.status === s ? "is-on" : ""}" data-status="${s}">
+              <span class="cli-st__dot" style="background:${STATUS_DOT[s]}"></span>${s}</button>`)}
+          </div>
+          <span class="ord-hd__vdiv"></span>
+          <div class="ord-more">
+            <button class="ord-iconbtn ${menuOpen ? "is-on" : ""}" data-action="menu" aria-haspopup="menu"
+              aria-expanded="${menuOpen ? "true" : "false"}" aria-label="더보기">⋯</button>
+            ${menuOpen ? html`<div class="ord-menu" role="menu">
+              <button class="ord-menu__item" role="menuitem" data-action="reset-pw">임시비밀번호 발급</button>
+              <button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">거래처 삭제</button>
+            </div>` : ""}
+          </div>` : ""}
+          <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+        </div>`;
+    };
+
+    /* ── 레일 ── */
+    const railBody = () => html`
+      <div class="ord-side__h"><b class="ord-side__t">계정</b><span class="ord-side__cap">${isEdit ? "아이디 변경 불가" : "새 계정"}</span></div>
+      <div class="cli-railcard">
+        <p class="cli-railcard__k">접속 아이디</p>
+        ${isEdit
+          ? html`<p class="cli-railcard__v">${form.accountId || "-"}</p>`
+          : html`<input class="hm-input" data-cf="accountId" value="${form.accountId ?? ""}" placeholder="영문·숫자" />`}
+        <button type="button" class="cli-railbtn" data-action="reset-pw">임시비밀번호 발급</button>
+        <p class="cli-railcard__out">${pwOut || "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다."}</p>
       </div>
-      <div class="hm__body">${rejectNote}${fieldsHtml()}</div>
-      <div class="hm__foot">
+      ${isEdit ? html`
+        <div class="ord-side__h"><b class="ord-side__t">변경 이력</b><span class="ord-side__cap">${log.length}건</span></div>
+        <div class="cli-hist">
+          ${log.length
+            ? log.map((h, i) => html`<div class="cli-hist__row ${i === log.length - 1 ? "is-latest" : ""}">
+                <span class="cli-hist__dot"></span>
+                <span class="cli-hist__lbl" title="${h.label}">${h.label}</span>
+                <span class="cli-hist__at">${h.at}</span></div>`)
+            : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 창을 닫으면 사라집니다 — 영속 이력은 아직 없습니다.</p>`}
+        </div>` : ""}
+      <p class="ord-side__note">아이디·비밀번호는 거래처 담당자에게만 전달합니다.</p>`;
+
+    /* ── 푸터 ── */
+    const ftBody = () => {
+      const m = missing();
+      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}`
+        : savedAt && !dirty() ? `저장됨 · ${savedAt}`
+        : dirty() ? `수정한 항목 ${dirty()}개` : "변경 없음";
+      const cls = m.length ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
+      return html`
+        <span class="ord-ft__stat ${cls}" data-slot="stat">${stat}</span>
         <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>${isEdit ? "저장" : "등록"}</button>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length ? "disabled" : ""}>
+          ${dirty() ? "변경사항 저장" : isEdit ? "저장" : "등록"}</button>`;
+    };
+
+    /* ── 배너 ── */
+    const banners = () => html`
+      ${isEdit && form.status === "승인대기" ? html`
+        <div class="cli-banner cli-banner--wait">
+          <span class="cli-banner__msg"><b>가입 승인 심사</b> · 사업자등록증의 사업자번호·대표자명이 입력값과 일치하는지 확인하세요.</span>
+          <span class="cli-banner__acts">
+            <button class="cli-banner__btn cli-banner__btn--rej" data-action="reject">거부</button>
+            <button class="cli-banner__btn cli-banner__btn--ok" data-action="approve">승인</button>
+          </span>
+        </div>` : ""}
+      ${isEdit && form.status === "반려" && form.rejectReason ? html`
+        <div class="cli-banner cli-banner--rej"><span class="cli-banner__msg"><b>거부 사유</b> · ${form.rejectReason}</span></div>` : ""}`;
+
+    const body = () => html`
+      <div class="hm__head ord-hd" data-slot="hd">${hdBody()}</div>
+      <div class="cli-grid">
+        <aside class="ord-side" data-slot="rail">${railBody()}</aside>
+        <div class="cli-pane">
+          <div data-slot="banner">${banners()}</div>
+          <div class="cli-note">
+            <div class="cli-note__head"><b class="cli-note__t">거래 조건</b><span class="cli-note__cap">주문 화면 노출</span></div>
+            <div class="cli-note__body">
+              <textarea data-cf="clientNote" rows="5" placeholder="예) 상품금액 75,000원으로 기재, 무조건 특대상품 발송">${form.clientNote ?? ""}</textarea>
+              <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.</p>
+            </div>
+          </div>
+          <div class="cli-rows">
+            ${cliCard("회사 정보", "계산서 발행 기준", CARD_COMPANY, form)}
+            ${cliCard("계산서 · 정산", "월 후불", CARD_BILL, form)}
+          </div>
+          <div data-slot="mgr"></div>
+          ${cliCard("증빙 · 영업", "가입 심사 근거", CARD_SALES, form)}
+        </div>
       </div>
-    `;
+      <div class="hm__foot ord-ft" data-slot="ft">${ftBody()}</div>`;
+
     const ddCfs = [];
-    activeModal = openModal({ panelClass: "modal-panel--lg", body, onClose: () => { ddCfs.forEach((d) => d.destroy()); } });
-    const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
-    const syncSave = () => { const b = saveBtn(); if (b) b.disabled = !isValid(); };
-
-    /* select 필드(상태)는 공용 커스텀 드롭다운으로 (모달 닫힐 때 destroy) */
-    qsa(activeModal.panel, "[data-dd-cf]").forEach((elc) => {
-      const key = elc.dataset.ddCf;
-      const f = FIELDS.find((x) => x.key === key);
-      ddCfs.push(makeDropdown(elc, {
-        options: () => f.options,
-        label: f.ddLabel, // 값 ≠ 표시 (예: "20" → "매월 20일"). 미전달 시 값 그대로.
-        get: () => form[key],
-        set: (v) => { form[key] = v; syncSave(); },
-      }));
+    const destroyDds = () => { ddCfs.forEach((d) => d.destroy()); ddCfs.length = 0; };
+    activeModal = openModal({
+      panelClass: "modal-panel--cli",
+      body: body(),
+      labelledBy: "modal-title",
+      onClose: () => { destroyDds(); activeModal = null; },
     });
+    const panel = activeModal.panel;
+    const slot = (n) => qs(panel, `[data-slot='${n}']`);
+    const renderHd = () => { const e = slot("hd"); if (e) setHTML(e, hdBody()); };
+    const renderRail = () => { const e = slot("rail"); if (e) setHTML(e, railBody()); };
+    const renderFt = () => { const e = slot("ft"); if (e) setHTML(e, ftBody()); };
+    const renderBanner = () => { const e = slot("banner"); if (e) setHTML(e, banners()); };
 
-    /* 사업자번호 중복 안내 + 부서 필수 전환 — 텍스트만 갱신하므로 입력 포커스에 무해. */
-    const hintEl = (k) => qs(activeModal.panel, `[data-hint='${k}']`);
-    const reqEl = (k) => qs(activeModal.panel, `[data-reqmark='${k}']`);
-    function syncBizDup() {
-      const d = dupes();
-      const names = d.map((x) => x.department || "부서 미지정").join(", ");
-      const hb = hintEl("bizNumber");
-      if (hb) hb.textContent = d.length ? `이미 등록된 사업자번호입니다 · ${d[0].companyName}(${names}) — 부서를 입력하면 부서별로 분리 관리됩니다.` : "";
-      const rm = reqEl("department");
-      if (rm) rm.hidden = !d.length;
-      const hd = hintEl("department");
-      if (hd) hd.textContent = d.length ? "동일 사업자번호가 있어 부서 입력이 필요합니다." : "";
+    /* 드롭다운(발급일·유입 경로) — 재렌더가 없으므로 한 번만 만든다.
+       ⚠️ 패널은 공용 기본값대로 **위로** 연다. `--cli` 에는 아래로 뒤집는 규칙이 없다. */
+    function bindDds() {
+      destroyDds();
+      qsa(panel, "[data-dd-cf]").forEach((el) => {
+        const k = el.dataset.ddCf;
+        const f = [...CARD_BILL, ...CARD_SALES].find((x) => x.k === k);
+        if (!f) return;
+        ddCfs.push(makeDropdown(el, {
+          options: f.options,
+          label: f.ddLabel,
+          get: () => form[k],
+          set: (v) => { form[k] = v; touched[k] = 1; syncStatics(); renderHd(); renderFt(); },
+        }));
+      });
     }
-    syncBizDup(); // 수정 진입 시에도 현재 상태를 반영
+    bindDds();
 
-    on(activeModal.panel, "input", "[data-cf]", (e, t) => {
-      form[t.dataset.cf] = t.value;
-      if (t.dataset.cf === "bizNumber") syncBizDup();
-      syncSave();
+    /* 중복 안내 · 정산 일정 문구 — **텍스트 노드만** 갈아 끼운다(포커스 무해) */
+    function syncStatics() {
+      const d = dupes();
+      const hb = qs(panel, "[data-hint='bizNumber']");
+      if (hb) hb.textContent = d.length
+        ? `이미 등록된 사업자번호입니다 · ${d[0].companyName}(${d.map((x) => x.department || "계정 구분 없음").join(", ")})`
+        : "";
+      const hd = qs(panel, "[data-hint='department']");
+      if (hd) hd.textContent = d.length ? "같은 사업자번호가 있어 계정 구분이 필요합니다 — 목록에서 이 값으로 갈라집니다." : "";
+      const dep = qs(panel, "[data-cf='department']");
+      if (dep) dep.classList.toggle("is-warn", d.length > 0 && !String(form.department ?? "").trim());
+      const ce = qs(panel, "[data-cf='ceoName']");
+      if (ce) ce.classList.toggle("is-warn", !String(form.ceoName ?? "").trim());
+      const st = qs(panel, ".cli-static");
+      if (st) {
+        const day = Number(form.invoiceDay) || 1;
+        const now = new Date();
+        st.textContent = `매월 ${day}일에 전월 귀속 거래명세서·계산서가 발급되고, 정산기한은 그 발급일이 속한 달의 말일(이번 주기 ${monthEnd(now.getFullYear(), now.getMonth() + 1)}일)입니다.`;
+      }
+    }
+    syncStatics();
+
+    /* 상시 편집 — 값은 write-through 하고 **재렌더하지 않는다** */
+    on(panel, "input", "[data-cf]", (e, t) => {
+      const k = t.dataset.cf;
+      if (k === "bizNumber") {
+        const pos = t.selectionStart;
+        const before = t.value.length;
+        t.value = fmtBiz(t.value);
+        const move = t.value.length - before;
+        t.setSelectionRange(Math.max(0, pos + move), Math.max(0, pos + move));
+      }
+      form[k] = t.value;
+      touched[k] = 1;
+      if (t.tagName === "TEXTAREA") autosize(t);
+      if (k === "bizNumber" || k === "ceoName" || k === "department") syncStatics();
+      if (k === "companyName" || k === "accountId" || k === "bizNumber") renderHd();
+      renderFt();
     });
-    /* 임시비밀번호 발급 — 값은 화면에 1회만 보여주고 form 에 실어 저장 시 적용한다.
-       DEMO 라 평문으로 저장되지만, 관리자가 **기존** 비밀번호를 읽는 경로는 사라진다.
-       실서비스에서는 서버가 해시를 저장하고 재설정 링크를 발송해야 한다. */
-    on(activeModal.panel, "click", "[data-action='reset-pw']", () => {
+    on(panel, "click", "[data-seg]", (e, t) => {
+      form[t.dataset.seg] = t.dataset.v;
+      touched[t.dataset.seg] = 1;
+      qsa(panel, `[data-seg='${t.dataset.seg}']`).forEach((b) => {
+        const on_ = b.dataset.v === t.dataset.v;
+        b.classList.toggle("is-on", on_);
+        b.setAttribute("aria-checked", on_ ? "true" : "false");
+      });
+      renderFt();
+    });
+
+    /* 상태 전환은 **즉시 반영**한다 — 지금 동작이 그렇고 토스트 문구도 즉시 통보를 전제한다.
+       저장 버튼에 태우면 "승인했습니다"가 거짓말이 된다. */
+    on(panel, "click", "[data-status]", (e, t) => {
+      const v = t.dataset.status;
+      if (v === form.status) return;
+      if (v === "반려") return openReject(form, (reason) => {
+        form.status = "반려"; form.rejectReason = reason;
+        store.updateClient({ ...form });
+        push(`가입 거부 · 사유 통보`);
+        renderHd(); renderBanner(); renderRail(); refreshList();
+      });
+      form.status = v;
+      if (v !== "반려") form.rejectReason = "";
+      store.updateClient({ ...form });
+      push(`상태 변경 · ${v}`);
+      renderHd(); renderBanner(); renderRail(); refreshList();
+      toast(`${v}(으)로 변경했습니다`);
+    });
+    on(panel, "click", "[data-action='approve']", () => {
+      form.status = "활성"; form.rejectReason = "";
+      store.updateClient({ ...form });
+      push("가입 승인 · 활성 전환");
+      renderHd(); renderBanner(); renderRail(); refreshList();
+      toast(`${form.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
+    });
+    on(panel, "click", "[data-action='reject']", () => openReject(form, (reason) => {
+      form.status = "반려"; form.rejectReason = reason;
+      store.updateClient({ ...form });
+      push("가입 거부 · 사유 통보");
+      renderHd(); renderBanner(); renderRail(); refreshList();
+    }));
+
+    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
+    on(panel, "click", "[data-action='reset-pw']", () => {
       const CH = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
       let pw = "";
       for (let i = 0; i < 10; i++) pw += CH[Math.floor(Math.random() * CH.length)];
       form.password = pw;
-      const out = qs(activeModal.panel, "[data-pwout]");
-      if (out) out.textContent = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
+      touched.password = 1;
+      pwOut = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 창을 닫으면 다시 볼 수 없습니다.`;
+      menuOpen = false;
+      push("임시비밀번호 발급");
+      renderHd(); renderRail(); renderFt();
       toast("임시비밀번호를 발급했습니다");
-      syncSave();
     });
-    /* 주소검색 — 스크립트 사용 가능할 때만 버튼을 드러낸다(없으면 직접 입력 유지). */
-    ensurePostcode().then((ok) => { const b = qs(activeModal.panel, "[data-addr-find]"); if (b && ok) b.hidden = false; });
-    on(activeModal.panel, "click", "[data-addr-find]", () => {
+    on(panel, "click", "[data-action='delete']", () => {
+      menuOpen = false; renderHd();
+      openDeleteConfirm({
+        orderNo: form.companyName,
+        note: "계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다. 거래를 멈추는 것이라면 삭제 대신 정지를 쓰세요.",
+        onConfirm: () => {
+          const name = form.companyName;
+          store.removeClient(form.id);
+          closeModal();
+          refreshList();
+          toast(`${name} 거래처를 삭제했습니다`, "warn");
+        },
+      });
+    });
+
+    ensurePostcode().then((ok) => { const b = qs(panel, "[data-addr-find]"); if (b && ok) b.hidden = false; });
+    on(panel, "click", "[data-addr-find]", () => {
       openPostcode(({ road }) => {
-        const el = qs(activeModal.panel, "[data-cf='address']");
+        const el = qs(panel, "[data-cf='address']");
         if (!el) return;
         el.value = road + " ";
         form.address = el.value;
+        touched.address = 1;
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
-        syncSave();
+        renderFt();
       });
     });
-    on(activeModal.panel, "click", "[data-action='attach-zoom']", () => {
+    on(panel, "click", "[data-action='attach-zoom']", () => {
       const a = form.bizLicense;
       if (a && a.dataUrl) openLightbox({ src: a.dataUrl, alt: "사업자등록증", caption: `${form.companyName} 사업자등록증` });
     });
-    on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
-    on(activeModal.panel, "click", "[data-action='save']", () => {
-      if (!isValid()) return;
+    on(panel, "click", "[data-action='close']", () => closeModal());
+    on(panel, "click", "[data-action='save']", () => {
+      if (missing().length) { toast("필수 항목을 채워야 저장됩니다", "warn"); return; }
       if (isEdit) store.updateClient({ ...form });
       else store.addClient({ ...form });
-      const b = saveBtn();
-      if (b) {
-        b.disabled = true;
-        b.className = "hm-btn hm-btn--ok";
-        setHTML(b, html`${icon("check", { size: 15 })} ${isEdit ? "저장 완료!" : "등록 완료!"}`);
-      }
-      saveTimer = setTimeout(() => { saveTimer = null; closeModal(); render(); }, 900);
+      savedAt = nowHM();
+      Object.keys(touched).forEach((k) => delete touched[k]);
+      push(isEdit ? "거래처 정보 저장" : "거래처 등록");
+      renderFt(); renderRail(); refreshList();
+      toast(isEdit ? "거래처 정보를 저장했습니다" : `${form.companyName} 거래처를 등록했습니다`);
     });
+
+    qsa(panel, "textarea").forEach(autosize);
   }
 
   // ── approve / reject ───────────────────────────────────
@@ -431,8 +647,9 @@ export function mount(root, { nav }) {
     toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
   }
 
-  function openReject(client) {
-    closeModal();
+  /** 가입 거부 — 사유는 필수. onDone(reason) 이 있으면 저장은 호출부가 한다(모달 안에서 호출). */
+  function openReject(client, onDone) {
+    if (!onDone) closeModal();
     const body = html`
       <div class="hm-warn"><span><b>${client.companyName}</b> 거래처의 가입을 거부합니다. 입력한 사유는 담당자에게 통보됩니다.</span></div>
       <div class="hm-field" style="margin-top:16px;">
@@ -451,9 +668,11 @@ export function mount(root, { nav }) {
     on(activeModal.panel, "click", "[data-action='do-reject']", () => {
       const reason = ta.value.trim();
       if (!reason) return;
-      store.updateClient({ ...client, status: "반려", rejectReason: reason });
-      closeModal();
-      refreshList();
+      const back = onDone ? activeModal : null;
+      activeModal = null;
+      if (back) back.close();
+      if (onDone) onDone(reason);
+      else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); }
       toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
     });
   }
