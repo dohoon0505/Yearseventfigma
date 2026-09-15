@@ -74,96 +74,175 @@
   background: var(--c-danger-bg);
 }
 
-/* ── 기업별 상품단가 설정 (admin-pricing) ────────────────── */
-.prc-default {
-  color: var(--c-text-muted);
+/* ── 기업별 상품단가 v2 (admin-pricing) ───────────────────
+   좌측 거래처 pane + 분류 아코디언 + 저장 전 변경 패널.
+   이 화면의 본업은 "어느 거래처에 단가가 걸려 있나"를 훑는 것이라
+   거래처 목록이 항상 보여야 하고, 분류는 동시에 펼쳐 비교돼야 한다. */
+.prc-cov { font-size: var(--fs-13); color: var(--c-text-muted); }
+.prc-cov strong { color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.prc-cov__dirty { font-style: normal; color: var(--c-warn-soft-ink); font-weight: var(--fw-semibold); }
+
+.prc-shell {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px;
+  align-items: start;
 }
-.prc-input {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+/* 거래처 pane — 상품 표가 길어도 목록은 따라다녀야 비교가 된다 */
+.prc-side {
+  position: sticky; top: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-xl); padding: 10px;
 }
-.prc-input input {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-  border: 1px solid var(--c-border-field);
-  border-radius: var(--r-md);
-  padding: 7px 10px;
-  font-size: var(--fs-13);
-  text-align: right;
-  color: var(--c-text);
-  outline: none;
+.prc-side__srch {
+  display: flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 10px;
+  border: 1px solid var(--c-border-field); border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+.prc-side__srch:focus-within { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.prc-side__ic { color: var(--c-text-faint); flex: 0 0 auto; }
+.prc-side__srch input {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  font-size: var(--fs-13); color: var(--c-text);
+}
+.prc-side__srch input::placeholder { color: var(--c-text-faint); }
+.prc-side__list { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; }
+.prc-side__empty { padding: 20px 10px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); }
+.prc-cli {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 8px 10px; border-radius: var(--r-md);
+  background: none; border: 0; text-align: left;
+  font-size: var(--fs-13); color: var(--c-text-2);
+}
+.prc-cli:hover { background: var(--c-surface-hover); }
+.prc-cli.is-on { background: var(--c-orange-soft); color: var(--c-orange-ink); font-weight: var(--fw-semibold); }
+.prc-cli__nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 미저장 점 — 거래처를 옮겨도 편집을 보존하므로 어디에 남았는지 알려야 한다 */
+.prc-cli__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--c-warn-soft-ink); }
+.prc-cli__cnt {
+  flex: 0 0 auto; min-width: 20px; text-align: right;
+  font-size: var(--fs-12); color: var(--c-text-faint); font-variant-numeric: tabular-nums;
+}
+.prc-cli__cnt.is-on { color: var(--c-blue); font-weight: var(--fw-semibold); }
+.prc-cli.is-on .prc-cli__cnt { color: inherit; }
+
+/* 원장 */
+.prc-main {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-xl); overflow: hidden;
+}
+.prc-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 18px; background: var(--c-surface-2); border-bottom: 1px solid var(--c-border);
+}
+.prc-hd__l { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.prc-hd__co {
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prc-hd__cap { flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-muted); }
+.prc-hd__cap strong { color: var(--c-text-strong); }
+.prc-minibtn {
+  flex: 0 0 auto; padding: 6px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border); background: var(--c-surface);
+  font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--c-text-3);
+}
+.prc-minibtn:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+
+/* 분류 아코디언 */
+.prc-cat + .prc-cat { border-top: 1px solid var(--c-fill-1); }
+.prc-cat__hd {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 11px 18px; background: none; border: 0; text-align: left;
+}
+.prc-cat__hd:hover { background: var(--c-surface-hover); }
+.prc-cat__chev { color: var(--c-text-faint); transition: transform 0.15s; flex: 0 0 auto; }
+.prc-cat.is-open .prc-cat__chev { transform: rotate(180deg); }
+.prc-cat__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.prc-cat__n { font-size: var(--fs-12); color: var(--c-text-faint); }
+.prc-cat__cus { margin-left: auto; font-size: var(--fs-12); color: var(--c-text-faint); }
+.prc-cat__cus.is-on { color: var(--c-blue); font-weight: var(--fw-semibold); }
+.prc-cat__body { display: none; padding: 0 18px 12px; }
+.prc-cat.is-open .prc-cat__body { display: block; }
+
+/* 상품 행 — 값 칸은 입력 중 재렌더하지 않는다(커서 유지) */
+.prc-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 118px 168px 92px;
+  align-items: center; gap: 12px; padding: 7px 0;
+  border-bottom: 1px solid var(--c-fill-1);
+}
+.prc-row:last-child { border-bottom: 0; }
+.prc-row--head {
+  padding: 4px 0 7px; font-size: var(--fs-12); color: var(--c-text-faint);
+  border-bottom: 1px solid var(--c-border);
+}
+.prc-row--head span:nth-child(2), .prc-row--head span:nth-child(3) { text-align: right; }
+.prc-row--head span:nth-child(4) { text-align: center; }
+.prc-row__nm {
+  font-size: var(--fs-14); color: var(--c-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prc-row__base {
+  text-align: right; font-size: var(--fs-13); color: var(--c-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.prc-in { display: flex; align-items: center; gap: 6px; }
+.prc-in input {
+  flex: 1; min-width: 0; height: 32px; padding: 0 10px;
+  border: 1px solid var(--c-border-field); border-radius: var(--r-md);
+  background: var(--c-surface); text-align: right;
+  font-size: var(--fs-13); color: var(--c-text); outline: none;
+  font-variant-numeric: tabular-nums;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.prc-input input:focus {
-  border-color: var(--c-indigo);
-  box-shadow: var(--ring-field);
+.prc-in input:focus { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.prc-in input::placeholder { color: var(--c-text-faint); font-weight: var(--fw-normal); }
+.prc-in__won { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-muted); }
+.prc-row__bdg { display: flex; justify-content: center; }
+.prc-same { font-size: var(--fs-12); color: var(--c-text-faint); }
+.prc-dash { color: var(--c-text-faint); }
+
+/* 저장 전 변경 패널 — 단가는 청구 근거라 무엇이 바뀌는지 보고 저장한다 */
+.prc-pend { display: none; }
+.prc-pend.is-on {
+  display: block;
+  /* 하단 고정 — 상품 표가 20행이라 문서 끝에 두면 저장 버튼이 화면 밖에 남는다.
+     `.admin-inner` 가 flex column 이라 sticky 가 먹으려면 **마지막 자식**이어야 한다. */
+  position: sticky; bottom: 0; z-index: 5;
+  background: var(--c-warn-soft-bg); border: 1px solid var(--c-warn-border);
+  border-radius: var(--r-xl); padding: 14px 18px;
+  box-shadow: var(--sh-card);
 }
-.prc-input input::placeholder {
-  color: var(--c-text-faint);
+.prc-pend__hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.prc-pend__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-warn-ink); }
+.prc-pend__cap { font-size: var(--fs-12); color: var(--c-text-muted); }
+.prc-pend__list { margin: 10px 0 0; padding: 0; list-style: none; max-height: 180px; overflow-y: auto; }
+.prc-pend__i {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; font-size: var(--fs-13); color: var(--c-text-2);
 }
-.prc-won {
-  font-size: var(--fs-13);
-  color: var(--c-text-muted);
-  flex-shrink: 0;
-}
-.prc-reset {
-  flex-shrink: 0;
-  padding: 5px 8px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text-muted);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  transition: all 0.15s;
-}
-.prc-reset:hover {
-  border-color: var(--c-border-strong);
-  color: var(--c-text-3);
-}
-.prc-dash {
-  color: var(--c-text-faint);
-}
-.prc-savebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-}
-.prc-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-13);
-  color: var(--c-text-muted);
-}
-.prc-savebar__btns {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.prc-pend__nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prc-pend__from { color: var(--c-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+.prc-pend__ar { color: var(--c-text-faint); flex: 0 0 auto; }
+.prc-pend__to { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.prc-pend__ft { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .prc-save {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 18px;
-  border-radius: var(--r-md);
-  background: var(--c-orange);
-  color: var(--c-surface);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: var(--r-md);
+  background: var(--c-orange); color: var(--c-surface);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold);
   transition: background 0.15s;
 }
-.prc-save:hover {
-  background: var(--c-orange-hover);
+.prc-save:hover { background: var(--c-orange-hover); }
+.prc-foot {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-13); color: var(--c-text-muted);
+}
+
+@media (max-width: 1100px) {
+  .prc-shell { grid-template-columns: minmax(0, 1fr); }
+  .prc-side { position: static; }
+  .prc-side__list { max-height: 220px; }
 }
 
 /* ── 정산회계: 조회 기간 빠른 선택(이번달/저번달) ────────── */

@@ -5,7 +5,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, won } from "../store.js";
-import { getClientId } from "../session.js";
+import { currentClient } from "../util/client.js";
 import { pageTitle, tableGrid, openModal, openLightbox } from "../ui.js";
 import { INTAKE_TOTAL, filterIntakeGuide } from "../data/intake-guide.js";
 
@@ -26,9 +26,12 @@ export function mount(root, { nav }) {
   let saveTimer = null;
   const closeModal = () => { if (activeModal) { activeModal.close(); activeModal = null; } };
 
-  // Per-client price override (set in admin '기업별 상품단가 설정'). Falls back
-  // to the catalog default when this company has no custom price for the item.
-  const clientId = getClientId();
+  /* 거래처별 단가(관리자 '기업별 상품단가'). 오버라이드가 없으면 카탈로그 정가.
+     ⚠️ 거래처 결정은 반드시 `util/client.js` 를 경유한다(규약). 예전엔 `getClientId()`
+        를 직접 써서 세션에 거래처 id 가 없는 경우(관리자 계정·딥링크) 폴백이 없어
+        **맞춤 단가가 통째로 무시**됐다 — 다른 화면은 전부 폴백이 있어 회사명만
+        맞고 금액만 정가로 나오는, 알아채기 어려운 어긋남이었다. */
+  const clientId = (currentClient() || {}).id || null;
   const priceFor = (p) => {
     const ov = store.get().clientPrices[clientId]?.[productKey(p)];
     return typeof ov === "number" && ov > 0 ? won(ov) : p.price;
