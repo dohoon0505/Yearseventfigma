@@ -21,7 +21,7 @@ import { pageTitle, tableGrid, openModal } from "../ui.js";
 import { getDateRange, parseOrderDate } from "../util/date.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { openCancelModal } from "../util/cancel-modal.js";
-import { B2C_STATUS_STYLE } from "../data/b2c-mock.js";
+import { statusBadge } from "../util/order-screen.js";
 import { B2B_STATUSES, b2bList, b2bFind, b2bSetStatus, b2bUpsert } from "../data/b2b-mock.js";
 
 const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
@@ -32,10 +32,6 @@ const QUICK_DATES = ["오늘", "어제", "내일", "이번 달", "지난 달"];
 
 /* 상태 색은 B2C 와 같은 단일 맵을 쓴다 — 두 화면에서 같은 상태가 다른 색이면
    담당자가 화면마다 다시 학습해야 한다. */
-const statusBadge = (s) => {
-  const st = B2C_STATUS_STYLE[s] ?? { bg: "var(--c-surface-3)", color: "var(--c-text-4)" };
-  return html`<span class="hm-badge" style="background:${st.bg};color:${st.color}">${s}</span>`;
-};
 
 /** "YYYY/MM/DD HH:mm" → 귀속월 라벨 "2026년 09월" (정산 기준월). */
 function periodLabel(dateStr) {
@@ -63,7 +59,7 @@ export function mount(root, { nav }) {
       const d = parseOrderDate(o.date);
       if (d < s || d > e) return false;
       if (state.qClient && !clientName(o).includes(state.qClient)) return false;
-      if (state.qSender && !o.sender.includes(state.qSender)) return false;
+      if (state.qSender && !o.ordererName.includes(state.qSender)) return false;
       if (state.qAddress && !o.address.includes(state.qAddress)) return false;
       return true;
     });
@@ -75,7 +71,7 @@ export function mount(root, { nav }) {
       label: "거래처", width: "1fr",
       render: (r) => html`<div class="ellipsis" title="${clientName(r)}">${clientName(r)}${clientOf(r)?.clientNote ? html`<span class="ao-note" title="거래 조건 있음">!</span>` : ""}</div>`,
     },
-    { label: "발송인", width: "104px", render: (r) => html`<div class="ellipsis">${dash(r.sender)}</div>` },
+    { label: "발송인", width: "104px", render: (r) => html`<div class="ellipsis">${dash(r.ordererName)}</div>` },
     { label: "배송지", width: "1.4fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.address}">${dash(r.address)}</div>` },
     { label: "상품", width: "128px", render: (r) => html`<div class="ellipsis">${dash(r.product)}</div>` },
     { label: "금액", width: "94px", align: "right", render: (r) => html`<span class="ord-amt">${won(r.amount)}</span>` },
@@ -171,7 +167,7 @@ export function mount(root, { nav }) {
       <div class="ao-row"><span class="ao-row__k">주문번호</span><b class="ao-row__v">${o.orderNo}</b></div>
       <div class="ao-row"><span class="ao-row__k">주문일시</span><b class="ao-row__v">${o.date}</b></div>
       <div class="ao-row"><span class="ao-row__k">정산 귀속</span><b class="ao-row__v">${periodLabel(o.date)}</b></div>
-      <div class="ao-row"><span class="ao-row__k">발송인</span><b class="ao-row__v">${dash(o.sender)}</b></div>
+      <div class="ao-row"><span class="ao-row__k">발송인</span><b class="ao-row__v">${dash(o.ordererName)}</b></div>
       <div class="ao-row"><span class="ao-row__k">배송지</span><b class="ao-row__v">${dash(o.address)}</b></div>
       <div class="ao-row"><span class="ao-row__k">주문상품</span><b class="ao-row__v">${dash(o.product)}</b></div>
       <div class="ao-row"><span class="ao-row__k">적용 단가</span><b class="ao-row__v">${won(o.amount)}</b></div>
@@ -242,7 +238,7 @@ export function mount(root, { nav }) {
     on(activeModal.panel, "click", "[data-action='save']", () => {
       /* 주문접수 + 인수자 입력 = 배송완료 자동 전환(B2C 규약과 동일한 판정). */
       const next = { ...o, receiver: draft.receiver.trim(), memo: draft.memo.trim() };
-      if (next.status === "주문접수" && next.receiver) { next.status = "배송완료"; next.hasPhoto = true; }
+      if (next.status === "주문접수" && next.receiver) { next.status = "배송완료"; next.notified = true; }
       b2bUpsert(next);
       Object.assign(o, next);
       refreshList();

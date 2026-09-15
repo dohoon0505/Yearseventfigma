@@ -192,7 +192,7 @@ export function mount(root, { nav }) {
       rows.push({ kind: "B2C", id: o.id, who: o.ordererName, no: o.orderNo, address: o.address, product: o.product, amount: o.amount, eta: etaOf(o, "B2C"), go: "#/admin/b2c" });
     });
     b2bList().forEach((o) => {
-      const hit = pending ? o.status === "접수대기" : o.status === "주문접수" && !o.hasPhoto;
+      const hit = pending ? o.status === "접수대기" : o.status === "주문접수" && !o.image;
       if (!hit) return;
       rows.push({ kind: "B2B", id: o.id, who: clientLabel(o.clientId), no: o.orderNo, address: o.address, product: o.product, amount: o.amount, eta: etaOf(o, "B2B"), go: "#/admin/orders" });
     });
@@ -207,7 +207,7 @@ export function mount(root, { nav }) {
   }
   const queueCount = (tab) => {
     const b2c = b2cList().filter((o) => (tab === "pending" ? o.status === "접수대기" : o.status === "주문접수" && !o.image)).length;
-    const b2b = b2bList().filter((o) => (tab === "pending" ? o.status === "접수대기" : o.status === "주문접수" && !o.hasPhoto)).length;
+    const b2b = b2bList().filter((o) => (tab === "pending" ? o.status === "접수대기" : o.status === "주문접수" && !o.image)).length;
     return b2c + b2b;
   };
   function queueBody() {
