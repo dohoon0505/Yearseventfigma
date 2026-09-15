@@ -30,6 +30,14 @@ const fmtDot = (d) => `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pad(d.get
      주문 화면에서 담당자에게 노출한다. 지우지 말 것.
    ─ 법무법인 세종 2건(C008·C015)은 같은 사업자번호의 부서 분리 — 정상 시나리오다.
    ─ 비밀번호는 이관하지 않는다(관리자 화면에서 임시비밀번호 발급 방식). */
+/* 매출을 별도 KPI 로 떼어 보는 거래처 채널.
+   '일반' 이 기본이고, 그 외 값은 대쉬보드에서 B2B 합계에서 빠져 자기 카드를 갖는다.
+   고이장례연구소는 사업 성격이 달라 매출을 따로 보고 있어 채널로 분리했다 —
+   같은 성격의 거래처가 늘면 이 목록에 값을 추가하고 거래처 레코드에 지정하면 된다. */
+export const CLIENT_CHANNELS = ["일반", "고이"];
+/** 거래처의 채널. 값이 없으면 일반. */
+export const channelOf = (client) => (client && client.channel) || "일반";
+
 export const INITIAL_CLIENTS = [
   { id: "C001", accountId: "taewonsci", companyName: "태원과학(주)", bizNumber: "101-81-24696", ceoName: "태원과학", managerName: "", department: "", contact: "010-2907-0637", email: "", address: "서울특별시 강남구 선릉로639 태원빌딩", status: "활성", joinDate: "2024-12-11", invoiceDay: "1", clientNote: "화환 6만" },
   { id: "C002", accountId: "sodamchae", companyName: "소담채(주)", bizNumber: "126-86-69187", ceoName: "방태진", managerName: "", department: "", contact: "010-3111-6726", email: "", address: "서울특별시 송파구 양재대로 932", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
@@ -37,7 +45,7 @@ export const INITIAL_CLIENTS = [
   { id: "C004", accountId: "ksanit", companyName: "대한위생사협회", bizNumber: "106-82-31544", ceoName: "홍성유", managerName: "", department: "", contact: "", email: "", address: "인천광역시 미추홀구 미추로 62, 3층", status: "활성", joinDate: "2026-03-24", invoiceDay: "1", clientNote: "기본 50 · 고급 60 · 특대 75" },
   { id: "C005", accountId: "bluesea", companyName: "(주)늘푸른바다", bizNumber: "603-81-55074", ceoName: "김형광, 김세종", managerName: "", department: "", contact: "010-9036-5637", email: "", address: "부산광역시 사하구 다산로 277", status: "활성", joinDate: "2026-06-11", invoiceDay: "1", clientNote: "" },
   { id: "C006", accountId: "ilpumchae", companyName: "(주)일품채", bizNumber: "253-81-00355", ceoName: "심영택", managerName: "", department: "", contact: "010-2763-2483", email: "", address: "서울특별시 송파구 양재대로 932", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
-  { id: "C007", accountId: "goifuneral", companyName: "고이장례연구소", bizNumber: "831-87-01971", ceoName: "송슬옹", managerName: "", department: "", contact: "010-6716-1647", email: "", address: "서울 관악구 신림로 122 2층 고이장례연구소", status: "활성", joinDate: "2025-02-19", invoiceDay: "1", clientNote: "" },
+  { id: "C007", accountId: "goifuneral", companyName: "고이장례연구소", bizNumber: "831-87-01971", ceoName: "송슬옹", managerName: "", department: "", contact: "010-6716-1647", email: "", address: "서울 관악구 신림로 122 2층 고이장례연구소", status: "활성", joinDate: "2025-02-19", invoiceDay: "1", clientNote: "", channel: "고이" },
   { id: "C008", accountId: "sejong-kds", companyName: "법무법인 세종", bizNumber: "110-81-37778", ceoName: "오종한", managerName: "", department: "김동선 변호사", contact: "010-3736-9514", email: "", address: "서울특별시 종로구 종로3길17(청진동, 디타워 디2)", status: "활성", joinDate: "2025-06-09", invoiceDay: "1", clientNote: "김동선 변호사님" },
   { id: "C009", accountId: "wholefresh", companyName: "(주)홀프레쉬", bizNumber: "609-88-01518", ceoName: "심영택", managerName: "", department: "", contact: "010-3111-6726", email: "", address: "경기도 이천시 마장면 이장로 131-14", status: "활성", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" },
   { id: "C010", accountId: "knmetal", companyName: "(주)한국비철", bizNumber: "105-81-52554", ceoName: "안국헌, 안준영", managerName: "", department: "", contact: "010-3813-2748", email: "", address: "충청남도 아산시 둔포면 아산밸리중앙로 170", status: "활성", joinDate: "2025-09-24", invoiceDay: "1", clientNote: "★ 기본상품 50\n필요 시 특대 75로 진행" },
