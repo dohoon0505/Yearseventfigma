@@ -36,13 +36,7 @@ export const B2C_RIBBON_PHRASES = [
   "축 결혼(祝 結婚)", "화혼을 축하합니다", "축 개업(祝 開業)", "축 취임(祝 就任)",
 ];
 
-/* ── 상태 배지 색 (orders.js 톤과 통일) ────────────────── */
-export const B2C_STATUS_STYLE = {
-  "접수대기": { bg: "var(--c-orange-soft)", color: "var(--c-orange-ink)" },
-  "주문접수": { bg: "var(--c-blue-soft)", color: "var(--c-blue)" },
-  "배송완료": { bg: "var(--c-success-bg)", color: "var(--c-success-ink)" },
-  "취소":    { bg: "var(--c-danger-bg)", color: "var(--c-danger-ink)" },
-};
+/* 상태 배지 색은 두 주문 화면이 공유한다 → util/order-screen.js ORDER_STATUS_STYLE */
 
 /* ── 초기 목데이터 (가변 모듈 상태) ────────────────────── */
 export const B2C_ORDERS = [

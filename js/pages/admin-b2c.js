@@ -9,54 +9,37 @@
      저장 = 반영 후 모달 유지(읽기 복귀). 닫기/X/ESC 만 모달을 닫는다.
    - 자동 배송완료: 주문접수 상태 + 사진 + 인수자 → 저장 시 배송완료·알림톡 자동.
    - 신규 등록: 같은 모달, 레일·상태 액션 숨김, 강제 편집 모드, 등록 시 닫힘.
+   표기·필터 카드·표 셀·모달 구역/레일/사진·담당자 지정은 거래처 주문관리와
+   100% 공유한다 → js/util/order-screen.js (짝 CSS 는 components.css 의 .ord-*).
+   여기 남은 것은 전부 B2C 도메인이다 — filtered()·columns·모달 본문·저장 규칙.
    데이터는 data/b2c-mock.js(세션 유지). 페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown, makeDatepicker, openLightbox } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown } from "../ui.js";
 import { getDateRange, formatDateLabel } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import {
+  won, pad2, dash, fmtFull, joinVals, parseFlexDate, statusBadge, tabDefs,
+  tabBtn, filterCard, makeDateRange,
+  dateCell, photoFlag, notiFlag, amtCell, editBtn,
+  zone, docRow, ddField, txtField, makeImageBox, railBody as railOf,
+  managerControl, openStaffPicker,
+} from "../util/order-screen.js";
+import {
   staffNames, B2C_CHANNELS, B2C_STATUSES, B2C_PRODUCTS, B2C_RIBBON_PHRASES,
-  B2C_STATUS_STYLE, productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
+  productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
 
-const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
-const pad = (n) => String(n).padStart(2, "0");
-/* datetime-local("2026-07-10T13:30")·저장문자열("2026-07-08 15:20") → "2026-07-10 13:30" */
-const fmtFull = (s) => (s ? s.replace("T", " ") : "-");
-const dash = (v) => (v != null && String(v).trim() ? v : "-");
-/* 값들을 구분자로 연결 — 전부 비면 "-" (읽기 모드 정의행용) */
-const joinVals = (sep, ...xs) => {
-  const v = xs.filter((x) => x != null && String(x).trim());
-  return v.length ? v.join(sep) : "-";
-};
-
-const TABS = [{ v: "all", label: "전체" }, ...B2C_STATUSES.map((s) => ({ v: s, label: s }))];
-const statusBadge = (s) => {
-  const st = B2C_STATUS_STYLE[s] ?? { bg: "var(--c-surface-3)", color: "var(--c-text-4)" };
-  return html`<span class="hm-badge" style="background:${st.bg};color:${st.color}">${s}</span>`;
-};
-
-/* ── 필터 상수 (claude_design '필터 영역 리디자인' 시안 기반) ── */
-const B2C_PHOTO_FILTERS = [{ v: "has", label: "사진 있음" }, { v: "no", label: "사진 없음" }];
-const B2C_NOTI_FILTERS = [{ v: "on", label: "알림 발송" }, { v: "off", label: "미발송" }];
-const B2C_DATE_BASIS = [{ v: "received", label: "접수일" }, { v: "deliver", label: "배송일" }];
-const B2C_QUICK_DATES = ["전체", "오늘", "어제", "내일", "이번 달", "지난 달"];
-/* B2C 저장 날짜("2026-07-08 15:20" / "2026-07-09T11:00") → Date (없으면 null) */
-function parseB2CDate(s) {
-  if (!s) return null;
-  const [datePart, timePart] = s.replace("T", " ").split(" ");
-  const [y, m, d] = (datePart || "").split("-").map(Number);
-  const [hh = 0, mm = 0] = (timePart || "00:00").split(":").map(Number);
-  return y && m && d ? new Date(y, m - 1, d, hh, mm) : null;
-}
+/* 표기·상태배지·필터 마크업은 거래처 주문관리와 100% 공유 — util/order-screen.js */
+const TABS = tabDefs(B2C_STATUSES);
+const DATE_BASIS = [{ v: "received", label: "접수일" }, { v: "deliver", label: "배송일" }];
 
 function blankOrder() {
   const now = new Date();
-  const receivedAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const receivedAt = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   return {
     id: b2cNewId(), orderNo: b2cNextOrderNo(), receivedAt,
     manager: staffNames()[0] ?? "", channel: B2C_CHANNELS[0],
@@ -106,7 +89,7 @@ export function mount(root, { nav }) {
       if (state.photo.length && !state.photo.includes(hasImg ? "has" : "no")) return false;
       if (state.noti.length && !state.noti.includes(o.notified ? "on" : "off")) return false;
       if (startD || endD) {
-        const d = parseB2CDate(state.dateBasis === "deliver" ? o.deliverAt : o.receivedAt);
+        const d = parseFlexDate(state.dateBasis === "deliver" ? o.deliverAt : o.receivedAt);
         if (!d) return false;
         if (startD && d < startD) return false;
         if (endD && d > endD) return false;
@@ -125,7 +108,7 @@ export function mount(root, { nav }) {
     return TABS.map((t) => {
       const count = t.v === "all" ? all.length : all.filter((o) => o.status === t.v).length;
       const active = state.tab === t.v;
-      return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="bf-tab__cnt">${count}</span></button>`;
+      return tabBtn({ v: t.v, label: t.label, count, active });
     });
   }
   function summaryBody() {
@@ -136,108 +119,35 @@ export function mount(root, { nav }) {
      ① 상태 언더라인 탭(+카운트·플로우 텍스트) ② 기간 세그먼트 트랙 +
      datepicker + 배송지 인라인 검색 + 상세 필터 토글(활성 배지)
      ③ 접이식 상세(사진·알림 토글 칩 + 검색 4종 그리드) */
-  /* 커스텀 datepicker 마크업 (ui.js makeDatepicker 와 짝) */
-  const dpMarkup = (which, ph) => html`
-    <div class="dd datepick ord-dp" data-dp="${which}">
-      <button type="button" class="dd-trigger" aria-haspopup="dialog" aria-expanded="false"></button>
-      <div class="dd-panel cal-panel" role="dialog" aria-label="${ph} 선택">
-        <div class="cal-head">
-          <button type="button" class="cal-nav cal-prev" aria-label="이전 달">‹</button>
-          <span class="cal-title"></span>
-          <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
-        </div>
-        <div class="cal-grid"></div>
-      </div>
-    </div>`;
-  /* 세그먼트 트랙 버튼 (선택 = 흰 pill + 그림자) */
-  const segBtns = (items, active, action) =>
-    items.map((it) => html`<button class="bf-seg__btn ${active === it.v ? "is-sel" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
-  /* 토글 칩 (켜짐 = 오렌지 소프트 + 체크 표시) */
-  const toggleChips = (defs, on, action) =>
-    defs.map((f) => {
-      const sel = on.includes(f.v);
-      return html`<button class="bf-chip ${sel ? "is-on" : ""}" data-action="${action}" data-v="${f.v}">${sel ? "✓ " : ""}${f.label}</button>`;
-    });
-  /* 인라인 라벨형 검색창 (아이콘 · 볼드 라벨 · 세로 구분선 · 입력) */
-  const srchBox = (key, label, ph, extra = "") => html`
-    <div class="bf-srch ${extra}">
-      ${icon("search", { size: 13, cls: "bf-srch__ic" })}
-      <span class="bf-srch__lbl">${label}</span>
-      <span class="bf-srch__dv"></span>
-      <input type="text" data-search="${key}" value="${state[key]}" placeholder="${ph}" />
-    </div>`;
+  const srch = (key, label, ph) => ({ key, label, ph, value: state[key] });
   function filterBody() {
-    const activeCnt = state.photo.length + state.noti.length;
-    return html`
-      <!-- ① 상태 언더라인 탭 + 플로우 텍스트 -->
-      <div class="bf-row bf-row--tabs">
-        <div class="bf-tabs" data-slot="tabs">${tabsBody()}</div>
-        <span class="bf-flow">접수대기 → 주문접수 → 배송완료</span>
-      </div>
-
-      <!-- ② 기간 세그먼트 · datepicker 범위 · (우측) 배송지 검색 · 상세 필터 토글 -->
-      <div class="bf-row bf-row--main">
-        <div class="bf-seg">${segBtns(B2C_DATE_BASIS, state.dateBasis, "datebasis")}</div>
-        ${dpMarkup("start", "시작일")}
-        <span class="bf-tilde">~</span>
-        ${dpMarkup("end", "종료일")}
-        <div class="bf-seg">${segBtns(B2C_QUICK_DATES.map((v) => ({ v, label: v })), state.dateQuick, "date")}</div>
-        <div class="bf-right">
-          ${srchBox("qAddress", "배송지", "배송지 주소로 검색", "bf-srch--addr")}
-          <button class="bf-detailbtn ${state.detailOpen ? "is-open" : ""}" data-action="detail-toggle" aria-expanded="${state.detailOpen ? "true" : "false"}">
-            상세 필터${activeCnt ? html`<span class="bf-detailbtn__badge">${activeCnt}</span>` : ""}<span class="bf-chevron"></span>
-          </button>
-        </div>
-      </div>
-
-      <!-- ③ 상세 필터 (접이식): 사진·알림 토글 칩 + 검색 4종 그리드 -->
-      ${state.detailOpen ? html`
-        <div class="bf-detail">
-          <div class="bf-detail__chips">
-            <span class="bf-lbl">사진</span>
-            ${toggleChips(B2C_PHOTO_FILTERS, state.photo, "photofilter")}
-            <span class="bf-vdiv"></span>
-            <span class="bf-lbl">알림</span>
-            ${toggleChips(B2C_NOTI_FILTERS, state.noti, "notifilter")}
-          </div>
-          <div class="bf-detail__srch">
-            ${srchBox("qOrderer", "주문자", "주문자 성함")}
-            ${srchBox("qRecipient", "받는분", "받는분 성함")}
-            ${srchBox("qChannel", "주문경로", "예) 네이버 스토어")}
-            ${srchBox("qOrderNo", "주문번호", "예) B2C-2607-0006")}
-          </div>
-        </div>
-      ` : ""}
-    `;
+    return filterCard({
+      tabs: tabsBody(),
+      basis: DATE_BASIS, basisActive: state.dateBasis,
+      quickActive: state.dateQuick,
+      addr: srch("qAddress", "배송지", "배송지 주소로 검색"),
+      detailOpen: state.detailOpen, photo: state.photo, noti: state.noti,
+      searches: [
+        srch("qOrderer", "주문자", "주문자 성함"),
+        srch("qRecipient", "받는분", "받는분 성함"),
+        srch("qChannel", "주문경로", "예) 네이버 스토어"),
+        srch("qOrderNo", "주문번호", "예) B2C-2607-0006"),
+      ],
+    });
   }
   /* 컬럼: 주문경로 | 주문접수/배송일시 | 배송지 | 받는분 | 상품 | 금액 | 메모 | 현황(배지) | 사진 | 알림 (+관리) */
   const columns = [
     { label: "주문경로", width: "108px", align: "center", render: (r) => html`<div class="ellipsis ord-dim">${r.channel}</div>` },
-    {
-      label: "주문접수 / 배송일시", width: "168px",
-      render: (r) => html`<div class="ord-dt2">
-        <span class="ord-dt2__row"><span class="ord-dt2__lbl">접수</span><span class="ord-mono">${fmtFull(r.receivedAt)}</span></span>
-        <span class="ord-dt2__row"><span class="ord-dt2__lbl ord-dt2__lbl--dv">배송</span><span class="ord-mono">${fmtFull(r.deliverAt)}</span></span>
-      </div>`,
-    },
+    { label: "주문접수 / 배송일시", width: "168px", render: (r) => dateCell(r.receivedAt, r.deliverAt, "접수") },
     { label: "배송지", width: "1.3fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.address}">${r.address || "-"}</div>` },
     { label: "받는분", width: "88px", align: "center", render: (r) => html`<div class="ellipsis">${r.recipientName || "-"}</div>` },
     { label: "상품", width: "122px", render: (r) => html`<div class="ellipsis">${r.product || "-"}</div>` },
-    { label: "금액", width: "96px", align: "right", render: (r) => html`<span class="ord-amt">${won(r.amount)}</span>` },
+    { label: "금액", width: "96px", align: "right", render: (r) => amtCell(r.amount) },
     { label: "메모", width: "1fr", render: (r) => html`<div class="ellipsis ord-dim" title="${r.memo}">${r.memo || "-"}</div>` },
     { label: "현황", width: "92px", align: "center", render: (r) => statusBadge(r.status) },
-    {
-      label: "사진", width: "52px", align: "center",
-      render: (r) => html`<span class="ord-flag ord-flag--photo ${r.image ? "on" : ""}" title="${r.image ? "사진 있음" : "사진 없음"}">${icon("camera", { size: 15 })}</span>`,
-    },
-    {
-      label: "알림", width: "52px", align: "center",
-      render: (r) => html`<span class="ord-flag ord-flag--noti ${r.notified ? "on" : ""}" title="${r.notified ? "알림 발송완료" : "알림 미발송"}">${icon(r.notified ? "bell" : "bell-off", { size: 15 })}</span>`,
-    },
-    {
-      label: "관리", width: "56px", align: "center",
-      render: (r) => html`<button class="ptbl-edit" data-action="edit" data-id="${r.id}" aria-label="편집">${icon("pencil", { size: 14 })}</button>`,
-    },
+    { label: "사진", width: "52px", align: "center", render: (r) => photoFlag(r.image) },
+    { label: "알림", width: "52px", align: "center", render: (r) => notiFlag(r.notified) },
+    { label: "관리", width: "56px", align: "center", render: (r) => editBtn(r.id) },
   ];
   function tableBody() {
     const rows = filtered();
@@ -269,77 +179,36 @@ export function mount(root, { nav }) {
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
-  /* 기간 datepicker(시작·종료) 수명주기 — 필터 슬롯 재렌더마다 destroy→재생성 */
-  const filterDps = [];
-  const destroyFilterDps = () => { filterDps.forEach((d) => d.destroy()); filterDps.length = 0; };
   const refreshTableOnly = () => {
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
-  function bindFilterDps() {
-    const mk = (which, key, ph) => {
-      const el0 = qs(root, `[data-dp='${which}']`);
-      if (!el0) return;
-      filterDps.push(makeDatepicker(el0, {
-        get: () => state[key],
-        set: (v) => {
-          /* 직접 날짜 선택 → 커스텀 범위(퀵버튼 해제). 자기 자신(datepicker) 재생성 없이 표만 갱신. */
-          state[key] = v;
-          state.dateQuick = "custom";
-          qsa(root, "[data-action='date']").forEach((b) => b.classList.remove("is-sel"));
-          refreshTableOnly();
-        },
-        min: DP_MIN, max: DP_MAX, placeholder: ph,
-      }));
-    };
-    mk("start", "dateStart", "시작일");
-    mk("end", "dateEnd", "종료일");
-  }
+  /* 기간 datepicker(시작·종료) — 필터 슬롯 재렌더마다 destroy→재생성, cleanup 에서도 destroy */
+  const dateRange = makeDateRange(root, {
+    get: (key) => state[key],
+    set: (key, v) => {
+      /* 직접 날짜 선택 → 커스텀 범위(퀵버튼 해제). 자기 자신(datepicker) 재생성 없이 표만 갱신. */
+      state[key] = v;
+      state.dateQuick = "custom";
+      qsa(root, "[data-action='date']").forEach((b) => b.classList.remove("is-sel"));
+      refreshTableOnly();
+    },
+    min: DP_MIN, max: DP_MAX,
+  });
   /* 필터 조작 시 — 필터 블록(활성 상태) + 요약 + 표 재렌더 (검색 입력은 제외: 포커스 보존) */
   const refreshFilters = () => {
-    destroyFilterDps();
+    dateRange.destroy();
     const f = qs(root, "[data-slot='filters']");
     if (f) setHTML(f, filterBody());
-    bindFilterDps();
+    dateRange.bind();
     refreshTableOnly();
   };
 
   /* ══ 모달 — 읽기 우선(시안 C) ═══════════════════════════ */
 
-  /* 폼 필드 빌더 (표준 .hm-field — 상단 라벨 · 48px 컨트롤) */
-  function ddField(label, key, opts = {}) {
-    return html`
-      <div class="hm-field">
-        <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-        <div class="dd" data-dd-f="${key}">
-          <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-          <div class="dd-panel" role="listbox"></div>
-        </div>
-      </div>
-    `;
-  }
-  function txtField(label, key, opts = {}) {
-    const type = opts.type || "text";
-    return html`
-      <div class="hm-field">
-        <label>${label}${opts.req ? html`<span class="req">*</span>` : ""}</label>
-        <input class="hm-input" type="${type}" data-f="${key}" value="${editing[key] ?? ""}"
-          ${opts.list ? `list="${opts.list}"` : ""} ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""}
-          placeholder="${opts.placeholder ?? ""}" ${opts.min != null ? `min="${opts.min}"` : ""} />
-      </div>
-    `;
-  }
 
-  /* 헤더 인라인 담당자 컨트롤 — 클릭 시 담당자 지정 모달(선택·입력).
-     미지정(API 자동등록)이면 주황 강조로 '지정' 유도. */
-  function managerControl() {
-    const m = editing?.manager;
-    return m
-      ? html`<button class="ord-mgr" data-action="pick-manager">담당 ${m} ${icon("pencil", { size: 12 })}</button>`
-      : html`<button class="ord-mgr ord-mgr--empty" data-action="pick-manager">${icon("user-plus", { size: 12 })} 담당자 미지정 · 지정하기</button>`;
-  }
 
   /* ── 헤더: 주문번호 강조 + 상태 배지 + 메타(+담당자 컨트롤) + [내용 수정] 토글 ── */
   function headInner() {
@@ -348,7 +217,7 @@ export function mount(root, { nav }) {
       return html`
         <div class="ord-head__main">
           <div class="ord-head__row"><h3 class="ord-head__no">신규 B2C 주문 등록</h3></div>
-          <p class="ord-head__meta"><span class="ord-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
+          <p class="ord-head__meta"><span class="ord-mono">${o.orderNo}</span> · 주문접수 ${o.receivedAt} · ${managerControl(editing?.manager)}</p>
         </div>
         <div class="ord-head__acts">
           <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
@@ -361,7 +230,7 @@ export function mount(root, { nav }) {
           <h3 class="ord-head__no ord-mono">${o.orderNo}</h3>
           ${statusBadge(o.status)}
         </div>
-        <p class="ord-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · ${managerControl()}</p>
+        <p class="ord-head__meta">${o.channel} · 주문접수 ${o.receivedAt} · ${managerControl(editing?.manager)}</p>
       </div>
       <div class="ord-head__acts">
         <button class="hm-btn hm-btn--secondary ord-editbtn" data-action="toggle-edit">
@@ -375,37 +244,28 @@ export function mount(root, { nav }) {
   /* ── 읽기 모드: 구역 카드(주문정보 / 발주정보 / 요청사항) + 큰 정의행 ── */
   function readBody() {
     const o = editing;
-    const row = (k, v, cls = "") => html`
-      <div class="ord-doc__row">
-        <span class="ord-doc__k">${k}</span>
-        <span class="ord-doc__v ${cls}">${v}</span>
-      </div>`;
+    const row = docRow;
     return html`
       <div class="ord-doc">
-        <section class="ord-zone">
-          <div class="ord-zone__t">주문정보</div>
+        ${zone("주문정보", html`
           ${row("주문자", joinVals(" · ", o.ordererName, o.ordererPhone))}
           ${row("주문상품", dash(o.product))}
           ${row("주문금액", won(o.amount), "ord-doc__v--price")}
-        </section>
-        <section class="ord-zone">
-          <div class="ord-zone__t">발주정보</div>
+        `)}
+        ${zone("발주정보", html`
           ${row("배송일시", fmtFull(o.deliverAt))}
           ${row("배송지", dash(o.address), "ord-doc__v--pre")}
           ${row("받는분", joinVals(" · ", o.recipientName, o.recipientPhone))}
           ${row("리본문구", dash(o.ribbonPhrase))}
           ${row("보내는분", dash(o.ribbonSender))}
-        </section>
-        <section class="ord-zone">
-          <div class="ord-zone__t">요청사항</div>
+        `)}
+        ${zone("요청사항", html`
           <p class="ord-doc__txt">${dash(o.request)}</p>
-        </section>
-        ${o.status === "취소" ? html`
-          <section class="ord-zone">
-            <div class="ord-zone__t">취소 처리</div>
-            ${row("취소 사유", dash(o.cancelReason))}
-            ${row("취소 수수료", won(o.cancelFee), "ord-doc__v--price")}
-          </section>` : ""}
+        `)}
+        ${o.status === "취소" ? zone("취소 처리", html`
+          ${row("취소 사유", dash(o.cancelReason))}
+          ${row("취소 수수료", won(o.cancelFee), "ord-doc__v--price")}
+        `) : ""}
       </div>
     `;
   }
@@ -415,79 +275,43 @@ export function mount(root, { nav }) {
     const o = editing;
     return html`
       <div class="ord-edit">
-        <section class="ord-zone">
-          <div class="ord-zone__t">주문정보</div>
+        ${zone("주문정보", html`
           <div class="ord-form">
-            ${txtField("주문자 성함", "ordererName", { placeholder: "예) 홍길동", req: true })}
-            ${txtField("주문자 연락처", "ordererPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+            ${txtField("주문자 성함", "ordererName", editing.ordererName, { placeholder: "예) 홍길동", req: true })}
+            ${txtField("주문자 연락처", "ordererPhone", editing.ordererPhone, { placeholder: "010-0000-0000", inputmode: "numeric" })}
             ${ddField("주문상품", "product", { req: true })}
-            ${txtField("주문금액 (원)", "amount", { type: "number", min: 0, inputmode: "numeric" })}
+            ${txtField("주문금액 (원)", "amount", editing.amount, { type: "number", min: 0, inputmode: "numeric" })}
             <div class="ord-form__full">${ddField("주문경로/거래처", "channel")}</div>
           </div>
-        </section>
-        <section class="ord-zone">
-          <div class="ord-zone__t">발주정보</div>
+        `)}
+        ${zone("발주정보", html`
           <div class="ord-form ord-form--3">
-            ${txtField("배송일시", "deliverAt", { type: "datetime-local" })}
-            ${txtField("받는분 성함", "recipientName", { placeholder: "예) 故 김○○" })}
-            ${txtField("받는분 연락처", "recipientPhone", { placeholder: "010-0000-0000", inputmode: "numeric" })}
+            ${txtField("배송일시", "deliverAt", editing.deliverAt, { type: "datetime-local" })}
+            ${txtField("받는분 성함", "recipientName", editing.recipientName, { placeholder: "예) 故 김○○" })}
+            ${txtField("받는분 연락처", "recipientPhone", editing.recipientPhone, { placeholder: "010-0000-0000", inputmode: "numeric" })}
             <div class="hm-field ord-form__full">
               <label>배송지 주소</label>
               <textarea class="hm-input hm-textarea" data-f="address" placeholder="배송지 주소를 입력하세요">${o.address ?? ""}</textarea>
             </div>
             <div class="ord-form__pair">
-              ${txtField("리본문구 (경조사어)", "ribbonPhrase", { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "ord-phrases" })}
-              ${txtField("보내는분 (리본)", "ribbonSender", { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
+              ${txtField("리본문구 (경조사어)", "ribbonPhrase", editing.ribbonPhrase, { placeholder: "예) 삼가 고인의 명복을 빕니다", list: "ord-phrases" })}
+              ${txtField("보내는분 (리본)", "ribbonSender", editing.ribbonSender, { placeholder: "예) 홍길동 · ○○회사 임직원 일동" })}
             </div>
           </div>
-        </section>
-        <section class="ord-zone">
-          <div class="ord-zone__t">요청사항</div>
+        `)}
+        ${zone("요청사항", html`
           <textarea class="hm-input hm-textarea" data-f="request" placeholder="고객이 남긴 요청사항">${o.request ?? ""}</textarea>
-        </section>
+        `)}
         <datalist id="ord-phrases">${B2C_RIBBON_PHRASES.map((p) => html`<option value="${p}"></option>`)}</datalist>
       </div>
     `;
   }
 
-  /* 현장사진 박스 내부 — 사진(or 빈 안내) + hover 오버레이(업로드·다운로드·확대).
-     onImageFile 에서 부분 재렌더에도 재사용하므로 별도 함수. */
-  function imgboxInner() {
-    const hasImg = !!editing?.image;
-    return html`
-      ${hasImg
-        ? html`<img src="${editing.image}" alt="배송 현장 사진" />`
-        : html`<div class="ord-imgbox__ph">${icon("camera", { size: 22 })}<span>배송 현장 사진 없음</span></div>`}
-      <div class="ord-imgover">
-        <button class="ord-imgact" data-action="img-upload" title="이미지 업로드" aria-label="이미지 업로드">${icon("camera", { size: 18 })}</button>
-        ${hasImg ? html`
-          <button class="ord-imgact" data-action="img-download" title="이미지 다운로드" aria-label="이미지 다운로드">${icon("download", { size: 18 })}</button>
-          <button class="ord-imgact" data-action="img-zoom-btn" title="크게 보기" aria-label="크게 보기">${icon("eye", { size: 18 })}</button>
-        ` : ""}
-      </div>
-    `;
-  }
+  /* 현장사진 박스 — 업로드·다운로드·라이트박스 로직 일체 (공용) */
+  const imgBox = makeImageBox({ get: () => editing, toast });
 
-  /* ── 처리 레일: 현장사진(3:4) · 인수자 · 처리 메모 — 항상 활성, 신규는 생략 ── */
-  function railBody() {
-    if (isNew) return "";
-    const o = editing;
-    const hasImg = !!o.image;
-    return html`
-      <aside class="ord-rail ord-zone">
-        <div class="ord-zone__t">처리 정보</div>
-        <div class="ord-imgbox ${hasImg ? "has" : ""}" data-slot="imgbox" data-action="img-zoom" title="${hasImg ? "클릭하여 크게 보기" : "클릭하여 업로드"}">
-          ${imgboxInner()}
-        </div>
-        <input type="file" accept="image/*" data-img-input hidden />
-        ${txtField("인수자 성함", "receiver", { placeholder: "배송 완료 시 실제 인수자" })}
-        <div class="hm-field ord-rail__memo">
-          <label>처리 메모</label>
-          <textarea class="hm-input hm-textarea" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${o.memo ?? ""}</textarea>
-        </div>
-      </aside>
-    `;
-  }
+  /* 처리 레일 — 신규 등록은 레일 없이 1열 중앙 폼 */
+  const railBody = () => (isNew ? "" : railOf({ order: editing, imgInner: imgBox.inner() }));
 
   /* ── 푸터: 좌(삭제·주문취소) / 우(주문접수 처리 · 저장 · 닫기) ── */
   function footInner() {
@@ -568,26 +392,6 @@ export function mount(root, { nav }) {
     if (f) setHTML(f, footInner());
   }
 
-  function onImageFile(panel, file) {
-    if (!file) return;
-    if (!/^image\//.test(file.type)) { toast("이미지 파일만 업로드할 수 있습니다", "warn"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (!editing) return;
-      editing.image = String(reader.result);
-      const box = qs(panel, "[data-slot='imgbox']");
-      if (box) { box.classList.add("has"); setHTML(box, imgboxInner()); box.title = "클릭하여 크게 보기"; }
-      toast("이미지를 업로드했습니다");
-    };
-    reader.readAsDataURL(file);
-  }
-  function downloadImage() {
-    if (!editing?.image) return;
-    const a = document.createElement("a");
-    a.href = editing.image;
-    a.download = `${editing.orderNo}_배송현장사진`;
-    document.body.appendChild(a); a.click(); a.remove();
-  }
 
   /* 저장 — 반영 후 모달 유지(읽기 복귀). 신규만 등록 후 닫힘.
      자동 배송완료: 주문접수 + 사진 + 인수자 → 배송완료·notified (알림톡 자동 발송) */
@@ -626,77 +430,23 @@ export function mount(root, { nav }) {
     return v;
   }
 
-  /* ── 담당자 지정 모달 — 별도 창(선택 또는 직접 입력), 메인 위에 스택 ──
-     API 자동등록 주문은 담당자 미지정으로 도착 → 열면 이 창이 우선 뜬다.
-     지정은 즉시 반영(b2cSetManager). 폼/레일의 다른 미저장 편집은 건드리지 않음. */
+  /* ── 담당자 지정 — 메인 위에 스택되는 공용 모달.
+     API 자동등록 주문은 담당자 미지정으로 도착 → 열면 이 창이 우선 뜸다.
+     지정은 즉시 반영(b2cSetManager). 폼/레일의 다른 미저장 편집은 건드리지 않는다. */
   function openManagerModal(mainPanel) {
     if (!editing) return;
-    const DIRECT = "직접 입력…";
-    const names = staffNames();
-    const cur = editing.manager || "";
-    /* 현재값이 목록에 있으면 그 값, 목록 밖 커스텀이면 '직접 입력…'(+프리필), 미지정이면 첫 직원 */
-    let pick = names.includes(cur) ? cur : cur ? DIRECT : names[0] ?? DIRECT;
-    let mgrDd = null;
-    const picker = openModal({
-      panelClass: "modal-panel--sm modal-panel--ordmgr",
-      body: html`
-        <div class="hm__head">
-          <div>
-            <h3>담당자 지정</h3>
-            <p>이 주문을 담당할 직원을 선택하세요.</p>
-          </div>
-          <button class="hm__x" data-action="mgr-close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-        </div>
-        <div class="hm__body">
-          <div class="hm-field">
-            <label>담당자</label>
-            <div class="dd" data-mgr-dd>
-              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-              <div class="dd-panel" role="listbox"></div>
-            </div>
-          </div>
-          <div class="hm-field" data-mgr-custom ${pick === DIRECT ? "" : "hidden"}>
-            <label>담당자 이름</label>
-            <input class="hm-input" data-mgr-input value="${pick === DIRECT ? cur : ""}" placeholder="예) 한신입" autocomplete="off" />
-          </div>
-          <p class="ord-mgrhint">${icon("user", { size: 12 })} 목록에 없는 담당자는 ‘${DIRECT}’을 선택해 입력하세요.</p>
-        </div>
-        <div class="hm__foot">
-          <button class="hm-btn hm-btn--secondary" data-action="mgr-close">취소</button>
-          <button class="hm-btn hm-btn--primary" data-action="mgr-confirm">${icon("check", { size: 14 })} 지정</button>
-        </div>
-      `,
-      onClose: () => { if (mgrDd) mgrDd.destroy(); }, // 문서 리스너 정리
+    openStaffPicker({
+      current: editing.manager,
+      names: staffNames,
+      toast,
+      onPick: (v) => {
+        if (!editing) return false;
+        editing.manager = v;
+        b2cSetManager(editing.id, v);
+        refreshList();
+        if (mainPanel) renderSlots(mainPanel); // 헤더 담당자 표시 갱신(편집 중이면 바디 보존)
+      },
     });
-    const p = picker.panel;
-    const customField = qs(p, "[data-mgr-custom]");
-    const input = qs(p, "[data-mgr-input]");
-    /* '직접 입력…' 선택 시에만 텍스트 입력 필드 노출(+포커스) */
-    const syncCustom = () => {
-      const direct = pick === DIRECT;
-      if (customField) customField.hidden = !direct;
-      if (direct && input) { input.focus(); input.select(); }
-    };
-    mgrDd = makeDropdown(qs(p, "[data-mgr-dd]"), {
-      options: () => [...staffNames(), DIRECT],
-      get: () => pick,
-      set: (v) => { pick = v; syncCustom(); },
-    });
-    const confirm = () => {
-      const v = pick === DIRECT ? (input?.value || "").trim() : pick;
-      if (!v) { toast("담당자를 선택하거나 입력하세요", "warn"); if (pick === DIRECT) input?.focus(); return; }
-      if (!editing) { picker.close(); return; }
-      editing.manager = v;
-      b2cSetManager(editing.id, v); // 담당자만 즉시 반영(다른 미저장 편집은 저장 시점까지 보류)
-      refreshList();
-      if (mainPanel) renderSlots(mainPanel); // 헤더 담당자 표시 갱신(편집 중이면 바디 보존)
-      picker.close();
-      toast(`담당자를 ${v}(으)로 지정했습니다`);
-    };
-    on(p, "click", "[data-action='mgr-close']", () => picker.close());
-    on(p, "click", "[data-action='mgr-confirm']", () => confirm());
-    on(p, "keydown", "[data-mgr-input]", (e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } });
-    if (pick === DIRECT && input) { input.focus(); input.select(); }
   }
 
   function openEditor(order, _isNew) {
@@ -763,34 +513,19 @@ export function mount(root, { nav }) {
         },
       });
     });
-    on(panel, "click", "[data-action='img-upload']", () => { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); });
-    on(panel, "click", "[data-action='img-download']", () => downloadImage());
-    on(panel, "click", "[data-action='img-zoom-btn']", () => {
-      if (editing?.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
-    });
-    /* 현장사진 박스 클릭 → 있으면 라이트박스 확대, 없으면 업로드. 오버레이 버튼 클릭은 제외(각자 처리). */
-    on(panel, "click", "[data-action='img-zoom']", (e) => {
-      if (!editing || e.target.closest("[data-action='img-upload'], [data-action='img-download'], [data-action='img-zoom-btn']")) return;
-      if (editing.image) openLightbox({ src: editing.image, alt: "배송 현장 사진", caption: `${editing.orderNo} 배송 현장 사진` });
-      else { const inp = qs(panel, "[data-img-input]"); if (inp) inp.click(); }
-    });
+    imgBox.bind(panel); // 업로드·다운로드·라이트박스 위임 일체
     on(panel, "click", "[data-action='pick-manager']", () => openManagerModal(panel));
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
       editing[k] = k === "ordererPhone" || k === "recipientPhone" ? formatPhone(t) : t.value;
     });
-    on(panel, "change", "[data-img-input]", (e, t) => {
-      onImageFile(panel, t.files && t.files[0]);
-      t.value = ""; // 같은 파일 재선택 허용
-    });
-
     /* API 자동등록(담당자 미지정) 주문을 열면 담당자 지정 모달을 우선 노출 */
     if (!isNew && !editing.manager) openManagerModal(panel);
   }
 
   render();
-  bindFilterDps(); // 초기 렌더 후 기간 datepicker 연결
+  dateRange.bind(); // 초기 렌더 후 기간 datepicker 연결
 
   /* ── 목록 이벤트 (위임 · root 유지) ────────────────────── */
   const offList = on(root, "click", "[data-action]", (e, t) => {
@@ -826,7 +561,7 @@ export function mount(root, { nav }) {
 
   return () => {
     offList(); offSearch();
-    destroyFilterDps();
+    dateRange.destroy();
     closeModal();
     toast.destroy();
   };
