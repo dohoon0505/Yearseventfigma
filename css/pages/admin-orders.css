@@ -7,12 +7,6 @@
    색은 tokens.css 토큰만.
    ============================================================ */
 
-/* 거래 조건(clientNote) — 메모가 아니라 거래 조건이다((주)홈팩: "무조건 특대상품").
-   목록에서 미리 알아보게 하고, 상세를 열면 요약 레일 맨 아래 카드로 전문이 뜬다
-   (카드 본문은 components.css 의 .ord-note__body). */
-.ord-note {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
-  background: var(--c-danger-bg); color: var(--c-danger-ink);
-  font-size: 10px; font-weight: var(--fw-bold); line-height: 1; vertical-align: middle;
-}
+/* 거래 조건(clientNote)은 **상세 모달에서만** 보여 준다 — 요약 레일 맨 아래
+   '거래 조건' 카드(본문 스타일은 components.css 의 .ord-note__body).
+   목록 `!` 배지는 중복이라 제거했다. */
