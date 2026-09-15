@@ -12,6 +12,9 @@ import { deliveryFeeFor } from "../data/delivery-fees.js";
 import { evaluateAddress, matchesProduct } from "../data/intake-rules.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 import { BIZ, hourOptions, minOptions } from "../util/date.js";
+import { fmtPhone, phoneOk } from "../util/phone.js";
+import { RIBBON_GROUPS } from "../data/ribbon-phrases.js";
+import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -21,15 +24,6 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
    예전엔 이 화면만 정가를 써서, 같은 거래처가 '상품 규격 안내'에서는 계약가를
    보고 결제 화면에서는 정가를 보는 어긋남이 있었다(관리자 기업별 상품단가 참조). */
 const appliedOf = (p) => store.appliedPrice((currentClient() || {}).id || null, p);
-
-/* 연락처 자동 하이픈 — 순수 포맷. 받는분·추가 수신자 입력이 공유한다. */
-const fmtPhone = (v) => {
-  const d = String(v).replace(/\D/g, "").slice(0, 11);
-  if (d.length > 7) return d.slice(0, 3) + "-" + d.slice(3, 7) + "-" + d.slice(7);
-  if (d.length > 3) return d.slice(0, 3) + "-" + d.slice(3);
-  return d;
-};
-const phoneOk = (v) => String(v).replace(/\D/g, "").length >= 10;
 
 /* 합동 발송 시 함께 알림받을 추가 수신자 상한 */
 const NT_MAX = 5;
@@ -44,29 +38,6 @@ const OCC = {
 };
 /* 해당 경조사 3단화환 (기존 카탈로그 재사용 — 기본/고급/특대) */
 const occProducts = (occ) => ALL_PRODUCTS.filter((p) => p.category === OCC[occ].cat && p.product.includes("3단화환"));
-
-/* 리본 추천 문구 (기존 COMMON_PHRASES 재사용) */
-const COMMON_PHRASES = [
-  { group: "부고·근조", phrases: ["삼가 고인의 명복을 빕니다", "근조(謹弔)", "조의를 표합니다"] },
-  { group: "결혼 축하", phrases: ["축 결혼(祝 結婚)", "화혼을 진심으로 축하드립니다", "행복한 새 출발을 축하합니다"] },
-  { group: "개업·취임", phrases: ["축 개업(祝 開業)", "축 취임(祝 就任)", "번창하시길 기원합니다"] },
-  { group: "기타", phrases: ["감사합니다", "항상 건강하세요", "축 승진(祝 昇進)"] },
-];
-
-/* 부고장·청첩장 URL 데모 DB (경조사별) — 실제 AI 파싱 도입 전, 불러오기 시 임의값 자동입력.
-   obit: 배송지=장례식장 · 받는분=고인명(故) · 즉시배송.
-   wed : 배송지=예식장 · 받는분=혼주 · 배송일시=예식시간(dayOffset 일 뒤 hour:min). */
-const MOCK_URL_DB = {
-  obit: {
-    "kakao.com":    { addr: "서울특별시 종로구 대학로 101 서울대학교병원 장례식장 3호실", toName: "故 김영수", toPhone: "010-3921-4400" },
-    "naeil.com":    { addr: "경기도 성남시 분당구 야탑로 59 분당차병원 장례식장 특2호실",  toName: "故 이정호", toPhone: "010-2277-8130" },
-    "mobile.co.kr": { addr: "서울특별시 서초구 반포대로 222 서울성모병원 장례식장 7호실",  toName: "故 박순자", toPhone: "010-5540-9902" },
-  },
-  wed: {
-    "wedding.me":      { addr: "서울특별시 서초구 강남대로 373 홀리데이인 서울 강남 3층 그랜드볼룸", toName: "혼주 최영호", toPhone: "010-8845-1120", dayOffset: 14, hour: "11", min: "00" },
-    "weddingbook.com": { addr: "서울특별시 마포구 백범로 235 서울가든호텔 2층 다이아몬드홀",       toName: "혼주 정미경", toPhone: "010-6612-7788", dayOffset: 21, hour: "13", min: "30" },
-  },
-};
 
 /* 배송 가능 시간 규정(09:00~18:30)은 관리자 주문 모달의 배송일시 피커와 공유한다
    → util/date.js. 한쪽만 고치면 포털에서 받은 시각을 관리자가 못 고른다. */
@@ -427,10 +398,11 @@ export function mount(root, { nav }) {
     const url = $("[data-url-input]").value.trim().toLowerCase();
     const msg = $("[data-url-msg]");
     if (!url) { msg.className = "url-msg err"; msg.textContent = "링크를 입력해 주세요."; return; }
-    for (const occ of ["obit", "wed"]) {
-      const hit = Object.keys(MOCK_URL_DB[occ]).find((d) => url.includes(d));
-      if (hit) {
-        const d = MOCK_URL_DB[occ][hit];
+    /* 인식은 js/data/order-autofill.js 단일 소스 — 관리자 등록 모달도 같은 파서를 쓴다 */
+    const d = parseOrderUrl(url);
+    if (d) {
+      {
+        const occ = d.kind;
         setOcc(occ);
         /* 배송지·받는분·연락처 자동입력 (실 AI 파싱 도입 전 임의값) */
         state.addr = d.addr; state.toName = d.toName; state.toPhone = d.toPhone; state.viaUrl = true;
@@ -463,7 +435,7 @@ export function mount(root, { nav }) {
       }
     }
     msg.className = "url-msg err";
-    msg.textContent = "확인할 수 없는 링크예요. (데모: kakao.com · naeil.com · wedding.me · weddingbook.com)";
+    msg.textContent = `확인할 수 없는 링크예요. (데모: ${AUTOFILL_HINT})`;
   }
 
   /* ── STEP 2 · 배송지 · 일시 ── */
@@ -582,7 +554,7 @@ export function mount(root, { nav }) {
     closePick();
     const body = html`
       <p class="pick-intro">추천 문구를 선택하면 입력란에 채워져요. 이후 자유롭게 수정할 수 있어요.</p>
-      ${COMMON_PHRASES.map((g) => html`
+      ${RIBBON_GROUPS.map((g) => html`
         <div class="pick-group">
           <p class="pick-group__label">${g.group}</p>
           <div class="pick-opts">

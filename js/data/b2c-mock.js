@@ -31,11 +31,7 @@ export const B2C_STATUSES = ["접수대기", "주문접수", "배송완료", "�
 /* 주문상품 옵션(상품 규격 안내 카탈로그) — 선택 시 주문금액 자동 채움 */
 export const B2C_PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, price: priceNum(p.price) }));
 export const productPrice = (name) => B2C_PRODUCTS.find((p) => p.name === name)?.price ?? 0;
-/* 리본 경조사어 추천(datalist) */
-export const B2C_RIBBON_PHRASES = [
-  "삼가 고인의 명복을 빕니다", "근조(謹弔)", "조의를 표합니다",
-  "축 결혼(祝 結婚)", "화혼을 축하합니다", "축 개업(祝 開業)", "축 취임(祝 就任)",
-];
+/* 리본 경조사어 추천은 js/data/ribbon-phrases.js 단일 소스 (RIBBON_GROUPS / RIBBON_FLAT) */
 
 /* 상태 배지 색은 두 주문 화면이 공유한다 → util/order-screen.js ORDER_STATUS_STYLE */
 
