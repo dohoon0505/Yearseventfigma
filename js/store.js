@@ -3,10 +3,15 @@
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
 import { INITIAL_CLIENTS } from "./data/admin-mock.js";
+/* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
+   util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
+import { getClientId } from "./session.js";
 
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
-/** @typedef {{no:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
+/** @typedef {{id:string,no?:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
+/* ⚠️ Contact 의 키는 `id` 다. `no` 는 화면에 보이는 순번일 뿐이라 쓰기마다 다시 매겨진다 —
+   삭제하면 뒤 번호가 전부 당겨지므로 `no` 로 대상을 지목하면 엉뚱한 사람이 바뀐다. */
 /** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string}} Client */
 /* password 는 셀프 가입(register.js)으로 만든 레코드에만 있다. 이관 시드에는 없다 —
    관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
@@ -58,12 +63,20 @@ export const MSG_NONE = "메세지를 수신하지 않습니다.";
 export const receivingContacts = (contacts) => contacts.filter((c) => c.message === MSG_RECEIVE);
 
 const INITIAL_CONTACTS = [
-  { no: "01", name: "할다운", role: "비서",   phone: "010-1111-2222", message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false },
-  { no: "02", name: "오임찬", role: "재경부", phone: "010-3333-4444", message: "메세지를 수신하지 않습니다.",        isBilling: true },
-  { no: "03", name: "김현수", role: "경리",   phone: "010-5555-6666", message: "모든 배송완료 마다에 메세지를 수신합니다", isBilling: false },
+  { id: "ct1", name: "할다운", role: "비서",   phone: "010-1111-2222", message: MSG_RECEIVE, isBilling: false },
+  { id: "ct2", name: "오임찬", role: "재경부", phone: "010-3333-4444", message: MSG_NONE,    isBilling: true },
+  { id: "ct3", name: "김현수", role: "경리",   phone: "010-5555-6666", message: MSG_RECEIVE, isBilling: false },
 ];
 
+/* 담당자는 **거래처별**이다(백엔드 명세서 5.1 Client 1:N Contact).
+   이관 시드 3명은 데모에서 포털에 로그인하는 거래처, 즉 첫 거래처에 귀속시킨다. */
+const FIRST_CLIENT = INITIAL_CLIENTS[0] ? INITIAL_CLIENTS[0].id : "C001";
+let ctSeq = 100;
+export const newContactId = () => `ct${++ctSeq}`;
+
 /* ── Reactive store ─────────────────────────────────────── */
+/* ⚠️ 키를 올리지 않는다. 올리면 담당자뿐 아니라 거래처 편집·단가·프로필까지 **전부** 버려진다.
+   담당자 구조 변경(전역 → 거래처별)은 hydrateContacts 가 두 모양을 다 읽어 흡수한다. */
 const KEY = "yeop.store.v4"; // v4: 구 시스템 거래처 실데이터 이관(19곳) + clientNote 필드
 const subs = new Set();
 const SEED_BY_ID = new Map(INITIAL_CLIENTS.map((c) => [c.id, c]));
@@ -74,7 +87,7 @@ const reindexNo = (arr) => arr.map((x, i) => ({ ...x, no: String(i + 1).padStart
 
 let state = {
   profiles: INITIAL_PROFILES.map((p) => ({ ...p })),
-  contacts: INITIAL_CONTACTS.map((c) => ({ ...c })),
+  contactsByClient: { [FIRST_CLIENT]: INITIAL_CONTACTS.map((c) => ({ ...c })) },
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
   clientPrices: {}, // { [clientId]: { [productKey]: number } } — per-client price overrides
@@ -86,7 +99,7 @@ function persist() {
       KEY,
       JSON.stringify({
         profiles: state.profiles,
-        contacts: state.contacts,
+        contactsByClient: state.contactsByClient,
         favorites: [...state.favorites], // Set → array
         clients: state.clients,
         clientPrices: state.clientPrices,
@@ -104,20 +117,46 @@ function hydrate() {
     const data = JSON.parse(raw);
     state = {
       profiles: Array.isArray(data.profiles) ? reindexNo(data.profiles) : state.profiles,
-      contacts: Array.isArray(data.contacts) ? reindexNo(data.contacts.map((c) => ({ isBilling: false, ...c }))) : state.contacts,
+      contactsByClient: hydrateContacts(data),
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
       // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다.
       // 편집값이 항상 이기고, 삭제한 거래처는 부활시키지 않는다(저장 목록만 순회).
       clients: Array.isArray(data.clients) ? data.clients.map((c) => ({ ...(SEED_BY_ID.get(c.id) || {}), ...c })) : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
     };
-    // 불변식 보정: 로드된 담당자 중 정산담당이 없으면 첫 담당자로 지정
-    if (state.contacts.length > 0 && !state.contacts.some((c) => c.isBilling)) {
-      state.contacts = state.contacts.map((c, i) => ({ ...c, isBilling: i === 0 }));
-    }
+    // 불변식 보정: 버킷마다 정산담당이 없으면 첫 담당자로 지정
+    const fixed = {};
+    Object.keys(state.contactsByClient).forEach((k) => { fixed[k] = fixBilling(state.contactsByClient[k]); });
+    state.contactsByClient = fixed;
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
   }
+}
+
+/* 버킷 하나의 불변식 — 비어 있지 않으면 정산담당이 정확히 1명. */
+function fixBilling(arr) {
+  const a = (arr || []).map((c) => ({ isBilling: false, ...c, id: c.id || newContactId() }));
+  if (a.length && !a.some((c) => c.isBilling)) a[0] = { ...a[0], isBilling: true };
+  return a;
+}
+
+/* v4(전역 contacts) → v5(거래처별) 이관. 옛 키가 남아 있으면 첫 거래처 버킷으로 옮긴다 —
+   데모에서 포털에 로그인하는 거래처가 currentClient() 폴백상 첫 거래처와 같다. */
+function hydrateContacts(data) {
+  if (data.contactsByClient && typeof data.contactsByClient === "object") {
+    const out = {};
+    Object.keys(data.contactsByClient).forEach((k) => { out[k] = fixBilling(data.contactsByClient[k]); });
+    return out;
+  }
+  if (Array.isArray(data.contacts)) return { [FIRST_CLIENT]: fixBilling(data.contacts) };
+  return state.contactsByClient;
+}
+
+/** 지금 화면의 거래처 id — 세션에 없으면(관리자·딥링크) 첫 거래처. util/client.js 폴백과 같다. */
+function scopeId(clientId) {
+  if (clientId) return clientId;
+  const id = getClientId();
+  return (state.clients.find((c) => c.id === id) || state.clients[0] || {}).id || FIRST_CLIENT;
 }
 
 function emit() {
@@ -140,24 +179,29 @@ export const store = {
     persist();
     emit();
   },
-  setContacts(next) {
-    let arr = reindexNo(resolve(next, state.contacts));
-    // 불변식: 정산·회계 담당자는 항상 1명 존재해야 한다 (없으면 첫 담당자로 자동 지정)
-    if (arr.length > 0 && !arr.some((c) => c.isBilling)) {
-      arr = arr.map((c, i) => ({ ...c, isBilling: i === 0 }));
-    }
-    state = { ...state, contacts: arr };
+  /** 한 거래처의 담당자 목록(항상 배열). 표시 순번 `no` 는 여기서 파생한다. */
+  contactsOf(clientId) {
+    return (state.contactsByClient[scopeId(clientId)] || []).map((c, i) => ({ ...c, no: String(i + 1).padStart(2, "0") }));
+  },
+  /** 한 거래처의 담당자 목록을 통째로 교체. 정산담당 1명 불변식을 여기서 지킨다. */
+  setContactsOf(clientId, next) {
+    const k = scopeId(clientId);
+    const arr = fixBilling(resolve(next, state.contactsByClient[k] || []));
+    state = { ...state, contactsByClient: { ...state.contactsByClient, [k]: arr } };
     persist();
     emit();
   },
-  /** Designate a single 정산/회계 담당자 (거래명세서·입금 알림 수신). */
-  setBillingContact(no) {
-    this.setContacts((prev) => prev.map((c) => ({ ...c, isBilling: c.no === no })));
+  /** 정산·회계 담당자 지정(거래명세서·입금 알림 수신). 대상은 **id** 로 지목한다. */
+  setBillingContactOf(clientId, id) {
+    this.setContactsOf(clientId, (prev) => prev.map((c) => ({ ...c, isBilling: c.id === id })));
   },
-  /** The contact who receives settlement/billing 알림톡, or null. */
-  getBillingContact() {
-    return state.contacts.find((c) => c.isBilling) || null;
+  /** 그 거래처의 정산·회계 담당자, 없으면 null. */
+  getBillingContactOf(clientId) {
+    return this.contactsOf(clientId).find((c) => c.isBilling) || null;
   },
+  /* ── 로그인 거래처 기준 축약형 — 포털 화면이 쓴다 ── */
+  setContacts(next) { this.setContactsOf(null, next); },
+  getBillingContact() { return this.getBillingContactOf(null); },
   setFavorites(next) {
     state = { ...state, favorites: resolve(next, state.favorites) };
     persist();
