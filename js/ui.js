@@ -220,7 +220,8 @@ export function makeDropdown(root, { unit = "", options, get, set, label } = {})
   /* 표시 텍스트: label 이 있으면 값→라벨 매핑(값≠표시, 예: 담당자 index→"이름 · 직위"),
      없으면 기존처럼 값+단위. label 미전달 시 완전 하위호환. */
   const fmt = (v) => (label ? label(v) : v + unit);
-  const renderTrigger = () => { trigger.textContent = fmt(get()); };
+  /* title 도 같이 채운다 — 좁은 칸(주문 모달 상품)에서 말줄임되면 전문을 볼 길이 없다 */
+  const renderTrigger = () => { const t = fmt(get()); trigger.textContent = t; trigger.title = t; };
   const close = () => {
     if (!root.classList.contains("open")) return;
     root.classList.remove("open");
