@@ -9,7 +9,7 @@ import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, MSG_NONE, newContactId } from "../store.js";
 import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
-import { fileSizeLabel } from "../util/image.js";
+import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
@@ -315,6 +315,11 @@ export function mount(root, { nav }) {
           <span class="cli-attachbtn__n ${a ? "" : "is-empty"}">${a ? a.name : "첨부자료 없음"}</span>
           ${a ? html`<span class="cli-attachbtn__m">${fileSizeLabel(a.size)}</span>` : ""}
         </button>
+        ${/* 시안: 붙이거나 바꾸는 버튼이 있어야 한다. 예전엔 미리보기뿐이라
+             사업자등록증을 **관리자가 새로 붙일 방법이 아예 없었다** — 가입 심사의
+             근거인데 이관 계정은 증빙이 없어 전부 '첨부자료 없음' 이다. */ ""}
+        <button type="button" class="cli-minibtn" data-attach-pick>${a ? "변경" : "파일 선택"}</button>
+        <input type="file" hidden data-attach-file accept="image/*,application/pdf" />
       </div>`;
     }
     const cls = "ord-in" + (f.num ? " ord-in--num" : "");
@@ -332,13 +337,20 @@ export function mount(root, { nav }) {
     return html`<section class="ord-card">
       <div class="ord-card__head"><b class="ord-card__t">${title}</b>${cap ? html`<span class="ord-card__cap">${cap}</span>` : ""}</div>
       <div>
-        ${defs.map((f) => html`
-          <div class="ord-row ord-row--full ${f.type === "textarea" ? "ord-row--top" : ""}">
+        ${/* 보조 문구는 **값 칸 안**에 둔다(시안) — 행 밖 형제로 두면 카드 폭 전체를
+             차지해 입력 아래가 아니라 라벨 아래에서 시작한다. 라벨은 그때 위로 붙인다. */ ""}
+        ${defs.map((f) => {
+          const sub = f.hint || f.biz || f.help;
+          return html`
+          <div class="ord-row ord-row--full ${f.type === "textarea" || sub ? "ord-row--top" : ""}">
             <label class="ord-k">${f.label}${f.req ? html`<span class="req">*</span>` : ""}</label>
-            ${cliCell(f, form)}
-          </div>
-          ${f.hint || f.biz ? html`<p class="cli-hint" data-hint="${f.k}"></p>` : ""}
-          ${f.help ? html`<p class="cli-hint" style="color:var(--c-text-4)">${f.help}</p>` : ""}`)}
+            <div class="cli-cell">
+              ${f.type === "attach" ? html`<div data-attach-cell>${cliCell(f, form)}</div>` : cliCell(f, form)}
+              ${f.hint || f.biz ? html`<p class="cli-hint" data-hint="${f.k}"></p>` : ""}
+              ${f.help ? html`<p class="cli-hint cli-hint--mute">${f.help}</p>` : ""}
+            </div>
+          </div>`;
+        })}
       </div>
     </section>`;
   }
@@ -375,7 +387,9 @@ export function mount(root, { nav }) {
       return out;
     };
     const dirty = () => Object.keys(touched).length;
-    const push = (label) => { log.push({ label, at: nowHM() }); };
+    /* 이력 점 색 — 무슨 종류의 변경이었는지 색으로 먼저 읽힌다(주문 HIST_DOT 과 같은 취지).
+       한 색으로 고정하면 목록이 길어질수록 "무엇이 중요한 줄인가"가 사라진다. */
+    const push = (label, tone) => { log.push({ label, at: nowHM(), tone: tone || "info" }); };
 
     /* ── 헤더 ── */
     const hdBody = () => {
@@ -392,7 +406,7 @@ export function mount(root, { nav }) {
               <span class="ord-hd__dot" style="background:${STATUS_DOT[form.status] || "var(--c-text-4)"}"></span>${form.status}</span>` : ""}
             ${showDept ? html`<span class="cli-deptchip">${form.department}</span>` : ""}
           </div>
-          <p class="ord-hd__meta">${meta}</p>
+          <p class="ord-hd__meta ord-mono">${meta}</p>
         </div>
         <div class="ord-hd__r">
           ${isEdit ? html`<div class="cli-st">
@@ -445,7 +459,9 @@ export function mount(root, { nav }) {
           ? html`<p class="rail-card__v">${form.accountId || "-"}</p>`
           : html`<input class="hm-input" data-cf="accountId" value="${form.accountId ?? ""}" placeholder="영문·숫자" />`}
         <button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
-        <p class="rail-card__out">${pwOut || "관리자는 비밀번호를 볼 수 없습니다. 발급 후 저장하면 적용됩니다."}</p>
+        ${/* 안내문은 **발급 후에만**(시안). 평소에도 띄워 두면 카드가 늘 3줄이라
+             정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
+        ${pwOut ? html`<p class="rail-card__out">${pwOut}</p>` : ""}
       </div>
       ${isEdit ? billingCard() : ""}
       ${isEdit ? html`
@@ -453,7 +469,7 @@ export function mount(root, { nav }) {
         <div class="cli-hist">
           ${log.length
             ? log.map((h, i) => html`<div class="cli-hist__row ${i === log.length - 1 ? "is-latest" : ""}">
-                <span class="cli-hist__dot"></span>
+                <span class="cli-hist__dot cli-hist__dot--${h.tone || "info"}"></span>
                 <span class="cli-hist__lbl" title="${h.label}">${h.label}</span>
                 <span class="cli-hist__at">${h.at}</span></div>`)
             : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 창을 닫으면 사라집니다 — 영속 이력은 아직 없습니다.</p>`}
@@ -475,6 +491,10 @@ export function mount(root, { nav }) {
     };
 
     /* ── 배너 ── */
+    /* 배너가 없을 때 슬롯을 **숨긴다** — `.cli-pane` 이 flex column + gap 이라
+       높이 0 인 빈 자식도 gap 을 한 번 먹어 카드 위에 유령 간격이 남는다.
+       `:empty` 로는 안 된다(템플릿이 공백 텍스트 노드를 남긴다). */
+    const hasBanner = () => isEdit && (form.status === "승인대기" || (form.status === "반려" && !!form.rejectReason));
     const banners = () => html`
       ${isEdit && form.status === "승인대기" ? html`
         <div class="cli-banner cli-banner--wait">
@@ -492,19 +512,24 @@ export function mount(root, { nav }) {
       <div class="cli-grid">
         <aside class="ord-side" data-slot="rail">${railBody()}</aside>
         <div class="cli-pane">
-          <div data-slot="banner">${banners()}</div>
-          <div class="cli-note">
-            <div class="cli-note__head"><b class="cli-note__t">거래 조건</b><span class="cli-note__cap">주문 화면 노출</span></div>
-            <div class="cli-note__body">
-              <textarea data-cf="clientNote" rows="5" placeholder="예) 상품금액 75,000원으로 기재, 무조건 특대상품 발송">${form.clientNote ?? ""}</textarea>
-              <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.</p>
+          <div data-slot="banner" ${hasBanner() ? "" : "hidden"}>${banners()}</div>
+          ${/* 시안: 원장은 2열 2행이다. 위가 거래 조건과 회사 정보(주문에 실리는 것),
+               아래가 계산서·정산과 증빙·영업(청구·심사에 쓰는 것). 전폭 카드를 세로로
+               쌓으면 가로 공간이 남는데 세로로만 길어져 스크롤을 부른다. */ ""}
+          <div class="cli-rows cli-rows--stretch">
+            <div class="cli-note">
+              <div class="cli-note__head"><b class="cli-note__t">거래 조건</b><span class="cli-note__cap">주문 화면 노출</span></div>
+              <div class="cli-note__body">
+                <textarea data-cf="clientNote" rows="8" placeholder="예) 상품금액 75,000원으로 기재, 무조건 특대상품 발송">${form.clientNote ?? ""}</textarea>
+                <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.</p>
+              </div>
             </div>
+            ${cliCard("회사 정보", "계산서 발행 기준", CARD_COMPANY, form)}
           </div>
           <div class="cli-rows">
-            ${cliCard("회사 정보", "계산서 발행 기준", CARD_COMPANY, form)}
             ${cliCard("계산서 · 정산", "월 후불", CARD_BILL, form)}
+            ${cliCard("증빙 · 영업", "가입 심사 근거", CARD_SALES, form)}
           </div>
-          ${cliCard("증빙 · 영업", "가입 심사 근거", CARD_SALES, form)}
         </div>
       </div>
       <div class="hm__foot ord-ft" data-slot="ft">${ftBody()}</div>`;
@@ -520,9 +545,26 @@ export function mount(root, { nav }) {
     const panel = activeModal.panel;
     const slot = (n) => qs(panel, `[data-slot='${n}']`);
     const renderHd = () => { const e = slot("hd"); if (e) setHTML(e, hdBody()); };
-    const renderRail = () => { const e = slot("rail"); if (e) setHTML(e, railBody()); };
+    /* 이력은 시간순(최신이 끝)이라 카드가 아래로 자란다 — 잘린 목록은 렌더 후 끝까지
+       내려야 방금 한 일이 보인다(order-screen.js `histScrollEnd` 와 같은 규칙). */
+    const histEnd = () => {
+      const h = qs(panel, ".cli-hist");
+      if (h) requestAnimationFrame(() => { h.scrollTop = h.scrollHeight; });
+    };
+    const renderRail = () => { const e = slot("rail"); if (e) { setHTML(e, railBody()); histEnd(); } };
+    /* 첨부 칸만 부분 갱신 — 카드를 통째로 다시 그리면 옆 입력의 커서가 날아간다 */
+    const renderAttach = () => {
+      const cell = qs(panel, "[data-attach-cell]");
+      const def = CARD_SALES.find((x) => x.k === "bizLicense");
+      if (cell && def) setHTML(cell, cliCell(def, form));
+    };
     const renderFt = () => { const e = slot("ft"); if (e) setHTML(e, ftBody()); };
-    const renderBanner = () => { const e = slot("banner"); if (e) setHTML(e, banners()); };
+    const renderBanner = () => {
+      const e = slot("banner");
+      if (!e) return;
+      setHTML(e, banners());
+      e.hidden = !hasBanner();
+    };
 
     /* 담당자 명단은 이 모달에서 다루지 않는다(시안) — **`#/admin/contacts` 소관**이다.
        모달의 본업은 거래처 원장이고, 담당자는 거래처별 저장공간(포털과 같은 레코드)이라
@@ -604,27 +646,27 @@ export function mount(root, { nav }) {
       if (v === "반려") return openReject(form, (reason) => {
         form.status = "반려"; form.rejectReason = reason;
         store.updateClient({ ...form });
-        push(`가입 거부 · 사유 통보`);
+        push("가입 거부 · 사유 통보", "danger");
         renderHd(); renderBanner(); renderRail(); refreshList();
       });
       form.status = v;
       if (v !== "반려") form.rejectReason = "";
       store.updateClient({ ...form });
-      push(`상태 변경 · ${v}`);
+      push(`상태 변경 · ${v}`, v === "활성" ? "ok" : v === "반려" ? "danger" : "warn");
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${v}(으)로 변경했습니다`);
     });
     on(panel, "click", "[data-action='approve']", () => {
       form.status = "활성"; form.rejectReason = "";
       store.updateClient({ ...form });
-      push("가입 승인 · 활성 전환");
+      push("가입 승인 · 활성 전환", "ok");
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${form.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
     });
     on(panel, "click", "[data-action='reject']", () => openReject(form, (reason) => {
       form.status = "반려"; form.rejectReason = reason;
       store.updateClient({ ...form });
-      push("가입 거부 · 사유 통보");
+      push("가입 거부 · 사유 통보", "danger");
       renderHd(); renderBanner(); renderRail(); refreshList();
     }));
 
@@ -637,7 +679,7 @@ export function mount(root, { nav }) {
       touched.password = 1;
       pwOut = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 창을 닫으면 다시 볼 수 없습니다.`;
       menuOpen = false;
-      push("임시비밀번호 발급");
+      push("임시비밀번호 발급", "warn");
       renderHd(); renderRail(); renderFt();
       toast("임시비밀번호를 발급했습니다");
     });
@@ -675,6 +717,30 @@ export function mount(root, { nav }) {
         renderFt();
       });
     });
+    on(panel, "click", "[data-attach-pick]", () => {
+      const inp = qs(panel, "[data-attach-file]");
+      if (inp) inp.click();
+    });
+    on(panel, "change", "[data-attach-file]", async (e, t) => {
+      const file = t.files && t.files[0];
+      if (!file) return;
+      t.value = ""; /* 같은 파일을 다시 골라도 change 가 나게 */
+      try {
+        /* 이미지는 축소해 dataURL 로, PDF 는 이름·크기만 남긴다(미리보기 불가). */
+        const att = file.type.startsWith("image/")
+          ? await attachmentOf(file)
+          : { name: file.name, size: file.size, dataUrl: "" };
+        form.bizLicense = att;
+        touched.bizLicense = 1;
+        renderAttach(); renderFt();
+        push(`사업자등록증 첨부 · ${att.name}`, "info");
+        renderRail();
+        toast(`${att.name} 을 첨부했습니다 · 저장해야 적용됩니다`);
+      } catch (err) {
+        console.error("[clients] attach failed", err);
+        toast("파일을 읽지 못했습니다", "warn");
+      }
+    });
     on(panel, "click", "[data-action='attach-zoom']", () => {
       const a = form.bizLicense;
       if (a && a.dataUrl) openLightbox({ src: a.dataUrl, alt: "사업자등록증", caption: `${form.companyName} 사업자등록증` });
@@ -686,7 +752,7 @@ export function mount(root, { nav }) {
       else store.addClient({ ...form });
       savedAt = nowHM();
       Object.keys(touched).forEach((k) => delete touched[k]);
-      push(isEdit ? "거래처 정보 저장" : "거래처 등록");
+      push(isEdit ? "거래처 정보 저장" : "거래처 등록", "ok");
       renderFt(); renderRail(); refreshList();
       toast(isEdit ? "거래처 정보를 저장했습니다" : `${form.companyName} 거래처를 등록했습니다`);
     });

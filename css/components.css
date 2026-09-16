@@ -1635,6 +1635,11 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px; min-width: 0; align-items: start;
 }
+/* 첫 행만 두 카드 높이를 맞춘다 — 거래 조건 textarea 가 옆 '회사 정보' 카드만큼
+   자라야 시안의 2×2 가 된다. `start` 인 채로 두면 왼쪽 카드가 제 내용만큼만 선다.
+   둘째 행은 `start` 가 맞다(내용 길이가 달라 억지로 늘리면 빈 면만 커진다). */
+.cli-rows--stretch { align-items: stretch; }
+
 
 /* ── 헤더 ─────────────────────────────────────────────────── */
 .cli-deptchip {
@@ -1706,12 +1711,18 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 
 /* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 목록만 잘라 안에서 스크롤한다. */
 .cli-hist {
-  max-height: 300px; overflow-y: auto; overscroll-behavior: contain;
+  max-height: 336px; overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 2px;
 }
 .cli-hist__row { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: var(--r-lg); }
 .cli-hist__row.is-latest { background: var(--c-rail-2); }
 .cli-hist__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--c-rail-line); }
+/* 종류를 색으로 먼저 읽는다 — 주문 처리 이력(HIST_DOT)과 같은 취지.
+   ⚠️ 다크 레일 위라 원장용 잉크색은 묻힌다. 밝은 쪽 토큰을 쓴다. */
+.cli-hist__dot--ok { background: var(--c-success); }
+.cli-hist__dot--warn { background: var(--c-warn); }
+.cli-hist__dot--danger { background: var(--c-danger); }
+.cli-hist__dot--info { background: var(--c-blue); }
 .cli-hist__lbl {
   flex: 1; min-width: 0; font-size: var(--fs-14); color: var(--c-surface);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1736,7 +1747,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-note__cap { font-size: var(--fs-12); color: var(--c-rail-ink); }
 .cli-note__body { flex: 1; display: flex; flex-direction: column; padding: 12px 20px 14px; }
 .cli-note__body textarea {
-  width: 100%; flex: 1; min-height: 132px; padding: 8px 10px;
+  width: 100%; flex: 1; min-height: 196px; padding: 8px 10px;
   font-size: var(--fs-17); font-weight: var(--fw-semibold); line-height: 1.7; color: var(--c-text-strong);
   background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
   font-family: inherit; resize: vertical; transition: background 0.15s, border-color 0.15s;
@@ -1800,7 +1811,13 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--cli .cli-fdd--down .dd-panel { top: calc(100% + 6px); bottom: auto; }
 
 .cli-static { padding: 8px 8px 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); }
+/* 값 칸 — 입력과 그 아래 보조 문구를 한 칸으로 묶는다(시안). */
+.cli-cell { min-width: 0; }
 .cli-hint { margin: 4px 0 2px; padding-left: 8px; font-size: var(--fs-12); line-height: 1.5; color: var(--c-warn-soft-ink); }
+/* 경고가 아니라 그냥 설명인 줄 — 색까지 경고색이면 늘 무언가 잘못된 것처럼 보인다 */
+.cli-hint--mute { color: var(--c-text-4); }
+/* 빈 힌트는 자리를 먹지 않는다(중복 사업자번호가 없을 때가 그렇다) */
+.cli-hint:empty { display: none; }
 .ord-in.is-warn { background: var(--c-warn-soft-bg); border-color: var(--c-warn-border); }
 
 /* 담당자 표는 모달에서 걷어냈다 — `#/admin/contacts` 가 표를 갖는다(.ctc-*).
