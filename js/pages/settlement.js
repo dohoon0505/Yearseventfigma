@@ -9,6 +9,23 @@ import { settlementsFor, invoiceDayOf } from "../data/admin-mock.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
 import { currentClient } from "../util/client.js";
+import { onPhoneInput } from "../util/phone.js";
+import { refreshClientBadge } from "../shell.js";
+/* 화면의 한글 키 ↔ 거래처 레코드 키. 회사정보 수정은 이 표로 되돌려 store 에 쓴다.
+   담당자명·연락처는 거래처 모달 UI 에서만 걷어냈고 레코드에는 남아 있다
+   (정산 명세서·주문 모달의 거래처 대표 연락처가 읽는다). */
+const RECORD_KEY = {
+  회사명: "companyName",
+  사업자번호: "bizNumber",
+  대표자명: "ceoName",
+  계산서이메일: "email",
+  담당자명: "managerName",
+  담당자연락처: "contact",
+  사업장주소: "address",
+};
+const recordPatch = (form) =>
+  Object.fromEntries(Object.entries(RECORD_KEY).map(([k, key]) => [key, String(form[k] ?? "").trim()]));
+
 const companyOf = (c) => ({
   회사명: c.companyName,
   사업자번호: c.bizNumber,
@@ -46,7 +63,7 @@ const EDIT_FIELDS = [
 ];
 
 export function mount(root, { nav }) {
-  const client = currentClient();
+  let client = currentClient();
   const state = { company: client ? companyOf(client) : null };
   let activeModal = null;
   let saveTimer = null;
@@ -166,14 +183,20 @@ export function mount(root, { nav }) {
     activeModal = openModal({ panelClass: "modal-panel--lg", body });
     const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
     on(activeModal.panel, "input", "[data-cf]", (e, t) => {
-      form[t.dataset.cf] = t.value;
+      /* 연락처 하이픈은 공용 규칙(util/phone.js) — 관리자 화면과 같은 모양으로 레코드에 남아야 한다. */
+      form[t.dataset.cf] = t.dataset.cf === "담당자연락처" ? onPhoneInput(t) : t.value;
       const b = saveBtn();
       if (b) b.disabled = !isValid();
     });
     on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
     on(activeModal.panel, "click", "[data-action='save']", () => {
       if (!isValid()) return;
-      state.company = { ...form };
+      /* ⚠️ 예전엔 state.company 에만 담아 화면을 나가면 편집이 사라졌고, 관리자
+         거래처 화면은 옛 값을 계속 보여 줬다. 포털과 관리자는 같은 레코드를 본다. */
+      client = { ...client, ...recordPatch(form) };
+      store.updateClient(client);
+      refreshClientBadge(); // 회사명을 고쳤으면 셸 배지도 같이
+      state.company = companyOf(client);
       const b = saveBtn();
       if (b) {
         b.className = "hm-btn hm-btn--ok";

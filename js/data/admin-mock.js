@@ -145,11 +145,18 @@ export function settlementsFor(client) {
   const day = invoiceDayOf(client);
   const usage = usageFor(client);
   const rows = [0, 1, 2, 3, 4, 5].map((m) => {
-    const complete = m >= 2;   // older months: fully settled
-    const inProgress = m === 1; // last month: agreed + issued, not paid yet
     // 발행일 = 귀속월 다음 달의 거래처 지정일. 정산기한 = 그 발행일이 속한 달의 말일.
     const issueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 1, day);
     const dueD = new Date(NOW.getFullYear(), NOW.getMonth() - m + 2, 0);
+    /* 명세서 동의·계산서 발급은 **발행일이 지나야** 성립한다.
+       예전엔 월 오프셋(m>=2 / m===1)으로만 찍어, 관리자가 발급일을 28일로 바꾸면
+       발행일이 아직 오지 않은 달이 '발급완료'로 표시됐다(발급일 1일 시드에서는
+       우연히 가려져 있었다). 메모 키에 invoiceDay 가 들어 있어 발급일을 바꾸면
+       이 판정이 다시 돈다. */
+    const issued = issueD <= NOW;
+    /* 입금은 날짜 파생이 아니라 결제 이벤트다 — 데모에서는 '두 달 이전은 입금됨'을
+       유지하되, 발행조차 안 된 달이 입금완료로 보이지 않도록 issued 를 함께 건다. */
+    const paid = issued && m >= 2;
     const amount = usage[ymLabel(m)].total; // 이용 내역 합계에서 파생
     return {
       id: `${client.id}-${ymLabel(m).replace(/[년월\s]/g, "")}`,
@@ -159,9 +166,9 @@ export function settlementsFor(client) {
       청구년월: ymLabel(m),
       정산금액: won(amount),
       입금자: client.companyName,
-      거래명세서동의: complete || inProgress ? "동의완료" : "동의대기",
-      계산서발급: complete || inProgress ? "발급완료" : "동의하기",
-      입금완료: complete ? "입금완료" : "미입금",
+      거래명세서동의: issued ? "동의완료" : "동의대기",
+      계산서발급: issued ? "발급완료" : "동의하기",
+      입금완료: paid ? "입금완료" : "미입금",
     };
   });
   settleCache.set(key, rows);
