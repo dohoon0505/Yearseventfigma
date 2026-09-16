@@ -13,6 +13,7 @@
    짝이 되는 스타일은 css/components.css 의 `.ord-card*`·`.ord-row`·`.ord-in*`.
    ============================================================ */
 import { html } from "../dom.js";
+import { BIZ } from "./date.js";
 
 /* ── 표기 ──────────────────────────────────────────────── */
 export const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
@@ -36,6 +37,9 @@ export function parseFlexDate(s) {
   return y && m && d ? new Date(y, m - 1, d, hh, mm) : null;
 }
 
+/** 영업시간 캡션 — 문자열을 손으로 적지 않는다(BIZ 가 바뀌면 안내가 갈린다). */
+const bizHours = () => `${pad2(BIZ.openH)}:00 ~ ${pad2(BIZ.closeH)}:${pad2(BIZ.closeM)}`;
+
 /* 배송일시 피커 마크업 — ui.js 의 makeDateTimePicker 와 짝.
    ⚠️ 바깥 껍데기에 `.dd` 를 붙이지 말 것. makeDropdown 이 열릴 때 `.dd.open` 을
       전부 닫으므로, 안에 든 시/분 드롭다운을 여는 순간 달력이 스스로 닫힌다. */
@@ -50,7 +54,10 @@ export const dtpMarkup = () => html`
       </div>
       <div class="cal-grid"></div>
       <div class="ord-dtp__time">
-        <span class="ord-dtp__tlbl">배송 시간</span>
+        <div class="ord-dtp__rule">
+          <b class="ord-dtp__tlbl">배송 시간</b>
+          <span class="ord-dtp__tcap">${bizHours()}</span>
+        </div>
         <div class="ord-dtp__row">
           <div class="dd" data-dtp-h>
             <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
@@ -64,11 +71,11 @@ export const dtpMarkup = () => html`
         </div>
       </div>
       <div class="ord-dtp__foot">
-        <span>
-          <span class="ord-dtp__flbl">선택한 배송일시</span>
-          <b class="ord-dtp__fval"></b>
+        <span class="ord-dtp__fval"></span>
+        <span class="ord-dtp__acts">
+          <button type="button" class="ord-dtp__cancel" data-dtp-cancel>취소</button>
+          <button type="button" class="ord-dtp__done" data-dtp-done>완료</button>
         </span>
-        <button type="button" class="ord-dtp__done" data-dtp-done>완료</button>
       </div>
     </div>
   </div>`;

@@ -397,7 +397,9 @@ export function makeDatepicker(root, { get, set, min, max, placeholder } = {}) {
 
    rootEl 안에 있어야 할 것: .ord-dtp__trigger · .ord-dtp__panel ·
    (.cal-prev/.cal-title/.cal-next) · .cal-grid · [data-dtp-h] · [data-dtp-m] ·
-   .ord-dtp__fval · [data-dtp-done]  — 마크업 팩토리는 util/order-screen.js 의 dtpMarkup(). */
+   .ord-dtp__rule/.ord-dtp__tcap(영업시간 캡션) · .ord-dtp__fval ·
+   [data-dtp-done] · [data-dtp-cancel](연 시점 값으로 되돌리고 닫는다)
+   — 마크업 팩토리는 **util/order-fields.js** 의 dtpMarkup() 이다(order-screen.js 는 재수출만). */
 export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const DOW = ["일", "월", "화", "수", "목", "금", "토"];
   const p2 = (n) => String(n).padStart(2, "0");
@@ -410,7 +412,13 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const fval = root.querySelector(".ord-dtp__fval");
   const panel = root.querySelector(".ord-dtp__panel");
   const doneBtn = root.querySelector("[data-dtp-done]");
+  const cancelBtn = root.querySelector("[data-dtp-cancel]");
   const view = { y: 0, m: 0 };
+  /* 연 시점의 값 — '취소' 가 되돌릴 대상이다.
+     ⚠️ 이 피커는 날짜·시·분을 누를 때마다 곧바로 set() 으로 write-through 한다
+        (초안 개념이 없다). 스냅샷 없이 취소 버튼만 달면 '완료' 와 똑같이 동작하는
+        거짓 버튼이 된다. */
+  let snap = null;
   const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return fmtD(d); })();
   /* 기존 주문의 배송일이 과거일 수 있다(배송완료 건). min 을 오늘로 고정하면 그 달로
      이동조차 못 하고 현재 값 셀이 잠긴다 → 값이 min 보다 이르면 min 을 넓힌다. */
@@ -544,6 +552,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     view.m = d0.getMonth();
     renderGrid();
     renderFoot();
+    snap = get();
     root.classList.add("is-open");
     clip = findClip(trigger);
     place(); // display:block 이 된 뒤라야 offsetHeight 가 나온다
@@ -556,11 +565,36 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   const onGrid = (e) => {
     const b = e.target.closest("[data-d]");
     if (!b) return;
+    markGridClick(); // 이 클릭으로 격자가 새로 그려진다 — 바깥 클릭 판정에서 제외
     emit(b.dataset.d, parts().t);
     renderGrid();
   };
   const onDone = () => close();
-  const onDoc = (e) => { if (!root.contains(e.target)) close(); };
+  /* 되돌리고 닫는다. 값이 그대로면 set() 을 부르지 않는다 — 호출부가 set 에서
+     '수정한 항목' 카운터를 다시 세므로 헛호출이 없어야 한다. */
+  const revert = () => {
+    if (snap == null || snap === get()) return;
+    set(snap);
+    renderTrigger(); renderFoot();
+    /* 시·분은 **별도 makeDropdown 인스턴스**다 — 그 트리거 글자는 자기 set 때만 다시
+       그려지므로 값만 되돌리면 '14시' 라고 적힌 채 값은 09시가 된다(화면과 저장값이
+       갈린다). 되돌릴 때 두 트리거도 같이 다시 그린다. */
+    hDd.renderTrigger(); mDd.renderTrigger();
+  };
+  const onCancel = () => { revert(); close(); };
+  /* ⚠️ `contains(e.target)` 만으로는 안 된다 — 날짜를 고르면 `onGrid` 가 그 자리에서
+     `renderGrid()` 로 격자를 새로 그려 **눌린 버튼이 DOM 에서 떨어진다**. 그 클릭이
+     document 까지 올라올 때는 이미 `contains` 가 false 라 피커가 스스로 닫혔다
+     (날짜 하나 고르면 닫혀 시·분을 이어서 못 고르고 '취소' 도 누를 새가 없었다).
+     ⚠️ `composedPath()` 로도 못 고친다 — 크롬은 타깃이 분리되면 빈 배열을 돌려준다.
+     그래서 격자 클릭임을 **그 자리에서 표시**하고 바로 뒤 document 핸들러가 한 번
+     건너뛴다(다음 tick 에 반드시 풀어 바깥 클릭을 삼키지 않게 한다). */
+  let skipDoc = false;
+  const markGridClick = () => { skipDoc = true; setTimeout(() => { skipDoc = false; }, 0); };
+  const onDoc = (e) => {
+    if (skipDoc) { skipDoc = false; return; }
+    if (!root.contains(e.target)) close();
+  };
   /* 창 크기가 바뀌면 트리거가 움직인다 — fixed 라 따라가지 않으므로 다시 잡는다 */
   const onResize = () => { if (root.classList.contains("is-open")) place(); };
   /* 조상 스크롤도 마찬가지다(`.ord-pane` 은 세로가 짧으면 스크롤된다). scroll 은
@@ -571,9 +605,12 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     place();
   };
   /* capture 단계에서 먼저 먹어 모달이 아니라 피커가 닫히게 한다 */
+  /* ESC 는 '취소' 와 같다 — 같은 '물러나기' 제스처가 두 결과를 내면 안 된다
+     (버튼은 되돌리는데 ESC 는 고른 값을 확정하던 상태였다). */
   const onKey = (e) => {
     if (e.key !== "Escape" || !root.classList.contains("is-open")) return;
     e.stopPropagation();
+    revert();
     close();
   };
 
@@ -582,6 +619,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   next.addEventListener("click", onNext);
   grid.addEventListener("click", onGrid);
   if (doneBtn) doneBtn.addEventListener("click", onDone);
+  if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
   document.addEventListener("click", onDoc);
   document.addEventListener("keydown", onKey, true);
   window.addEventListener("resize", onResize);
@@ -616,6 +654,7 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
       next.removeEventListener("click", onNext);
       grid.removeEventListener("click", onGrid);
       if (doneBtn) doneBtn.removeEventListener("click", onDone);
+      if (cancelBtn) cancelBtn.removeEventListener("click", onCancel);
       document.removeEventListener("click", onDoc);
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onResize);
