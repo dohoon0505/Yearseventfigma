@@ -443,21 +443,28 @@ export function footerV2({ dirty, savedAt }) {
 /* ── 주문서 삭제 확인 ────────────────────────────────────────
    되돌릴 수 없는 일이라 체크 한 번을 받는다(시안). note 를 주면 도메인 경고를
    덧붙인다 — B2B 는 그 달 청구의 근거라 반드시 알려야 한다. */
-export function openDeleteConfirm({ orderNo, note, onConfirm }) {
+/**
+ * 되돌릴 수 없는 삭제 확인 — 체크를 해야 삭제 버튼이 열린다.
+ * ⚠️ 주문 전용이 아니다. 거래처 모달도 같은 절차를 쓰므로 문구를 파라미터화했다 —
+ *    예전엔 제목이 `주문서를 삭제할까요?` 로 **하드코딩**돼 거래처를 지울 때도
+ *    "주문서"라고 물었다(본문은 '주문취소를 사용하세요'까지 권했다).
+ *    인자를 안 넘기면 주문 문구가 그대로 나오므로 기존 호출부는 무변화다.
+ */
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, onConfirm }) {
   let ack = false;
   const m = openModal({
     panelClass: "modal-panel--ordconfirm",
     body: html`
       <div class="hm__head">
         <div>
-          <p class="hm-eyebrow ord-mono">${orderNo}</p>
-          <h3 id="modal-title">주문서를 삭제할까요?</h3>
+          <p class="hm-eyebrow ord-mono">${eyebrow ?? orderNo}</p>
+          <h3 id="modal-title">${title ?? "주문서를 삭제할까요?"}</h3>
         </div>
         <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
       </div>
       <div class="hm__body">
-        <p class="odlg-desc">목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
-          기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.</p>
+        <p class="odlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
+          기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
         ${note ? html`<div class="hm-warn" style="margin-top:12px">${note}</div>` : ""}
         <button class="odlg-check" data-action="ack" aria-pressed="false">
           <span class="odlg-check__box"></span>

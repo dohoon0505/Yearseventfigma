@@ -75,8 +75,30 @@ function fmtBiz(v) {
   if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
   return d;
 }
-/** 그 달의 말일 — 정산기한 문구에 쓴다(윤년 포함, 하드코딩 금지). */
+/** 그 달의 말일 — 정산기한 문구에 쓴다(윤년 포함, 하드코딩 금지). **m 은 0-based** 다. */
 const monthEnd = (y, m) => new Date(y, m + 1, 0).getDate();
+
+/** 거래처 삭제 확인의 문구 — **모달 안(⋯ 메뉴)과 목록이 같은 말을 해야 한다.**
+    예전엔 호출부가 둘인데 문구를 각자 넘겨, 한쪽만 고치면 조용히 갈렸다
+    (실제로 제목이 `주문서를 삭제할까요?` 인 채로 남아 거래처를 지울 때도 그렇게 물었다). */
+const deleteCopy = (client) => ({
+  eyebrow: client.accountId || client.companyName,
+  title: `${client.companyName} 거래처를 삭제할까요?`,
+  desc: html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
+    거래를 멈추는 것이라면 삭제 대신 <b>정지</b>를 사용하세요.`,
+});
+
+/** 정산 일정 안내문 — 초기 렌더와 부분 갱신이 **같은 문장**을 쓰게 한 곳에 둔다.
+    사본이 둘이던 때, 발급일 드롭다운을 건드리는 순간 두 문장이 갈렸다.
+    ⚠️ `monthEnd` 는 0-based 월을 받는다. `getMonth() + 1` 을 넘겨 **다음 달** 말일이
+       나오던 결함이 있었다(2026-09 에 31일 = 10월). 규약은 "정산기한 = 그 발행일이
+       속한 달의 말일" 이므로 이번 달이 맞다. */
+function invoiceHelpText(invoiceDay) {
+  const day = Number(invoiceDay) || 1;
+  const now = new Date();
+  return `매월 ${day}일에 전월 귀속 거래명세서·계산서가 발급되고, `
+    + `정산기한은 그 발급일이 속한 달의 말일(최대 ${monthEnd(now.getFullYear(), now.getMonth())}일)입니다.`;
+}
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
 const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s}</span>`;
@@ -269,11 +291,7 @@ export function mount(root, { nav }) {
   /** 한 필드 셀. 값은 항상 form 에서 읽는다. */
   function cliCell(f, form, lockId) {
     if (f.type === "static") {
-      const d = Number(form.invoiceDay) || 1;
-      const now = new Date();
-      const end = monthEnd(now.getFullYear(), now.getMonth() + 1);
-      return html`<p class="cli-static">매월 ${d}일에 전월 귀속 거래명세서·계산서가 발급되고,
-        정산기한은 그 발급일이 속한 달의 말일(이번 주기 ${end}일)입니다.</p>`;
+      return html`<p class="cli-static">${invoiceHelpText(form.invoiceDay)}</p>`;
     }
     if (f.type === "seg") {
       return html`<div class="seg-pill" role="radiogroup" aria-label="${f.label}">
@@ -567,11 +585,7 @@ export function mount(root, { nav }) {
       const ce = qs(panel, "[data-cf='ceoName']");
       if (ce) ce.classList.toggle("is-warn", !String(form.ceoName ?? "").trim());
       const st = qs(panel, ".cli-static");
-      if (st) {
-        const day = Number(form.invoiceDay) || 1;
-        const now = new Date();
-        st.textContent = `매월 ${day}일에 전월 귀속 거래명세서·계산서가 발급되고, 정산기한은 그 발급일이 속한 달의 말일(이번 주기 ${monthEnd(now.getFullYear(), now.getMonth() + 1)}일)입니다.`;
-      }
+      if (st) st.textContent = invoiceHelpText(form.invoiceDay);
     }
     syncStatics();
     renderMgr();
@@ -695,8 +709,7 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false; renderHd();
       openDeleteConfirm({
-        orderNo: form.companyName,
-        note: "계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다. 거래를 멈추는 것이라면 삭제 대신 정지를 쓰세요.",
+        ...deleteCopy(form),
         onConfirm: () => {
           const name = form.companyName;
           store.removeClient(form.id);
@@ -746,7 +759,10 @@ export function mount(root, { nav }) {
     toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
   }
 
-  /** 가입 거부 — 사유는 필수. onDone(reason) 이 있으면 저장은 호출부가 한다(모달 안에서 호출). */
+  /** 가입 거부 — 사유는 필수. onDone(reason) 이 있으면 저장은 호출부가 한다(모달 안에서 호출).
+      ⚠️ 이 다이얼로그는 거래처 모달 **위에 스택**된다 — 핸들을 `activeModal` 에 담으면 안 된다.
+         담았더니 아래 거래처 모달의 핸들이 덮여 사라지고, `closeModal()` 만 보는 X·취소 버튼이
+         그 뒤로 **무반응**이 됐다(ESC 와 라우터의 closeAllModals 로만 닫혔다). 로컬 핸들을 쓴다. */
   function openReject(client, onDone) {
     if (!onDone) closeModal();
     const body = html`
@@ -760,16 +776,14 @@ export function mount(root, { nav }) {
       <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
       <button class="hm-btn hm-btn--danger" data-action="do-reject" disabled>거부 처리</button>
     `;
-    activeModal = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer });
-    const ta = qs(activeModal.panel, "[data-reason]");
-    const btn = qs(activeModal.panel, "[data-action='do-reject']");
-    on(activeModal.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
-    on(activeModal.panel, "click", "[data-action='do-reject']", () => {
+    const m = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer });
+    const ta = qs(m.panel, "[data-reason]");
+    const btn = qs(m.panel, "[data-action='do-reject']");
+    on(m.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
+    on(m.panel, "click", "[data-action='do-reject']", () => {
       const reason = ta.value.trim();
       if (!reason) return;
-      const back = onDone ? activeModal : null;
-      activeModal = null;
-      if (back) back.close();
+      m.close();
       if (onDone) onDone(reason);
       else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); }
       toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
@@ -782,8 +796,7 @@ export function mount(root, { nav }) {
   function openDelete(client) {
     closeModal();
     openDeleteConfirm({
-      orderNo: client.companyName,
-      note: "계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제됩니다. 거래를 멈추는 것이라면 삭제 대신 정지를 쓰세요.",
+      ...deleteCopy(client),
       onConfirm: () => {
         store.removeClient(client.id);
         refreshList();
