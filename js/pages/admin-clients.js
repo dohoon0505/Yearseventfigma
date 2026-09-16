@@ -88,6 +88,7 @@ const contactCount = (id) => store.contactsOf(id).length;
 const deleteCopy = (client) => ({
   eyebrow: client.accountId || client.companyName,
   title: `${client.companyName} 거래처를 삭제할까요?`,
+  okLabel: "거래처 삭제",
   desc: html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
     거래를 멈추는 것이라면 삭제 대신 <b>정지</b>를 사용하세요.`,
 });

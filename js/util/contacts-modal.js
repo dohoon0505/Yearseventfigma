@@ -25,7 +25,8 @@
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, MSG_NONE, newContactId } from "../store.js";
-import { openModal, tableGrid } from "../ui.js";
+import { tableGrid } from "../ui.js";
+import { openDialog } from "./dialog.js";
 import { onPhoneInput } from "./phone.js";
 
 /**
@@ -40,34 +41,46 @@ export function openContactsModal(o) {
   const toast = o.toast || (() => {});
   const changed = () => { o.onChange && o.onChange(); };
 
+  /* 열 폭은 시안 값 — 연락처 184px 는 '010-0000-0000' 이 잘리지 않는 최소치다
+     (150px 이던 시절 실제로 잘렸다). 이름·부서는 남는 폭을 1 : 1.2 로 나눈다. */
   const cols = [
-    { label: "이름", width: "1fr", render: (r) => html`<input class="ord-in" data-mc="name" data-id="${r.id}" value="${r.name ?? ""}" placeholder="성함" />` },
-    { label: "부서·직위", width: "1fr", render: (r) => html`<input class="ord-in" data-mc="role" data-id="${r.id}" value="${r.role ?? ""}" placeholder="예) 총무팀 과장" />` },
-    { label: "연락처", width: "150px", render: (r) => html`<input class="ord-in ord-in--num" data-mc="phone" data-id="${r.id}" value="${r.phone ?? ""}" placeholder="010-0000-0000" />` },
+    { label: "이름", width: "minmax(120px, 1fr)", render: (r) => html`<input class="ord-in" data-mc="name" data-id="${r.id}" value="${r.name ?? ""}" placeholder="성함" />` },
+    { label: "부서 · 직위", width: "minmax(140px, 1.2fr)", render: (r) => html`<input class="ord-in" data-mc="role" data-id="${r.id}" value="${r.role ?? ""}" placeholder="예) 총무팀 과장" />` },
+    { label: "연락처", width: "184px", render: (r) => html`<input class="ord-in ord-in--num" data-mc="phone" data-id="${r.id}" value="${r.phone ?? ""}" placeholder="010-0000-0000" inputmode="numeric" />` },
     {
-      label: "알림톡 수신", width: "104px", align: "center",
-      render: (r) => html`<button type="button" class="toggle" role="switch" data-mc-msg="${r.id}"
-        aria-checked="${r.message === MSG_RECEIVE ? "true" : "false"}"
-        aria-label="${r.name || "담당자"} 배송완료 알림톡 수신"><span class="toggle__knob"></span></button>`,
+      label: "알림톡", width: "84px", align: "center",
+      /* ⚠️ 연락처가 비면 켤 수 없다 — 보낼 곳이 없는 수신자를 명단에 넣으면
+         발송 시점에 조용히 빠진다. 여기서 막고 그 이유를 title 로 말한다. */
+      render: (r) => {
+        const noPhone = !String(r.phone || "").trim();
+        const on = r.message === MSG_RECEIVE && !noPhone;
+        return html`<button type="button" class="toggle" role="switch" data-mc-msg="${r.id}"
+          aria-checked="${on ? "true" : "false"}" ${noPhone ? "disabled" : ""}
+          title="${noPhone ? "연락처를 먼저 입력하세요" : "배송완료 알림톡 수신"}"
+          aria-label="${r.name || "담당자"} 배송완료 알림톡 수신"><span class="toggle__knob"></span></button>`;
+      },
     },
     {
-      label: "정산담당", width: "120px", align: "center",
+      label: "정산 · 회계", width: "124px", align: "center",
       render: (r) => (r.isBilling
         ? html`<span class="pill pill--blue tbl-billing">${icon("check-circle", { size: 12 })} 정산담당</span>`
         : html`<button class="tbl-setbilling" data-mc-bill="${r.id}">지정</button>`),
     },
     {
-      label: "삭제", width: "56px", align: "center",
+      label: "삭제", width: "44px", align: "center",
       render: (r) => (r.isBilling
         ? html`<span class="tbl-lock" title="정산담당은 바로 삭제할 수 없습니다 — 다른 담당자를 먼저 지정하세요">${icon("trash2", { size: 14 })}</span>`
         : html`<button class="tbl-del" data-mc-del="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`),
     },
   ];
 
-  const capText = () => {
+  /* 머릿수는 헤더 pill 이 말한다 — 0명인 거래처가 목록에서 보이지 않으면
+     아무도 채우지 않는다(이관 19곳 중 18곳이 0명이다). */
+  const capBody = () => {
     const list = rows();
-    if (!list.length) return "등록된 담당자 없음";
-    return `담당자 ${list.length}명 · 알림톡 수신 ${list.filter((c) => c.message === MSG_RECEIVE).length}명`;
+    if (!list.length) return html`<b>담당자 0명</b>`;
+    const noti = list.filter((c) => c.message === MSG_RECEIVE && String(c.phone || "").trim()).length;
+    return html`<b>담당자 ${list.length}명</b> · 알림톡 ${noti}명`;
   };
 
   const listBody = () => {
@@ -76,42 +89,37 @@ export function openContactsModal(o) {
       return html`<p class="ctc-empty">등록된 담당자가 없습니다. 아래에서 추가하세요 —
         <b>첫 담당자가 정산·회계 담당이 됩니다.</b></p>`;
     }
-    return tableGrid({ columns: cols, rows: list, rowKey: (r) => r.id, compact: true });
+    return tableGrid({
+      columns: cols, rows: list, rowKey: (r) => r.id, compact: true,
+      rowClass: (r) => (r.isBilling ? "is-bill" : ""),
+    });
   };
 
-  const m = openModal({
-    panelClass: "modal-panel--ctc",
-    labelledBy: "modal-title",
+  const m = openDialog({
+    width: 960,
+    eyebrow: "거래처 정보관리",
+    title: `${o.client.companyName} 담당자`,
+    headExtra: html`<span class="dlg-hd__count" data-slot="cap">${capBody()}</span>`,
     body: html`
-      <div class="hm__head">
-        <div>
-          <h3 id="modal-title">${o.client.companyName} 담당자</h3>
-          <p data-slot="cap">${capText()}</p>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <div class="ctc-list" data-slot="list">${listBody()}</div>
-        <div class="ctc-foot">
-          <button type="button" class="cli-minibtn" data-action="add">${icon("user-plus", { size: 14 })} 담당자 추가</button>
-          <span class="ctc-note">거래처 포털의 '담당자 저장공간'과 <b>같은 명단</b>입니다 —
-            여기서 고치면 거래처 화면에도 그대로 보입니다. 알림톡 수신이 켜진 담당자는
-            모든 주문의 배송완료 알림 대상이 됩니다.</span>
-        </div>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--primary" data-action="close">닫기</button>
+      <div class="ctc-list" data-slot="list">${listBody()}</div>
+      <div class="ctc-foot">
+        <button type="button" class="ctc-add" data-action="add">${icon("user-plus", { size: 15 })} 담당자 추가</button>
+        <span class="ctc-note">거래처 포털의 '담당자 저장공간'과 <b>같은 명단</b>입니다 —
+          여기서 고치면 거래처 화면에도 그대로 보입니다. 알림톡 수신이 켜진 담당자는
+          모든 주문의 배송완료 알림 대상이 됩니다.</span>
       </div>`,
+    hint: "변경 사항은 입력과 동시에 저장됩니다",
+    actions: html`<button class="hm-btn hm-btn--primary" data-action="close">닫기</button>`,
   });
 
   /* 입력은 write-through 만 — 표를 다시 그리면 커서가 날아간다.
      구조가 바뀌는 동작(추가·삭제·정산담당)만 다시 그린다. */
   const renderList = () => { const e = qs(m.panel, "[data-slot='list']"); if (e) setHTML(e, listBody()); };
-  const renderCap = () => { const e = qs(m.panel, "[data-slot='cap']"); if (e) e.textContent = capText(); };
+  const renderCap = () => { const e = qs(m.panel, "[data-slot='cap']"); if (e) setHTML(e, capBody()); };
   const patch = (id, p) =>
     store.setContactsOf(cid, (prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x)));
 
-  on(m.panel, "click", "[data-action='close']", () => m.close());
+  /* 닫기 위임은 openDialog 가 이미 건다([data-action='close']) — 여기서 또 걸지 않는다. */
 
   on(m.panel, "click", "[data-action='add']", () => {
     const empty = rows().length === 0;
@@ -125,7 +133,20 @@ export function openContactsModal(o) {
 
   on(m.panel, "input", "[data-mc]", (e, t) => {
     const k = t.dataset.mc;
-    patch(t.dataset.id, { [k]: k === "phone" ? onPhoneInput(t) : t.value });
+    const v = k === "phone" ? onPhoneInput(t) : t.value;
+    patch(t.dataset.id, { [k]: v });
+    /* 연락처를 채우면 그 줄의 알림톡 토글이 살아난다 — 행을 다시 그리면 커서가
+       날아가므로 **그 버튼 하나만** 손본다. */
+    if (k === "phone") {
+      const tg = qs(m.panel, `[data-mc-msg="${t.dataset.id}"]`);
+      if (tg) {
+        const ok = !!String(v).trim();
+        tg.disabled = !ok;
+        tg.title = ok ? "배송완료 알림톡 수신" : "연락처를 먼저 입력하세요";
+        const rec = rows().find((c) => c.id === t.dataset.id);
+        tg.setAttribute("aria-checked", ok && rec && rec.message === MSG_RECEIVE ? "true" : "false");
+      }
+    }
     renderCap(); changed();
   });
 

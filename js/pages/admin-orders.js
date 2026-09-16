@@ -829,12 +829,17 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-pick='ribbonSender']", () => openProfilePicker());
     on(panel, "click", "[data-action='cpick-pf']", () => openProfilePicker());
     function openProfilePicker() {
+      /* 시안 #7 은 '명의 한 줄'이다 — `${role} ${name}` 은 명의 문자열에 이미 들어 있어
+         보조줄이 같은 말을 두 번 한다. 대신 연락처는 배지로 남긴다: 명의가 똑같은
+         프로필이 실제로 여럿이라(임직원 일동) 그것 말고는 구분할 단서가 없다. */
       const rows = store.get().profiles.map((p2) => ({
-        v: p2.id, name: profileText(p2), sub: `${p2.role} ${p2.name}`.trim(), meta: p2.phone || "",
+        v: p2.id, name: profileText(p2), meta: p2.phone || "",
       }));
       openRowPicker({
-        title: "발송 프로필 선택", width: 480,
-        desc: "리본에 인쇄될 보내는분 명의입니다. 저장된 프로필에서 불러옵니다.",
+        /* 시안 #7 — 제목은 '무엇을 고르는 화면인지'(리본 명의), 에어브로는 어디서 온
+           목록인지, 푸터 힌트는 이 선택이 무엇과 이어지는지를 말한다. */
+        eyebrow: "발송 프로필", title: "리본 보내는분 명의", width: 500, listH: 272,
+        hint: "거래처 포털의 발송인 프로필과 같은 명단입니다",
         rows, current: cDraft.profileId, confirmLabel: "불러오기", toast,
         empty: "저장된 발송 프로필이 없습니다.",
         onPick: (v) => {
@@ -1008,6 +1013,7 @@ export function mount(root, { nav }) {
     openStaffPicker({
       current: editing.manager,
       names: staffOptions,
+      eyebrow: editing.orderNo, // 시안: 어느 주문의 담당자인지 헤더가 먼저 말한다
       toast,
       onPick: (v) => {
         if (!editing) return false;
