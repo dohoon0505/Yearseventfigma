@@ -9,10 +9,8 @@ import { html, setHTML, on, qs, raw, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
-import { settlementsFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+import { settlementsFor, usageFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
 import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
-import { b2bList } from "../data/b2b-mock.js";
-import { parseOrderDate } from "../util/date.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
@@ -271,7 +269,7 @@ export function mount(root, { nav }) {
               <div class="settle-td">
                 <button class="settle-amount settle-amount--drill" data-action="drill" data-id="${client.id}"
                         aria-expanded="${state.expanded.has(client.id) ? "true" : "false"}"
-                        title="이 금액을 만든 주문 보기">${rec.정산금액}<span class="settle-caret"></span></button>
+                        title="이 금액의 청구 근거 보기">${rec.정산금액}<span class="settle-caret"></span></button>
               </div>
               <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
               <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
@@ -279,42 +277,52 @@ export function mount(root, { nav }) {
               <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
               <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
             </div>
-            ${state.expanded.has(client.id) ? drillBody(client) : ""}
+            ${state.expanded.has(client.id) ? drillBody(client, rec) : ""}
           `
         )}
       </div>
     `;
   }
 
-  /* 청구금액 → 근거 주문 드릴다운.
-     ⚠️ 데모 목데이터에서 청구금액은 이용 내역(usageFor)에서, 주문 목록은 b2b-mock 에서
-        각각 파생되므로 합계가 일치하지 않는다. 실서비스에서는 같은 주문 집합에서
-        나와야 한다 — 그 사실을 화면에 감추지 않고 안내로 적는다. */
-  function ordersOf(client) {
-    return b2bList().filter((o) => {
-      if (o.clientId !== client.id) return false;
-      const d = parseOrderDate(o.date);
-      return d.getFullYear() === state.year && d.getMonth() + 1 === state.month;
-    });
+  /* 청구금액 → 청구 근거 드릴다운.
+     ⚠️ 근거는 청구금액과 **같은 소스**에서 나와야 한다. 예전엔 금액은 이용 내역
+        (usageFor)에서, 펼친 목록은 b2b-mock 주문에서 각각 파생돼 합이 맞지 않았고,
+        두 달 이전 귀속월은 주문 목데이터가 아예 없어 '데모 데이터에 없습니다' 로
+        비면서 청구금액만 남았다 — 근거 없는 청구서다.
+     지금은 품목 행의 합이 곧 청구금액이라 구조적으로 어긋날 수 없다. 실제 주문
+     레코드를 보려면 주문관리로 넘어간다(그쪽이 주문의 단일 소스다). */
+  function billItemsOf(client) {
+    const month = usageFor(client)[`${state.year}년 ${pad(state.month)}월`];
+    if (!month) return [];
+    return Object.entries(month.items)
+      .filter(([, v]) => v.count > 0)
+      .map(([product, v]) => ({ product, count: v.count, amount: v.amount }))
+      .sort((a, b) => b.amount - a.amount);
   }
-  function drillBody(client) {
-    const list = ordersOf(client);
-    if (!list.length) {
-      return html`<div class="settle-drill settle-drill--empty">이 달의 주문 내역이 데모 데이터에 없습니다.</div>`;
+  const TOP_ITEMS = 4; // 상품 9종이라 다 펼치면 아코디언이 표를 밀어낸다 — 나머지는 한 줄로 접는다
+  function drillBody(client, rec) {
+    const items = billItemsOf(client);
+    if (!items.length) {
+      return html`<div class="settle-drill settle-drill--empty">이 달의 이용 내역이 없습니다.</div>`;
     }
-    const top = list.slice(0, 3);
+    const top = items.slice(0, TOP_ITEMS);
+    const restList = items.slice(TOP_ITEMS);
+    const rest = restList.reduce((a, it) => ({ count: a.count + it.count, amount: a.amount + it.amount }), { count: 0, amount: 0 });
+    const totalCount = items.reduce((a, it) => a + it.count, 0);
+    const row = (label, count, amount, cls = "") => html`
+      <div class="settle-drill__row ${cls}">
+        <span class="settle-drill__p">${label}</span>
+        <span class="settle-drill__c">${count.toLocaleString("ko-KR")}건</span>
+        <span class="settle-drill__m">${amount}</span>
+      </div>`;
     return html`
       <div class="settle-drill">
-        ${top.map((o) => html`
-          <div class="settle-drill__row">
-            <span class="settle-drill__d">${o.date.slice(5, 10)}</span>
-            <span class="settle-drill__s">${o.ordererName}</span>
-            <span class="settle-drill__a ellipsis" title="${o.address}">${o.address}</span>
-            <span class="settle-drill__p">${o.product}</span>
-            <span class="settle-drill__m">${Number(o.amount).toLocaleString("ko-KR")}원</span>
-          </div>`)}
+        <div class="settle-drill__cap">${state.year}년 ${pad(state.month)}월 이용 내역 · 품목별</div>
+        ${top.map((it) => row(it.product, it.count, won(it.amount)))}
+        ${restList.length ? row(`그 외 ${restList.length}개 품목`, rest.count, won(rest.amount), "settle-drill__row--rest") : ""}
+        ${row("합계", totalCount, rec.정산금액, "settle-drill__row--sum")}
         <button class="settle-drill__more" data-action="drill-all" data-id="${client.id}">
-          ${list.length > 3 ? `외 ${list.length - 3}건 · 주문관리에서 전체 보기` : "주문관리에서 보기"}
+          주문관리에서 이 거래처 주문 보기
         </button>
       </div>`;
   }

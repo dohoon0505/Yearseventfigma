@@ -179,11 +179,17 @@ export function mountShell(appRoot, variant = "enterprise") {
   }
   // 셸은 /app/* 라우트 간 재사용되므로 배지는 마운트마다 갱신한다
   // (로그인 직후·거래처 정보 수정 후에도 회사명이 따라오게).
-  if (variant !== "admin") {
-    const badge = qs(shellEl, "[data-company]");
-    if (badge) badge.textContent = currentClientName() || "거래처 미지정";
-  }
+  refreshClientBadge();
   return qs(shellEl, ".shell__main");
+}
+
+/** 셸 상단 거래처 배지를 현재 로그인 거래처 이름으로 다시 칠한다.
+ *  마운트마다 부르고, 화면 안에서 회사명을 고친 직후에도 부른다
+ *  (정산 간편조회의 회사정보 수정 — 안 부르면 헤더만 옛 이름으로 남는다). */
+export function refreshClientBadge() {
+  if (!shellEl || currentVariant === "admin") return;
+  const badge = qs(shellEl, "[data-company]");
+  if (badge) badge.textContent = currentClientName() || "거래처 미지정";
 }
 
 export function unmountShell() {
