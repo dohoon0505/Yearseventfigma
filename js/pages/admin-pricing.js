@@ -130,15 +130,15 @@ export function mount(root, { nav }) {
   /* ── 좌측 거래처 pane ──────────────────────────────────── */
   const sideBody = () => {
     const rows = shownClients();
-    if (!rows.length) return html`<p class="cpick-side__empty">검색 결과가 없습니다.</p>`;
+    if (!rows.length) return html`<p class="prc-side__empty">검색 결과가 없습니다.</p>`;
     const shared = sharedBizKeys(clients());
     return html`${rows.map((c) => {
       const n = customCount(c.id);
-      return html`<button type="button" class="cpick-cli ${state.clientId === c.id ? "is-on" : ""}"
+      return html`<button type="button" class="prc-cli ${state.clientId === c.id ? "is-on" : ""}"
         data-action="pick" data-cid="${c.id}" aria-pressed="${state.clientId === c.id ? "true" : "false"}">
-        <span class="cpick-cli__nm">${displayName(c, shared)}</span>
-        ${isDirty(c.id) ? html`<span class="cpick-cli__dot" title="저장하지 않은 변경"></span>` : ""}
-        <span class="cpick-cli__cnt ${n ? "is-on" : ""}">${n ? n : "–"}</span>
+        <span class="prc-cli__nm">${displayName(c, shared)}</span>
+        ${isDirty(c.id) ? html`<span class="prc-cli__dot" title="저장하지 않은 변경"></span>` : ""}
+        <span class="prc-cli__cnt ${n ? "is-on" : ""}">${n ? n : "–"}</span>
       </button>`;
     })}`;
   };
@@ -226,24 +226,24 @@ export function mount(root, { nav }) {
   /* ── 셸 ───────────────────────────────────────────────── */
   function render() {
     setHTML(root, html`
-      <div class="page-admin page-pricing">
+      <div class="page-admin">
         <div class="admin-inner">
           ${pageTitle({ imgSrc: "./assets/nav-product.png", title: "기업별 상품단가", action: html`<span class="prc-cov" data-slot="cov">${covBody()}</span>` })}
-          <div class="cpick-shell">
-            <aside class="cpick-side">
-              <div class="cpick-side__srch">
-                ${icon("search", { size: 13, cls: "cpick-side__ic" })}
+          <div class="prc-shell">
+            <aside class="prc-side">
+              <div class="prc-side__srch">
+                ${icon("search", { size: 13, cls: "prc-side__ic" })}
                 <input type="text" data-ctl="q" value="${state.q}" placeholder="거래처·아이디·사업자번호" aria-label="거래처 검색" />
               </div>
-              <div class="cpick-side__list" data-slot="side">${sideBody()}</div>
+              <div class="prc-side__list" data-slot="side">${sideBody()}</div>
             </aside>
-            <section class="cpick-main">
-              <header class="cpick-hd">
-                <div class="cpick-hd__l">
-                  <b class="cpick-hd__co" data-slot="co">${nameOf(state.clientId) || "거래처를 선택하세요"}</b>
-                  <span class="cpick-hd__cap" data-slot="cap">${capBody()}</span>
+            <section class="prc-main">
+              <header class="prc-hd">
+                <div class="prc-hd__l">
+                  <b class="prc-hd__co" data-slot="co">${nameOf(state.clientId) || "거래처를 선택하세요"}</b>
+                  <span class="prc-hd__cap" data-slot="cap">${capBody()}</span>
                 </div>
-                <button type="button" class="cpick-minibtn" data-action="reset-all">전체 정가로</button>
+                <button type="button" class="prc-minibtn" data-action="reset-all">전체 정가로</button>
               </header>
               <div class="prc-acc" data-slot="acc">${accBody()}</div>
             </section>

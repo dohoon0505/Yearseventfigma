@@ -14,6 +14,7 @@ import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
+import { openContactsModal } from "../util/contacts-modal.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 /* 구 시스템 계약체결 리스트(302)의 '계약요청유형'. 별도 화면 대신 거래처 레코드에
@@ -77,6 +78,9 @@ function fmtBiz(v) {
 }
 /** 그 달의 말일 — 정산기한 문구에 쓴다(윤년 포함, 하드코딩 금지). **m 은 0-based** 다. */
 const monthEnd = (y, m) => new Date(y, m + 1, 0).getDate();
+
+/** 그 거래처에 등록된 담당자 수 — 목록 배지와 다이얼로그 제목이 같이 읽는다. */
+const contactCount = (id) => store.contactsOf(id).length;
 
 /** 거래처 삭제 확인의 문구 — **모달 안(⋯ 메뉴)과 목록이 같은 말을 해야 한다.**
     예전엔 호출부가 둘인데 문구를 각자 넘겨, 한쪽만 고치면 조용히 갈렸다
@@ -206,6 +210,12 @@ export function mount(root, { nav }) {
               <button class="btn-reject" data-action="reject" data-id="${c.id}">거부</button>
             </div>`
           : html`<div class="admin-rowact">
+              ${/* 담당자는 거래처 원장이 아니라 **별도 다이얼로그**에서 고친다(시안).
+                   목록에서 바로 열 수 있어야 한다 — 담당자만 보러 원장을 열 이유가 없다.
+                   배지는 등록 인원수, 0명이면 흐리게 두어 "비어 있다"가 보이게 한다. */ ""}
+              <button class="ptbl-users ${contactCount(c.id) ? "" : "is-empty"}" data-action="contacts" data-id="${c.id}"
+                aria-label="${c.companyName} 담당자 관리" title="담당자 ${contactCount(c.id)}명">
+                ${icon("users", { size: 14 })}<span class="ptbl-users__n">${contactCount(c.id) || "0"}</span></button>
               <button class="ptbl-edit" data-action="edit" data-id="${c.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
               <button class="ptbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
             </div>`;
@@ -446,7 +456,7 @@ export function mount(root, { nav }) {
             : html`<p class="rail-card__v rail-card__v--empty">담당자 없음</p>
               <p class="rail-card__out">명세서·정산기한 알림을 받을 사람이 없습니다.</p>`}
           <button type="button" class="rail-card__btn rail-card__btn--ghost" data-action="go-contacts">
-            담당자 관리로 이동</button>
+            담당자 관리</button>
         </div>`;
     };
 
@@ -683,12 +693,10 @@ export function mount(root, { nav }) {
       renderHd(); renderRail(); renderFt();
       toast("임시비밀번호를 발급했습니다");
     });
-    /* 담당자 관리로 이동 — 모달을 닫고 간다. 미저장 편집이 있으면 먼저 알린다
-       (여기서 나가면 원장 편집이 사라지는데, 말없이 버리는 것이 가장 나쁘다). */
+    /* 담당자 관리 — 원장 **위에 스택**으로 연다. 화면을 옮기지 않으므로 작성 중인
+       원장 편집이 살아 있다. ⚠️ 핸들을 `activeModal` 에 담지 말 것(→ contacts-modal.js). */
     on(panel, "click", "[data-action='go-contacts']", () => {
-      if (dirty()) { toast("저장하지 않은 변경이 있습니다 · 저장하거나 취소한 뒤 이동하세요", "warn"); return; }
-      closeModal();
-      nav("#/admin/contacts");
+      openContactsModal({ client: form, toast, onChange: () => { renderRail(); refreshList(); } });
     });
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false; renderHd();
@@ -829,7 +837,8 @@ export function mount(root, { nav }) {
     }
     const c = findClient(t.dataset.id);
     if (!c) return;
-    if (a === "edit") openClientModal(c);
+    if (a === "contacts") openContactsModal({ client: c, toast, onChange: () => refreshList() });
+    else if (a === "edit") openClientModal(c);
     else if (a === "del") openDelete(c);
     else if (a === "approve") approve(c);
     else if (a === "reject") openReject(c);
