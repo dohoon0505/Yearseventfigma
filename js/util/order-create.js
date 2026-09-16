@@ -54,16 +54,16 @@ export function openOrderCreate(spec) {
       <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
     </div>`;
 
-  /* ── 레일: 스텝 표시 + 스펙 본문 ── */
-  const stepsBody = () => html`
-    <ol class="ordnew-steps">
-      ${steps.map((s, i) => html`
-        <li class="ordnew-step ${i === step ? "is-now" : ""} ${i < step ? "is-done" : ""}">
-          <span class="ordnew-step__n">${i < step ? icon("check", { size: 12 }) : String(i + 1)}</span>
-          <span class="ordnew-step__t">${s.title}</span>
-          ${s.cap ? html`<span class="ordnew-step__c">${s.cap}</span>` : ""}
-        </li>`)}
-    </ol>`;
+  /* ── 레일 ──
+     ⚠️ 예전엔 여기 맨 위에 '거래처 > 주문서 작성' 세로 스텝 목록이 있었다. 뺐다 —
+        스텝 이름은 이미 본문 카드 머리글이 말하고(1단계 '거래처', 2단계 '상품 · 단가'),
+        지금이 마지막 단계인지는 푸터 버튼 문구('다음' vs '주문 등록')가 말한다.
+        레일의 자리는 **거래처마다 달라지는 정보**(거래 조건·알림 명단)에 준다.
+     ⚠️ 시각 단서가 사라지는 대신 **프로그램적 단서를 넣는다** — 스텝 서술자의
+        title/cap 은 이제 각 `.ordnew-pane` 의 접근명이다(스텝 목록에는 aria 가
+        아예 없었으므로 스크린리더 기준으로는 오히려 나아진다). */
+  const stepLabel = (s, i) =>
+    `${i + 1}단계 / ${steps.length} · ${s.title}${s.cap ? ` — ${s.cap}` : ""}`;
 
   /* ── 푸터: 색이 상태를 말한다 ── */
   const ftBody = () => {
@@ -83,12 +83,12 @@ export function openOrderCreate(spec) {
     <div class="hm__head ordnew-hd" data-slot="hd">${hdBody()}</div>
     <div class="ordnew-grid">
       <aside class="ord-side ordnew-rail">
-        <div data-slot="railsteps">${stepsBody()}</div>
         <div class="ordnew-railbody" data-slot="railbody">${spec.rail ? spec.rail(step) : ""}</div>
       </aside>
       <div class="ord-pane">
         ${steps.map((s, i) => html`
-          <section class="ordnew-pane" data-step="${i}" ${i === 0 ? "" : "hidden"}>${s.render()}</section>`)}
+          <section class="ordnew-pane" data-step="${i}" role="group" aria-label="${stepLabel(s, i)}"
+            ${i === 0 ? "" : "hidden"}>${s.render()}</section>`)}
       </div>
     </div>
     <div class="hm__foot ord-ft" data-slot="ft">${ftBody()}</div>`;
@@ -111,7 +111,7 @@ export function openOrderCreate(spec) {
     if (e) setHTML(e, typeof inner === "string" ? html`${inner}` : inner);
   };
   const syncFooter = () => put("ft", ftBody());
-  const rerenderRail = () => { put("railsteps", stepsBody()); put("railbody", spec.rail ? spec.rail(step) : ""); };
+  const rerenderRail = () => { put("railbody", spec.rail ? spec.rail(step) : ""); };
   const rerenderStep = (key) => {
     const i = steps.findIndex((s) => s.key === key);
     if (i < 0) return;
@@ -120,7 +120,10 @@ export function openOrderCreate(spec) {
     if (!el) return;
     setHTML(el, steps[i].render());
     bindStep(i);
-    if (i === step) setDisabled(i, false);
+    /* ⚠️ 보이지 않는 스텝은 **다시 막아야 한다.** 예전엔 `i === step` 일 때만 열었을 뿐
+       아닐 때 닫지 않아, 숨은 스텝을 재렌더하면 그 칸들이 살아난 채 Tab 순서에 남았다
+       (거래처를 바꾸면 s2 가 재렌더된다 — 실제로 그 경로로 새는 중이었다). */
+    setDisabled(i, i !== step);
     syncFooter();
   };
 
@@ -140,11 +143,25 @@ export function openOrderCreate(spec) {
 
   /* 숨긴 스텝의 컨트롤은 `disabled` 로 막는다 — `openModal` 의 포커스 트랩이
      `hidden` 요소도 모으기 때문에, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다.
-     (`inert` 는 그 쿼리가 모른다.) */
+     (`inert` 는 그 쿼리가 모른다.)
+
+     ⚠️ **셸이 끈 것만 셸이 켠다.** 예전엔 무조건 `c.disabled = off` 였는데, 호출부가
+        자기 사정으로 꺼 둔 칸(주문 요청자의 숨은 '직접 입력' 두 칸 — 목록에서 고른
+        상태라 hidden 이다)까지 같이 켜 버렸다. 그 칸들은 보이지 않은 채 Tab 순서로
+        돌아와 포커스가 허공에 떨어졌다. 셸이 끈 칸에만 표식을 남겨 그것만 되돌린다. */
   function setDisabled(i, off) {
     const el = stepEl(i);
     if (!el) return;
-    qsa(el, "input,select,textarea,button").forEach((c) => { c.disabled = off; });
+    qsa(el, "input,select,textarea,button").forEach((c) => {
+      if (off) {
+        if (c.disabled) return;          /* 호출부가 스스로 끈 칸은 건드리지 않는다 */
+        c.disabled = true;
+        c.dataset.shellOff = "1";
+      } else if (c.dataset.shellOff) {
+        c.disabled = false;
+        delete c.dataset.shellOff;
+      }
+    });
   }
 
   function goStep(next) {

@@ -31,7 +31,7 @@ import { openOrderCreate } from "../util/order-create.js";
 import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
-import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts } from "../store.js";
+import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
 import { staffNames, staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -337,35 +337,73 @@ export function mount(root, { nav }) {
   let createModal = null;   // ← 상세 모달의 activeModal 과 **별개 핸들**
   let cDraft = null;
   let cQuery = "";
+  /* 요청자를 직접 적고 있는가. 담당자가 0명인 거래처에선 계산으로 항상 true —
+     이 플래그는 "목록도 있는데 굳이 직접 적기를 골랐다"만 기억한다. */
+  let cReqManual = false;
+  /* 직접 적어 둔 값의 스냅샷 — 목록 행을 눌렀다 '직접 입력'으로 돌아오면 되살린다.
+     실수로 행을 한 번 눌렀다고 방금 친 이름을 다시 치게 만들지 않는다. */
+  let cReqManualSnap = { name: "", phone: "" };
+  /* 1단계 부분 갱신용 렌더러 참조 — openCreate() 안의 클로저를 밖에서 부르려면 필요하다.
+     (거래처를 고를 때 **거래처 카드는 다시 그리지 않는다** — 목록 스크롤과 검색 캐럿을
+      지키려고 요청자 카드 슬롯만 갈아 끼운다.) */
+  let cRenderReq = null;
+  let cRenderList = null;
+  let cRenderCli = null;
+  let cRenderSum = null;
+  /* 거래처를 이미 골랐는데도 목록을 **다시 펼쳐 둔** 상태인가('다른 거래처 선택'). */
+  let cCliOpen = false;
   const cDds = [];
   const cDestroy = () => { cDds.forEach((d) => d.destroy()); cDds.length = 0; };
 
   const cClient = () => clients().find((c) => c.id === cDraft.clientId) || null;
   const cContacts = () => (cDraft.clientId ? store.contactsOf(cDraft.clientId) : []);
   const cRequester = () => cContacts().find((x) => x.id === cDraft.requesterId) || null;
-  /* 요청자 표시·필수 판정의 단일 소스. 담당자 목록에서 고른 사람과 직접 적은 사람을
-     같은 줄로 다룬다 — 화면이 둘을 구분할 이유가 없다(저장 스키마만 id 유무로 갈린다). */
-  const cReqLine = () => {
-    const c = cRequester();
-    if (c) return `${c.name}${c.role ? ` · ${c.role}` : ""}`;
-    if (String(cDraft.requesterName || "").trim()) {
-      return `${cDraft.requesterName}${cDraft.requesterPhone ? ` · ${cDraft.requesterPhone}` : " · 직접 입력"}`;
-    }
-    return "";
-  };
+  /* 직접 입력 칸이 살아 있는가 — 담당자 0명이면 선택지가 그것뿐이라 강제로 열려 있다.
+     (이관 거래처 19곳 중 18곳이 담당자 0명이다 — 예외 경로가 아니라 주경로다.) */
+  const cReqManualOn = () => !cContacts().length || cReqManual;
   const cProfile = () => store.get().profiles.find((p) => p.id === cDraft.profileId) || null;
   const profileText = (p) => (p ? (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}` : "");
 
   /* 거래처 변경 시 초기화 대상 — 계약단가·거래 조건·담당자가 전부 거래처에 매인다.
      ⚠️ 배송지·받는분·리본문구는 **유지**한다. 거래처 하나 잘못 골랐다고 다 지우면
         아무도 안 쓴다. */
+  /* 슬롯 하나만 갈아 끼우는 부분 갱신 — `card({ slot })` 이 만든 래퍼를 노린다.
+     ⚠️ `setHTML` 은 Html 인스턴스가 아니면 이스케이프 없이 innerHTML 에 넣는다 —
+        평문 문자열을 넘기지 말 것(회사명은 가입 화면의 자유 입력이다). */
+  const cPut = (slot, body) => {
+    const e = createModal && qs(createModal.panel, `[data-slot='${slot}']`);
+    if (e) setHTML(e, typeof body === "string" ? html`${body}` : body);
+  };
+
+  /* 요청자 결과 한 줄만 갱신 — 입력의 형제 노드라 커서를 건드리지 않는다.
+     텍스트라 `textContent` 로 쓴다(이스케이프 걱정이 아예 없다). */
+  const syncReqSum = () => {
+    const e = cRenderSum && createModal && qs(createModal.panel, "[data-slot='creqsum']");
+    if (!e) return;
+    e.textContent = cRenderSum.text();
+    e.classList.toggle("is-warn", cRenderSum.warn());
+  };
+
   function cPickClient(id) {
-    if (cDraft.clientId === id) return; /* 동일값 재선택이 채워둔 값을 날리지 않게 */
+    if (cDraft.clientId === id) {
+      /* 동일값 재선택은 채워둔 값을 날리지 않는다 — 다만 '다른 거래처 선택'으로 펼쳐
+         둔 목록에서 **같은 거래처를 다시 골랐다면** 접어 줘야 한다. 안 그러면 목록이
+         영영 펼쳐진 채 남아 아래 두 카드가 폴드 밖으로 밀린다. */
+      if (cCliOpen) { cCliOpen = false; if (cRenderCli) cPut("cli", cRenderCli()); }
+      return;
+    }
     cDraft.clientId = id;
     cDraft.requesterId = ""; cDraft.requesterName = ""; cDraft.requesterPhone = "";
+    cReqManual = false; cReqManualSnap = { name: "", phone: "" };
     cDraft.product = ""; cDraft.amount = 0; cDraft.notifyOff = [];
-    createModal.rerenderStep("s1"); createModal.rerenderStep("s2");
-    createModal.rerenderRail(); createModal.markTouched();
+    /* ⚠️ 1단계를 통째로 재렌더하지 않는다 — 슬롯 둘만 갈아 끼운다(담당자 카드는 거래처와
+       무관하므로 건드리지 않는다). 거래처 슬롯은 목록에서 '고른 한 줄'로 접히고,
+       그만큼 아래 두 카드가 폴드 위로 올라온다. */
+    cCliOpen = false;
+    if (cRenderCli) cPut("cli", cRenderCli());
+    if (cRenderReq) cPut("creq", cRenderReq());   /* 새 마크업이라 요약 한 줄도 같이 갱신된다 */
+    createModal.rerenderStep("s2");
+    createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
   }
 
   /* 계약단가 판정 — 규칙은 store.contractPrice 단일 소스를 쓴다(복제 금지). */
@@ -386,8 +424,12 @@ export function mount(root, { nav }) {
   ];
 
   function openCreate() {
+    if (createModal) return;   /* 두 번 눌러 등록 모달이 겹쳐 열리지 않게 */
     cDraft = draftOrder();
     cQuery = "";
+    cReqManual = false;
+    cReqManualSnap = { name: "", phone: "" };
+    cCliOpen = false;
 
     /* ── step1: 거래처 ── */
     const cliRows = () => {
@@ -416,41 +458,164 @@ export function mount(root, { nav }) {
           <span class="ordnew-cli__ch">${c.channel || "일반"}</span>
         </button>`)}`;
     };
+    /* 주문 요청자 — 거래처 쪽 사람. **필수**다.
+       ⚠️ 예전엔 거래처 카드 맨 아랫줄에 작은 '선택' 버튼 한 개였고, 그걸 누르면
+          다이얼로그가 떴다. 그런데 이관 거래처 19곳 중 18곳이 담당자 0명이라
+          그 다이얼로그는 거의 언제나 "'직접 입력' 행을 찾아 눌러 이름을 적는"
+          4클릭 우회로였다 — 예외 경로가 주경로였다. 그래서 **카드로 떼어 내고
+          목록·직접 입력 칸을 그 자리에 펼친다**(담당자 0명이면 0클릭, 있으면 1클릭).
+       ⚠️ 저장 스키마는 그대로다: 목록에서 고르면 requesterId + 이름·연락처 스냅샷,
+          직접 적으면 requesterId="" + 이름·연락처. 담당자 저장공간은 건드리지 않는다. */
+    const reqBody = () => {
+      const cl = cClient();
+      if (!cl) return html`<p class="ordnew-req__lead">거래처를 먼저 선택하면 그 거래처의 담당자가 여기에 나타납니다.</p>`;
+      const cts = cContacts();
+      const man = cReqManualOn();
+      return html`
+        ${cts.length ? html`
+          <div class="ordnew-req" role="radiogroup" aria-label="주문 요청자 · 거래처 측"
+            aria-describedby="creq-sum">
+            ${cts.map((ct) => html`
+              <button type="button" class="ordnew-req__row ${cDraft.requesterId === ct.id ? "is-sel" : ""}"
+                role="radio" aria-checked="${cDraft.requesterId === ct.id ? "true" : "false"}" data-creq-pick="${ct.id}">
+                <span class="ordnew-req__nm">${ct.name || "이름 없음"}</span>
+                <span class="ordnew-req__sub">${[ct.role, ct.isBilling ? "정산 담당" : "",
+                  ct.message === MSG_RECEIVE ? "" : "알림 수신 꺼짐"].filter(Boolean).join(" · ")}</span>
+                <span class="ordnew-req__ph">${ct.phone || "연락처 미등록"}</span>
+              </button>`)}
+            <button type="button" class="ordnew-req__row ${man ? "is-sel" : ""}"
+              role="radio" aria-checked="${man ? "true" : "false"}" data-creq-pick="${MANUAL}">
+              <span class="ordnew-req__nm">직접 입력</span>
+              <span class="ordnew-req__sub">담당자 프로필에 없는 요청자 — 이 주문에만 기록됩니다</span>
+            </button>
+          </div>`
+          : html`<p class="ordnew-req__lead">${cl.companyName}에 등록된 담당자가 없습니다 · 요청자를 직접 적어 주세요.</p>`}
+        <div class="ord-row ordnew-req__man" data-slot="creqman" ${man ? "" : "hidden"}>
+          <label class="ord-k">이름</label>
+          <input class="ord-in" data-creq="requesterName" value="${cDraft.requesterName}"
+            placeholder="주문을 요청한 분" aria-label="주문 요청자 이름" aria-required="true"
+            aria-describedby="creq-sum" ${man ? "" : "disabled"} />
+          <label class="ord-k">연락처</label>
+          <input class="ord-in ord-in--num" data-creq="requesterPhone" value="${cDraft.requesterPhone}"
+            inputmode="numeric" placeholder="배송완료 알림을 받습니다" aria-label="주문 요청자 연락처"
+            aria-describedby="creq-sum" ${man ? "" : "disabled"} />
+        </div>
+        <p class="ordnew-req__sum ${reqSumWarn() ? "is-warn" : ""}" id="creq-sum" data-slot="creqsum">${reqSum()}</p>`;
+    };
+
+    /* 이 요청자가 **정말로** 배송완료 알림을 받는가.
+       ⚠️ 판정은 `notifySnapshot()`(저장되는 명단)과 같은 규칙이어야 한다. 목록에서 고른
+          요청자는 담당자 저장공간의 수신 설정(`MSG_RECEIVE`)에 매이는데, 수신을 꺼 둔
+          담당자(시드의 오임찬이 그렇다)를 골라 놓고 화면만 '받습니다'라고 말하면
+          **거짓말**이 된다 — 2단계 레일 명단에는 그 행조차 생기지 않아 토글로 확인할
+          수도 없다. 문구와 저장값이 갈리지 않게 여기 한 곳에서만 판정한다. */
+    const reqNotify = () => {
+      if (!String(cDraft.requesterPhone || "").trim()) {
+        return { on: false, why: "연락처 미입력이라 배송완료 알림을 보낼 수 없습니다" };
+      }
+      if (cDraft.requesterId) {
+        if (!receivingContacts(cContacts()).some((c) => c.id === cDraft.requesterId)) {
+          return { on: false, why: "담당자 설정에서 알림 수신을 꺼 둬 배송완료 알림을 받지 못합니다" };
+        }
+        if (cDraft.notifyOff.includes(`ct:${cDraft.requesterId}`)) {
+          return { on: false, why: "이 주문에서 배송완료 알림 수신을 껐습니다" };
+        }
+        return { on: true, why: "배송완료 알림을 받습니다" };
+      }
+      return cDraft.notifyOff.includes("requester")
+        ? { on: false, why: "이 주문에서 배송완료 알림 수신을 껐습니다" }
+        : { on: true, why: "배송완료 알림을 받습니다" };
+    };
+
+    /* 확정된 요청자 한 줄. **연락처가 없으면 배송완료 알림을 못 보낸다**는 사실이
+       1단계 어디에도 없었다 — 레일의 알림 명단은 2단계(`i === 1`)에서만 그려진다.
+       ⚠️ `aria-live` 는 걸지 않는다(글자마다 읽는다). 두 입력의 `aria-describedby` 로
+          묶어 포커스가 들어올 때 한 번 읽히게 한다. */
+    const reqSumWarn = () => !!String(cDraft.requesterName || "").trim() && !reqNotify().on;
+    const reqSum = () => {
+      if (!cDraft.clientId) return "";
+      const nm = String(cDraft.requesterName || "").trim();
+      if (!nm) return "요청자를 지정해야 다음 단계로 넘어갑니다.";
+      const ph = String(cDraft.requesterPhone || "").trim();
+      const via = cDraft.requesterId ? "담당자 프로필" : "이 주문에만 기록";
+      return `${nm}${ph ? ` · ${ph}` : ""} · ${via} · ${reqNotify().why}.`;
+    };
+
+    /* 주문 담당자 — 우리 쪽 사람. 필수가 아니다(신규는 미지정으로 시작하는 규약).
+       5명뿐이라 다이얼로그를 열 이유가 없다 — 칩으로 펼쳐 한 번에 고른다.
+       ⚠️ 목록에서 사라진 담당자는 맨 앞에 남긴다(조용한 재배정이 가장 나쁜 결과다). */
+    const mgrBody = () => {
+      const list = staffOptions();
+      const cur = cDraft.manager || "";
+      const rows = cur && !list.some((s2) => s2.name === cur)
+        ? [{ name: cur, dept: "목록에 없음" }, ...list] : list;
+      const chip = (v, label, dept) => html`
+        <button type="button" class="ordnew-mgr__chip ${cur === v ? "is-sel" : ""}"
+          role="radio" aria-checked="${cur === v ? "true" : "false"}" data-cmgr="${v}">
+          <b>${label}</b>${dept ? html`<span>${dept}</span>` : ""}
+        </button>`;
+      return html`
+        <div class="ordnew-mgr" role="radiogroup" aria-label="주문 담당자 · 우리 직원">
+          ${chip("", "지정하지 않음", "")}
+          ${rows.map((s2) => chip(s2.name, s2.name, s2.dept))}
+        </div>`;
+    };
+
+    /* 거래처 카드 본문 — **고르고 나면 목록을 접는다.**
+       ⚠️ 1단계가 카드 셋(거래처·요청자·담당자)이 되면서, 목록(168px)+검색(62px)을 계속
+          펼쳐 두면 1280x720·1366x768 에서 담당자 카드가 **폴드 아래로 통째로 사라진다**
+          (실측: 담당자 칩 top 이 스크롤포트 바닥보다 35px 아래). 목록은 고르기 전에만
+          필요하다 — 고른 뒤에는 무엇을 골랐는지 한 줄이면 되고, 그 자리를 요청자·담당자
+          카드가 받는다. '다른 거래처 선택'으로 언제든 다시 편다. */
+    const cliCardBody = () => {
+      const c = cCliOpen ? null : cClient();
+      if (!c) {
+        return html`
+          <div class="ordnew-clisrch">
+            ${icon("search", { size: 14, cls: "ordnew-clisrch__ic" })}
+            <input type="text" data-ccliq value="${cQuery}" placeholder="거래처명 · 사업자번호 · 담당 부서로 검색" aria-label="거래처 검색" />
+          </div>
+          <div class="ordnew-clilist" data-slot="clilist">${cliListBody()}</div>`;
+      }
+      return html`
+        <div class="ordnew-clipick">
+          <span class="ordnew-clipick__nm">${displayName(c, sharedBizKeys(clients()))}</span>
+          <span class="ordnew-clipick__sub">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`].filter(Boolean).join(" · ")}</span>
+          ${c.clientNote ? html`<span class="ordnew-cli__badge">거래 조건</span>` : ""}
+          <button type="button" class="ordnew-clipick__btn" data-action="ccli-reopen">다른 거래처 선택</button>
+        </div>`;
+    };
+
+    /* 부분 갱신용 렌더러 참조는 **선언이 끝난 뒤에** 잡는다 — 위로 올리면 `cliCardBody`
+       가 아직 TDZ 라 모달이 열리지도 않는다. */
+    cRenderReq = reqBody;
+    cRenderList = cliListBody;
+    cRenderCli = cliCardBody;
+    cRenderSum = { text: reqSum, warn: reqSumWarn };
+
     const step1Body = () => html`
       <section class="ord-card">
         <div class="ord-card__head">
           <b class="ord-card__t">거래처</b>
           <span class="ord-card__cap">계약단가·거래 조건·월 청구 기준이 함께 정해집니다</span>
         </div>
-        <div class="ordnew-clisrch">
-          ${icon("search", { size: 14, cls: "ordnew-clisrch__ic" })}
-          <input type="text" data-ccliq value="${cQuery}" placeholder="거래처명 · 사업자번호 · 담당 부서로 검색" aria-label="거래처 검색" />
-        </div>
-        <div class="ordnew-clilist" data-slot="clilist">${cliListBody()}</div>
-        <div class="ord-row">
-          <label class="ord-k">주문 요청자</label>
-          <div class="ord-pick">
-            <span class="ord-pick__v ${cReqLine() ? "" : "is-empty"}">
-              ${cReqLine() || (cDraft.clientId ? "선택하세요" : "거래처를 먼저 선택하세요")}</span>
-            <button type="button" class="ord-pick__btn" data-action="cpick-req" ${cDraft.clientId ? "" : "disabled"}>선택</button>
-          </div>
-          <label class="ord-k">주문 담당자</label>
-          <div class="ord-pick">
-            <span class="ord-pick__v ${cDraft.manager ? "" : "is-empty"}">${cDraft.manager || "지정하지 않음"}</span>
-            <button type="button" class="ord-pick__btn" data-action="cpick-mgr">${cDraft.manager ? "변경" : "선택"}</button>
-          </div>
-        </div>
-      </section>`;
+        <div data-slot="cli">${cliCardBody()}</div>
+      </section>
+      ${card({ title: "주문 요청자", cap: "주문을 요청한 거래처 담당자",
+               body: reqBody(), slot: "creq" })}
+      ${card({ title: "주문 담당자", cap: "이 주문을 처리할 우리 직원", body: mgrBody(), slot: "cmgr" })}`;
 
     /* ── step2: 상품·단가 + 발주정보 ── */
-    const step2Body = () => {
-      const c = cClient();
-      return html`
+    const step2Body = () => html`
         <section class="ord-card">
           <div class="ord-card__head">
             <b class="ord-card__t">상품 · 단가</b>
-            <span class="ord-card__cap">${store.contractCount(cDraft.clientId)
-              ? "이 거래처의 상품별 계약단가가 적용됩니다" : "계약단가 미등록 · 기준단가가 적용됩니다"}</span>
+            <span class="ord-card__cap">${(() => {
+              /* 레일에서 계약단가 카드를 뺐으므로 **계약 상품 개수는 여기서만 말한다** —
+                 예전엔 이 캡션이 개수를 불리언으로만 썼다. */
+              const n = store.contractCount(cDraft.clientId);
+              return n ? `${n}개 상품에 계약단가가 적용됩니다` : "계약단가 미등록 · 기준단가가 적용됩니다";
+            })()}</span>
           </div>
           ${renderFields(ORDER_FIELDS(), cDraft)}
           <div class="ord-row ord-row--full">
@@ -458,11 +623,8 @@ export function mount(root, { nav }) {
             <span class="ordnew-basis" data-slot="basis">${cBasis()}</span>
           </div>
         </section>
-        ${c && c.clientNote ? card({ title: "거래 조건", cap: c.companyName, cls: "ord-note",
-            body: html`<p class="ord-note__body">${c.clientNote}</p>` }) : ""}
         ${card({ title: "발주정보", cap: "화원 전달 내용",
                  body: renderFields(CREATE_DELIVER, cDraft) })}`;
-    };
 
     /* ── 레일 ── */
     const notifyRows = () => {
@@ -486,24 +648,26 @@ export function mount(root, { nav }) {
       });
       return rows;
     };
+    /* ⚠️ 레일에서 계약단가·계산서 발행·이번 발주 **카드는 뺐다**(사용자 지시, 2026-09-16).
+       세 값 모두 이미 다른 곳에서 말한다 — 계약단가는 '상품 · 단가' 카드 머리글과
+       '단가 기준' 줄(cBasis)이, 이번 발주 금액은 step2 hint() 푸터가, 계산서 발행일은
+       아래 식별 캡션 한 줄이 말한다. 레일의 자리는 **거래처마다 갈리는 것**,
+       곧 거래 조건(clientNote)과 알림 명단에 준다. 되살리지 말 것. */
     const railBody = (i) => {
       const c = cClient();
       if (!c) {
         return html`<div class="ord-side__h"><b class="ord-side__t">거래처 미선택</b></div>
-          <p class="ord-side__note">거래처를 고르면 계약단가·계산서 발행일·거래 조건이 여기에 표시됩니다.</p>`;
+          <p class="ord-side__note">거래처를 고르면 그 거래처의 거래 조건과 청구 기준이 여기에 표시됩니다.</p>`;
       }
-      const n = store.contractCount(c.id);
-      const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
       return html`
         <div class="ord-side__h"><b class="ord-side__t">${c.companyName}</b></div>
-        <p class="ord-side__cap">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`].filter(Boolean).join(" · ")}</p>
+        <p class="ord-side__cap">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`,
+          `매월 ${Number(c.invoiceDay) || 1}일 계산서`].filter(Boolean).join(" · ")}</p>
         <div class="rail-card">
-          <p class="rail-card__k">계약단가</p>
-          <p class="rail-card__v">${cDraft.product ? won(store.contractPrice(c.id, cDraft.product) ?? 0) || "미등록" : `${n}개 상품 등록`}</p>
-          <p class="rail-card__k" style="margin-top:9px">계산서 발행</p>
-          <p class="rail-card__v">매월 ${Number(c.invoiceDay) || 1}일</p>
-          <p class="rail-card__k" style="margin-top:9px">이번 발주</p>
-          <p class="rail-card__v">${cur ? `${won(cur)} · 1건` : "상품 선택 전"}</p>
+          <p class="rail-card__k">거래 조건</p>
+          ${c.clientNote
+            ? html`<p class="rail-card__note">${c.clientNote}</p>`
+            : html`<p class="rail-card__note rail-card__note--none">등록된 거래 조건이 없습니다 · 기준 절차로 접수합니다</p>`}
         </div>
         ${i === 1 ? html`
           <div class="ordnew-nt" data-slot="railnoti">
@@ -520,7 +684,7 @@ export function mount(root, { nav }) {
               </div>`)
               : html`<p class="ord-side__cap">받는분·발송 프로필을 입력하면 명단이 만들어집니다.</p>`}
           </div>` : ""}
-        <p class="ord-side__note">거래처를 바꾸면 계약단가·요청자·알림 설정이 초기화됩니다.</p>`;
+        <p class="ord-side__note">거래처를 바꾸면 요청자·주문상품·알림 설정이 초기화됩니다.</p>`;
     };
 
     const missing1 = () => {
@@ -555,34 +719,32 @@ export function mount(root, { nav }) {
       rail: railBody,
       submitLabel: "주문 등록",
       onSubmit: submitCreate,
-      onClose: () => { cDestroy(); createModal = null; cDraft = null; },
+      onClose: () => {
+        cDestroy();
+        createModal = null; cDraft = null;
+        cRenderReq = null; cRenderList = null; cRenderCli = null; cRenderSum = null;
+      },
     });
     bindCreateDelegates(createModal.panel);
   }
 
   /* 등록 모달 전용 위임 — 셸 패널에 1회. 슬롯 부분 갱신에도 생존한다. */
   function bindCreateDelegates(panel) {
+    /* 검색은 목록 슬롯만 갈아 끼운다 — 마크업은 `cliListBody` 한 벌뿐이다
+       (예전엔 여기에 같은 마크업이 통째로 복제돼 있어 한쪽만 고쳐질 수 있었다). */
     on(panel, "input", "[data-ccliq]", (e, t) => {
       cQuery = t.value;
-      const box = qs(panel, "[data-slot='clilist']");
-      if (box) setHTML(box, (() => {
-        const shared = sharedBizKeys(clients());
-        const q = cQuery.trim().toLowerCase();
-        const rows = clients().filter((c) => c.status === "활성").filter((c) => !q
-          || [displayName(c, shared), c.accountId, c.bizNumber, c.department].some((v) => String(v || "").toLowerCase().includes(q)));
-        if (!rows.length) return html`<p class="ordnew-cli__empty">'${cQuery}' 로 찾은 활성 거래처가 없습니다.
-          <br />정지·반려 상태의 거래처에는 주문을 등록할 수 없습니다.</p>`;
-        return html`${rows.map((c) => html`
-          <button type="button" class="ordnew-cli ${cDraft.clientId === c.id ? "is-on" : ""}"
-            data-ccli="${c.id}" aria-pressed="${cDraft.clientId === c.id ? "true" : "false"}">
-            <span class="ordnew-cli__nm">${displayName(c, shared)}</span>
-            <span class="ordnew-cli__sub">${c.bizNumber}${c.department ? ` · ${c.department}` : ""}</span>
-            ${c.clientNote ? html`<span class="ordnew-cli__badge">거래 조건</span>` : ""}
-            <span class="ordnew-cli__ch">${c.channel || "일반"}</span>
-          </button>`)}`;
-      })());
+      if (cRenderList) cPut("clilist", cRenderList());
     });
     on(panel, "click", "[data-ccli]", (e, t) => cPickClient(t.dataset.ccli));
+    /* 접힌 거래처 줄에서 목록을 다시 편다. 같은 거래처를 다시 골라도 no-op 이므로
+       (cPickClient 의 동일값 가드) 실수로 열었다 닫아도 채워 둔 값이 날아가지 않는다. */
+    on(panel, "click", "[data-action='ccli-reopen']", () => {
+      cCliOpen = true;
+      if (cRenderCli) cPut("cli", cRenderCli());
+      const q = qs(panel, "[data-ccliq]");
+      if (q) q.focus();
+    });
     on(panel, "click", "[data-action='autofill']", () => {
       openAutofill({ toast, onApply: (r) => {
         cDraft.address = r.addr;
@@ -596,36 +758,71 @@ export function mount(root, { nav }) {
         createModal.syncFooter(); createModal.markTouched();
       } });
     });
-    on(panel, "click", "[data-action='cpick-mgr']", () => {
-      openStaffPicker({ current: cDraft.manager, names: staffOptions, toast,
-        onPick: (v) => { cDraft.manager = v; createModal.rerenderStep("s1"); createModal.syncFooter(); } });
-    });
-    on(panel, "click", "[data-action='cpick-req']", () => {
-      const rows = cContacts().map((c) => ({
-        v: c.id, name: c.name || "이름 없음",
-        sub: [c.role, c.isBilling ? "정산 담당" : ""].filter(Boolean).join(" · "),
-        meta: c.phone || "연락처 미등록",
-      }));
-      openRowPicker({
-        title: "주문 요청자 선택", width: 460,
-        desc: `${(cClient() || {}).companyName || ""}의 담당자 프로필에서 선택합니다. 이 담당자가 주문을 요청한 사람으로 기록됩니다.`,
-        rows, current: cDraft.requesterId || (String(cDraft.requesterName || "").trim() ? MANUAL : ""),
-        confirmLabel: "선택", toast,
-        empty: "이 거래처에 등록된 담당자가 없습니다. 아래에서 직접 입력하세요.",
-        manual: { label: "직접 입력", hint: "담당자 프로필에 없는 요청자 — 이 주문에만 기록됩니다" },
-        onPick: (v, mv) => {
-          if (v === MANUAL) {
-            /* 저장공간에는 넣지 않는다 — 주문 한 건의 사실로만 남긴다(고아 행과 같은 원칙). */
-            cDraft.requesterId = ""; cDraft.requesterName = mv.name; cDraft.requesterPhone = mv.phone;
-          } else {
-            const c = cContacts().find((x) => x.id === v);
-            cDraft.requesterId = v;
-            cDraft.requesterName = c ? c.name : ""; cDraft.requesterPhone = c ? (c.phone || "") : "";
-          }
-          createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.syncFooter();
-        },
-        pickedMsg: (v, mv) => `주문 요청자를 ${v === MANUAL ? mv.name : (cContacts().find((x) => x.id === v) || {}).name || ""}(으)로 지정했습니다`,
+    /* 주문 담당자 칩 — 값이 그대로면 no-op(이력·토스트가 중복으로 쌓이지 않게).
+       카드를 다시 그리지 않고 클래스·aria 만 바꾼다(요청자 입력 칸의 커서 보호). */
+    on(panel, "click", "[data-cmgr]", (e, t) => {
+      const v = t.dataset.cmgr;
+      if ((cDraft.manager || "") === v) return;
+      cDraft.manager = v;
+      qsa(panel, "[data-cmgr]").forEach((b) => {
+        const on2 = b.dataset.cmgr === v;
+        b.classList.toggle("is-sel", on2);
+        b.setAttribute("aria-checked", on2 ? "true" : "false");
       });
+      createModal.syncFooter(); createModal.markTouched();
+    });
+    /* 주문 요청자 행 — 담당자 프로필에서 고르거나 '직접 입력'으로 내려간다.
+       ⚠️ **재렌더하지 않는다.** 직접 입력 칸에 커서가 있는 채로 카드를 다시 그리면
+          입력이 끊긴다 — openRowPicker 가 쓰는 것과 같은 수법(클래스·aria·disabled 토글)이다.
+       ⚠️ 숨긴 칸은 `disabled` 로 막는다 — openModal 의 포커스 트랩이 hidden 요소도
+          모으므로, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다. */
+    on(panel, "click", "[data-creq-pick]", (e, t) => {
+      const v = t.dataset.creqPick;
+      const was = cReqManualOn();
+      if (v === MANUAL) {
+        /* 저장공간에는 넣지 않는다 — 주문 한 건의 사실로만 남긴다(고아 행과 같은 원칙).
+           직접 적어 둔 값이 있으면 되살린다(행을 잘못 눌렀다 돌아온 사람에게 다시 치게 하지 않는다). */
+        if (!was) {
+          cDraft.requesterId = "";
+          cDraft.requesterName = cReqManualSnap.name;
+          cDraft.requesterPhone = cReqManualSnap.phone;
+        }
+        cReqManual = true;
+      } else {
+        if (cDraft.requesterId === v) return;
+        if (was) cReqManualSnap = { name: cDraft.requesterName || "", phone: cDraft.requesterPhone || "" };
+        const c = cContacts().find((x) => x.id === v);
+        cReqManual = false;
+        cDraft.requesterId = v;
+        cDraft.requesterName = c ? c.name : ""; cDraft.requesterPhone = c ? (c.phone || "") : "";
+      }
+      const man = cReqManualOn();
+      qsa(panel, "[data-creq-pick]").forEach((b) => {
+        const on2 = b.dataset.creqPick === (man ? MANUAL : v);
+        b.classList.toggle("is-sel", on2);
+        b.setAttribute("aria-checked", on2 ? "true" : "false");
+      });
+      const box = qs(panel, "[data-slot='creqman']");
+      if (box) {
+        box.hidden = !man;
+        qsa(box, "input").forEach((el) => {
+          el.disabled = !man;
+          if (!was && man) el.value = el.dataset.creq === "requesterPhone" ? cDraft.requesterPhone : cDraft.requesterName;
+        });
+        if (man && !was) { const n = qs(box, "[data-creq='requesterName']"); if (n) n.focus(); }
+      }
+      syncReqSum();
+      createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
+    });
+    /* 직접 입력 — write-through 만 한다. 푸터 카운터는 셸의 input 위임이
+       queueMicrotask 로 다시 세므로 여기서 건드리지 않는다. */
+    on(panel, "input", "[data-creq]", (e, t) => {
+      const k = t.dataset.creq;
+      cDraft[k] = k === "requesterPhone" ? onPhoneInput(t) : t.value;
+      cDraft.requesterId = "";   /* 직접 적은 요청자는 담당자 프로필과 무관한 사실이다 */
+      cReqManualSnap = { name: cDraft.requesterName || "", phone: cDraft.requesterPhone || "" };
+      /* ⚠️ 입력의 **형제** 한 줄만 갈아 끼운다 — 조상을 다시 그리면 커서·IME 조합이 날아간다. */
+      syncReqSum();
     });
     /* `fieldCell` 의 type:"pick" 버튼 — 발송 프로필 */
     on(panel, "click", "[data-pick='ribbonSender']", () => openProfilePicker());
@@ -653,6 +850,7 @@ export function mount(root, { nav }) {
       const on2 = t.getAttribute("aria-checked") !== "true";
       cDraft.notifyOff = on2 ? cDraft.notifyOff.filter((x) => x !== k) : [...cDraft.notifyOff, k];
       t.setAttribute("aria-checked", on2 ? "true" : "false");
+      syncReqSum();   /* 1단계 DOM 은 살아 있다 — 요청자 줄이 이 토글과 갈리면 안 된다 */
       createModal.syncFooter();
     });
     on(panel, "input", "[data-f]", (e, t) => {

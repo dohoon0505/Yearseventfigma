@@ -421,13 +421,32 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
     return d < min ? d : min;
   };
 
-  /* 값이 비었으면 min 날짜 09:00 을 기준으로 삼는다(빈 문자열을 쪼개면 NaN). */
+  /* 값이 비었을 때의 기준일 — **오늘**이다(min 이 아니다).
+     ⚠️ 주문서 등록 모달은 `deliverAt: ""` 로 시작한다. min 을 기준으로 삼으면 달력이
+        DP_MIN(2000-01-01)의 달에서 열려 '이전' 은 잠기고 '다음' 을 삼백 번 넘게 눌러야
+        올해에 닿는다 — 배송일시를 사실상 고를 수 없다. 범위 밖이면 범위 안으로 당긴다. */
+  const base = () => {
+    const n = new Date(); n.setHours(0, 0, 0, 0);
+    return min && n < min ? min : max && n > max ? max : n;
+  };
+  /* 값이 비었으면 기준일 09:00 을 쓴다(빈 문자열을 쪼개면 NaN). */
   const parts = () => {
     const v = get() || "";
     const [d, t] = String(v).split("T");
-    return { d: d || fmtD(min), t: (t || "09:00").slice(0, 5) };
+    return { d: d || fmtD(base()), t: (t || "09:00").slice(0, 5) };
   };
-  const emit = (d, t) => { set(`${d}T${t}`); renderTrigger(); renderFoot(); };
+  /* ⚠️ 달력이 열려 있으면 **확정된 날이 보이는 달로 옮기고 격자를 다시 그린다.**
+     시·분만 골라도 emit 은 기준일(오늘)로 날짜를 확정하는데, 선택 표시(sel)는 실제
+     값에서만 오므로 그냥 두면 "아무 날도 안 골랐는데 값은 오늘로 저장됨" 이 되고,
+     다른 달을 보고 있었다면 무엇이 저장됐는지 화면에서 확인할 길이 아예 없다. */
+  const emit = (d, t) => {
+    set(`${d}T${t}`);
+    renderTrigger(); renderFoot();
+    if (!root.classList.contains("is-open")) return;
+    const [y, mo] = String(d).split("-").map(Number);
+    if (y && mo) { view.y = y; view.m = mo - 1; }
+    renderGrid();
+  };
 
   function label(v) {
     const { d, t } = (() => { const [a, b] = String(v || "").split("T"); return { d: a, t: (b || "").slice(0, 5) }; })();
@@ -445,7 +464,9 @@ export function makeDateTimePicker(root, { get, set, min, max } = {}) {
   };
 
   function renderGrid() {
-    const sel = parts().d;
+    /* 선택 표시는 **실제 값**에서만 온다 — parts() 의 기본일(오늘)을 쓰면 값이 없는데도
+       오늘 칸이 선택된 것처럼 검게 칠해져 '이미 골랐다'고 읽힌다. */
+    const sel = (get() || "").split("T")[0];
     title.textContent = `${view.y}년 ${view.m + 1}월`;
     const first = new Date(view.y, view.m, 1);
     const last = new Date(view.y, view.m + 1, 0);
