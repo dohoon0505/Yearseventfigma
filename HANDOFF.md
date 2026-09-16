@@ -1,6 +1,6 @@
 # HANDOFF — 세션 인수인계
 
-> 마지막 갱신: 2026-09-16 · HEAD `ba4c3081` · origin/main 동기화 · 작업 규약은 [CLAUDE.md](CLAUDE.md) 참조
+> 마지막 갱신: 2026-09-16 · HEAD `2a14bdcf` · origin/main 동기화 · 작업 규약은 [CLAUDE.md](CLAUDE.md) 참조
 
 ## 현재 상태
 - 배포: main 푸시 → GitHub Actions 가 레포 루트를 그대로 업로드. 공개 주소 <https://corporate-partners.kr>.
@@ -9,8 +9,8 @@
 - 미커밋 변경은 `guidelines/` 3개 파일 **삭제**뿐이다(워킹트리에 `D` 로 남아 있다). 미추적 파일(`mockups/`·`백엔드 참고문서.docx`)과 마찬가지로 **의도적 로컬 상태** — 커밋·복원하지 말 것.
 - `docs/*.docx` 는 생성물이라 커밋하지 않는다. 원본은 `docs/backend-spec.md`.
 - 개발 서버는 꺼져 있을 가능성 높음 → `node serve.mjs` (localhost:8000).
-- 남은 빈 폴더 하나: `.claude/worktrees/vendor-selection-uiux-851ffb` — git 등록·브랜치는 모두
-  제거됐고 디렉터리만 잠겨 남았다. 해당 세션을 닫은 뒤 `rmdir` 하면 된다.
+- 인계 문서 4종(README·HANDOFF·CLAUDE.md·`docs/backend-spec.md`)은 HEAD 기준으로 **코드 대조 완료**다.
+  화면·공용 모듈을 고쳤으면 같은 커밋에서 해당 문서 문장도 고칠 것 — 낡은 규약은 다음 세션이 그대로 믿는다.
 
 ## 직전 구간(2026-09-15 ~ 09-16) — 주문·거래처 화면 전면 개편
 
