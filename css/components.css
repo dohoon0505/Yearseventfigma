@@ -1174,9 +1174,17 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .modal-panel--ord .ord-dtp .dd-panel { max-height: 196px; }
 .modal-panel--ordnew .ord-dtp .dd-panel { max-height: 196px; }
 
+/* ⚠️ 패널이 `overflow: visible` 이라(안쪽 시/분 드롭다운이 위로 196px 열려야 한다)
+   **면을 칠하는 마지막 요소가 스스로 아래 모서리를 둥글린다** — `.ord-hist` ·
+   `.ord-card .ord-sum__row:last-child` · `.ord-note__body` 와 같은 수법이다.
+   인플로우 자식의 배경은 부모 border 보다 **나중에** 칠해지므로, 안 그러면 회색
+   푸터가 둥근 아래 모서리 밖으로 사각으로 삐져나오고 그 구간의 1px 테두리 곡선과
+   `--sh-pop` 그림자까지 덮는다(패널 18px − 테두리 1px = 안쪽 **17px**).
+   ⚠️ `overflow: hidden` 으로 대신하지 말 것 — 위 팝오버 주석의 계약이다. */
 .ord-dtp__foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 14px; background: var(--c-surface-2); border-top: 1px solid var(--c-border);
+  border-radius: 0 0 17px 17px;
 }
 .ord-dtp__flbl { display: block; font-size: var(--fs-12); color: var(--c-text-4); }
 .ord-dtp__fval {
@@ -1387,6 +1395,9 @@ textarea.ord-in {
   height: auto; min-height: 34px; padding: 4px 8px; line-height: 1.6;
   font-weight: var(--fw-normal); resize: none; overflow: hidden;
 }
+/* ⚠️ 자리표시자는 값처럼 보이면 안 된다. `.ord-in` 은 17px semibold 진회색이라
+   물려받으면 빈 칸이 **이미 채워진 칸**으로 읽힌다(등록 모달에서 실제로 그랬다). */
+.ord-in::placeholder { font-weight: var(--fw-normal); color: var(--c-text-faint); }
 /* 읽기 전용(B2B 적용 단가·정산 귀속) — 손댈 수 없음을 hover 없음으로 알린다 */
 .ord-in--lock { color: var(--c-text-2); }
 .ord-in--lock:hover { background: transparent; }
@@ -1715,6 +1726,19 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   margin-top: 9px; font-size: var(--fs-12); line-height: 1.5;
   color: var(--c-rail-ink); word-break: break-all;
 }
+/* 다크 레일 위 거래 조건 본문 — 메모가 아니라 **지켜야 하는 조건**이라 경고 톤을 쓴다.
+   밝은 면의 `.ord-note__body`(--c-danger-ink)는 어두워 레일에서 읽히지 않는다 →
+   다크 면용 경고 토큰은 `--c-toast-warn` 이다.
+   길이가 거래처마다 5자~103자(4줄)로 갈리므로 **자체 스크롤**을 갖는다 — 레일 높이가
+   거래처 하나 때문에 흔들리면 알림 명단이 밀려난다. */
+/* ⚠️ 여기에 `max-height`+`overflow` 를 걸지 않는다. `.ordnew-railbody` 가 이미 레일의
+   넘침을 받으므로, 여기서 한 번 더 자르면 **키보드로 도달할 수 없는 두 번째 스크롤러**가
+   생긴다(스크롤 컨테이너는 포커스를 받지 못한다). 레일은 스크롤러 하나로 끝낸다. */
+.rail-card__note {
+  margin-top: 4px; font-size: var(--fs-14); line-height: 1.6;
+  color: var(--c-toast-warn); white-space: pre-line; word-break: keep-all;
+}
+.rail-card__note--none { color: var(--c-rail-ink); }
 /* 레일 안 입력칸(신규 등록 시 접속 아이디) — 다크 면 위라 흰 면으로 뒤집는다 */
 .rail-card .hm-input {
   height: 36px; padding: 0 10px; margin-top: 4px;
@@ -1901,25 +1925,22 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   display: grid; grid-template-columns: 288px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
 }
 .ordnew-rail { gap: 16px; }
-.ordnew-railbody { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+/* ⚠️ `flex: 1` 이 있어야 `.ord-side__note { margin-top: auto }` 가 산다 — 레일 본문이
+   이 래퍼 안에 들어가므로, 없으면 주의문이 레일 바닥이 아니라 카드 바로 아래에 붙는다
+   (스텝 목록이 상단을 채우던 동안은 눈에 덜 띄었다).
+   ⚠️ `overflow-y: auto` 도 함께 있어야 한다. 조상 `.ordnew-grid` 가 `overflow: hidden`
+      이라, 넘침을 받는 곳이 없으면 거래 조건이 긴 거래처 + 알림 3행에서 명단 꼬리와
+      맨 아래 주의문이 **조용히 잘려 도달 불가**가 된다(상세 모달에서 같은 결함을 이미
+      겪었다). 다크 면은 `.ord-side` 가 칠하므로 여기만 스크롤해도 흰 띠가 생기지 않는다. */
+.ordnew-railbody {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
 
-/* 2단 세로 스텝 — `.ord-step` 은 36px 가로 pill 이라 쓸 수 없다 */
-.ordnew-steps { list-style: none; margin: 0; padding: 0 0 15px; border-bottom: 1px solid var(--c-rail-line); }
-.ordnew-step {
-  display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center;
-  column-gap: 10px; row-gap: 2px; padding: 5px 0;
-}
-.ordnew-step__n {
-  grid-row: span 2; width: 22px; height: 22px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--c-rail-ink); color: var(--c-rail-ink);
-  font-size: var(--fs-12); font-weight: var(--fw-semibold);
-}
-.ordnew-step.is-now .ordnew-step__n { background: var(--c-orange); border-color: var(--c-orange); color: var(--c-surface); }
-.ordnew-step.is-done .ordnew-step__n { background: var(--c-rail-2); border-color: var(--c-rail-2); color: var(--c-surface); }
-.ordnew-step__t { font-size: var(--fs-14); color: var(--c-rail-ink); }
-.ordnew-step.is-now .ordnew-step__t { color: var(--c-surface); font-weight: var(--fw-semibold); }
-.ordnew-step__c { font-size: var(--fs-12); color: var(--c-rail-ink); }
+/* ⚠️ 여기 있던 `.ordnew-steps`/`.ordnew-step*`(세로 2단 스텝 목록)은 **제거됐다**
+   (사용자 지시, 2026-09-16). 스텝 이름은 본문 카드 머리글이, 마지막 단계 여부는
+   푸터 버튼 문구가 이미 말한다 — 레일의 자리는 거래처마다 갈리는 정보에 준다.
+   스텝 서술자의 title/cap 은 `.ordnew-pane` 의 aria-label 로 살아 있다. */
 
 /* 스텝 본문 — 두 스텝이 동시에 DOM 에 있고 hidden 으로 갈린다 */
 .ordnew-pane { display: flex; flex-direction: column; gap: 20px; }
@@ -1958,7 +1979,18 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* 컨테이너가 포커스를 표시하므로 내부 링은 끈다 — 전역 :focus-visible 은 box-shadow 다 */
 .ordnew-clisrch input:focus-visible { box-shadow: none; outline: none; }
 .ordnew-clisrch input::placeholder { color: var(--c-text-faint); }
-.ordnew-clilist { max-height: 232px; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 6px; }
+/* 요청자·담당자를 카드로 떼어낸 뒤로 이 목록에 규칙이 둘 붙었다.
+   ⚠️ 높이 — 1단계가 이제 카드 셋(거래처·요청자·담당자)이다. 목록은 **고르기 전에만**
+      펼쳐져 있고(고르면 한 줄로 접힌다) 검색이 있으므로, 훑어보기에 필요한 만큼만 준다.
+   ⚠️ 모서리 — 이 목록이 거래처 카드의 **마지막 자식**이다. `.ord-card` 는 18px 둥근
+      모서리에 overflow 를 걸 수 없으므로(드롭다운이 나가야 한다) 면을 칠하는 마지막
+      요소가 스스로 둥근다 — 여기서는 스크롤바가 카드 우하단 곡선을 1px 옆에서
+      사각으로 가로지른다. 18px − 테두리 1px = 안쪽 **17px**. */
+.ordnew-clilist {
+  /* 위쪽 패딩 0 이면 첫 행의 포커스 아웃라인 윗변이 스크롤러에 잘린다. */
+  max-height: 168px; overflow-y: auto; padding: 5px 12px 6px;
+  border-radius: 0 0 17px 17px;
+}
 .ordnew-cli {
   display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
   padding: 11px 14px; border-radius: var(--r-lg); border: 1px solid transparent; background: none;
@@ -1976,6 +2008,116 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .ordnew-cli__ch { margin-left: auto; flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-faint); }
 .ordnew-cli__empty { padding: 26px 16px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); line-height: 1.7; }
+/* 고른 뒤 접힌 한 줄 — 목록·검색이 차지하던 230px 을 요청자·담당자 카드에 넘겨 준다 */
+.ordnew-clipick {
+  display: flex; align-items: baseline; gap: 10px; padding: 13px 20px 15px; min-width: 0;
+}
+.ordnew-clipick__nm {
+  flex: 0 0 auto; font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ordnew-clipick__sub {
+  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ordnew-clipick__btn {
+  flex: 0 0 auto; min-height: 32px; padding: 0 13px; border-radius: var(--r-pill);
+  border: 1px solid var(--c-border-input); background: var(--c-surface);
+  font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-text-3);
+}
+.ordnew-clipick__btn:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+
+/* ── 주문 요청자 · 주문 담당자 (등록 모달 1단계) ──────────────
+   ⚠️ 예전엔 거래처 카드 맨 아랫줄의 작은 '선택' 버튼 두 개였다. 요청자는 필수인데
+      이관 거래처 19곳 중 18곳이 담당자 0명이라, 그 버튼은 거의 언제나 다이얼로그를
+      열어 '직접 입력' 행을 찾아 누르는 4클릭 우회로였다 — 예외가 주경로였다.
+      그래서 **카드로 떼어 내고 목록·입력 칸을 그 자리에 펼친다**. */
+/* 담당자가 많은 거래처(관리자가 추가할 수 있다)에서도 카드가 무한히 자라지 않게
+   목록 자체가 스크롤한다 — 3명 + '직접 입력' 까지는 스크롤이 생기지 않는 높이다. */
+.ordnew-req {
+  display: flex; flex-direction: column; gap: 5px; padding: 11px 20px 5px;
+  max-height: 208px; overflow-y: auto;
+}
+.ordnew-req__row {
+  display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 44px;
+  text-align: left; padding: 10px 13px; border-radius: var(--r-lg);
+  border: 1px solid var(--c-border-input); background: var(--c-surface);
+  transition: background 0.15s, border-color 0.15s;
+}
+.ordnew-req__row:hover { border-color: var(--c-border-strong); background: var(--c-surface-hover); }
+.ordnew-req__row.is-sel { border-color: var(--c-orange); background: var(--c-orange-soft); }
+.ordnew-req__nm {
+  flex: 0 0 auto; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+}
+.ordnew-req__row.is-sel .ordnew-req__nm { color: var(--c-orange-ink); }
+.ordnew-req__sub {
+  /* 13px 에 `--c-text-muted`(#888)는 3.5:1 로 AA 미달이다. 이 줄은 '알림 수신 꺼짐'
+     같은 판단 근거를 나르므로 `--c-text-4`(5.7:1)로 올린다. */
+  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-4);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ordnew-req__ph {
+  flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums;
+}
+.ordnew-req__lead { padding: 12px 20px 4px; font-size: var(--fs-13); line-height: 1.6; color: var(--c-text-muted); }
+/* ⚠️ 전역 `:focus-visible` 링은 `--ring`(주황 9% 알파)이라 흰 카드 위에서 **사실상 보이지
+   않는다**(대비 1.1:1). 이 세 컨트롤은 이제 1단계의 주 조작 수단이므로 키보드 초점을
+   눈에 보이게 그린다 — 색은 이 레포가 이미 '필드 포커스'로 쓰는 인디고다. */
+.ordnew-req__row:focus-visible,
+.ordnew-mgr__chip:focus-visible,
+.ordnew-clipick__btn:focus-visible,
+.ordnew-cli:focus-visible {
+  outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none;
+}
+/* 확정된 요청자 한 줄 — '연락처가 없으면 배송완료 알림을 못 보낸다'는 사실이 1단계에
+   보이는 유일한 자리다(레일의 알림 명단은 2단계에서만 그려진다). */
+.ordnew-req__sum {
+  padding: 2px 20px 12px; font-size: var(--fs-13); line-height: 1.6;
+  color: var(--c-text-muted); word-break: keep-all;
+}
+/* `--c-warn-soft-ink`(#e65100)는 흰 면에서 3.8:1 로 AA 미달이다 — 흰 면의 경고 잉크는
+   `.ord-note__body` 가 쓰는 `--c-danger-ink`(5.9:1)가 이 레포의 선례다. */
+.ordnew-req__sum.is-warn { color: var(--c-danger-ink); font-weight: var(--fw-medium); }
+/* ⚠️ `.ord-row { display: grid }` 가 같은 특이도의 `[hidden]` 을 이기므로(뒤 선언 우선)
+   숨김은 클래스를 낀 (0,2,0)으로 못박는다 — `.ordnew-pane[hidden]` 과 같은 이유. */
+.ordnew-req__man[hidden] { display: none; }
+/* 요약 한 줄이 뒤따르므로 `.ord-card .ord-row:last-child { border-bottom: 0 }` 이 걸리지
+   않는다 — 그대로 두면 카드를 가로지르는 1px 선이 남고 요약이 카드 밖 꼬리처럼 보인다. */
+.ordnew-req__man { border-bottom: 0; }
+
+/* 담당자 칩 — 내부 직원은 5명뿐이다. 다이얼로그를 열 이유가 없다.
+   담당자가 늘면 줄바꿈으로 자라므로, 세 줄을 넘기면 카드 대신 칩 목록이 스크롤한다
+   (요청자 목록과 같은 이유 — 카드 하나가 1단계 전체를 밀어내면 안 된다). */
+.ordnew-mgr {
+  display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 20px;
+  max-height: 160px; overflow-y: auto;
+  /* 담당자 카드의 마지막 자식이고 스크롤러다 — 스크롤바가 카드 우하단 곡선을 사각으로
+     가로지르지 않게 스스로 둥근다(18px − 테두리 1px = 안쪽 17px). */
+  border-radius: 0 0 17px 17px;
+}
+.ordnew-mgr__chip {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--c-border-input); background: var(--c-surface);
+  transition: background 0.15s, border-color 0.15s;
+}
+.ordnew-mgr__chip:hover { border-color: var(--c-border-strong); background: var(--c-surface-hover); }
+.ordnew-mgr__chip.is-sel { border-color: var(--c-orange); background: var(--c-orange-soft); }
+.ordnew-mgr__chip b { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.ordnew-mgr__chip.is-sel b { color: var(--c-orange-ink); }
+.ordnew-mgr__chip span { font-size: var(--fs-12); color: var(--c-text-4); }
+.ordnew-mgr__chip.is-sel span { color: var(--c-orange-ink); }
+
+/* ⚠️ 세로가 짧은 화면의 축소는 **기본 규칙 뒤에** 와야 한다. 미디어 쿼리는 특이도를
+   올리지 않으므로, 파일 앞쪽 `@media (max-height:820px)` 블록에 적으면 뒤에 오는
+   같은 특이도(0,1,0)의 기본 선언이 이겨 통째로 죽는다(실제로 죽어 있었다).
+   1단계는 카드 셋이라 13~14" 노트북에서 담당자 카드가 폴드 아래로 사라진다 — 목록이
+   먼저 양보한다(검색이 있으므로 목록은 훑어보는 용도다). */
+@media (max-height: 820px) {
+  .ordnew-clilist { max-height: 120px; }
+  .ordnew-req { max-height: 150px; }
+  .ordnew-mgr { padding: 9px 20px; }
+  .ordnew-req__sum { padding: 2px 20px 9px; }
+}
 
 /* 단가 기준 한 줄 — 계약과 다르면 경고색으로 */
 .ordnew-basis { font-size: var(--fs-14); color: var(--c-text-muted); }

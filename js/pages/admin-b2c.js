@@ -335,7 +335,28 @@ export function mount(root, { nav }) {
   const chanMeta = (v) => B2C_CHANNEL_META[v] || { desc: "", fee: "" };
 
   function openCreate() {
+    if (createModal) return;   /* 두 번 눌러 등록 모달이 겹쳐 열리지 않게 */
     cDraft = draftOrder();
+
+    /* 주문 담당자 — 내부 직원은 5명뿐이다. 작은 '선택' 버튼으로 다이얼로그를 열 이유가
+       없어 칩으로 펼친다(B2B 등록 모달과 같은 마크업 · `.ordnew-mgr`).
+       ⚠️ 목록에서 사라진 담당자는 맨 앞에 남긴다 — 조용한 재배정이 가장 나쁜 결과다. */
+    const mgrBody = () => {
+      const list = staffOptions();
+      const cur = cDraft.manager || "";
+      const rows = cur && !list.some((s2) => s2.name === cur)
+        ? [{ name: cur, dept: "목록에 없음" }, ...list] : list;
+      const chip = (v, label, dept) => html`
+        <button type="button" class="ordnew-mgr__chip ${cur === v ? "is-sel" : ""}"
+          role="radio" aria-checked="${cur === v ? "true" : "false"}" data-cmgr="${v}">
+          <b>${label}</b>${dept ? html`<span>${dept}</span>` : ""}
+        </button>`;
+      return html`
+        <div class="ordnew-mgr" role="radiogroup" aria-label="주문 담당자 · 우리 직원">
+          ${chip("", "지정하지 않음", "")}
+          ${rows.map((s2) => chip(s2.name, s2.name, s2.dept))}
+        </div>`;
+    };
 
     /* ── step1: 주문경로 · 결제 ── */
     const step1Body = () => html`
@@ -363,14 +384,8 @@ export function mount(root, { nav }) {
           <label class="ord-k">접수일시</label>
           <input class="ord-in ord-in--num" data-cf="receivedAt" value="${cDraft.receivedAt}" />
         </div>
-        <div class="ord-row ord-row--full">
-          <label class="ord-k">주문 담당자</label>
-          <div class="ord-pick" data-slot="cmgr">
-            <span class="ord-pick__v ${cDraft.manager ? "" : "is-empty"}">${cDraft.manager || "지정하지 않음"}</span>
-            <button type="button" class="ord-pick__btn" data-action="cpick-mgr">${cDraft.manager ? "변경" : "선택"}</button>
-          </div>
-        </div>
-      </section>`;
+      </section>
+      ${card({ title: "주문 담당자", cap: "이 주문을 처리할 우리 직원", body: mgrBody(), slot: "cmgr" })}`;
 
     /* ── step2: 주문 내용 — 상세 모달과 **같은 서술자 배열**을 읽는다 ── */
     const step2Body = () => html`
@@ -458,11 +473,17 @@ export function mount(root, { nav }) {
         createModal.syncFooter(); createModal.markTouched();
       } });
     });
-    on(panel, "click", "[data-action='cpick-mgr']", () => {
-      openStaffPicker({
-        current: cDraft.manager, names: staffOptions, toast,
-        onPick: (v) => { cDraft.manager = v; createModal.rerenderStep("s1"); },
+    /* 담당자 칩 — 카드를 다시 그리지 않고 클래스·aria 만 바꾼다(접수일시 칸의 커서 보호). */
+    on(panel, "click", "[data-cmgr]", (e, t) => {
+      const v = t.dataset.cmgr;
+      if ((cDraft.manager || "") === v) return;
+      cDraft.manager = v;
+      qsa(panel, "[data-cmgr]").forEach((b) => {
+        const on2 = b.dataset.cmgr === v;
+        b.classList.toggle("is-sel", on2);
+        b.setAttribute("aria-checked", on2 ? "true" : "false");
       });
+      createModal.syncFooter(); createModal.markTouched();
     });
     /* 값 입력은 draft 로 write-through — 행을 다시 그리지 않는다(커서 유지). */
     on(panel, "input", "[data-cf]", (e, t) => { cDraft[t.dataset.cf] = t.value; });
