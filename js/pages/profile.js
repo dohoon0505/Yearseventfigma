@@ -13,12 +13,12 @@ export function mount(root, { nav }) {
 
   /* 키는 담당자=id, 프로필=no. 담당자의 no 는 표시 순번이라 쓰기마다 다시 매겨진다 —
      no 로 지목하면 삭제 후 엉뚱한 사람이 바뀐다. */
-  const editBtn = (kind, key) => html`<button class="ptbl-edit" data-action="edit" data-kind="${kind}" data-key="${key}" aria-label="수정">${icon("pencil", { size: 14 })}</button>`;
-  const delBtn = (kind, key) => html`<button class="ptbl-del" data-action="del" data-kind="${kind}" data-key="${key}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
+  const editBtn = (kind, key) => html`<button class="tbl-edit" data-action="edit" data-kind="${kind}" data-key="${key}" aria-label="수정">${icon("pencil", { size: 14 })}</button>`;
+  const delBtn = (kind, key) => html`<button class="tbl-del" data-action="del" data-kind="${kind}" data-key="${key}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
   const billingCell = (r) =>
     r.isBilling
-      ? html`<span class="pill pill--blue ptbl-billing">${icon("check-circle", { size: 12 })} 정산·회계 담당</span>`
-      : html`<button class="ptbl-setbilling" data-action="set-billing" data-key="${r.id}">정산담당 지정</button>`;
+      ? html`<span class="pill pill--blue tbl-billing">${icon("check-circle", { size: 12 })} 정산·회계 담당</span>`
+      : html`<button class="tbl-setbilling" data-action="set-billing" data-key="${r.id}">정산담당 지정</button>`;
   const billingSummary = () => {
     const b = store.getBillingContact();
     return b

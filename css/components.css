@@ -618,21 +618,21 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    USER profile · ADMIN clients/b2c/staff 가 공유한다. 원래 profile.css 에만
    정의돼 있어 admin 3개 페이지가 전역 CSS 로드 순서에 기대는 암시적 의존이었다.
    components.css 는 페이지 CSS 보다 먼저 로드돼 페이지별 오버라이드가 자연히 이긴다. */
-.ptbl-edit,
-.ptbl-del {
+.tbl-edit,
+.tbl-del {
   display: inline-flex;
   padding: 6px;
   border-radius: 4px;
   transition: background 0.15s;
 }
-.ptbl-edit { color: var(--c-blue); }
-.ptbl-edit:hover { background: var(--c-blue-soft); }
-.ptbl-del { color: var(--c-danger); }
-.ptbl-del:hover { background: var(--c-danger-bg); }
-/* 정산·회계 담당자 지정 — 포털(#/app/profile)·관리자 담당자 관리(#/admin/contacts)가
+.tbl-edit { color: var(--c-blue); }
+.tbl-edit:hover { background: var(--c-blue-soft); }
+.tbl-del { color: var(--c-danger); }
+.tbl-del:hover { background: var(--c-danger-bg); }
+/* 정산·회계 담당자 지정 — 포털(#/app/profile)·관리자 담당자 관리 다이얼로그가
    같은 표 행 액션을 쓴다. 예전엔 profile.css 에만 있어 관리자 화면이 포털 CSS 의
    전역 로드에 조용히 기대고 있었다(CLAUDE.md: 공용 클래스는 components.css). */
-.ptbl-setbilling {
+.tbl-setbilling {
   padding: 5px 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--c-border-input-2);
@@ -643,28 +643,28 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   white-space: nowrap;
   transition: all 0.15s;
 }
-.ptbl-setbilling:hover {
+.tbl-setbilling:hover {
   border-color: var(--c-indigo);
   color: var(--c-indigo);
 }
-.ptbl-billing {
+.tbl-billing {
   gap: 4px;
 }
 /* 정산담당은 직접 삭제할 수 없다 — 버튼 자리에 잠긴 아이콘을 남겨 '왜 못 지우는지'를 말한다.
    자리를 비우면 행마다 삭제 칸이 들쭉날쭉해지고 이유도 사라진다. */
-.ptbl-lock { display: inline-flex; padding: 6px; color: var(--c-text-dim); cursor: not-allowed; }
+.tbl-lock { display: inline-flex; padding: 6px; color: var(--c-text-dim); cursor: not-allowed; }
 /* 담당자 관리 — 목록 '관리' 열의 세 번째 액션. 인원수를 함께 찍어 목록에서
    "담당자가 비어 있는 거래처"가 보이게 한다(이관 19곳 중 18곳이 0명이다). */
-.ptbl-users {
+.tbl-users {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 6px 8px 6px 6px; border-radius: var(--r-sm);
   background: none; border: 0; color: var(--c-blue);
   transition: background 0.15s, color 0.15s;
 }
-.ptbl-users:hover { background: var(--c-blue-soft); }
-.ptbl-users__n { font-size: var(--fs-11); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
-.ptbl-users.is-empty { color: var(--c-text-dim); }
-.ptbl-users.is-empty:hover { background: var(--c-surface-hover); color: var(--c-text-3); }
+.tbl-users:hover { background: var(--c-blue-soft); }
+.tbl-users__n { font-size: var(--fs-11); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.tbl-users.is-empty { color: var(--c-text-dim); }
+.tbl-users.is-empty:hover { background: var(--c-surface-hover); color: var(--c-text-3); }
 
 
 /* ── Toggle switch ──────────────────────────────────────── */
@@ -964,7 +964,7 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 
 /* ══════════════════════════════════════════════════════════════
    .ord-* — 주문 관리 화면 공용 (통합주문관리 · 거래처 주문관리)
-   B2C 통합주문관리에서 검증한 뒤 승격했다(.bf-*·.ptbl-* 와 같은 경로).
+   B2C 통합주문관리에서 검증한 뒤 승격했다(.bf-*·.tbl-* 와 같은 경로).
    목록 셀 · 읽기 우선 모달 셸 · 구역 카드 · 편집 폼 · 처리 레일.
 
    ℹ️ 예전엔 "반드시 파일 끝에" 제약이 있었다 — `.modal-panel--ord .dd-panel` 이
@@ -1859,7 +1859,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* ── 거래처 담당자 다이얼로그 (util/contacts-modal.js) ───────────
    거래처 원장(모달)에서 걷어낸 담당자 표가 여기 산다. 목록의 사람 아이콘과
    원장 레일의 '정산·회계 담당자' 카드가 같은 다이얼로그를 연다.
-   행 액션(.ptbl-setbilling/.ptbl-billing/.ptbl-lock)은 위쪽 공용 블록에 있다. */
+   행 액션(.tbl-setbilling/.tbl-billing/.tbl-lock)은 위쪽 공용 블록에 있다. */
 .modal-panel--ctc { width: 900px; max-width: calc(100vw - 48px); }
 .modal-panel--ctc .hm__head p { font-size: var(--fs-13); color: var(--c-text-muted); margin-top: 3px; }
 /* 담당자가 늘어도 다이얼로그 높이가 흔들리지 않게 표만 자른다 */

@@ -51,7 +51,7 @@
   background: var(--c-blue-hover);
 }
 
-/* 정산·회계 담당자 지정(.ptbl-setbilling/.ptbl-billing)은 components.css 로 옮겼다
+/* 정산·회계 담당자 지정(.tbl-setbilling/.tbl-billing)은 components.css 로 옮겼다
    — 포털·관리자 담당자 관리 세 화면이 같은 표 행 액션을 쓴다. */
 .psec-billnote {
   display: flex;
