@@ -17,6 +17,8 @@
 import { html, on, qs, qsa } from "../dom.js";
 import { onPhoneInput } from "./phone.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
+import { parseOrderText } from "../data/order-text.js";
+import { ALL_PRODUCTS } from "../store.js";
 import { openDialog, dlgRule, dlgRow, dlgPick, dlgList, dlgActions, bindPick } from "./dialog.js";
 
 export const MANUAL = "__manual";
@@ -177,22 +179,44 @@ export function openRowPicker(o) {
    (모달을 닫고 토스트로 알리면 사용자가 방금 붙여 넣은 링크를 잃는다.)
    ────────────────────────────────────────────────────────── */
 
-/* 세그먼트 3종. 링크 둘은 **무엇을 넣는지 먼저 정한다** — 넣고 나서 종류가 어긋나면
-   그 자리에서 알려 준다(청첩장 링크를 부고장 칸에 붙여 넣는 실수가 잦다).
-   ⚠️ 텍스트 인식은 **문장 해석이 아니다.** 데모 파서는 문자열 안에서 아는 도메인을
-      찾을 뿐이라(`parseOrderUrl` 이 `includes` 로 판정한다) 문장 안에 링크가 있어야 한다.
-      힌트 문구가 할 수 있는 것보다 크게 말하면 그건 거짓 약속이다. */
+/* 세그먼트 3종 — **입력의 종류가 다르다.**
+   · 링크 둘: 부고장/청첩장 URL. 무엇을 넣는지 먼저 고르게 하고, 넣은 뒤 종류가
+     어긋나면 그 자리에서 알려 준다(청첩장 링크를 부고장 칸에 붙여 넣는 실수가 잦다).
+   · 텍스트 인식: **거래처가 보낸 평문 주문서**다(링크가 아니다). 주소·받는분·연락처·
+     일시·리본문구·보내는분을 문장에서 읽는다 — 판정은 `data/order-text.js` 한 곳이다.
+   ⚠️ 못 읽은 줄은 버리지 않고 요청사항으로 넘긴다. 상품·금액은 청구 근거라
+      카탈로그 이름과 정확히 맞을 때만 채우고, 나머지는 담당자가 눈으로 고른다. */
 const AU_MODES = [
   { k: "obit", seg: "부고장 자동입력", label: "부고장 링크", ph: "https://..." },
   { k: "wed", seg: "청첩장 자동입력", label: "청첩장 링크", ph: "https://..." },
-  { k: "text", seg: "텍스트 인식", label: "부고 · 청첩 문자", ph: "받은 문자를 그대로 붙여 넣으세요" },
+  { k: "text", seg: "텍스트 인식", label: "주문 문자 본문",
+    ph: "받은 문자를 그대로 붙여 넣으세요\n\n예) 대구광역시 수성구 동원로 123\n최창규님 (010-0000-0000)\n생신을 진심으로 축하드립니다" },
 ];
 const AU_FOOT = "금액과 상품은 직접 확인해 주세요";
 const auMode = (k) => AU_MODES.find((m) => m.k === k) || AU_MODES[0];
 const auHint = (k) =>
   k === "text"
-    ? "문자에 포함된 부고장·청첩장 링크를 찾아 채웁니다. 문장 해석은 실 API 연동 예정입니다."
+    ? "주소 · 받는분 · 연락처 · 일시 · 리본문구 · 보내는분을 문장에서 찾아 채웁니다. 못 읽은 줄은 요청사항에 남깁니다."
     : `인식 가능한 링크 · ${AUTOFILL_HINT}`;
+/* 채운 항목을 사람 말로 — 토스트가 "무엇이 들어갔는지"를 말해야 담당자가 확인할 곳을 안다.
+   순서는 주문서에 놓인 순서를 따른다(파서가 읽은 순서가 아니라). `time`·`vague` 는
+   `date` 가 대표하므로 라벨을 주지 않는다 — '배송일 · 시각' 두 번 말할 이유가 없다. */
+const GOT_ORDER = ["addr", "toName", "toPhone", "date", "ribbonPhrase", "ribbonSender", "product", "amount"];
+const GOT_LABEL = {
+  addr: "배송지", toName: "받는분", toPhone: "연락처", date: "배송일시",
+  ribbonPhrase: "리본문구", ribbonSender: "보내는분", product: "상품", amount: "금액",
+};
+/** 받침이 있으면 '을', 없으면 '를' — "을(를)" 은 기계가 쓴 티가 난다. */
+const eul = (w) => {
+  const c = String(w || "").charCodeAt(String(w || "").length - 1);
+  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? "을" : "를";
+};
+const gotText = (got) => {
+  const set = new Set(got || []);
+  const names = GOT_ORDER.filter((k) => set.has(k)).map((k) => GOT_LABEL[k]);
+  if (!names.length) return "";
+  return names.length <= 3 ? names.join(" · ") : `${names.slice(0, 3).join(" · ")} 외 ${names.length - 3}건`;
+};
 
 export function openAutofill({ toast, onApply }) {
   let mode = "obit";
@@ -303,17 +327,22 @@ export function openAutofill({ toast, onApply }) {
       showErr(mode === "text" ? "문자를 붙여 넣으세요." : "링크를 붙여 넣으세요.");
       return;
     }
-    /* 텍스트 모드도 **같은 파서**에 문자열 전체를 넘긴다 — `parseOrderUrl` 은
-       `includes` 판정이라 문장 한가운데 있는 링크도 찾아낸다. */
+    /* 텍스트 모드는 **다른 파서**다 — 링크가 아니라 사람이 쓴 문장을 읽는다. */
+    if (mode === "text") {
+      const t = parseOrderText(raw, { catalog: ALL_PRODUCTS.map((p) => p.product) });
+      if (!t) {
+        showErr("문자에서 읽을 수 있는 항목이 없습니다. 배송지·받는분·연락처·일시·리본문구가 들어 있는지 확인해 주세요.");
+        return;
+      }
+      d.close();
+      onApply({ source: "text", ...t });
+      const what = gotText(t.got);
+      toast(what ? `문자에서 ${what}${eul(what)} 채웠습니다` : "문자에서 배송 정보를 불러왔습니다", "ok");
+      return;
+    }
     const res = parseOrderUrl(raw);
     if (!res) {
-      /* 실패 안내는 아는 도메인 목록과 함께. 링크 모드는 아래 힌트 줄이 그 목록을
-         이미 띄우고 있고, 텍스트 모드는 힌트 줄이 다른 말을 하므로 여기서 같이 적는다. */
-      showErr(
-        mode === "text"
-          ? `문자에서 인식할 수 있는 링크를 찾지 못했습니다. 인식 가능한 링크 · ${AUTOFILL_HINT}`
-          : "인식하지 못한 링크입니다. 아래 목록의 링크인지 확인하세요.",
-      );
+      showErr("인식하지 못한 링크입니다. 아래 목록의 링크인지 확인하세요.");
       return;
     }
     if (mode !== "text" && res.kind !== mode) {
@@ -325,7 +354,14 @@ export function openAutofill({ toast, onApply }) {
       return;
     }
     d.close();
-    onApply && onApply(res);
+    /* 링크 결과도 **텍스트 결과와 같은 모양**으로 넘긴다 — 상대 일자(dayOffset)를
+       여기서 절대 일시로 바꿔 두면 호출부가 매핑을 두 벌로 갖지 않는다. */
+    const when = res.dayOffset != null
+      ? (() => { const x = new Date(); x.setDate(x.getDate() + res.dayOffset); return {
+          date: `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`,
+          time: `${res.hour}:${res.min}` }; })()
+      : { date: "", time: "" };
+    onApply && onApply({ source: "link", ...res, ...when, got: ["addr", "toName", "toPhone", ...(when.date ? ["date"] : [])] });
     toast &&
       toast(
         res.kind === "obit" ? "부고장에서 배송 정보를 불러왔습니다" : "청첩장에서 배송 정보를 불러왔습니다",

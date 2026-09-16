@@ -30,6 +30,7 @@ import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
+import { applyOrderText } from "../data/order-text.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
@@ -747,14 +748,11 @@ export function mount(root, { nav }) {
       if (q) q.focus();
     });
     on(panel, "click", "[data-action='autofill']", () => {
+      /* 링크·문자 어느 쪽이든 **매핑은 한 곳**(data/order-text.js)이다 —
+         화면마다 적으면 같은 입력이 화면마다 다르게 채워진다.
+         ⚠️ 읽은 것만 덮는다(빈 값으로 기존 입력을 지우지 않는다). */
       openAutofill({ toast, onApply: (r) => {
-        cDraft.address = r.addr;
-        cDraft.recipientName = r.toName;
-        cDraft.recipientPhone = r.toPhone;
-        if (r.kind === "wed" && r.dayOffset != null) {
-          const d = new Date(); d.setDate(d.getDate() + r.dayOffset);
-          cDraft.deliverAt = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${r.hour}:${r.min}`;
-        }
+        applyOrderText(cDraft, r);
         createModal.rerenderStep("s2"); createModal.rerenderRail();
         createModal.syncFooter(); createModal.markTouched();
       } });
