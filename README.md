@@ -47,15 +47,18 @@ js/
   dom.js                # html`` 템플릿(XSS 이스케이프) · setHTML · on() 이벤트 위임
   icons.js              # lucide 아이콘 SVG 스프라이트
   toast.js              # makeToast
-  ui.js                 # pageTitle · tableGrid · openModal/closeAllModals · simpleModal
-                        #  · openLightbox · makeDropdown · makeDatepicker · makeDateTimePicker
+  ui.js                 # pageTitle · tableGrid · rowToneLegend · openModal/closeAllModals
+                        #  · simpleModal · openLightbox
+                        #  · makeDropdown · makeDatepicker · makeDateTimePicker
   invoice-doc.js        # 거래명세서 인쇄창 (별도 window — tokens.css 미로드라 hex 예외)
   report-doc.js         # 리포트 인쇄창 (같은 이유로 hex 예외)
+  public-delivery.js    # delivery/ 전용 — 비모듈 IIFE (쿼리스트링 → 배송완료 리포트)
+  public-invoice.js     # invoice/ 전용 — ES 모듈 (dom·icons·invoice-doc·invoice-links 재사용)
   pages/*.js            # 페이지 모듈 (mount(root, { nav }) → cleanup)
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
-delivery/ invoice/      # 로그인 없는 공개 페이지 (단독 index.html + 비모듈 IIFE)
+delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
 serve.mjs               # 개발용 정적 서버
@@ -112,7 +115,7 @@ serve.mjs               # 개발용 정적 서버
 ## 참고
 
 - 백엔드·인증은 미구현(목데이터). 로그인은 입력 검증 후 바로 진입합니다.
-- 영속 데이터(거래처·담당자·발송 프로필·상품단가)는 `localStorage` 키 **`yeop.store.v4`**
+- 영속 데이터(거래처·담당자·발송 프로필·상품단가·즐겨찾기)는 `localStorage` 키 **`yeop.store.v4`**
   에 저장됩니다. 주문은 모듈 메모리라 새로고침하면 시드로 돌아갑니다.
 - **색은 `tokens.css` 토큰만** 씁니다. raw hex 는 인쇄창 2곳(`invoice-doc.js`·`report-doc.js`)과
   엑셀 ARGB(`util/xlsx.js`)만 예외입니다 — 그 창은 `tokens.css` 를 로드하지 않습니다.
