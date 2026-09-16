@@ -317,7 +317,6 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .hm-grid2 + .hm-info, .hm-grid2 + .hm-warn { margin-top: 14px; }
 .hm-help { font-size: 11.5px; color: var(--c-text-muted); margin-top: 6px; }
 /* hm-field 안의 액션 버튼(예: 임시비밀번호 발급) — 입력칸 높이에 맞춘다. */
-.hm-field__act { width: 100%; height: 44px; }
 .hm-section { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-text-muted); margin: 22px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--c-divider); }
 .hm-section:first-child { margin-top: 4px; }
 /* 리본 미리보기 · 라디오 카드 (프로필 모달 등) */
@@ -633,8 +632,8 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    같은 표 행 액션을 쓴다. 예전엔 profile.css 에만 있어 관리자 화면이 포털 CSS 의
    전역 로드에 조용히 기대고 있었다(CLAUDE.md: 공용 클래스는 components.css). */
 .tbl-setbilling {
-  padding: 5px 10px;
-  border-radius: var(--r-sm);
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--c-border-input-2);
   background: var(--c-surface);
   color: var(--c-text-4);
@@ -685,6 +684,10 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .toggle[aria-checked="true"] {
   background: var(--c-blue);
 }
+/* 보낼 곳이 없으면 켤 수 없다 — 연락처가 빈 담당자의 알림톡 토글(시안).
+   비활성을 색으로만 말하면 왜 안 눌리는지 모른다 → cursor 도 함께 바꾼다. */
+.toggle:disabled { background: var(--c-fill-3); cursor: not-allowed; }
+.toggle:disabled .toggle__knob { box-shadow: none; }
 .toggle__knob {
   position: absolute;
   left: 2px;
@@ -1100,7 +1103,7 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 }
 .ord-dtp__trigger:hover { background: var(--c-fill-1); }
 .ord-dtp.is-open .ord-dtp__trigger {
-  background: var(--c-surface); border-color: var(--c-orange); box-shadow: var(--ring);
+  background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
 }
 .ord-dtp__trigger .icon { flex: 0 0 auto; color: var(--c-text-muted); }
 
@@ -1114,7 +1117,7 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    ⚠️ overflow 를 막지 말 것 — 안쪽 시/분 드롭다운이 위로 196px 열린다. */
 .ord-dtp__panel {
   display: none; position: fixed; left: 0; top: 0; z-index: calc(var(--z-modal) + 5);
-  width: 320px; max-width: calc(100vw - 16px);
+  width: 376px; max-width: calc(100vw - 16px);
   background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: var(--r-2xl); box-shadow: var(--sh-pop);
   overflow: visible;
@@ -1122,7 +1125,7 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-dtp.is-open .ord-dtp__panel { display: block; }
 .ord-dtp .cal-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px 8px;
+  padding: 16px 24px 8px;
 }
 .ord-dtp .cal-title { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-strong); }
 .ord-dtp .cal-nav {
@@ -1131,12 +1134,13 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 }
 .ord-dtp .cal-nav:hover:not(:disabled) { background: var(--c-surface-2); }
 .ord-dtp .cal-nav:disabled { color: var(--c-border-strong); cursor: default; }
-.ord-dtp .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 14px 12px; }
+.ord-dtp .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 24px 6px; }
 .ord-dtp .cal-dow {
   font-size: var(--fs-12); color: var(--c-text-muted); text-align: center;
   padding: 2px 0; font-weight: var(--fw-semibold);
 }
 .ord-dtp .cal-dow.sun { color: var(--c-danger-ink); }
+.ord-dtp .cal-dow.sat { color: var(--c-text-4); }
 .ord-dtp .cal-day {
   height: 40px; border-radius: var(--r-xl); display: grid; place-items: center;
   font-size: var(--fs-14); color: var(--c-text-2); font-variant-numeric: tabular-nums;
@@ -1146,15 +1150,22 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .ord-dtp .cal-day.sat { color: var(--c-text-4); }
 .ord-dtp .cal-day:hover:not(.dis):not(.sel) { background: var(--c-surface-2); }
 .ord-dtp .cal-day.dis { color: var(--c-border-input-2); cursor: default; }
-.ord-dtp .cal-day.today:not(.sel) { box-shadow: inset 0 0 0 1.5px var(--c-orange); font-weight: var(--fw-bold); }
+.ord-dtp .cal-day.today:not(.sel) { box-shadow: inset 0 0 0 1.5px var(--c-text-strong); font-weight: var(--fw-bold); }
 .ord-dtp .cal-day.sel {
   background: var(--c-text-strong); color: var(--c-surface); font-weight: var(--fw-bold);
 }
 
 /* 배송 시간 — 시/분 드롭다운. 여는 **방향은 파일 끝**에서 한 번에 정하고
    여기서는 크기만 잡는다(두 곳에서 방향을 쓰면 반드시 어긋난다). */
-.ord-dtp__time { padding: 10px 14px 12px; border-top: 1px solid var(--c-fill-1); }
-.ord-dtp__tlbl { display: block; font-size: var(--fs-12); color: var(--c-text-4); margin-bottom: 6px; }
+.ord-dtp__time { padding: 6px 24px 18px; }
+/* 시안의 1.5px 섹션 룰 — 우측 캡션이 '언제까지 고를 수 있는지'를 말한다.
+   문구는 util/date.js 의 BIZ 에서 만든다(여기에 적으면 영업시간이 바뀔 때 갈린다). */
+.ord-dtp__rule {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: 9px; margin-bottom: 12px; border-bottom: 1.5px solid var(--c-text-strong);
+}
+.ord-dtp__tlbl { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.ord-dtp__tcap { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
 .ord-dtp__row { display: flex; align-items: center; gap: 8px; }
 .ord-dtp__row .dd { position: relative; flex: 1; min-width: 0; }
 .ord-dtp__colon { flex: 0 0 auto; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-muted); }
@@ -1169,7 +1180,7 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 .modal-panel--ordnew .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-dtp .dd.open .dd-trigger,
 .modal-panel--ordnew .ord-dtp .dd.open .dd-trigger {
-  border-color: var(--c-orange); box-shadow: var(--ring);
+  border-color: var(--c-indigo); box-shadow: var(--ring-field);
 }
 .modal-panel--ord .ord-dtp .dd-panel { max-height: 196px; }
 .modal-panel--ordnew .ord-dtp .dd-panel { max-height: 196px; }
@@ -1182,17 +1193,26 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
    `--sh-pop` 그림자까지 덮는다(패널 18px − 테두리 1px = 안쪽 **17px**).
    ⚠️ `overflow: hidden` 으로 대신하지 말 것 — 위 팝오버 주석의 계약이다. */
 .ord-dtp__foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 10px 14px; background: var(--c-surface-2); border-top: 1px solid var(--c-border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 24px; background: var(--c-surface); border-top: 1px solid var(--c-fill-1);
   border-radius: 0 0 17px 17px;
 }
-.ord-dtp__flbl { display: block; font-size: var(--fs-12); color: var(--c-text-4); }
 .ord-dtp__fval {
-  display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold);
-  color: var(--c-text-strong); font-variant-numeric: tabular-nums; white-space: nowrap;
+  min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-normal);
+  color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+.ord-dtp__acts { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+/* 취소는 '연 시점의 값으로 되돌리기' 다 — 피커는 고를 때마다 write-through 하므로
+   되돌릴 것이 없으면 이 버튼은 거짓말이 된다(ui.js 가 스냅샷을 잡는다). */
+.ord-dtp__cancel {
+  flex: 0 0 auto; height: 38px; padding: 0 18px; border-radius: var(--r-pill);
+  background: var(--c-surface); border: 1px solid var(--c-border-strong);
+  color: var(--c-text-2); font-size: var(--fs-14); font-weight: var(--fw-semibold);
+  transition: background 0.15s, border-color 0.15s;
+}
+.ord-dtp__cancel:hover { background: var(--c-surface-2); border-color: var(--c-text-muted); }
 .ord-dtp__done {
-  flex: 0 0 auto; height: 34px; padding: 0 18px; border-radius: var(--r-pill);
+  flex: 0 0 auto; height: 38px; padding: 0 24px; border-radius: var(--r-pill);
   background: var(--c-orange); color: var(--c-surface);
   font-size: var(--fs-14); font-weight: var(--fw-semibold);
 }
@@ -1531,60 +1551,255 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   .ord-row { grid-template-columns: 96px minmax(0, 1fr); }
 }
 
-/* ── 확인 다이얼로그(주문서 삭제) ─────────────────────────── */
-.modal-panel--ordconfirm { width: 420px; }
-.odlg-desc { font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); }
-.odlg-check {
-  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px;
-  padding: 14px 16px; background: var(--c-surface-2); border-radius: var(--r-xl); text-align: left;
-  font-size: var(--fs-14); color: var(--c-text-2);
+/* ══════════════════════════════════════════════════════════════
+   .dlg-* — 공용 다이얼로그 규격 (시안 '전체 모달 리모델링')
+   작은 다이얼로그 전부가 한 규격을 쓴다: 18px 라운드 · 헤더(에어브로 +
+   22px 타이틀 + 원형 ✕) · 1.5px 섹션 룰 · 무테 필드 · 힌트 푸터 + 필 버튼.
+   셸은 js/util/dialog.js 의 openDialog() 가 그린다.
+
+   ⚠️ 여기 있는 것은 **작은 다이얼로그 전용**이다. 주문 상세/등록/거래처 모달은
+      `.ord-*`/`.cli-*`/`.ordnew-*` 라는 자기 언어가 따로 있다(1400px 원장 화면).
+   ⚠️ 옛 이름 `.odlg-*`·`.cx-*` 를 이 블록으로 합쳤다 — 같은 규격을 두 이름으로
+      부르면 한쪽만 고쳐지고 화면이 갈린다.
+   ══════════════════════════════════════════════════════════════ */
+/* 폭은 다이얼로그마다 다르다(440·480·500·540·560·960) — 클래스를 여섯 개 만드는
+   대신 openDialog 가 `--dlg-w` 를 심는다. */
+/* 헤더·푸터는 제자리에 두고 **본문만** 스크롤한다 — 푸터 힌트가 '왜 못 누르는지'를
+   말하는 구조라 버튼과 함께 화면 밖으로 밀려나면 그 장치가 죽는다(1280x720 에서
+   담당자 등록 다이얼로그가 실제로 그랬다). `.modal-panel` 기본값(패널 전체 스크롤)을
+   여기서 덮는다. */
+.modal-panel--dlg {
+  width: var(--dlg-w, 440px); max-width: calc(100vw - 48px);
+  border-radius: var(--r-2xl);
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.odlg-check:hover { background: var(--c-divider); }
-.odlg-check__box {
-  width: 22px; height: 22px; flex: 0 0 22px; border-radius: var(--r-md);
+.modal-panel--dlg > .dlg-hd,
+.modal-panel--dlg > .dlg-ft { flex: 0 0 auto; }
+.modal-panel--dlg > .dlg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* ── 헤더 ─────────────────────────────────────────────────── */
+.dlg-hd {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--c-fill-1);
+}
+.dlg-hd__l { min-width: 0; }
+.dlg-hd__eyebrow { font-size: var(--fs-13); color: var(--c-text-4); }
+.dlg-hd__eyebrow.is-num { font-variant-numeric: tabular-nums; }
+.dlg-hd__t {
+  margin-top: 2px; font-size: var(--fs-22); font-weight: var(--fw-semibold);
+  color: var(--c-text-strong); letter-spacing: -0.015em; line-height: 1.35;
+}
+.dlg-hd__r { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+/* 담당자 관리처럼 머릿수를 함께 말해야 하는 다이얼로그용 */
+.dlg-hd__count {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px;
+  border-radius: var(--r-pill); background: var(--c-surface-2);
+  font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap;
+}
+.dlg-hd__count b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.dlg-x {
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: var(--r-pill);
+  display: grid; place-items: center; background: var(--c-surface-2); color: var(--c-text-3);
+  transition: background 0.15s, color 0.15s;
+}
+.dlg-x:hover { background: var(--c-fill-3); color: var(--c-text-strong); }
+
+/* ── 본문 ─────────────────────────────────────────────────── */
+.dlg-body { padding: 18px 24px 20px; }
+/* 섹션이 둘 이상이면 섹션 사이 간격을 여기서 준다 */
+.dlg-body--sections { display: flex; flex-direction: column; gap: 20px; }
+.dlg-desc { font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); }
+.dlg-desc b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+
+/* 1.5px 섹션 룰 — 좌측 제목 + 우측 캡션. 카드 테두리 대신 선 하나로 구역을 가른다 */
+.dlg-rule {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: 9px; border-bottom: 1.5px solid var(--c-text-strong);
+}
+.dlg-rule__t { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.dlg-rule__cap { font-size: var(--fs-13); color: var(--c-text-4); text-align: right; }
+
+/* 무테 필드 행 — 라벨 100px + 값. 값 칸은 `.ord-in`(주문 모달과 같은 입력)을 쓴다 */
+.dlg-rows { margin-top: 12px; }
+.dlg-row {
+  display: grid; grid-template-columns: 100px minmax(0, 1fr);
+  align-items: center; gap: 0 12px; padding: 9px 0;
+  border-bottom: 1px solid var(--c-fill-1);
+}
+.dlg-row:last-child { border-bottom: 0; }
+/* ⚠️ `display:grid` 가 UA 의 `[hidden]{display:none}` 을 이긴다 — 조건부 행(주문취소의
+   '기타' 사유 칸)을 숨기려면 여기서 못박아야 한다(`.ordnew-req__man` 과 같은 함정). */
+.dlg-row[hidden] { display: none; }
+.dlg-rows[hidden] { display: none; }
+.dlg-row--top { align-items: start; }
+.dlg-row__k { font-size: var(--fs-14); color: var(--c-text-4); }
+.dlg-row__k .req { color: var(--c-danger-ink); margin-left: 2px; }
+.dlg-row__v { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.dlg-row .ord-in { height: 38px; padding: 0 10px; }
+.dlg-row__unit { flex: 0 0 auto; font-size: var(--fs-14); color: var(--c-text-4); }
+/* 값이 핵심인 칸만 굵게(이름·연락처·금액). 부서처럼 보조적인 값까지 600 이면
+   행 전체가 제목처럼 읽힌다 — 시안의 굵기 구분을 이 변형이 담당한다. */
+.dlg-row .ord-in--plain { font-weight: var(--fw-normal); }
+/* 행 안 보조 버튼(임시비밀번호 발급) — 38px 필드 옆에 앉는 34px 필 */
+.dlg-minibtn {
+  flex: 0 0 auto; height: 34px; padding: 0 14px; border-radius: var(--r-pill);
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  color: var(--c-text-2); font-size: var(--fs-13); font-weight: var(--fw-semibold);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.dlg-minibtn:hover { background: var(--c-surface-2); border-color: var(--c-border-strong); color: var(--c-text-strong); }
+/* 행 안 드롭다운(담당자 권한) — 공용 `.modal-panel .dd-trigger`(0,2,0)가 48px 흰 박스로
+   이기므로 (0,3,0)으로 무테 필드 톤을 다시 칠한다. 옆 칸들과 혼자 달라 보이던 자리다.
+   ⚠️ 전개 **방향은 건드리지 않는다** — 공용 기본값(위로)이 이 다이얼로그에서도 맞다. */
+.dlg-row .dd { flex: 1; min-width: 0; }
+.modal-panel--dlg .dlg-row .dd-trigger {
+  height: 38px; padding: 0 30px 0 10px;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
+}
+.modal-panel--dlg .dlg-row .dd-trigger::after { right: 10px; width: 7px; height: 7px; }
+.modal-panel--dlg .dlg-row .dd-trigger:hover { background: var(--c-fill-1); border-color: transparent; }
+.modal-panel--dlg .dlg-row .dd.open .dd-trigger,
+.modal-panel--dlg .dlg-row .dd-trigger:focus {
+  background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+
+/* 안내 면 — 되돌릴 수 없음·금액 고지 같은 한 문단 */
+.dlg-note {
+  padding: 13px 16px; background: var(--c-surface-2); border-radius: var(--r-xl);
+  font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-2);
+}
+.dlg-note b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+/* 설명문 바로 뒤에 오는 안내 면은 붙지 않게 — 섹션 gap 을 쓰면 체크 게이트 여백까지 커진다 */
+.dlg-desc + .dlg-note { margin-top: 12px; }
+/* ⚠️ `--c-text-muted`(#888)는 흰 면에서 3.5:1 로 AA 미달이다 — 이 줄에 임시비밀번호
+   안내처럼 **읽어야 하는 문장**이 찍힌다. 한 단계 진한 `--c-text-4`(5.7:1). */
+.dlg-hintline { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: var(--c-text-4); word-break: keep-all; }
+.dlg-err { margin-top: 8px; font-size: var(--fs-13); line-height: 1.6; color: var(--c-danger-ink); }
+
+/* ── 선택 목록(담당자·프로필·사유) ────────────────────────── */
+.dlg-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: var(--dlg-list-h, 280px); overflow-y: auto; overscroll-behavior: contain;
+}
+.dlg-pick {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 11px 12px; border-radius: var(--r-xl); text-align: left;
+  background: var(--c-surface); font-size: var(--fs-14); color: var(--c-text-2);
+  transition: background 0.15s;
+}
+.dlg-pick:hover { background: var(--c-surface-hover); }
+/* ⚠️ 선택 표시는 `is-sel` 이다(`is-on` 아님) — 예전에 클래스가 갈려 하이라이트가 통째로 죽었다 */
+.dlg-pick.is-sel { background: var(--c-surface-2); font-weight: var(--fw-semibold); }
+.dlg-tick {
+  width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%;
+  border: 1px solid var(--c-border-strong); background: transparent;
+  display: grid; place-items: center; color: var(--c-surface);
+  font-size: 10px; line-height: 1;
+}
+.dlg-pick.is-sel .dlg-tick { background: var(--c-text-strong); border-color: var(--c-text-strong); }
+.dlg-pick.is-sel .dlg-tick::after { content: "✓"; }
+.dlg-pick__main { flex: 1; min-width: 0; }
+.dlg-pick__name {
+  display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dlg-pick__sub { display: block; font-size: var(--fs-13); color: var(--c-text-4); }
+.dlg-pick__sub.is-num { font-variant-numeric: tabular-nums; }
+/* 직원 디렉터리에서 사라진 기존 담당자 — 조용히 재배정되지 않게 맨 위에 남긴다 */
+.dlg-pick--orphan .dlg-pick__sub { color: var(--c-danger-ink); }
+.dlg-pick__badge {
+  flex: 0 0 auto; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  color: var(--c-text-4); font-size: var(--fs-12); font-weight: var(--fw-normal);
+  display: inline-flex; align-items: center; white-space: nowrap;
+}
+.dlg-empty { padding: 26px 8px; text-align: center; font-size: var(--fs-13); color: var(--c-text-4); line-height: 1.7; }
+/* 사유처럼 짧은 항목은 2열 — 체크 원도 한 치수 작다 */
+.dlg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dlg-pick--sm { padding: 10px 12px; gap: 10px; }
+.dlg-pick--sm .dlg-tick { width: 16px; height: 16px; flex: 0 0 16px; font-size: 9px; }
+
+/* ── 세그먼트(자동작성 소스 3종) ──────────────────────────── */
+.dlg-seg { display: flex; gap: 6px; }
+.dlg-seg__b {
+  flex: 1; height: 38px; padding: 0 12px; border-radius: var(--r-pill);
+  font-size: var(--fs-13); color: var(--c-text-4);
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.dlg-seg__b:hover { background: var(--c-surface-2); border-color: var(--c-border-strong); }
+.dlg-seg__b.is-on {
+  background: var(--c-text-strong); border-color: var(--c-text-strong);
+  color: var(--c-surface); font-weight: var(--fw-semibold);
+}
+
+/* ── 체크 게이트(되돌릴 수 없음 확인) ─────────────────────── */
+.dlg-check {
+  display: flex; align-items: center; gap: 11px; width: 100%; margin-top: 16px;
+  padding: 12px 14px; background: var(--c-surface-2); border-radius: var(--r-xl);
+  text-align: left; font-size: var(--fs-14); color: var(--c-text-2);
+}
+.dlg-check:hover { background: var(--c-fill-3); }
+.dlg-check__box {
+  width: 20px; height: 20px; flex: 0 0 20px; border-radius: var(--r-md);
   border: 1px solid var(--c-border-input-2); background: var(--c-surface);
   display: grid; place-items: center; color: var(--c-surface);
-  font-size: var(--fs-12); font-weight: var(--fw-bold);
+  font-size: var(--fs-11); font-weight: var(--fw-bold);
 }
-.odlg-check.is-on .odlg-check__box {
-  background: var(--c-orange); border-color: var(--c-orange);
-}
-.odlg-check.is-on .odlg-check__box::after { content: "✓"; }
+.dlg-check.is-on .dlg-check__box { background: var(--c-text-strong); border-color: var(--c-text-strong); }
+.dlg-check.is-on .dlg-check__box::after { content: "✓"; }
 
-/* ── 취소 다이얼로그 — 사유 2열 버튼 그리드(시안) ─────────── */
-.modal-panel--ordcancel { width: 460px; }
-.cx-box {
-  margin-bottom: 20px; padding: 14px 16px; background: var(--c-surface-2);
-  border-radius: var(--r-xl); font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-2);
+/* ── 토글 카드(알림 수신) ─────────────────────────────────── */
+.dlg-tgl {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; padding: 12px 14px; background: var(--c-surface-2);
+  border-radius: var(--r-xl); text-align: left;
 }
-.cx-box b { color: var(--c-danger-ink); }
-.cx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cx-opt {
-  height: 44px; padding: 0 14px; border-radius: var(--r-xl); text-align: left;
-  font-size: var(--fs-14); color: var(--c-text-2);
-  background: var(--c-surface); border: 1px solid var(--c-border-input);
+.dlg-tgl:hover { background: var(--c-fill-3); }
+.dlg-tgl__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.dlg-tgl__s { display: block; font-size: var(--fs-13); color: var(--c-text-4); }
+
+/* ── 푸터 ─────────────────────────────────────────────────── */
+/* 좌측 힌트가 '왜 못 누르는지'를 말한다 — 버튼만 비활성으로 두지 않는다. */
+.dlg-ft {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 24px; border-top: 1px solid var(--c-fill-1);
 }
-.cx-opt:hover { border-color: var(--c-border-field-strong); }
-.cx-opt.is-sel {
-  border-color: var(--c-orange); background: var(--c-orange-soft);
-  color: var(--c-orange-ink); font-weight: var(--fw-semibold);
+.dlg-ft__hint { font-size: var(--fs-13); color: var(--c-text-4); min-width: 0; }
+/* ⚠️ 막는 힌트에 `--c-warn-soft-ink`(#e65100)를 쓰면 흰 푸터에서 3.8:1 로 AA 미달이다.
+   같은 문제를 이미 만나 `--c-danger-ink`(5.9:1)로 바꾼 선례를 따른다. */
+.dlg-ft__hint.is-block { color: var(--c-danger-ink); }
+.dlg-ft__acts { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.dlg-ft .hm-btn {
+  flex: 0 0 auto; height: 38px; padding: 0 24px; border-radius: var(--r-pill);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); box-shadow: none;
+}
+.dlg-ft .hm-btn--secondary { padding: 0 18px; }
+
+/* 키보드 초점 — 전역 `:focus-visible` 링(`--ring`, 주황 9% 알파)은 흰 다이얼로그 면에서
+   1.1:1 이라 사실상 안 보인다. 주 조작 컨트롤은 인디고 외곽선으로 따로 그린다
+   (`.ordnew-req__row` 선례와 같은 처방). ⚠️ `.dlg-list`/`.dlg-body` 가 스크롤 컨테이너라
+   바깥쪽 offset 은 잘린다 → 안쪽(-2px)으로 그린다. */
+.dlg-pick:focus-visible,
+.dlg-seg__b:focus-visible,
+.dlg-check:focus-visible,
+.dlg-tgl:focus-visible,
+.ctc-add:focus-visible,
+.ord-dtp__cancel:focus-visible,
+.dlg-minibtn:focus-visible,
+.dlg-x:focus-visible {
+  outline: 2px solid var(--c-indigo); outline-offset: -2px; box-shadow: none;
 }
 
-/* ── 담당자 지정 — 행 리스트(이름 + 부서) ─────────────────── */
-.odlg-rows { display: flex; flex-direction: column; gap: 2px; }
-.odlg-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 14px; border-radius: var(--r-xl); text-align: left; background: var(--c-surface);
-}
-.odlg-row:hover { background: var(--c-surface-2); }
-.odlg-row__name { font-size: var(--fs-17); color: var(--c-text-strong); }
-.odlg-row__dept { font-size: var(--fs-14); color: var(--c-text-4); }
-.odlg-row.is-sel { background: var(--c-orange); }
-.odlg-row.is-sel .odlg-row__name { color: var(--c-surface); font-weight: var(--fw-semibold); }
-.odlg-row.is-sel .odlg-row__dept { color: var(--c-orange-soft); }
-.odlg-row.is-sel:hover { background: var(--c-orange-hover); }
-/* 직원 디렉터리에서 삭제된 기존 담당자 — 조용히 재배정되지 않게 남겨 둔다 */
-.odlg-row--orphan .odlg-row__dept { color: var(--c-warn-soft-ink); }
+/* 다이얼로그 안 드롭다운은 공용 기본값 그대로 **위로** 연다.
+   ⚠️ 아래로 뒤집어 봤다가 되돌린 자리다 — 본문(`.dlg-body`)이 스크롤 컨테이너라
+      아래로 열면 담당자 등록 다이얼로그(권한 행이 아래에서 두 번째)에서 패널이
+      스크롤포트 바닥을 18px 넘겨 잘렸다(1280x720 실측). 폼의 드롭다운은 대개
+      아래쪽 행에 있으므로 위가 더 넓다.
+   ⚠️ 반대로 **본문 첫 줄에 드롭다운을 두면 위로 잘린다** — 그런 다이얼로그가
+      생기면 CSS 로 방향을 뒤집지 말고 배송일시 피커처럼 JS 로 자리를 재야 한다
+      (한쪽으로 못박는 규칙은 반대 문맥에서 반드시 어긋난다). */
 
 /* ── 모달 안 드롭다운 전개 방향 ────────────────────────────
    공용 `.modal-panel .dd-panel`(위쪽 343행)은 **위로** 연다 — 작은 모달에서
@@ -1860,23 +2075,46 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    거래처 원장(모달)에서 걷어낸 담당자 표가 여기 산다. 목록의 사람 아이콘과
    원장 레일의 '정산·회계 담당자' 카드가 같은 다이얼로그를 연다.
    행 액션(.tbl-setbilling/.tbl-billing/.tbl-lock)은 위쪽 공용 블록에 있다. */
-.modal-panel--ctc { width: 900px; max-width: calc(100vw - 48px); }
-.modal-panel--ctc .hm__head p { font-size: var(--fs-13); color: var(--c-text-muted); margin-top: 3px; }
-/* 담당자가 늘어도 다이얼로그 높이가 흔들리지 않게 표만 자른다 */
-.ctc-list { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; }
-.ctc-list .table-grid__cell { padding: 4px 8px; }
-.ctc-list .table-grid .ord-in { height: 32px; font-size: var(--fs-15); }
+/* 폭은 openDialog 가 `--dlg-w`(960px)로 심는다 — 패널 껍데기는 `.modal-panel--dlg`.
+   표는 시안대로 **무테**다: 머리글 아래 1.5px 룰, 행 사이 1px, 셀 세로줄 없음.
+   공용 `tableGrid` 를 계속 쓰되(행 액션·rowClass 훅이 거기 있다) 면만 여기서 벗긴다. */
+.ctc-list {
+  max-height: 46vh; overflow-y: auto; overflow-x: auto; overscroll-behavior: contain;
+}
+.ctc-list .table-grid { min-width: 740px; border: 0; border-radius: 0; overflow: visible; }
+.ctc-list .table-grid__head { background: transparent; border-bottom: 1.5px solid var(--c-text-strong); }
+.ctc-list .table-grid__head .table-grid__cell {
+  padding: 0 10px 9px; font-size: var(--fs-13);
+  font-weight: var(--fw-semibold); color: var(--c-text-4);
+}
+.ctc-list .table-grid__row { border-bottom: 1px solid var(--c-fill-1); }
+.ctc-list .table-grid__row:last-child { border-bottom: 1px solid var(--c-fill-1); }
+.ctc-list .table-grid__cell { padding: 7px 10px; border-right: 0; }
+/* 정산담당 행은 한 톤 눕힌다 — ⚠️ 배경을 단일 클래스로 칠하면 `:hover`(0,2,0)를 이겨
+   hover 반응이 죽는다. 톤 변수로 넘길 것(주문 목록 행과 같은 장치).
+   ⚠️ hover 짝(`--row-tone-hv`)도 같이 넘긴다 — 안 넘기면 폴백이 `--c-surface-hover` 라
+      톤과 같은 색이 되어 이 행만 hover 반응이 사라진다. */
+.ctc-list .table-grid__row.is-bill { --row-tone: var(--c-surface-hover); --row-tone-hv: var(--c-fill-1); }
+.ctc-list .table-grid .ord-in { height: 38px; font-size: var(--fs-15); }
+/* 이름만 값처럼 굵게 — 부서·연락처까지 굵으면 행이 통째로 제목처럼 읽힌다 */
+.ctc-list .table-grid .ord-in[data-mc="role"],
+.ctc-list .table-grid .ord-in[data-mc="phone"] { font-weight: var(--fw-normal); }
 .ctc-empty {
   padding: 32px 20px; text-align: center; line-height: 1.7;
-  font-size: var(--fs-13); color: var(--c-text-ghost);
+  font-size: var(--fs-13); color: var(--c-text-4);
 }
 .ctc-empty b { color: var(--c-text-3); font-weight: var(--fw-semibold); }
-.ctc-foot {
-  display: flex; align-items: flex-start; gap: 14px; margin-top: 14px;
-  padding-top: 14px; border-top: 1px solid var(--c-fill-1);
+.ctc-foot { display: flex; align-items: center; gap: 16px; margin-top: 14px; }
+/* 담당자 추가 — 시안의 흰 필 버튼. 표 아래 유일한 조작이라 눈에 띄어야 한다 */
+.ctc-add {
+  display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
+  height: 36px; padding: 0 16px; border-radius: var(--r-pill);
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  color: var(--c-text-2); font-size: var(--fs-14); font-weight: var(--fw-semibold);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ctc-foot .cli-minibtn { flex: 0 0 auto; }
-.ctc-note { flex: 1; min-width: 0; font-size: var(--fs-12); line-height: 1.7; color: var(--c-text-muted); }
+.ctc-add:hover { background: var(--c-surface-2); border-color: var(--c-border-strong); color: var(--c-text-strong); }
+.ctc-note { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.6; color: var(--c-text-muted); }
 .ctc-note b { color: var(--c-text-3); font-weight: var(--fw-semibold); }
 
 /* ── 반응형 ───────────────────────────────────────────────── */
@@ -2137,24 +2375,20 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .ordnew-nt .toggle { flex: 0 0 auto; transform: scale(0.84); transform-origin: right center; }
 
-/* 행 리스트 다이얼로그 — 이름·부서 옆 세 번째 칸(연락처) */
-.odlg-row__main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.odlg-row__meta {
-  flex: 0 0 auto; font-size: var(--fs-14); color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
-}
-.odlg-empty { padding: 26px 8px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); line-height: 1.7; }
-
-/* 직접 입력 — 목록에 없는 사람을 적는 경로. 목록과 섞이지 않게 위에 선을 긋는다.
-   ⚠️ 이 블록이 없으면 담당자 0명인 거래처에서 주문 등록이 막힌다(이관 데이터 18/19곳). */
-.odlg-manual { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--c-divider); }
-
 /* 자동작성 — 링크 한 칸과 그 자리에서 답하는 안내 두 줄 */
-.odlg-auto { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
-.odlg-auto__err { font-size: var(--fs-13); color: var(--c-danger); line-height: 1.6; }
-.odlg-auto__hint { font-size: var(--fs-12); color: var(--c-text-ghost); line-height: 1.7; word-break: keep-all; }
-.odlg-manual__f { display: flex; gap: 8px; padding: 8px 12px 2px; }
-.odlg-manual__f .ord-in { flex: 1; min-width: 0; }
+.dlg-auto { display: flex; flex-direction: column; gap: 10px; }
+.dlg-auto .ord-in {
+  height: 42px; padding: 0 12px; font-size: var(--fs-15); font-weight: var(--fw-normal);
+  background: var(--c-surface-2); border-radius: var(--r-xl);
+}
+.dlg-auto .ord-in:hover { background: var(--c-fill-1); }
+.dlg-auto .ord-in:focus { background: var(--c-surface); }
+.dlg-auto textarea.ord-in {
+  height: auto; min-height: 104px; padding: 11px 12px; line-height: 1.55; resize: vertical;
+  /* 공용 `textarea.ord-in` 은 autosize 용이라 `overflow:hidden` 이다 — 붙여 넣은
+     부고 문자가 104px 를 넘으면 넘친 줄이 조용히 잘린다. 여기서는 스크롤시킨다. */
+  overflow: auto;
+}
 
 /* 값을 다이얼로그로 고르는 칸 */
 .ord-pick { display: flex; align-items: center; gap: 10px; min-width: 0; }

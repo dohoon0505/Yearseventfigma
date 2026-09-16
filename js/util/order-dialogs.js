@@ -1,29 +1,39 @@
 /* ============================================================
    order-dialogs.js — 주문 화면의 보조 선택 다이얼로그
 
-   시안의 보조 다이얼로그 4종 중 3종(주문 담당자 · 주문 요청자 · 발송 프로필)이
+   시안의 보조 다이얼로그 중 셋(주문 담당자 · 발송 프로필 · 주문 요청자)이
    같은 형태다 — 단일 선택 행 리스트 + [취소][확인]. 세 벌로 적으면 고아 행 처리·
    확인 버튼 게이트 같은 규칙이 곧 갈린다. 하나로 두고 행 데이터만 바꾼다.
 
-   `openStaffPicker`(order-screen.js)도 이 함수에 위임한다 — 담당자 모달의 동작과
-   픽셀이 그대로 유지되는 것이 이 구조의 조건이다.
+   `openStaffPicker`(order-screen.js)도 이 함수에 위임한다 — 담당자 모달의 동작이
+   그대로 유지되는 것이 이 구조의 조건이다.
+
+   껍데기는 **js/util/dialog.js 의 `openDialog`** 다(시안 '전체 모달 리모델링').
+   헤더(에어브로 + 22px 타이틀 + 원형 ✕) · 1.5px 섹션 룰 · 무테 필드 · 힌트 푸터를
+   여기서 손으로 짜지 않는다. 예전에는 `.hm__head`/`.hm__foot` 를 직접 조립해
+   같은 성격의 다이얼로그가 파일마다 다른 모양이었다.
+   ⚠️ 옛 클래스 `.odlg-*` 는 CSS 에서 사라졌다 — 남겨 두면 스타일이 통째로 빠진다.
    ============================================================ */
-import { html, setHTML, on, qs, qsa } from "../dom.js";
-import { icon } from "../icons.js";
-import { openModal } from "../ui.js";
+import { html, on, qs, qsa } from "../dom.js";
 import { onPhoneInput } from "./phone.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
+import { openDialog, dlgRule, dlgRow, dlgPick, dlgList, dlgActions, bindPick } from "./dialog.js";
 
 export const MANUAL = "__manual";
 
 /**
  * 단일 선택 행 리스트 다이얼로그.
  * @param {object} o
- *  - title, desc, width      (width 는 px 숫자 — 폭만 다른 클래스를 세 개 만들지 않는다)
+ *  - eyebrow, eyebrowNum     헤더 에어브로(주문번호·거래처명). **없으면 에어브로 줄을 그리지 않는다** —
+ *                            `desc` 를 에어브로 자리에 올리지 않는다(그 문장은 푸터 힌트 몫이다).
+ *  - title, width            (width 는 px 숫자 — 폭만 다른 클래스를 세 개 만들지 않는다)
+ *  - listH                   목록 자체 스크롤 높이(기본 280 · 시안: 담당자 280·요청자 288·프로필 272)
  *  - rows[]                  { v, name, sub, meta, orphan }  v = 선택값
+ *                            `meta` 는 우측 배지로, `sub` 는 이름 아래 보조줄로 간다.
  *  - current                 현재 값
  *  - confirmLabel            확인 버튼 문구
  *  - confirmIcon             확인 버튼 아이콘 이름(선택)
+ *  - hint                    푸터 좌측 힌트(없으면 `desc`) — 선택이 없으면 **막는 이유**로 바뀐다
  *  - onPick(v, manual)       false 를 돌려주면 토스트 없이 닫기만 한다.
  *                            직접 입력을 고르면 v === MANUAL 이고 manual = { name, phone }
  *  - pickedMsg(v, manual)    성공 토스트 문구
@@ -40,156 +50,290 @@ export function openRowPicker(o) {
 
   const man = o.manual || null;
   const manVal = { name: "", phone: "" };
-
-  const manualBlock = () => {
-    if (!man) return "";
-    return html`
-      <div class="odlg-manual">
-        <button type="button" class="odlg-row ${pick === MANUAL ? "is-sel" : ""}" role="radio"
-          aria-checked="${pick === MANUAL ? "true" : "false"}" data-pickrow="${MANUAL}">
-          <span class="odlg-row__main">
-            <span class="odlg-row__name">${man.label || "직접 입력"}</span>
-            <span class="odlg-row__dept">${man.hint || "목록에 없는 사람"}</span>
-          </span>
-        </button>
-        <div class="odlg-manual__f" data-slot="manf" ${pick === MANUAL ? "" : "hidden"}>
-          <input type="text" class="ord-in" data-mf="name" placeholder="이름" aria-label="이름"
-            value="${manVal.name}" ${pick === MANUAL ? "" : "disabled"} />
-          <input type="text" class="ord-in" data-mf="phone" placeholder="연락처" inputmode="numeric"
-            aria-label="연락처" value="${manVal.phone}" ${pick === MANUAL ? "" : "disabled"} />
-        </div>
-      </div>`;
-  };
+  const baseHint = o.hint || o.desc || "";
 
   /* 확인 가능 여부 — 직접 입력은 이름이 있어야 한다(연락처는 없으면 알림만 못 간다). */
   const canOk = () => (pick === MANUAL ? !!manVal.name.trim() : !!pick);
+  /* 버튼만 흐려 두지 않는다 — 못 누르는 이유를 푸터가 그 자리에서 말한다. */
+  const blockHint = () => (pick === MANUAL ? "이름을 입력하세요" : "목록에서 한 명을 선택하세요");
 
-  const listBody = () => {
-    if (!rows.length) {
-      return html`<p class="odlg-empty">${o.empty || "선택할 항목이 없습니다."}</p>${manualBlock()}`;
-    }
-    return html`${rows.map((r) => html`
-      <button type="button" class="odlg-row ${pick === r.v ? "is-sel" : ""} ${r.orphan ? "odlg-row--orphan" : ""}"
-        role="radio" aria-checked="${pick === r.v ? "true" : "false"}" data-pickrow="${r.v}">
-        <span class="odlg-row__main">
-          <span class="odlg-row__name">${r.name}</span>
-          ${r.sub ? html`<span class="odlg-row__dept">${r.sub}</span>` : ""}
-          ${r.orphan ? html`<span class="odlg-row__dept">목록에 없음</span>` : ""}
-        </span>
-        ${r.meta ? html`<span class="odlg-row__meta">${r.meta}</span>` : ""}
-      </button>`)}${manualBlock()}`;
+  /* 고아 행(직원 디렉터리에서 사라진 기존 담당자)은 보조줄에 '목록에 없음'을 실어
+     맨 위에 남긴다 — 조용한 재배정이 가장 나쁜 결과다. 색은 `.dlg-pick--orphan` 이 칠한다. */
+  const subOf = (r) =>
+    r.orphan ? (r.sub ? `${r.sub} · 목록에 없음` : "목록에 없음") : r.sub;
+
+  const manualRow = man
+    ? dlgPick({
+        v: MANUAL,
+        name: man.label || "직접 입력",
+        sub: man.hint || "목록에 없는 사람",
+        sel: pick === MANUAL,
+      })
+    : "";
+
+  const listRows = rows.length
+    ? html`${rows.map((r) =>
+        dlgPick({
+          v: r.v,
+          name: r.name,
+          sub: subOf(r),
+          subNum: !!r.subNum,
+          badge: r.meta,
+          sel: pick === r.v,
+          orphan: r.orphan,
+        }),
+      )}${manualRow}`
+    : html`<p class="dlg-empty">${o.empty || "선택할 항목이 없습니다."}</p>${manualRow}`;
+
+  /* 직접 입력 칸은 목록 **밖**에 둔다 — 라디오그룹 안에 텍스트 입력이 섞이지 않고,
+     목록이 스크롤해도 적고 있는 칸이 시야에서 사라지지 않는다.
+     ⚠️ 숨김은 `.dlg-rows` 래퍼에 건다. `.dlg-row { display: grid }` 는 같은 특이도의
+     `[hidden]` 을 이겨(뒤 선언 우선) 행이 그대로 보인다 — `.ordnew-req__man` 과 같은 함정. */
+  const manualFields = () => html`
+    <div class="dlg-rows" data-slot="manf" ${pick === MANUAL ? "" : "hidden"}>
+      ${dlgRow({
+        k: "이름",
+        req: true,
+        v: html`<input type="text" class="ord-in" data-mf="name" placeholder="이름" aria-label="이름"
+          value="${manVal.name}" ${pick === MANUAL ? "" : "disabled"} />`,
+      })}
+      ${dlgRow({
+        k: "연락처",
+        v: html`<input type="text" class="ord-in" data-mf="phone" placeholder="연락처" inputmode="numeric"
+          aria-label="연락처" value="${manVal.phone}" ${pick === MANUAL ? "" : "disabled"} />`,
+      })}
+    </div>`;
+
+  const d = openDialog({
+    eyebrow: o.eyebrow,
+    eyebrowNum: o.eyebrowNum,
+    title: o.title,
+    width: o.width || 440,
+    body: html`
+      ${dlgList({ rows: listRows, label: o.title, h: o.listH || 280 })}
+      ${man ? manualFields() : ""}`,
+    hint: canOk() ? baseHint : blockHint(),
+    hintBlock: !canOk(),
+    /* ⚠️ `confirmLabel` 에 " 지정" 처럼 앞 공백을 실어 보내는 호출부가 있다(아이콘과
+       띄우려던 옛 수법). 지금은 `dlgActions` 가 아이콘과 라벨 사이를 알아서 띄운다. */
+    actions: dlgActions({
+      ok: String(o.confirmLabel || "선택").trim(),
+      okIcon: o.confirmIcon,
+      disabled: !canOk(),
+    }),
+  });
+  const panel = d.panel;
+
+  const sync = () => {
+    const ok = qs(panel, "[data-action='ok']");
+    if (ok) ok.disabled = !canOk();
+    if (canOk()) d.setHint(baseHint);
+    else d.setHint(blockHint(), true);
   };
 
-  const m = openModal({
-    panelClass: "modal-panel--ordconfirm",
-    body: html`
-      <div class="hm__head">
-        <div>
-          <h3 id="modal-title">${o.title}</h3>
-          ${o.desc ? html`<p>${o.desc}</p>` : ""}
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <div class="odlg-rows" role="radiogroup" aria-label="${o.title}" data-slot="rows">${listBody()}</div>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="ok" ${canOk() ? "" : "disabled"}>${
-          o.confirmIcon ? icon(o.confirmIcon, { size: 14 }) : ""}${o.confirmLabel || "선택"}</button>
-      </div>`,
-  });
-  if (o.width) m.panel.style.width = `${o.width}px`;
-
-  const syncOk = () => { const ok = qs(m.panel, "[data-action='ok']"); if (ok) ok.disabled = !canOk(); };
-
-  on(m.panel, "click", "[data-pickrow]", (e, t) => {
-    pick = t.dataset.pickrow;
-    qsa(m.panel, "[data-pickrow]").forEach((b) => {
-      const on2 = b.dataset.pickrow === pick;
-      /* ⚠️ `is-sel` 이다 — `is-on` 을 칠하는 규칙은 없다(선택 표시가 통째로 안 보였다). */
-      b.classList.toggle("is-sel", on2);
-      b.setAttribute("aria-checked", on2 ? "true" : "false");
-    });
+  /* 고를 때 **행을 다시 그리지 않는다** — 재렌더는 직접 입력 칸의 커서를 날린다.
+     `bindPick` 이 `is-sel`/`aria-checked` 만 토글한다. */
+  bindPick(panel, (v) => {
+    pick = v;
     /* 직접 입력 칸은 그 행을 골랐을 때만 산다 — 숨은 채로 Tab 순서에 남으면
-       포커스가 보이지 않는 칸으로 빠진다(openModal 의 트랩이 hidden 도 잡는다). */
-    const box = qs(m.panel, "[data-slot='manf']");
+       포커스가 보이지 않는 칸으로 빠진다(openModal 의 트랩이 hidden 도 잡는다).
+       그래서 `hidden` 과 `disabled` 를 **둘 다** 토글한다. */
+    const box = qs(panel, "[data-slot='manf']");
     if (box) {
       const live = pick === MANUAL;
       box.hidden = !live;
-      qsa(box, "input").forEach((el) => { el.disabled = !live; });
-      if (live) { const n = qs(box, "[data-mf='name']"); if (n) n.focus(); }
+      qsa(box, "input").forEach((el) => {
+        el.disabled = !live;
+      });
+      if (live) {
+        const n = qs(box, "[data-mf='name']");
+        if (n) n.focus();
+      }
     }
-    syncOk();
+    sync();
   });
-  on(m.panel, "input", "[data-mf]", (e, t) => {
+  on(panel, "input", "[data-mf]", (e, t) => {
     manVal[t.dataset.mf] = t.dataset.mf === "phone" ? onPhoneInput(t) : t.value;
-    syncOk();
+    sync();
   });
-  on(m.panel, "click", "[data-action='close']", () => m.close());
-  on(m.panel, "click", "[data-action='ok']", () => {
+  /* 닫기(✕·취소)는 `openDialog` 가 이미 위임받는다 — 여기서 다시 묶지 않는다. */
+  on(panel, "click", "[data-action='ok']", () => {
     if (!canOk()) return;
     const mv = { name: manVal.name.trim(), phone: manVal.phone.trim() };
     const r = o.onPick ? o.onPick(pick, mv) : undefined;
-    m.close();
+    d.close();
     if (r === false) return;
     if (o.toast && o.pickedMsg) o.toast(o.pickedMsg(pick, mv), "ok");
   });
-  return m;
+  return d;
 }
 
 /* ── 자동작성 ───────────────────────────────────────────────
    부고장·청첩장 링크에서 배송 정보를 읽는다. **판정은 `parseOrderUrl` 몫**이고
    이 함수는 묻고 보여줄 뿐이다 — 실 API 가 붙어도 여기는 바뀌지 않는다.
+   ⚠️ 파서를 복제하거나 여기서 새 정규식을 만들지 말 것(`js/data/order-autofill.js` 단일 계약).
 
    인식 실패를 조용히 넘기지 않는다: 어떤 링크를 아는지 그 자리에서 말해 준다.
    (모달을 닫고 토스트로 알리면 사용자가 방금 붙여 넣은 링크를 잃는다.)
    ────────────────────────────────────────────────────────── */
+
+/* 세그먼트 3종. 링크 둘은 **무엇을 넣는지 먼저 정한다** — 넣고 나서 종류가 어긋나면
+   그 자리에서 알려 준다(청첩장 링크를 부고장 칸에 붙여 넣는 실수가 잦다).
+   ⚠️ 텍스트 인식은 **문장 해석이 아니다.** 데모 파서는 문자열 안에서 아는 도메인을
+      찾을 뿐이라(`parseOrderUrl` 이 `includes` 로 판정한다) 문장 안에 링크가 있어야 한다.
+      힌트 문구가 할 수 있는 것보다 크게 말하면 그건 거짓 약속이다. */
+const AU_MODES = [
+  { k: "obit", seg: "부고장 자동입력", label: "부고장 링크", ph: "https://..." },
+  { k: "wed", seg: "청첩장 자동입력", label: "청첩장 링크", ph: "https://..." },
+  { k: "text", seg: "텍스트 인식", label: "부고 · 청첩 문자", ph: "받은 문자를 그대로 붙여 넣으세요" },
+];
+const AU_FOOT = "금액과 상품은 직접 확인해 주세요";
+const auMode = (k) => AU_MODES.find((m) => m.k === k) || AU_MODES[0];
+const auHint = (k) =>
+  k === "text"
+    ? "문자에 포함된 부고장·청첩장 링크를 찾아 채웁니다. 문장 해석은 실 API 연동 예정입니다."
+    : `인식 가능한 링크 · ${AUTOFILL_HINT}`;
+
 export function openAutofill({ toast, onApply }) {
-  let err = "";
-  const m = openModal({
-    panelClass: "modal-panel--ordconfirm",
-    labelledBy: "modal-title",
+  let mode = "obit";
+
+  const d = openDialog({
+    eyebrow: "주문서 자동작성",
+    title: "무엇으로 채울까요?",
+    width: 540,
+    bodyClass: "dlg-body--sections",
     body: html`
-      <div class="hm__head">
-        <div>
-          <h3 id="modal-title">링크로 자동작성</h3>
-          <p>부고장·청첩장 링크를 붙여 넣으면 배송지와 받는분을 채웁니다.</p>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
+      <div class="dlg-seg" role="group" aria-label="자동작성 소스">
+        ${AU_MODES.map(
+          (s) => html`<button type="button" class="dlg-seg__b ${s.k === mode ? "is-on" : ""}"
+            aria-pressed="${s.k === mode ? "true" : "false"}" data-auseg="${s.k}">${s.seg}</button>`,
+        )}
       </div>
-      <div class="hm__body">
-        <div class="odlg-auto">
-          <input type="url" class="ord-in" data-au placeholder="https://..." aria-label="부고장·청첩장 링크" />
-          <p class="odlg-auto__err" data-slot="auerr" hidden>${err}</p>
-          <p class="odlg-auto__hint">인식 가능한 링크 · ${AUTOFILL_HINT}</p>
+      <div>
+        ${dlgRule({ t: auMode(mode).label, cap: "배송지 · 받는분 · 리본문구" })}
+        <div class="dlg-rows">
+          <div class="dlg-auto">
+            <input type="url" class="ord-in" data-au="link" placeholder="${auMode(mode).ph}"
+              aria-label="${auMode(mode).label}" />
+            <textarea class="ord-in" data-au="text" rows="4" placeholder="${auMode("text").ph}"
+              aria-label="${auMode("text").label}" hidden disabled></textarea>
+          </div>
+          <p class="dlg-err" data-slot="auerr" hidden></p>
+          <p class="dlg-hintline" data-slot="auhint">${auHint(mode)}</p>
         </div>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="au-go">불러오기</button>
       </div>`,
+    hint: "링크를 붙여 넣으세요",
+    hintBlock: true,
+    actions: dlgActions({ ok: "불러오기", disabled: true }),
   });
-  m.panel.style.width = "520px";
+  const panel = d.panel;
+
+  const field = () => qs(panel, `[data-au='${mode === "text" ? "text" : "link"}']`);
+  const val = () => String((field() || {}).value || "");
 
   const showErr = (t) => {
-    const box = qs(m.panel, "[data-slot='auerr']");
+    const box = qs(panel, "[data-slot='auerr']");
     if (!box) return;
-    box.textContent = t;
+    box.textContent = t || "";
     box.hidden = !t;
   };
-  on(m.panel, "input", "[data-au]", () => showErr(""));
-  on(m.panel, "click", "[data-action='close']", () => m.close());
-  on(m.panel, "click", "[data-action='au-go']", () => {
-    const raw = (qs(m.panel, "[data-au]") || {}).value || "";
-    if (!String(raw).trim()) { showErr("링크를 붙여 넣으세요."); return; }
-    const res = parseOrderUrl(raw);
-    if (!res) { showErr("인식하지 못한 링크입니다. 아래 목록의 링크인지 확인하세요."); return; }
-    m.close();
-    onApply && onApply(res);
-    toast && toast(res.kind === "obit" ? "부고장에서 배송 정보를 불러왔습니다" : "청첩장에서 배송 정보를 불러왔습니다", "ok");
+
+  /* 값이 비면 못 누른다 — 그 이유를 푸터가 말한다. */
+  const sync = () => {
+    const has = !!val().trim();
+    const ok = qs(panel, "[data-action='ok']");
+    if (ok) ok.disabled = !has;
+    if (has) d.setHint(AU_FOOT);
+    else d.setHint(mode === "text" ? "문자를 붙여 넣으세요" : "링크를 붙여 넣으세요", true);
+  };
+
+  /* 모드 전환 — **재렌더하지 않는다**. 라벨·placeholder·힌트와 두 입력의
+     hidden/disabled 만 갈아 끼운다(재렌더는 포커스를 날리고 트랩을 흔든다). */
+  on(panel, "click", "[data-auseg]", (e, t) => {
+    const k = t.dataset.auseg;
+    if (k === mode) return;
+    /* ⚠️ 값을 **버리지 않는다** — 종류가 어긋났을 때 오류 줄이 '다른 세그먼트로 바꾸세요'
+       라고 안내하는데, 바꾸는 순간 방금 붙여 넣은 링크가 사라지면 그 안내가 함정이 된다.
+       ⚠️ `mode` 를 바꾸기 **전에** 읽어야 한다 — `val()` 은 현재 모드의 칸을 읽는다. */
+    const carried = String(val() || "");
+    mode = k;
+    const m = auMode(mode);
+    qsa(panel, "[data-auseg]").forEach((b) => {
+      const isIt = b.dataset.auseg === mode;
+      b.classList.toggle("is-on", isIt);
+      b.setAttribute("aria-pressed", isIt ? "true" : "false");
+    });
+    const link = qs(panel, "[data-au='link']");
+    const text = qs(panel, "[data-au='text']");
+    const useText = mode === "text";
+    /* 숨은 칸은 `disabled` 까지 꺼야 한다 — openModal 의 포커스 트랩이 hidden 요소도
+       훑는다(FOCUSABLE 이 `:not([disabled])` 로만 거른다). */
+    if (link) {
+      link.value = useText ? "" : carried;
+      link.hidden = useText;
+      link.disabled = useText;
+      if (!useText) {
+        link.placeholder = m.ph;
+        link.setAttribute("aria-label", m.label);
+      }
+    }
+    if (text) {
+      text.value = useText ? carried : "";
+      text.hidden = !useText;
+      text.disabled = !useText;
+    }
+    const rule = qs(panel, ".dlg-rule__t");
+    if (rule) rule.textContent = m.label;
+    const hint = qs(panel, "[data-slot='auhint']");
+    if (hint) hint.textContent = auHint(mode);
+    showErr("");
+    sync();
+    const f = field();
+    if (f) f.focus();
   });
-  const first = qs(m.panel, "[data-au]");
+
+  on(panel, "input", "[data-au]", () => {
+    showErr("");
+    sync();
+  });
+  /* 닫기(✕·취소)는 `openDialog` 가 위임받는다. */
+  on(panel, "click", "[data-action='ok']", () => {
+    const raw = val();
+    if (!raw.trim()) {
+      showErr(mode === "text" ? "문자를 붙여 넣으세요." : "링크를 붙여 넣으세요.");
+      return;
+    }
+    /* 텍스트 모드도 **같은 파서**에 문자열 전체를 넘긴다 — `parseOrderUrl` 은
+       `includes` 판정이라 문장 한가운데 있는 링크도 찾아낸다. */
+    const res = parseOrderUrl(raw);
+    if (!res) {
+      /* 실패 안내는 아는 도메인 목록과 함께. 링크 모드는 아래 힌트 줄이 그 목록을
+         이미 띄우고 있고, 텍스트 모드는 힌트 줄이 다른 말을 하므로 여기서 같이 적는다. */
+      showErr(
+        mode === "text"
+          ? `문자에서 인식할 수 있는 링크를 찾지 못했습니다. 인식 가능한 링크 · ${AUTOFILL_HINT}`
+          : "인식하지 못한 링크입니다. 아래 목록의 링크인지 확인하세요.",
+      );
+      return;
+    }
+    if (mode !== "text" && res.kind !== mode) {
+      showErr(
+        mode === "obit"
+          ? "청첩장 링크입니다. '청첩장 자동입력'으로 바꾸거나 부고장 링크를 넣으세요."
+          : "부고장 링크입니다. '부고장 자동입력'으로 바꾸거나 청첩장 링크를 넣으세요.",
+      );
+      return;
+    }
+    d.close();
+    onApply && onApply(res);
+    toast &&
+      toast(
+        res.kind === "obit" ? "부고장에서 배송 정보를 불러왔습니다" : "청첩장에서 배송 정보를 불러왔습니다",
+        "ok",
+      );
+  });
+
+  const first = qs(panel, "[data-au='link']");
   if (first) first.focus();
-  return m;
+  return d;
 }

@@ -619,6 +619,7 @@ export function mount(root, { nav }) {
     openStaffPicker({
       current: editing.manager,
       names: staffOptions,
+      eyebrow: editing.orderNo, // 시안: 어느 주문의 담당자인지 헤더가 먼저 말한다
       toast,
       onPick: (v) => {
         if (!editing) return false;

@@ -18,10 +18,11 @@
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
-import { openModal, makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
+import { makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
 import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
 import { openRowPicker } from "./order-dialogs.js";
+import { openDialog, dlgActions } from "./dialog.js";
 
 /* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
    새 코드는 order-fields.js 에서 직접 가져올 것. */
@@ -248,8 +249,13 @@ export const managerControl = (name) => html`
 
 /* ── 담당자 지정 모달 — 메인 위에 스택. 지정은 즉시 반영하고
    폼·레일의 다른 미저장 편집은 건드리지 않는다.
-   onPick(v) 가 false 를 돌려주면 토스트 없이 닫기만 한다. ── */
-export function openStaffPicker({ current, names, onPick, toast }) {
+   onPick(v) 가 false 를 돌려주면 토스트 없이 닫기만 한다.
+
+   시안(모달 #1 mgr · 440px): 에어브로 = 주문번호 · 타이틀 '담당자 지정' ·
+   푸터 좌측 힌트가 "이 선택이 무엇까지 바꾸는지"를 말한다(알림 수신자).
+   `eyebrow` 는 **선택 인자**다 — 주문 문맥이 아닌 곳(등록 모달)에서 부르면
+   '주문 담당자'가 그 자리를 채운다. ── */
+export function openStaffPicker({ current, names, onPick, toast, eyebrow }) {
   /* names 는 **함수**다 — 담당자 목록은 시스템 관리에서 실시간으로 바뀐다.
      정적 배열로 받으면 방금 추가한 담당자가 안 뜬다. */
   const list = names();
@@ -262,8 +268,13 @@ export function openStaffPicker({ current, names, onPick, toast }) {
   /* 껍데기는 `openRowPicker` 하나다 — 고아 행·radiogroup·확인 게이트·
      `onPick === false` 의 토스트 생략이 세 다이얼로그에서 갈리지 않게. */
   return openRowPicker({
-    title: "담당자 지정", desc: "이 주문을 담당할 직원을 선택하세요.",
-    rows, current: cur, confirmLabel: " 지정", confirmIcon: "check", toast,
+    eyebrow: eyebrow || "주문 담당자", eyebrowNum: !!eyebrow,
+    title: "담당자 지정",
+    hint: "배송완료 알림도 이 담당자에게 전달됩니다",
+    width: 440,
+    /* 라벨 앞에 공백을 넣던 옛 트릭(`" 지정"`)은 제거했다 — 아이콘과의 간격은
+       `.hm-btn` 의 gap 이 준다. 공백을 남기면 간격이 두 번 들어간다. */
+    rows, current: cur, confirmLabel: "지정", confirmIcon: "check", toast,
     empty: "지정할 수 있는 담당자가 없습니다.",
     onPick, pickedMsg: (v) => `담당자를 ${v}(으)로 지정했습니다`,
   });
@@ -450,43 +461,51 @@ export function footerV2({ dirty, savedAt }) {
  *    "주문서"라고 물었다(본문은 '주문취소를 사용하세요'까지 권했다).
  *    인자를 안 넘기면 주문 문구가 그대로 나오므로 기존 호출부는 무변화다.
  */
-export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, onConfirm }) {
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm }) {
   let ack = false;
-  const m = openModal({
-    panelClass: "modal-panel--ordconfirm",
+  /* 힌트 두 문장은 상수로 묶는다 — 초기 렌더와 토글이 각자 문자열을 적으면
+     한쪽만 고쳐져 푸터가 버튼 상태와 다른 말을 하게 된다. */
+  const HINT_OFF = "확인에 체크해야 삭제됩니다";
+  const HINT_ON = "삭제를 진행할 수 있습니다";
+  const d = openDialog({
+    /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호(tabular-nums),
+       거래처면 호출부가 넘긴 식별자(접속 아이디·회사명)라 숫자 정렬을 끈다. */
+    eyebrow: eyebrow ?? orderNo,
+    eyebrowNum: eyebrow == null,
+    title: title ?? "주문서를 삭제할까요?",
+    width: 440,
+    /* ⚠️ 섹션 간격(`--sections`)을 쓰지 않는다 — `.dlg-desc + .dlg-note`(12px)와
+       `.dlg-check`(16px)가 이미 자기 여백을 갖고 있어 flex `gap:20px` 이 **더해진다**
+       (경고가 붙는 B2B 경로에서 32/36px 로 벌어졌다). 간격은 한 곳에서만 준다. */
     body: html`
-      <div class="hm__head">
-        <div>
-          <p class="hm-eyebrow ord-mono">${eyebrow ?? orderNo}</p>
-          <h3 id="modal-title">${title ?? "주문서를 삭제할까요?"}</h3>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <p class="odlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
-          기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
-        ${note ? html`<div class="hm-warn" style="margin-top:12px">${note}</div>` : ""}
-        <button class="odlg-check" data-action="ack" aria-pressed="false">
-          <span class="odlg-check__box"></span>
-          <span>되돌릴 수 없음을 확인했습니다</span>
-        </button>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">돌아가기</button>
-        <button class="hm-btn hm-btn--danger" data-action="del-go" disabled>${icon("trash2", { size: 14 })} 삭제</button>
-      </div>`,
-    labelledBy: "modal-title",
+      <p class="dlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
+        기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
+      ${note ? html`<div class="dlg-note">${note}</div>` : ""}
+      <button class="dlg-check" data-action="ack" aria-pressed="false">
+        <span class="dlg-check__box" aria-hidden="true"></span>
+        <span>되돌릴 수 없음을 확인했습니다</span>
+      </button>`,
+    hint: HINT_OFF,
+    hintBlock: true,
+    actions: dlgActions({
+      /* 문구는 호출부 계약이 정한다 — 주문이면 '주문서 삭제', 거래처면 '거래처 삭제'.
+         제목만 갈아 끼우고 버튼을 '삭제' 로 두면 무엇을 지우는지 마지막 순간에 흐려진다. */
+      cancel: "돌아가기", ok: okLabel ?? "주문서 삭제", okIcon: "trash2",
+      okClass: "hm-btn--danger", disabled: true,
+    }),
   });
-  const p = m.panel;
+  const p = d.panel;
   const chk = qs(p, "[data-action='ack']");
-  const go = qs(p, "[data-action='del-go']");
-  on(p, "click", "[data-action='close']", () => m.close());
+  const go = qs(p, "[data-action='ok']");
+  /* 닫기(✕·돌아가기)는 셸이 이미 위임받아 처리한다 — 여기서 또 걸면 두 번 닫는다. */
   on(p, "click", "[data-action='ack']", () => {
     ack = !ack;
     chk.classList.toggle("is-on", ack);
     chk.setAttribute("aria-pressed", ack ? "true" : "false");
     go.disabled = !ack;
+    /* 버튼만 흐려 두지 않는다 — 왜 못 누르는지 푸터가 그 자리에서 말한다. */
+    d.setHint(ack ? HINT_ON : HINT_OFF, !ack);
   });
-  on(p, "click", "[data-action='del-go']", () => { if (ack) { m.close(); onConfirm(); } });
-  return m;
+  on(p, "click", "[data-action='ok']", () => { if (ack) { d.close(); onConfirm(); } });
+  return d;
 }

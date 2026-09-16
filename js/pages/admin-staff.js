@@ -11,7 +11,8 @@
 import { html, setHTML, on, qs } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { pageTitle, tableGrid, openModal, makeDropdown } from "../ui.js";
+import { pageTitle, tableGrid, makeDropdown } from "../ui.js";
+import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { onPhoneInput } from "../util/phone.js";
 import {
   staffList, staffAdd, staffUpdate, staffRemove, staffSetNotify, staffNewId, STAFF_ROLES,
@@ -123,7 +124,10 @@ export function mount(root, { nav }) {
     if (tbl) setHTML(tbl, tableBody());
   };
 
-  /* ── 등록/수정 모달 ────────────────────────────────────── */
+  /* ── 등록/수정 다이얼로그 (시안 #8 · 560px) ───────────────
+     공용 셸은 js/util/dialog.js. 구역은 카드가 아니라 1.5px 룰 하나로 가른다.
+     ⚠️ 입력 중에는 본문을 다시 그리지 않는다 — 섹션 캡션·토글 보조문구·푸터 힌트는
+        각자 슬롯만 갈아 끼운다(재렌더하면 커서가 날아간다). */
   function openStaffModal(staff) {
     closeModal();
     const isEdit = !!staff;
@@ -131,65 +135,62 @@ export function mount(root, { nav }) {
       ? { accountId: "", role: "담당자", ...staff }
       : { id: staffNewId(), name: "", dept: "", phone: "", notify: true, accountId: "", role: "담당자" };
     const isValid = () => !!form.name.trim() && !!form.phone.trim();
+    const hasAcct = () => !!form.accountId.trim();
+    /* 섹션 캡션은 장식이 아니라 "아이디를 비우면 어떻게 되는가"의 답이다 */
+    const acctCap = () => (hasAcct() ? "로그인으로 콘솔에 접속합니다" : "아이디가 없으면 알림만 받습니다");
+    /* 푸터 힌트는 막는 이유를 그 자리에서 말한다 — 버튼만 흐려 두지 않는다 */
+    const hintText = () =>
+      !isValid() ? "이름과 연락처는 필수입니다"
+      : hasAcct() ? "로그인 계정과 함께 저장됩니다"
+      : "로그인 없이 알림만 받는 담당자입니다";
+    const ntSub = () => (form.notify ? "카카오 알림톡으로 배정·주문 알림을 받습니다" : "알림톡을 받지 않습니다");
+    const onoff = (b) => (b ? "true" : "false");
+
     const body = html`
-      <div class="hm__head">
-        <div>
-          <h3>${isEdit ? "담당자 정보 수정" : "담당자 등록"}</h3>
-          <p>${isEdit ? form.name : "새 담당자를 추가합니다"}</p>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <div class="hm-grid2">
-          <div class="hm-field">
-            <label>이름<span class="req">*</span></label>
-            <input class="hm-input" data-f="name" value="${form.name}" placeholder="예) 김총무" />
-          </div>
-          <div class="hm-field">
-            <label>연락처<span class="req">*</span></label>
-            <input class="hm-input" data-f="phone" value="${form.phone}" inputmode="numeric" placeholder="010-0000-0000" />
-          </div>
-        </div>
-        <div class="hm-field">
-          <label>부서</label>
-          <input class="hm-input" data-f="dept" value="${form.dept}" placeholder="예) 총무팀 (자유 입력)" />
-        </div>
-        <div class="hm-section">계정 · 권한</div>
-        <div class="hm-grid2">
-          <div class="hm-field">
-            <label for="st-acct">접속 아이디</label>
-            <input class="hm-input" id="st-acct" data-f="accountId" value="${form.accountId}" placeholder="비우면 로그인 없이 알림만 받습니다" />
-          </div>
-          <div class="hm-field">
-            <label>권한</label>
-            <div class="dd" data-dd-role>
-              <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-              <div class="dd-panel" role="listbox"></div>
-            </div>
-          </div>
-        </div>
-        <div class="hm-field">
-          <label>비밀번호</label>
-          <button type="button" class="hm-btn hm-btn--secondary hm-field__act" data-action="reset-pw">임시비밀번호 발급</button>
-          <p class="hm-help" data-pwout>관리자도 기존 비밀번호는 볼 수 없습니다. 발급 후 저장하면 적용됩니다.</p>
-        </div>
-        <div class="hm-field staff-notifyrow">
-          <div>
-            <label>알림 수신</label>
-            <p class="hm-help">API 주문 알림을 카카오 알림톡으로 발송합니다</p>
-          </div>
-          <button type="button" class="toggle" role="switch" aria-checked="${form.notify ? "true" : "false"}" data-action="modal-notify" aria-label="알림 수신"><span class="toggle__knob"></span></button>
+      <div data-sec="basic">
+        ${dlgRule({ t: "기본 정보", cap: "주문 배정과 알림에 쓰입니다" })}
+        <div class="dlg-rows">
+          ${dlgRow({ k: "이름", req: true, v: html`<input class="ord-in" data-f="name" value="${form.name}" placeholder="예) 김총무" aria-label="이름" />` })}
+          ${dlgRow({ k: "연락처", req: true, v: html`<input class="ord-in ord-in--num" data-f="phone" value="${form.phone}" inputmode="numeric" placeholder="010-0000-0000" aria-label="연락처" />` })}
+          ${dlgRow({ k: "부서", v: html`<input class="ord-in ord-in--plain" data-f="dept" value="${form.dept}" placeholder="예) 총무팀 (자유 입력)" aria-label="부서" />` })}
         </div>
       </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>${isEdit ? "저장" : "등록"}</button>
+      <div data-sec="acct">
+        ${dlgRule({ t: "계정 · 권한", cap: acctCap() })}
+        <div class="dlg-rows">
+          ${dlgRow({ k: "접속 아이디", v: html`<input class="ord-in ord-in--plain" data-f="accountId" value="${form.accountId}" placeholder="비우면 로그인 없이 알림만 받습니다" aria-label="접속 아이디" />` })}
+          ${dlgRow({ k: "권한", v: html`<div class="dd" data-dd-role>
+            <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="권한"></button>
+            <div class="dd-panel" role="listbox"></div>
+          </div>` })}
+          ${dlgRow({ k: "비밀번호", v: html`<button type="button" class="dlg-minibtn" data-action="reset-pw">임시비밀번호 발급</button>` })}
+        </div>
+        <p class="dlg-hintline" data-pwout>관리자도 기존 비밀번호는 볼 수 없습니다. 발급 후 저장하면 적용됩니다.</p>
       </div>
+      <button type="button" class="dlg-tgl" role="switch" aria-checked="${onoff(form.notify)}" data-action="modal-notify">
+        <span>
+          <b class="dlg-tgl__t">알림 수신</b>
+          <span class="dlg-tgl__s" data-slot="ntsub">${ntSub()}</span>
+        </span>
+        <span class="toggle" aria-checked="${onoff(form.notify)}" aria-hidden="true"><span class="toggle__knob"></span></span>
+      </button>
     `;
+
     /* 권한 드롭다운은 모달마다 생성 → 닫힐 때 destroy (makeDropdown 규약) */
     let roleDd = null;
-    activeModal = openModal({ body, onClose: () => { if (roleDd) { roleDd.destroy(); roleDd = null; } } });
-    const panel = activeModal.panel;
+    const dlg = openDialog({
+      width: 560,
+      bodyClass: "dlg-body--sections",
+      eyebrow: "담당자 계정 · 권한",
+      title: isEdit ? `${form.name || "담당자"} 담당자 수정` : "새 담당자를 추가합니다",
+      body,
+      hint: hintText(),
+      hintBlock: !isValid(),
+      actions: dlgActions({ ok: isEdit ? "저장" : "등록", disabled: !isValid() }),
+      onClose: () => { activeModal = null; if (roleDd) { roleDd.destroy(); roleDd = null; } },
+    });
+    activeModal = dlg;
+    const panel = dlg.panel;
     const roleEl = qs(panel, "[data-dd-role]");
     if (roleEl) {
       roleDd = makeDropdown(roleEl, {
@@ -209,18 +210,30 @@ export function mount(root, { nav }) {
       if (out) out.textContent = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
       toast("임시비밀번호를 발급했습니다");
     });
-    const syncSave = () => { const b = qs(panel, "[data-action='save']"); if (b) b.disabled = !isValid(); };
+    const syncFoot = () => {
+      const b = qs(panel, "[data-action='ok']");
+      if (b) b.disabled = !isValid();
+      dlg.setHint(hintText(), !isValid());
+    };
+    const syncAcctCap = () => {
+      const cap = qs(panel, "[data-sec='acct'] .dlg-rule__cap");
+      if (cap) cap.textContent = acctCap();
+    };
     on(panel, "input", "[data-f]", (e, t) => {
       const k = t.dataset.f;
       form[k] = k === "phone" ? onPhoneInput(t) : t.value;
-      syncSave();
+      if (k === "accountId") syncAcctCap();
+      syncFoot();
     });
     on(panel, "click", "[data-action='modal-notify']", (e, t) => {
       form.notify = t.getAttribute("aria-checked") !== "true";
-      t.setAttribute("aria-checked", String(form.notify));
+      t.setAttribute("aria-checked", onoff(form.notify));
+      const sw = qs(t, ".toggle");
+      if (sw) sw.setAttribute("aria-checked", onoff(form.notify));
+      const sub = qs(t, "[data-slot='ntsub']");
+      if (sub) sub.textContent = ntSub();
     });
-    on(panel, "click", "[data-action='close']", () => closeModal());
-    on(panel, "click", "[data-action='save']", () => {
+    on(panel, "click", "[data-action='ok']", () => {
       if (!isValid()) return;
       const rec = { ...form, name: form.name.trim(), dept: form.dept.trim(), phone: form.phone.trim(), accountId: form.accountId.trim() };
       if (isEdit) staffUpdate(rec); else staffAdd(rec);
@@ -230,28 +243,21 @@ export function mount(root, { nav }) {
     });
   }
 
+  /* ── 삭제 다이얼로그 (시안 #9 · 440px) ────────────────────
+     에어브로가 "누구를 지우는지"를 말하므로 본문은 결과만 설명한다. */
   function openDelete(staff) {
     closeModal();
-    const body = html`
-      <div class="hm__head">
-        <div>
-          <h3>${staff.name} 담당자를 삭제할까요?</h3>
-          <p>${staff.dept || "부서 미지정"} · ${staff.phone || "-"}</p>
-        </div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        <div class="hm-warn"><b>삭제 후에는 되돌릴 수 없습니다.</b> 기존 주문에 이미 지정된 담당자 이름은 그대로 유지됩니다.</div>
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--danger" data-action="do-del">삭제</button>
-      </div>
-    `;
-    activeModal = openModal({ panelClass: "modal-panel--sm", body });
-    const panel = activeModal.panel;
-    on(panel, "click", "[data-action='close']", () => closeModal());
-    on(panel, "click", "[data-action='do-del']", () => {
+    const dlg = openDialog({
+      width: 440,
+      eyebrow: [staff.dept, staff.phone].filter(Boolean).join(" · "),
+      title: `${staff.name} 담당자를 삭제할까요?`,
+      body: html`<p class="dlg-desc"><b>삭제 후에는 되돌릴 수 없습니다.</b> 기존 주문에 이미 지정된 담당자 이름은 그대로 남고, 앞으로의 배정 목록과 알림 대상에서만 빠집니다.</p>`,
+      hint: "배정 이력은 유지됩니다",
+      actions: dlgActions({ ok: "담당자 삭제", okClass: "hm-btn--danger" }),
+      onClose: () => { activeModal = null; },
+    });
+    activeModal = dlg;
+    on(dlg.panel, "click", "[data-action='ok']", () => {
       staffRemove(staff.id);
       closeModal();
       refreshList();
