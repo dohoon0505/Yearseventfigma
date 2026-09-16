@@ -18,9 +18,10 @@
       usageFor·settlementsFor·store.clients). 대쉬보드 전용 집계를 두면
       화면 간 숫자가 어긋나 아무도 믿지 않는 화면이 된다.
 
-   ⚠️ B2B 주문에는 배송 희망시각 필드가 없다. 도착 기준은 shell.js 의 당일배송
-      마감(BIZ_HOURS.closeMin)을 주문일에 적용해 잡는다 — 같은 숫자를 두 곳에
-      적지 않으려고 shell 에서 가져온다.
+   ⚠️ B2B 레코드에도 deliverAt 은 있지만 **이 큐는 쓰지 않는다** — 도착 기준은
+      shell.js 의 당일배송 마감(BIZ_HOURS.closeMin)을 주문일에 적용해 잡는다.
+      같은 숫자를 두 곳에 적지 않으려고 shell 에서 가져온다.
+      (명세서 6.x '남은시간' 참조 — 서버 전환 시 desired_arrival_at 실값으로 맞출 것)
 
    페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */

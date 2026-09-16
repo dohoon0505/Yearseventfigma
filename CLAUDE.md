@@ -6,10 +6,10 @@
 1. **개발 서버**: `curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/` → 응답 없으면 `node serve.mjs` 백그라운드 기동. (서버는 세션 간 자주 죽어 있음)
 2. **데모 로그인**: `admin` / `0324` → admin 롤. 로그인 페이지 감지 시 자동 처리 습관화.
 3. **HANDOFF.md** 와 auto-memory(MEMORY.md 인덱스) 확인 — 직전 세션 상태·보류 항목.
-4. 미추적 파일(`mockups/`, `MIGRATION_GUIDE.md`, `백엔드 참고문서.docx`, 삭제된 `guidelines/`)은 **의도적 로컬 상태 — 절대 커밋/복원/정리하지 말 것.**
+4. 미추적 파일(`mockups/`, `백엔드 참고문서.docx`, 삭제된 `guidelines/`)은 **의도적 로컬 상태 — 절대 커밋/복원/정리하지 말 것.**
 
 ## 작업 규칙
-- **항상 커밋 & 푸시** (상시 승인, 되묻지 않기): 한국어 conventional commit + 본문 요약 + `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` → `git push origin main`.
+- **항상 커밋 & 푸시** (상시 승인, 되묻지 않기): 한국어 conventional commit + 본문 요약 + **그 세션에 안내된 `Co-Authored-By` 트레일러** → `git push origin main`. ⚠️ 모델명을 여기에 못박지 말 것 — 세션마다 다르고, 문서를 따라 적으면 히스토리의 공동저자가 두 이름으로 갈린다.
 - 기능 변경은 **Playwright MCP 브라우저 검증 후** 커밋. 스크린샷은 세션 scratchpad에 저장(레포에 남기지 말 것).
 - UI 변경 전 사용자가 시안을 원하는지 확인 — 이 사용자는 claude.ai/design(.dc.html, `DesignSync` 툴)이나 Figma MCP로 시안을 직접 전달하는 워크플로를 씀. "디자인 적용" 요청 시 해당 소스부터 확인.
 - 큰 설계 변경은 AskUserQuestion 여러 라운드 + 목업 비교가 효과적(사용자 선호).
@@ -17,7 +17,7 @@
 ## 아키텍처 규약
 - 페이지 계약: `mount(root, { nav }) → cleanup`. 이벤트는 `on()` 위임(대상 요소에 1회) — `setHTML` 재렌더에도 생존. `makeDropdown`/`makeDatepicker` 인스턴스만 재렌더마다 `destroy()→재생성`, cleanup에서도 destroy.
 - **색은 tokens.css 토큰만** — raw hex는 tokens.css 밖 금지. **단 예외 2곳**: `invoice-doc.js`·`report-doc.js`는 `window.open`+`document.write`로 새 창에 인쇄 문서를 쓰는데 그 창은 tokens.css를 로드하지 않는다(var()로 바꾸면 PDF 색이 사라짐). `util/xlsx.js`의 ARGB도 엑셀 포맷이라 동일.
-- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만. 열린 모달은 모듈 레지스트리에 등록되고 **라우터가 화면 전환마다 `closeAllModals()`** 로 일괄 정리한다 — 페이지 cleanup 은 자기가 연 것만 알아서, 컴포넌트가 스스로 연 스택 모달(담당자 피커)이 다음 화면을 덮던 결함), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원 · **날짜만**), `makeDateTimePicker`(날짜+시각 팝오버 — 주문 모달 전용, 값 `YYYY-MM-DDTHH:mm`, 뿌리가 `.dd` 가 아니라 `.ord-dtp`, 패널은 **position:fixed + JS 좌표 계산**), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css), `openCancelModal`(**js/util/cancel-modal.js** — 주문취소 사유 2열 버튼 그리드·수수료, B2C·B2B 공용), `openStaffPicker`/`openDeleteConfirm`(**js/util/order-screen.js**), `openPostcode`/`ensurePostcode`(**js/util/postcode.js**), `attachmentOf`(**js/util/image.js** — 첨부 이미지 축소), `currentClient`/`currentClientName`(**js/util/client.js**).
+- 공용 컴포넌트: `openModal`(스택 지원 — ESC/Tab은 최상위 오버레이만. 열린 모달은 모듈 레지스트리에 등록되고 **라우터가 화면 전환마다 `closeAllModals()`** 로 일괄 정리한다 — 페이지 cleanup 은 자기가 연 것만 알아서, 컴포넌트가 스스로 연 스택 모달(담당자 피커)이 다음 화면을 덮던 결함), `makeDropdown`(값≠표시면 `label` 옵션), `makeDatepicker`(placeholder 지원 · **날짜만**), `makeDateTimePicker`(날짜+시각 팝오버 — 주문 모달 전용, 값 `YYYY-MM-DDTHH:mm`, 뿌리가 `.dd` 가 아니라 `.ord-dtp`, 패널은 **position:fixed + JS 좌표 계산**), `tableGrid`(`rowClass` 훅), `.toggle` 스위치(`aria-checked` 상태), `makeToast`(**js/toast.js** — mount에서 생성→cleanup에서 `destroy()`), **`.bf-*` 공용 필터 카드**(**components.css** — 언더라인 탭·세그먼트·인라인 라벨 검색·접이식 상세), `.ptbl-edit/.ptbl-del` 표 행 액션(components.css), `openCancelModal`(**js/util/cancel-modal.js** — 주문취소 사유 2열 버튼 그리드·수수료, B2C·B2B 공용), `openStaffPicker`/`openDeleteConfirm`(**js/util/order-screen.js**), `openPostcode`/`ensurePostcode`(**js/util/postcode.js**), `attachmentOf`(**js/util/image.js** — 첨부 이미지 축소), `currentClient`/`currentClientName`(**js/util/client.js**), `fmtPhone`/`phoneOk`/`onPhoneInput`(**js/util/phone.js** — 연락처 하이픈 자동. 예전엔 네 화면이 각자 복제했다), `openContactsModal`(**js/util/contacts-modal.js** — 거래처 담당자 관리), `openRowPicker`/`openAutofill`(**js/util/order-dialogs.js**), `openOrderCreate`(**js/util/order-create.js** — 주문서 등록 위저드 셸), 폼 조각(**js/util/order-fields.js** — `card`·`renderFields`·`won`·`dtpMarkup`, 상세·등록 두 모달의 **유일한 공유 지점**).
 - 공용 클래스는 **components.css**에 둔다 — 페이지 CSS보다 먼저 로드돼 페이지 오버라이드가 자연히 이긴다. 페이지 CSS에 두면 다른 페이지가 전역 로드에 기대는 암시적 의존이 생긴다(`.ptbl-*`·`.bf-*`가 실제로 그랬다).
 - 공개(비로그인) 페이지 선례: `delivery/` = 단독 index.html + `../css/tokens.css`+`base.css` + 전용 CSS + 비모듈 IIFE JS.
 
@@ -46,7 +46,8 @@
 
 ## 도메인 규약 (확정 사항 — 재논의 금지)
 - B2C 주문 상태: `접수대기 → 주문접수 → 배송완료` + `취소`. 배송완료 시 `notified=true` 자동(알림톡).
-- 주문 상세 모달(**B2C·B2B 공용**, `js/util/order-screen.js` v2 · 시안 '주문관리 모달 리모델링'): **모드 없는 상시 편집.** 읽기↔편집 토글은 제거됐다 — 되살리지 말 것. 구조는 헤더(주문번호 28px·상태 pill·**3단 스테퍼**·담당자 pill·`···` 메뉴) / 좌측 324px **다크 처리 레일**(현장사진 3:4·인수자·메모) / 본문 카드(주문정보·발주정보) / 우측 300px 레일(요약·처리 이력) / 푸터(`수정한 항목 N개`·닫기·저장).
+- 주문 상세 모달(**B2C·B2B 공용**, `js/util/order-screen.js` v2 · 시안 '주문관리 모달 리모델링'): **모드 없는 상시 편집.** 읽기↔편집 토글은 제거됐다 — 되살리지 말 것. 구조는 헤더(주문번호 28px·상태 pill·**3단 스테퍼**·담당자 pill·`···` 메뉴) / 좌측 350px **다크 처리 레일**(현장사진 3:4·인수자·메모) / 본문 카드(주문정보·발주정보) / 우측 300px 레일(요약·처리 이력) / 푸터(`수정한 항목 N개`·닫기·저장).
+  - ⚠️ **레일 폭은 세 모달이 각각 다르다** — 상세 `.ord-grid` **350px** · 거래처 `.cli-grid` **324px** · 등록 `.ordnew-grid` **288px**. 한 곳을 고칠 때 다른 둘로 번지지 않게 할 것(상세는 324 → 350 으로 올린 이력이 있다).
   - 상태 전환은 **헤더 스테퍼에서만**, **앞으로만** 간다. 되돌리기는 토스트로 막고 주문취소로 유도. `배송완료` pill 은 **사진+인수자가 있어야** 활성(기존 자동 전환 규칙 유지).
   - 취소·삭제는 푸터가 아니라 **`···` 오버플로 메뉴**. 삭제는 '되돌릴 수 없음' 체크 후 활성.
   - **입력 중에는 절대 재렌더하지 않는다**(포커스·커서 소실). `editing` 에 write-through 하고 슬롯(`data-slot`)만 부분 갱신 — `renderHd`/`renderSum`/`renderHist`/`syncDirty`.
@@ -61,7 +62,7 @@
     - ⚠️ `@media (max-width:1240px)` 가 `.ord-cols` 를 1열로 접을 때 **`grid-template-rows: auto` 를 같이 줘야 한다.** 명시 행이 `minmax(0,1fr)` 하나뿐이면 `.ord-colR` 이 암시적 auto 행으로 떨어져 **두 열이 겹쳐 찍힌다**(1100x800 실측: 232.7px 칸에 462px 내용).
     - ⚠️ 그래서 **모달 안 `position:fixed` 팝오버는 조상 스크롤을 따라가야 한다.** `makeDateTimePicker` 가 capture 단계 `scroll` 리스너로 `place()` 를 다시 돌리고, 트리거가 스크롤 컨테이너 밖으로 나가면 닫는다(`clip` 은 `open()` 에서 1회 계산 — `place()` 는 스크롤마다 도는데 거기서 `getComputedStyle` 을 조상마다 부르면 스크롤이 끊긴다). 패널 내부 시·분 목록 스크롤은 제외한다.
 - **주문서 등록 모달과 주문 상세 모달은 다른 모달이다**(시안 '주문서 등록 모달'). 셸(`js/util/order-create.js` · `.modal-panel--ordnew` 1240px · 레일 288px)도 **핸들도 따로**다 — 상세의 `activeModal`/`editing` 을 건드리면 안 된다(`openEditor` 첫 줄이 `closeModal()` 이라 **두 모달이 서로를 닫는다**). 등록은 2단계 위저드이고, 1단계가 주문의 성격을 정한다(B2C=주문경로·결제 / B2B=거래처).
-  - **`order-screen.js` ↔ `order-create.js` 는 서로를 import 하지 않는다.** 공유는 `js/util/order-fields.js`(`card`·`renderFields`·`fieldCell`·`autosize`·`dtpMarkup`·`won`) 경유로만. 스펙(step 서술자·저장 규칙)은 **페이지 모듈 안**에 둔다 — 셸은 `b2cUpsert`/`b2bUpsert` 같은 데이터 계약을 모른다. `kind` 분기로 한 모듈에 합치면 방금 걷어낸 `isNew` 분기를 축만 바꿔 되살리는 일이 된다.
+  - **`order-screen.js` ↔ `order-create.js` 는 서로를 import 하지 않는다.** 공유는 `js/util/order-fields.js`(`card`·`renderFields`·`autosize`·`dtpMarkup`·`won`·`pad2`·`dash`·`fmtFull`·`parseFlexDate`) 경유로만 — `fieldCell` 은 export 하지 않는 `renderFields` 내부 전용이다. `order-screen.js` 가 이 아홉을 재수출하지만(기존 호출부 호환) **새 코드는 `order-fields.js` 에서 직접 가져올 것.** 스펙(step 서술자·저장 규칙)은 **페이지 모듈 안**에 둔다 — 셸은 `b2cUpsert`/`b2bUpsert` 같은 데이터 계약을 모른다. `kind` 분기로 한 모듈에 합치면 방금 걷어낸 `isNew` 분기를 축만 바꿔 되살리는 일이 된다.
   - **채번은 저장 시점에만.** 예전엔 모달을 열 때 `b2bNextOrderNo()` 가 돌아 등록하지 않고 닫아도 번호가 영구히 소모됐다. `draft.id=""`·`orderNo=""` 로 시작하면 `upsert` 가 `findIndex("") === -1` 로 정상 신규 판정한다.
   - **첫 이력은 `created`**(`주문 접수 · …`). **신규는 담당자 미지정으로 시작**한다 — 자동 배정하면 '담당자 미지정 주문을 열면 피커가 자동으로 뜬다'는 장치가 신규에서 죽는다.
   - **거래처 변경은 요청자·상품·단가·알림만 비운다** — 배송지·받는분·리본문구는 유지. 같은 거래처 재선택은 no-op(`makeDropdown` 과 달리 여기선 직접 가드를 둔다).
@@ -78,11 +79,12 @@
     - ⚠️ 전역 `:focus-visible` 링은 `--ring`(주황 **9% 알파**)이라 흰 면에서 사실상 안 보인다(1.1:1). 새로 만드는 주 조작 컨트롤은 `outline: 2px solid var(--c-indigo)` 로 따로 그린다.
     - ⚠️ 세로가 짧은 화면용 `@media (max-height: 820px)` 축소는 **기본 규칙보다 뒤에** 둬야 한다. 미디어 쿼리는 특이도를 올리지 않으므로 파일 앞쪽 블록에 적으면 뒤에 오는 같은 특이도 선언이 이겨 통째로 죽는다(실제로 죽어 있었다).
   - **레일에는 스텝 목록도, 계약단가·계산서 발행·이번 발주 카드도 없다**(2026-09-16, 사용자 지시 — 되살리지 말 것). 스텝 이름은 본문 카드 머리글이, 마지막 단계 여부는 푸터 버튼 문구가 이미 말한다(스텝 서술자의 `title`/`cap` 은 `.ordnew-pane` 의 `aria-label` 로 살아 있다 — 옛 스텝 목록에는 aria 가 아예 없었다). 세 카드가 말하던 값도 이미 다른 곳에 있다: 계약단가 = '상품 · 단가' 머리글 + '단가 기준' 줄, 이번 발주 = 2단계 `hint()` 푸터, 계산서 발행일 = 레일 식별 캡션 한 줄. **그 자리는 거래 조건(`clientNote`)이 받는다** — 다크 면이라 경고 톤 토큰은 `--c-danger-ink` 가 아니라 `--c-toast-warn` 이고, 길이가 5자~103자로 갈리므로 `.rail-card__note` 가 자체 스크롤을 갖는다. 2단계 본문의 거래 조건 카드는 중복이라 뺐다.
-  - 보조 다이얼로그는 **`js/util/order-dialogs.js` 한 껍데기**다(`openRowPicker`) — 지금 이걸 쓰는 것은 **담당자 지정**(상세 모달의 `openStaffPicker` 가 여기에 위임)과 **발송 프로필** 둘이다. 등록 모달의 요청자는 위 규칙대로 인라인으로 옮겼지만 `MANUAL`(`"__manual"`) 상수는 그대로 공유한다 — '직접 입력'이라는 같은 개념을 두 곳이 다른 문자열로 적으면 저장 분기가 갈린다. ⚠️ 선택 행의 클래스는 **`is-sel`** 이다 — `is-on` 을 칠하는 규칙은 없어서 하이라이트가 통째로 안 보였다.
+  - 보조 다이얼로그는 **`js/util/order-dialogs.js` 껍데기 둘**이다 — 행 리스트 `openRowPicker` 와 링크 자동작성 `openAutofill`. `openRowPicker` 를 쓰는 것은 **담당자 지정**(상세 모달의 `openStaffPicker` 가 여기에 위임)과 **발송 프로필** 둘이고, `openAutofill` 은 **B2C·B2B 등록 모달 공용**이다. 등록 모달의 요청자는 위 규칙대로 인라인으로 옮겼지만 `MANUAL`(`"__manual"`) 상수는 그대로 공유한다 — '직접 입력'이라는 같은 개념을 두 곳이 다른 문자열로 적으면 저장 분기가 갈린다. ⚠️ 선택 행의 클래스는 **`is-sel`** 이다 — `is-on` 을 칠하는 규칙은 없어서 하이라이트가 통째로 안 보였다.
 - **거래처 담당자 관리**는 `js/util/contacts-modal.js` 의 **다이얼로그**다(별도 탭이 아니다 — 2026-09-16 사용자 지시). 진입점 둘: 거래처 목록 '관리' 열의 **사람 아이콘**(`.ptbl-users`, 등록 인원수를 함께 찍어 0명인 거래처가 보이게 한다)과 거래처 모달 레일의 '정산·회계 담당자' 카드. 모달 원장에서는 담당자 표를 걷어냈고(시안) 레일 카드는 **읽기 전용**이다.
   - ⚠️ 관리자가 담당자를 고칠 경로를 없애면 안 된다 — 구 시스템에 담당자 필드가 없어 이관 거래처 19곳 중 **18곳이 담당자 0명**이고, 담당자는 주문 요청자·배송완료 알림 수신자·정산 명세서 수신자의 출처다. 정산담당 1명 불변식과 삭제 잠금은 포털과 **똑같이** 지킨다.
   - 거래처 모달 **위에 스택**되므로 화면을 옮기지 않는다 — 작성 중인 원장 편집이 살아 있다. `onChange` 로 레일 카드와 목록 배지를 같이 갱신한다.
-- **거래처 정보 수정 모달**(`#/admin` · `modal-panel--cli`)은 주문 모달과 **같은 언어**다 — 1400px · 좌측 324px 다크 레일 + 우측 원장 카드 · 모드 없는 상시 편집. `.ord-hd*`·`.ord-side*`·`.ord-card*`·`.ord-row`·`.ord-in`·`.ord-ft*`·`.ord-menu*` 를 그대로 재사용하고 `.cli-*` 에는 다른 것만 둔다. 신규 등록도 같은 모달을 쓴다(담당자·변경 이력만 감춤).
+  - **링크 자동작성**(`openAutofill`)의 판정은 **`js/data/order-autofill.js` 단일 계약**이다(`parseOrderUrl`·`AUTOFILL_DB`·`AUTOFILL_HINT`). 지금은 URL 에 도메인 문자열이 들어 있으면 미리 적어 둔 값을 돌려주는 **하드코딩 데모**이고, 실 API 가 붙어도 **`parseOrderUrl` 내부만** 갈아끼운다 — 호출부 셋은 이 계약만 안다(등록 모달 둘은 다이얼로그 경유, **포털 주문 퍼널 `js/pages/order.js` 는 파서를 직접 부른다**). **호출부에서 파싱을 복제하지 말 것.** ⚠️ 인식 실패에 모달을 닫지 않는다 — 붙여 넣은 링크를 잃지 않게 그 자리에서 오류 줄을 띄우고 아는 도메인 목록(`AUTOFILL_HINT`)을 함께 보여 준다.
+- **거래처 정보 수정 모달**(`#/admin` · `modal-panel--cli`)은 주문 모달과 **같은 언어**다 — 1400px · 좌측 324px 다크 레일 + 우측 원장 카드 · 모드 없는 상시 편집. `.ord-hd*`·`.ord-side*`·`.ord-card*`·`.ord-row`·`.ord-in`·`.ord-ft*`·`.ord-menu*` 를 그대로 재사용하고 `.cli-*` 에는 다른 것만 둔다. 신규 등록도 같은 모달을 쓴다 — 담당자 카드·변경 이력·상태 pill·`···` 메뉴·승인/반려 배너를 감추고, 레일의 접속 아이디만 읽기전용 대신 입력칸이 된다(+필수 1개 추가).
   - ⚠️ **패널 클래스를 `--ord` 로 재사용하면 안 된다.** `.modal-panel--ord .ord-card .dd-panel`(0,3,0)이 드롭다운을 아래로 뒤집는데 이 모달은 공용 기본값(**위로**)이 맞다. 단 **발급일만 아래로** — 카드 첫 줄이라 위 공간이 113px 뿐인데 패널이 240px 다(실측). 유입 경로는 위 639/아래 75라 기본값이 맞다.
   - ⚠️ `.ord-ft` 규칙은 스코프가 없다(두 모달 공유). 없애면 `.hm__foot .hm-btn { flex: 1 }` 이 이겨 푸터 버튼이 전체 폭으로 늘어난다.
   - ⚠️ `.cli-pane` 은 flex column 이라 **직계 자식에 `flex: 0 0 auto`** 가 필요하다. 없으면 거래 조건 카드가 제목 줄만 남기고 눌린다.
@@ -97,7 +99,7 @@
   - ⚠️ `monthEnd(y, m)` 의 **m 은 0-based** 다. `getMonth() + 1` 을 넘겨 정산기한이 다음 달 말일로 밀린 적이 있다. 안내문은 `invoiceHelpText()` 한 곳에서 만든다 — 초기 렌더와 부분 갱신에 사본이 둘이면 발급일을 바꾸는 순간 갈린다.
   - 삭제 확인 문구는 `deleteCopy()` 한 곳에서 만든다(모달 ⋯ 메뉴와 목록 두 경로). `openDeleteConfirm` 은 문구를 인자로 받으며 기본값이 주문 문구다 — 예전엔 제목이 하드코딩돼 거래처를 지울 때도 "주문서를 삭제할까요?"라고 물었다.
   - `department` 는 '부서·직위'가 아니라 **계정 구분**이다 — 같은 사업자번호를 가르는 라벨(법무법인 세종 C008·C015가 실제 용례).
-- **담당자는 거래처별이다**(`store.contactsByClient`). 포털의 담당자 저장공간과 관리자 모달의 담당자 표가 **같은 데이터**다. 키는 `id` — `no` 는 쓰기마다 다시 매겨지는 표시 순번이라 대상 지목에 쓰면 엉뚱한 사람이 바뀐다. 정산담당 1명 불변식은 버킷마다 적용되고 **정산담당은 직접 삭제할 수 없다**(두 화면 모두). `MSG_RECEIVE`/`MSG_NONE` 은 `store.js` 단일 정의 — 전에 3곳에 복제돼 있었다.
+- **담당자는 거래처별이다**(`store.contactsByClient`). 포털의 담당자 저장공간(`#/app/profile`)과 관리자의 **담당자 관리 다이얼로그**(`js/util/contacts-modal.js`)가 **같은 데이터**다 — 거래처 모달 레일의 '정산·회계 담당자' 카드는 **읽기 전용**이라 여기에 포함되지 않는다. 키는 `id` — `no` 는 쓰기마다 다시 매겨지는 표시 순번이라 대상 지목에 쓰면 엉뚱한 사람이 바뀐다. 정산담당 1명 불변식은 버킷마다 적용되고 **정산담당은 직접 삭제할 수 없다**(두 화면 모두). `MSG_RECEIVE`/`MSG_NONE` 은 `store.js` 단일 정의 — 전에 3곳에 복제돼 있었다.
 - 담당자 소스: `js/data/staff-mock.js` (시스템 관리>담당자 관련설정). 피커는 `staffOptions()` 라이브 파생(이름+부서). 담당자 지정 모달 = **행 리스트**(이름·부서). 목록에서 사라진 기존 담당자는 '목록에 없음' 행으로 **맨 위에 남긴다** — 조용한 재배정이 가장 나쁜 결과다. 담당자 미지정 주문을 열면 이 다이얼로그가 **자동으로 뜬다**(API 자동등록 대응).
 - 주문 처리 이력은 레코드의 `history` 배열(`js/data/order-history.js`). **시간순(오래된 것이 `[0]`)** 이라 새 이력은 `push` 로 끝에 붙고 카드도 아래로 자란다 — 카드가 `max-height` 로 잘리므로 렌더 후 `histScrollEnd()` 로 끝까지 내린다. `at` 은 항상 `"YYYY-MM-DD HH:mm"`, 목데이터 시드는 **레코드 날짜에서 분 오프셋으로 파생**한다(절대값 금지). `b2c/b2bUpsert` 는 draft 에 history 가 없어도 **기존 이력을 보존**하고, `setStatus`/`setManager` 는 값이 그대로면 no-op 이라 중복 기록이 쌓이지 않는다.
 - 알림 설정: 담당자당 **카카오 알림톡 수신 ON/OFF 단일 토글**만(이벤트별 세분화 없음 — API 유동적).
@@ -110,6 +112,7 @@
 - **거래처·계정·지역규칙은 구 시스템(flowerdel.pe.kr/adm2)에서 이관한 실데이터다.** 임의로 바꾸지 말 것. 담당자명·이메일이 빈 것은 구 시스템에 대응 필드가 없어서다(버그 아님).
 - `clientNote`(구 '거래처 참고사항')는 메모가 아니라 **거래 조건**이다((주)홈팩: "무조건 특대상품 발송"). 주문 화면에서 담당자에게 반드시 노출한다 — **상세 모달 요약 레일 맨 아래**(처리 이력 다음) '거래 조건' 카드. 목록의 `!` 배지는 중복이라 제거했다(2026-09-15, 사용자 지시) — 되살리지 말 것. 껍데기는 요약·처리 이력과 **같은 `.ord-card`**(따로 놀면 레일이 어수선해진다), 본문 글자만 경고색이다. 길이가 거래처마다 달라 카드 본문은 자체 스크롤을 갖는다.
 - 지역 규칙은 **`js/data/intake-rules.js` 단일 엔진**. `type` 3종(blocked/allowlist/surcharge)이고 **평가 순서가 곧 정책**이다: blocked → 장소 allowlist → 지역 allowlist → surcharge. 밀양농협이 밀양 전역 규칙에 가리면 정상 주문이 전부 반려된다 — 회귀에 상시 포함. `delivery-fees.js`는 이 엔진에 위임하는 얇은 어댑터이며 금액만 돌려주므로 **새 코드는 `evaluateAddress()`를 직접 쓸 것**.
+  - ⚠️ `js/data/intake-guide.js` 는 **다른 것**이다 — 판정 엔진이 아니라 포털 상품안내(`#/app/products`)의 '지역별 반입가이드' 표다(표시 전용 정적 데이터, 구 harim 원본 이식). 엔진에 합치거나 지우지 말 것. 다만 **같은 사실을 두 곳에 적어 둔 것**이라 반입 정책이 바뀌면 둘 다 고쳐야 한다 — 엔진만 고치면 상품안내가 손님에게 다른 안내를 한다.
 - **비밀번호는 화면에 표시하지 않는다.** 거래처·담당자 모달 모두 입력칸 없이 '임시비밀번호 발급'만. 이관 시드에는 비밀번호가 없어 **아이디만으로 로그인**한다(login.js 주석 참조).
 - 배송완료 알림 수신자는 **한 명단**(받는분·보내는분·담당자N·추가5). 담당자는 담당자 저장공간에서 수신 ON인 사람이 `자동` 배지로 편입되고 **이 주문에서만** 끌 수 있다(`state.managerOff`). 저장공간 설정은 건드리지 않는다.
 - 배송 옵션은 **2종**(날짜·시간 지정 / 즉시배송↔익일 빠른배송). 긴급·야간은 제거됨 — 되살리지 말 것.
