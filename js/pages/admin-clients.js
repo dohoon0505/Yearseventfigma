@@ -205,7 +205,7 @@ export function mount(root, { nav }) {
         /* 승인대기 행에도 상세를 연다 — 사업자등록증을 못 보고 승인하면 심사가 아니다. */
         return c.status === "승인대기"
           ? html`<div class="admin-rowact">
-              <button class="ptbl-edit" data-action="edit" data-id="${c.id}" aria-label="가입 정보 확인">${icon("search", { size: 14 })}</button>
+              <button class="tbl-edit" data-action="edit" data-id="${c.id}" aria-label="가입 정보 확인">${icon("search", { size: 14 })}</button>
               <button class="btn-approve" data-action="approve" data-id="${c.id}">승인</button>
               <button class="btn-reject" data-action="reject" data-id="${c.id}">거부</button>
             </div>`
@@ -213,11 +213,11 @@ export function mount(root, { nav }) {
               ${/* 담당자는 거래처 원장이 아니라 **별도 다이얼로그**에서 고친다(시안).
                    목록에서 바로 열 수 있어야 한다 — 담당자만 보러 원장을 열 이유가 없다.
                    배지는 등록 인원수, 0명이면 흐리게 두어 "비어 있다"가 보이게 한다. */ ""}
-              <button class="ptbl-users ${contactCount(c.id) ? "" : "is-empty"}" data-action="contacts" data-id="${c.id}"
+              <button class="tbl-users ${contactCount(c.id) ? "" : "is-empty"}" data-action="contacts" data-id="${c.id}"
                 aria-label="${c.companyName} 담당자 관리" title="담당자 ${contactCount(c.id)}명">
-                ${icon("users", { size: 14 })}<span class="ptbl-users__n">${contactCount(c.id) || "0"}</span></button>
-              <button class="ptbl-edit" data-action="edit" data-id="${c.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
-              <button class="ptbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
+                ${icon("users", { size: 14 })}<span class="tbl-users__n">${contactCount(c.id) || "0"}</span></button>
+              <button class="tbl-edit" data-action="edit" data-id="${c.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
+              <button class="tbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
             </div>`;
       },
     },
@@ -438,7 +438,8 @@ export function mount(root, { nav }) {
 
     /* 레일 2번 카드 — 정산·회계 담당자. **읽기 전용**이다(시안).
        이 사람이 거래명세서·정산기한 알림을 받으므로 거래처 원장을 보는 자리에서
-       "누구에게 청구가 가는가"가 보여야 한다. 고치는 곳은 `#/admin/contacts` 다.
+       "누구에게 청구가 가는가"가 보여야 한다. 고치는 곳은 담당자 관리 다이얼로그다
+       (카드 자체가 그 다이얼로그를 연다 — util/contacts-modal.js).
        ⚠️ 이관 거래처 18곳은 담당자가 0명이라 **비어 있는 것이 정상**이다 —
           빈 카드를 숨기면 "없다"는 사실이 안 보여 아무도 채우지 않는다. */
     const billingCard = () => {
@@ -576,10 +577,11 @@ export function mount(root, { nav }) {
       e.hidden = !hasBanner();
     };
 
-    /* 담당자 명단은 이 모달에서 다루지 않는다(시안) — **`#/admin/contacts` 소관**이다.
+    /* 담당자 명단은 이 모달의 원장에서 다루지 않는다(시안) — **담당자 관리 다이얼로그**
+       (util/contacts-modal.js) 소관이다. 별도 탭은 두지 않는다.
        모달의 본업은 거래처 원장이고, 담당자는 거래처별 저장공간(포털과 같은 레코드)이라
        편집 규칙(정산담당 1명 불변식·삭제 잠금)이 따로 산다. 레일의 '정산·회계 담당자'
-       카드가 **읽기 전용**으로 현재 담당을 보여 주고 그 화면으로 보낸다.
+       카드가 **읽기 전용**으로 현재 담당을 보여 주고, 누르면 그 다이얼로그를 띄운다.
        ⚠️ 관리자가 담당자를 고칠 경로 자체를 없애면 안 된다 — 이관 거래처 19곳 중
           18곳이 담당자 0명이라, 경로가 없으면 그 거래처들은 영영 빈 채로 남는다. */
 

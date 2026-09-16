@@ -75,8 +75,8 @@ export function mount(root, { nav }) {
     {
       label: "관리", width: "120px", align: "center",
       render: (r) => html`<div class="admin-rowact">
-        <button class="ptbl-edit" data-action="edit" data-id="${r.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
-        <button class="ptbl-del" data-action="del" data-id="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
+        <button class="tbl-edit" data-action="edit" data-id="${r.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
+        <button class="tbl-del" data-action="del" data-id="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
       </div>`,
     },
   ];

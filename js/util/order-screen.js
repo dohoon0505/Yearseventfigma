@@ -168,7 +168,7 @@ export const onRowOpen = (root, open) =>
   });
 
 export const editBtn = (id) =>
-  html`<button class="ptbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
+  html`<button class="tbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
 
 /* ── 처리 레일 현장사진 — 업로드·다운로드·라이트박스 ──────
    FileReader · data-URL · <a download> · 오버레이 버튼 제외 분기까지

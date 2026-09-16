@@ -53,14 +53,14 @@ export function openContactsModal(o) {
     {
       label: "정산담당", width: "120px", align: "center",
       render: (r) => (r.isBilling
-        ? html`<span class="pill pill--blue ptbl-billing">${icon("check-circle", { size: 12 })} 정산담당</span>`
-        : html`<button class="ptbl-setbilling" data-mc-bill="${r.id}">지정</button>`),
+        ? html`<span class="pill pill--blue tbl-billing">${icon("check-circle", { size: 12 })} 정산담당</span>`
+        : html`<button class="tbl-setbilling" data-mc-bill="${r.id}">지정</button>`),
     },
     {
       label: "삭제", width: "56px", align: "center",
       render: (r) => (r.isBilling
-        ? html`<span class="ptbl-lock" title="정산담당은 바로 삭제할 수 없습니다 — 다른 담당자를 먼저 지정하세요">${icon("trash2", { size: 14 })}</span>`
-        : html`<button class="ptbl-del" data-mc-del="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`),
+        ? html`<span class="tbl-lock" title="정산담당은 바로 삭제할 수 없습니다 — 다른 담당자를 먼저 지정하세요">${icon("trash2", { size: 14 })}</span>`
+        : html`<button class="tbl-del" data-mc-del="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`),
     },
   ];
 
