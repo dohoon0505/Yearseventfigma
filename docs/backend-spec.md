@@ -245,8 +245,14 @@
 
 - **정산 기한** = 발행일이 속한 달의 **말일**.
   예: 귀속 2026-08, invoiceDay=20 → 발행 2026-09-20, 기한 2026-09-30.
-- 관리자는 정산 표에서 청구금액을 눌러 **근거 주문**을 그 자리에서 펼쳐
-  볼 수 있습니다.
+- **명세서 동의·계산서 발급 상태는 발행일 이후에만 성립합니다.** 발행일이 아직
+  오지 않은 귀속월을 '발급완료' 로 내려보내면 안 됩니다 — 화면은 서버 상태를
+  그대로 찍습니다(데모에서 월 오프셋으로 찍다가 invoiceDay 가 큰 거래처에서
+  발행 전인 달이 발급완료로 보이던 결함이 있었습니다).
+- 관리자는 정산 표에서 청구금액을 눌러 **청구 근거**를 그 자리에서 펼쳐 봅니다.
+  ⚠️ 근거는 **청구금액과 같은 집합에서** 나와야 합니다 — 화면은 품목별
+  (상품 · 건수 · 금액)로 묶고 마지막 줄에 합계를 찍는데, 그 합계가 청구금액과
+  다르면 청구서를 신뢰할 수 없습니다.
 
 **예외**
 | 상황 | 처리 |
@@ -959,7 +965,7 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
 | GET | `/api/clients?status=&q=&cursor=` | staff |
 | POST | `/api/clients` | admin |
 | GET | `/api/clients/{id}` | admin · 본인 |
-| PATCH | `/api/clients/{id}` | admin · 본인(제한 필드) |
+| PATCH | `/api/clients/{id}` | admin · 본인(제한 필드 — 아래) |
 | POST | `/api/clients/{id}/approve` | admin |
 | POST | `/api/clients/{id}/reject` | admin — `{ reason }` 필수 |
 | POST | `/api/clients/{id}/password/issue-temp` | admin → 임시비밀번호 **1회 반환** |
@@ -994,6 +1000,13 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
 
 **부서 필수 검증** — 저장을 막지 않되, 같은 사업자번호가 이미 있고
 `department` 가 비면 `400 CLIENT_DEPARTMENT_REQUIRED`.
+
+**본인(거래처) PATCH 허용 필드** — 포털 정산 간편조회(`#/app/settlement`)의
+'회사정보 수정' 이 보내는 7개뿐입니다: `companyName` · `bizNumber` · `ceoName` ·
+`email` · `managerName` · `contact` · `address`. 관리자 전용 필드(`status` ·
+`invoiceDay` · `clientNote` · `channel` · `salesRoute` · `accountId`)는 본인 권한으로
+거부하십시오. ⚠️ 포털과 관리자는 **같은 거래처 레코드**를 봅니다 — 포털 편집을
+별도 저장소에 두면 관리자 화면이 옛 값을 계속 보여 줍니다.
 
 ## 6.4 주문
 
@@ -1131,7 +1144,7 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
 | GET | `/api/settlements?period=YYYY-MM&status=` | admin |
 | GET | `/api/me/settlements` | client |
 | GET | `/api/settlements/{id}` | admin · 본인 |
-| GET | `/api/settlements/{id}/orders` | admin · 본인 — **드릴다운** |
+| GET | `/api/settlements/{id}/orders` | admin · 본인 — **드릴다운**(합 = 정산금액) |
 | POST | `/api/settlements/{id}/agree` | client 본인 |
 | POST | `/api/settlements/{id}/tax-invoice` | admin — 수동 발급·재시도 |
 | POST | `/api/settlements/{id}/payment` | admin — 입금 확인 |
