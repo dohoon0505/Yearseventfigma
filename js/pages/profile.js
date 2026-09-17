@@ -29,7 +29,8 @@ export function mount(root) {
   let dlg = null;
   const closeDlg = () => { if (dlg) { dlg.close(); dlg = null; } };
 
-  const profiles = () => store.get().profiles;
+  /* 로그인 거래처의 프로필만 — 담당자(contactsOf)와 같은 스코프 규칙이다. */
+  const profiles = () => store.profilesOf();
   const contacts = () => store.contactsOf(); // 로그인 거래처의 담당자만
 
   /* ── 표 셀 조각 ───────────────────────────────────────── */

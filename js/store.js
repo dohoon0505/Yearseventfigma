@@ -94,7 +94,9 @@ const SEED_BY_ID = new Map(INITIAL_CLIENTS.map((c) => [c.id, c]));
 const reindexNo = (arr) => arr.map((x, i) => ({ ...x, no: String(i + 1).padStart(2, "0") }));
 
 let state = {
-  profiles: INITIAL_PROFILES.map((p) => ({ ...p })),
+  /* 발송 프로필도 담당자처럼 **거래처별**이다(2026-09-17 결정). 전역 목록이던 시절 관리자가 태원과학
+     주문에 다른 회사 명의를 고를 수 있었고, 포털에서 남의 거래처 프로필이 보였다. */
+  profilesByClient: { [FIRST_CLIENT]: INITIAL_PROFILES.map((p) => ({ ...p })) },
   contactsByClient: { [FIRST_CLIENT]: INITIAL_CONTACTS.map((c) => ({ ...c })) },
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
@@ -110,7 +112,7 @@ function persist() {
     localStorage.setItem(
       KEY,
       JSON.stringify({
-        profiles: state.profiles,
+        profilesByClient: state.profilesByClient,
         contactsByClient: state.contactsByClient,
         favorites: [...state.favorites], // Set → array
         clients: state.clients,
@@ -129,7 +131,7 @@ function hydrate() {
     if (!raw) return;
     const data = JSON.parse(raw);
     state = {
-      profiles: Array.isArray(data.profiles) ? hydrateProfiles(data.profiles) : state.profiles,
+      profilesByClient: hydrateProfilesByClient(data),
       contactsByClient: hydrateContacts(data),
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
       // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다.
@@ -151,6 +153,16 @@ function hydrate() {
    이관하는 이 레포의 방식(hydrateContacts·fixBilling 과 같은 수법). */
 function hydrateProfiles(arr) {
   return reindexNo((arr || []).map((p) => ({ ...p, id: p.id || newProfileId() })));
+}
+/* 구 저장본(전역 `profiles` 배열)은 첫 거래처로 이관한다 — contactsByClient 이관과 같은 수법, KEY 는 올리지 않는다. */
+function hydrateProfilesByClient(data) {
+  if (data.profilesByClient && typeof data.profilesByClient === "object") {
+    const out = {};
+    Object.keys(data.profilesByClient).forEach((k) => { out[k] = hydrateProfiles(data.profilesByClient[k]); });
+    return out;
+  }
+  if (Array.isArray(data.profiles)) return { [FIRST_CLIENT]: hydrateProfiles(data.profiles) };
+  return state.profilesByClient;
 }
 
 /* 버킷 하나의 불변식 — 비어 있지 않으면 정산담당이 정확히 1명. */
@@ -216,11 +228,21 @@ export const store = {
     subs.add(fn);
     return () => subs.delete(fn);
   },
-  setProfiles(next) {
-    state = { ...state, profiles: reindexNo(resolve(next, state.profiles)) };
+  /** 한 거래처의 발송 프로필(항상 배열). 표시 순번 `no` 는 여기서 파생한다.
+   *  ⚠️ `state.profilesByClient` 를 직접 읽지 말 것 — 거래처 스코프(scopeId)가 여기에 있다. */
+  profilesOf(clientId) {
+    return (state.profilesByClient[scopeId(clientId)] || []).map((p, i) => ({ ...p, no: String(i + 1).padStart(2, "0") }));
+  },
+  /** 한 거래처의 발송 프로필 목록을 통째로 교체. */
+  setProfilesOf(clientId, next) {
+    const k = scopeId(clientId);
+    const arr = reindexNo(resolve(next, state.profilesByClient[k] || []));
+    state = { ...state, profilesByClient: { ...state.profilesByClient, [k]: arr } };
     persist();
     emit();
   },
+  /* ── 로그인 거래처 기준 축약형 — 포털 화면이 쓴다 ── */
+  setProfiles(next) { this.setProfilesOf(null, next); },
   /** 한 거래처의 담당자 목록(항상 배열). 표시 순번 `no` 는 여기서 파생한다. */
   contactsOf(clientId) {
     return (state.contactsByClient[scopeId(clientId)] || []).map((c, i) => ({ ...c, no: String(i + 1).padStart(2, "0") }));

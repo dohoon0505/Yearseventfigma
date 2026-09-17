@@ -366,7 +366,10 @@ export function mount(root, { nav }) {
   /* 직접 입력 칸이 살아 있는가 — 담당자 0명이면 선택지가 그것뿐이라 강제로 열려 있다.
      (이관 거래처 19곳 중 18곳이 담당자 0명이다 — 예외 경로가 아니라 주경로다.) */
   const cReqManualOn = () => !cContacts().length || cReqManual;
-  const cProfile = () => store.get().profiles.find((p) => p.id === cDraft.profileId) || null;
+  /* 발송 프로필은 **고른 거래처의 것만** — 담당자(cContacts)와 같은 스코프. 전역 목록이던 시절
+     태원과학 주문에 다른 회사 명의를 고를 수 있었다(2026-09-17 결정). */
+  const cProfiles = () => (cDraft.clientId ? store.profilesOf(cDraft.clientId) : []);
+  const cProfile = () => cProfiles().find((p) => p.id === cDraft.profileId) || null;
   /* 고정문구는 2026-09-17 부터 **저장 시점 필수**라 새 프로필은 늘 값이 있다. 이 폴백은 그 이전에
      저장된 레코드(빈 고정문구)가 빈 이름으로 찍히는 것만 막는다 — 자동조립을 되살린 것이 아니다. */
   const profileText = (p) => (p ? (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}` : "");
@@ -835,19 +838,19 @@ export function mount(root, { nav }) {
       /* 시안 #7 은 '명의 한 줄'이다 — `${role} ${name}` 은 명의 문자열에 이미 들어 있어
          보조줄이 같은 말을 두 번 한다. 대신 연락처는 배지로 남긴다: 명의가 똑같은
          프로필이 실제로 여럿이라(임직원 일동) 그것 말고는 구분할 단서가 없다. */
-      const rows = store.get().profiles.map((p2) => ({
+      const rows = cProfiles().map((p2) => ({
         v: p2.id, name: profileText(p2), meta: p2.phone || "",
       }));
       openRowPicker({
         /* 시안 #7 — 제목은 '무엇을 고르는 화면인지'(리본 명의), 에어브로는 어디서 온
            목록인지, 푸터 힌트는 이 선택이 무엇과 이어지는지를 말한다. */
         eyebrow: "발송 프로필", title: "리본 보내는분 명의", width: 500, listH: 272,
-        hint: "거래처 포털의 발송인 프로필과 같은 명단입니다",
+        hint: "이 거래처가 포털 발송인 프로필에 저장한 명단입니다",
         rows, current: cDraft.profileId, confirmLabel: "불러오기", toast,
-        empty: "저장된 발송 프로필이 없습니다.",
+        empty: "이 거래처에 저장된 발송 프로필이 없습니다.",
         onPick: (v) => {
           cDraft.profileId = v;
-          const pf = store.get().profiles.find((x) => x.id === v);
+          const pf = cProfiles().find((x) => x.id === v);
           cDraft.ribbonSender = profileText(pf);   /* 리본 문자열은 스냅샷이다 */
           createModal.rerenderStep("s2"); createModal.rerenderRail(); createModal.syncFooter();
         },
