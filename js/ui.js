@@ -2,7 +2,7 @@
    ui.js — shared UI factories
    pageTitle() · openModal() (focus-trapped) · tableGrid() (DataTable)
    ============================================================ */
-import { html, raw, setHTML, qsa } from "./dom.js";
+import { html, raw, setHTML, on, qsa } from "./dom.js";
 import { icon } from "./icons.js";
 import { hourOptions, minOptions, clampMin } from "./util/date.js";
 
@@ -68,6 +68,22 @@ export function tableGrid({ columns, rows, rowKey, rowClass, compact = false, fi
     </div>
   `;
 }
+
+/* 행 아무 데나 눌러 그 행을 여는 표 — tableGrid 가 찍는 `data-rowkey` 위에서만 돈다.
+   주문 3화면(#/admin/b2c · #/admin/orders · #/app/orders)과 상품 규격 안내가 함께 쓴다.
+   ⚠️ 가드 둘이 핵심이다.
+     1) 안쪽 컨트롤은 비켜 간다 — 안 그러면 셀 안 연필/별을 눌렀을 때 그 버튼의 동작과
+        행 열기가 **둘 다** 터진다.
+     2) 드래그 선택 중이면 열지 않는다 — 표 본문을 긁어 복사하는 흐름이 흔하다.
+   ⚠️ `tableGrid` 옆에 산다(예전엔 util/order-screen.js). 상품 화면이 그 모듈을 import 하면
+      드롭다운·데이트피커·모달 그래프가 통째로 딸려 오는데, 이 함수는 순수 DOM 플러밍이라
+      그럴 이유가 없다. order-screen.js 가 기존 호출부 호환으로 재수출한다. */
+export const onRowOpen = (root, open) =>
+  on(root, "click", ".table-grid__row[data-rowkey]", (e, t) => {
+    if (e.target.closest("button, a, input, select, textarea, label")) return;
+    if (!window.getSelection().isCollapsed) return;
+    open(t.dataset.rowkey);
+  });
 
 /* ── Modal chrome with ESC / backdrop / focus-trap ──────── */
 /* 열려 있는 모달 전부 — 라우트가 바뀔 때 일괄 정리한다.

@@ -8,6 +8,7 @@
   --c-orange-ink: #d94000;    /* active text on light pink */
   --c-orange-ink-strong: #c93a00; /* AA-safe ink on soft/white (거래명세서 다운로드 버튼) */
   --c-orange-soft: #fff1ec;   /* faint orange wash */
+  --c-orange-soft-hv: #ffe4d8; /* 위 워시의 hover 짝 — 상품 선택 행. 옅은 것 바로 옆에 둬야 한쪽만 바뀌지 않는다 */
   --c-orange-hover: #d94e24;  /* primary CTA hover (order 08-brand) */
   --c-blue: #4169e1;          /* secondary / links / toggles */
   --c-blue-soft: #f0f3fd;     /* selected row wash */
@@ -20,6 +21,7 @@
   --c-bg: #f9f9f9;            /* app main content background */
   --c-surface: #ffffff;       /* cards / inputs / modal */
   --c-surface-2: #f5f5f7;     /* form panel background */
+  --c-glass-bar: rgba(245, 245, 247, 0.8); /* 스티키 바 유리면(= --c-surface-2 80%) — backdrop-filter 와 짝 */
   --c-surface-3: #f5f5f5;     /* subtle fills (table head, company badge) */
   --c-surface-hover: #fafafa;
   --c-surface-hover-2: #f4f4f4;
