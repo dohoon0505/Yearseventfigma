@@ -28,6 +28,11 @@ import { openDialog, dlgActions } from "./dialog.js";
    새 코드는 order-fields.js 에서 직접 가져올 것. */
 export { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize };
 
+/* 행 열기는 tableGrid 옆(ui.js)이 소유한다 — 상품 규격 안내처럼 주문과 무관한 화면도 쓰는데
+   그쪽이 이 모듈을 import 하면 드롭다운·피커·모달 그래프가 통째로 딸려 온다.
+   기존 호출부(orders.js · admin-orders.js · admin-b2c.js)가 깨지지 않게 재수출만 한다. */
+export { onRowOpen } from "../ui.js";
+
 /* ── 상태 ──────────────────────────────────────────────── */
 /* 화면마다 색이 다르면 같은 상태를 매번 다시 배워야 한다 — 단일 맵. */
 export const ORDER_STATUS_STYLE = {
@@ -161,13 +166,6 @@ export const amtCell = (n) => html`<span class="ord-amt">${won(n)}</span>`;
       · 안쪽 컨트롤(연필·카메라)은 자기 핸들러가 처리한다 — 안 비켜 가면 모달이 두 번 열린다
       · 드래그로 주소·메모를 긁는 중이면 열지 않는다(mouseup 에서 click 이 뜬다)
     키보드는 셀 안 버튼이 담당한다 — 행에 tabindex 를 달면 Tab 순서에 44개가 끼어든다. */
-export const onRowOpen = (root, open) =>
-  on(root, "click", ".table-grid__row[data-rowkey]", (e, t) => {
-    if (e.target.closest("button, a, input, select, textarea, label")) return;
-    if (!window.getSelection().isCollapsed) return;
-    open(t.dataset.rowkey);
-  });
-
 export const editBtn = (id) =>
   html`<button class="tbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
 

@@ -1,182 +1,473 @@
 /* ============================================================
-   products.css — ProductGuide (상품 규격 안내)
+   products.css — 상품 규격 안내 (#/app/products)
+   시안: claude.ai/design '상품 규격 안내 - 리모델링'
+
+   구조: 스티키 필터 바 + [표 | 400px 고정 상세 패널] 2단.
+   모든 선택자를 `.page-products` 아래로 가둔다 — 예전엔 `.prod-price`·`.prod-cat`
+   같은 이름이 무스코프로 새어 있었다(다른 화면의 `.prod-*` 와 부딪히기 직전이었다).
    ============================================================ */
 .page-products {
-  padding: 24px;
+  /* 표 열 폭 — tableGrid 가 grid-template-columns 를 **인라인 style 로** 찍어서
+     미디어쿼리가 못 이긴다. 변수로 넘겨 좁은 화면에서 여기만 다시 정의한다.
+     ⚠️ 호출부(products.js)의 `var(--pc-*, 폴백)` 과 짝이다 — 변수가 미정의면
+        선언 전체가 무효가 되어 전 셀이 한 열에 쌓인다. */
+  --pc-fav: 56px;
+  --pc-cat: 96px;
+  --pc-name: 180px;
+  --pc-desc: minmax(0, 1fr);
+  --pc-price: 130px;
+  --pc-aside: 400px;
+  /* 스티키 바 높이(12 + 40 + 12 + 테두리 2). 패널 top·표 scroll-margin 이 함께 쓰므로
+     숫자를 두 곳에 적지 않는다 — 바가 두 줄로 접히면 여기만 고치면 된다. */
+  --pc-bar-h: 66px;
+
+  padding: 40px 40px 80px;
+  /* .shell__main 은 --c-bg 를 칠한다. 셸을 건드리지 않고 이 화면만 덮되,
+     내용이 짧은 분류(관엽화분 3행)에서 아래가 회색으로 남지 않게 min-height 를 준다. */
+  min-height: 100%;
+  background: var(--c-surface-2);
 }
-.prod-inner {
-  width: 1300px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.page-products .prod-inner {
+  max-width: 1320px;
+  width: 100%;
 }
 
-/* ── Filters ────────────────────────────────────────────── */
-.prod-filters {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* ── 머리글 ──────────────────────────────────────────────
+   공용 `pageTitle()` 은 22px bold·부제 슬롯이 없고, 고치면 다른 15개 화면이 따라
+   바뀐다. 이 화면만의 28px + 부제라 페이지 지역 클래스로 둔다. */
+.page-products .prod-hd {
+  margin-bottom: 28px;
 }
-.prod-filter-row {
+.page-products .prod-hd h1 {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--sp-4);
+  font-size: var(--fs-28);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.028em;
+  color: var(--c-text-strong);
 }
-.prod-filter-lbl {
-  font-size: var(--fs-14);
-  color: var(--c-text-3);
-  font-weight: var(--fw-medium);
-  width: 90px;
+.page-products .prod-hd h1 img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
   flex-shrink: 0;
 }
-.prod-cats {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.prod-cat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-.prod-cat input {
-  accent-color: var(--c-orange);
-}
-.prod-cat span {
-  font-size: var(--fs-14);
-  color: var(--c-text-3);
-}
-.prod-cat span.is-active {
-  color: var(--c-orange);
-  font-weight: var(--fw-medium);
-}
-.prod-guide-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-}
-.prod-guide-row .prod-filter-lbl {
-  padding-top: 2px;
-}
-.prod-guide-row p {
-  font-size: var(--fs-14);
+.page-products .prod-hd p {
+  margin-top: 6px;
+  font-size: var(--fs-17);
+  line-height: 1.5;
   color: var(--c-text-4);
-  line-height: 1.6;
 }
 
-/* ── Save bar ───────────────────────────────────────────── */
-.prod-savebar {
+/* ── 스티키 필터 바 ──────────────────────────────────────
+   ⚠️ `backdrop-filter` 는 자손 `position:fixed` 의 컨테이닝 블록이 된다 —
+      이 바 안에는 **드롭다운·팝오버를 넣지 말 것**(배송일시 피커가 겪은 그 함정).
+   ⚠️ z-index 가 없으면 DOM 순서상 뒤에 오는 흰 상세 패널이 이 바 **위로** 칠해진다. */
+.page-products .prod-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  min-height: var(--pc-bar-h);
+  margin-bottom: var(--sp-5);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--c-surface);
+  gap: var(--sp-7);
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5);
+  background: var(--c-glass-bar);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
   border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  padding: 12px 20px;
+  border-radius: var(--r-2xl);
 }
-.prod-savecount {
-  font-size: var(--fs-14);
-  color: var(--c-text-4);
+.page-products .prod-cats {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.prod-savecount strong {
-  color: var(--c-orange);
+
+/* pill 은 **진짜 라디오 그룹**이다 — 시안은 <button> 5개지만 그러면 탭 스톱이 5개로
+   늘고 화살표 이동이 사라진다. 네이티브 라디오를 숨기고 옆 span 만 칠하면
+   픽셀은 같은데 탭 스톱 1개 + 화살표 이동이 공짜로 붙는다. */
+.page-products .prod-cat {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
 }
-.prod-savebtn {
+/* base.css `.sr-only` 와 같은 clip 기법 — 라디오는 **보이지 않을 뿐 살아 있어야** 한다.
+   ⚠️ `display:none`·`visibility:hidden` 으로 숨기면 안 된다 — 포커스 자체가 불가능해져
+      화살표 이동이 죽고, 그러면 버튼 5개로 짠 것과 다를 바가 없어진다.
+      (`opacity:0` 나 `pointer-events:none` 은 화살표를 깨뜨리지 않는다 — 실측 확인.
+       그래도 레포에 이미 있는 `.sr-only` 관용구를 따른다.) */
+.page-products .prod-cat input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.page-products .prod-cat span {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-size: var(--fs-14);
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-strong);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-normal);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.page-products .prod-cat:hover input:not(:checked) + span {
+  border-color: var(--c-border-strong);
+  background: var(--c-surface-2);
+}
+.page-products .prod-cat input:checked + span {
+  border-color: var(--c-dark);
+  background: var(--c-dark);
+  color: var(--c-surface);
   font-weight: var(--fw-semibold);
+}
+/* 전역 :focus-visible 링은 --ring(주황 9% 알파)이라 흰 면에서 1.1:1 — 없는 것과 같다.
+   새로 만드는 조작 컨트롤은 인디고 아웃라인을 직접 그린다. */
+.page-products .prod-cat input:focus-visible + span {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+
+/* ── 바 우측 — 카운트 + 저장 3상태 ─────────────────────── */
+.page-products .prod-bar__r {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.page-products .prod-savecount {
+  font-size: var(--fs-14);
+  color: var(--c-text-4);
+  white-space: nowrap;
+}
+.page-products .prod-savecount b {
+  color: var(--c-text-strong);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.page-products .prod-savebtn {
+  height: 40px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--c-orange);
+  color: var(--c-surface);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
   transition: background 0.15s;
 }
-.prod-savebtn.is-disabled {
-  background: var(--c-border);
+.page-products .prod-savebtn:hover:not(:disabled) {
+  background: var(--c-orange-hover);
+}
+.page-products .prod-savebtn:disabled {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
   color: var(--c-text-faint);
   cursor: not-allowed;
 }
-.prod-savebtn.is-on {
-  background: var(--c-blue);
-  color: var(--c-surface);
+.page-products .prod-savebtn:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
 }
-.prod-savebtn.is-on:hover {
-  background: var(--c-blue-hover);
-}
-.prod-savebtn.is-saved {
-  background: var(--c-success);
-  color: var(--c-surface);
-}
-
-/* ── Table cells ────────────────────────────────────────── */
-.prod-fav-hdr {
-  display: inline-block;
-  text-align: center;
-  word-break: keep-all;
-  line-height: 1.4;
-}
-.prod-fav-chk {
-  accent-color: var(--c-orange);
-  cursor: pointer;
-  width: 15px;
-  height: 15px;
-}
-.prod-price {
-  font-weight: var(--fw-medium);
-  color: var(--c-text-2);
-}
-.prod-sample-btn {
+.page-products .prod-saved {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-border);
-  border-radius: 4px;
-  font-size: var(--fs-13);
-  color: var(--c-text-3);
+  gap: 7px;
+  height: 40px;
+  padding: 0 22px;
+  border-radius: var(--r-pill);
+  background: var(--c-success-bg);
+  color: var(--c-success-ink);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
   white-space: nowrap;
-  transition: all 0.15s;
-}
-.prod-sample-btn:hover {
-  background: var(--c-sidebar-active-bg);
-  border-color: var(--c-orange);
-  color: var(--c-orange);
 }
 
-/* ── 지역별 반입가이드 (harim 원본 이식 · 상단 .prod-table 과 동일 규격) ── */
-.intake-guide { margin-top: 12px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-md); overflow: hidden; }
-.ig-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--c-border); flex-wrap: wrap; }
-.ig-title { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-strong); }
-.ig-desc { margin-top: 4px; font-size: var(--fs-13); color: var(--c-text-4); line-height: 1.6; }
-.ig-srch { flex: 0 0 auto; width: 280px; }
-.ig-count { padding: 10px 20px 0; font-size: var(--fs-13); color: var(--c-text-4); }
-.ig-count b { color: var(--c-orange-ink); font-weight: var(--fw-bold); }
-.ig-scroll { overflow-x: auto; }
-.ig-table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); table-layout: fixed; }
-.ig-table col.c-sido { width: 108px; }
-.ig-table col.c-p { width: 92px; }
-.ig-table col.c-note { width: 30%; }
-.ig-table th, .ig-table td { padding: 11px 12px; font-size: var(--fs-14); border-bottom: 1px solid var(--c-border); border-right: 1px solid var(--c-border); vertical-align: middle; }
-.ig-table th:last-child, .ig-table td:last-child { border-right: 0; }
-.ig-table th { background: var(--c-surface-3); font-weight: var(--fw-medium); color: var(--c-text-3); text-align: left; white-space: nowrap; }
-.ig-table th:nth-child(n+3):nth-child(-n+5) { text-align: center; }
-.ig-table td { color: var(--c-text-4); line-height: 1.45; word-break: keep-all; }
-.ig-table tbody tr:last-child td { border-bottom: 0; }
-.ig-table tbody tr:hover td { background: var(--c-surface-hover); }
-.ig-sido { font-weight: var(--fw-bold); color: var(--c-text-strong); background: var(--c-surface-2); text-align: center; white-space: nowrap; }
-.ig-c { text-align: center; }
-.ig-yes { color: var(--c-success-ink); font-weight: var(--fw-bold); }
-.ig-no { color: var(--c-border-strong); }
-/* 카테고리 미대상 · 검색 결과 없음 안내 */
-.ig-notice { padding: 36px 20px; text-align: center; }
-.ig-notice__t { font-size: var(--fs-15); font-weight: var(--fw-bold); color: var(--c-text-2); }
-.ig-notice__d { margin-top: 6px; font-size: var(--fs-13); color: var(--c-text-4); line-height: 1.6; }
-.ig-notice__d b { color: var(--c-orange-ink); }
-.ig-notice__btn { margin-top: 14px; padding: 9px 18px; border: 1px solid var(--c-border-strong); border-radius: var(--r-md); background: var(--c-surface); font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-2); transition: border-color 0.15s, color 0.15s, background 0.15s; }
-.ig-notice__btn:hover { border-color: var(--c-orange); color: var(--c-orange); background: var(--c-sidebar-active-bg); }
+/* ── 2단 레이아웃 ────────────────────────────────────────
+   ⚠️ align-items:flex-start 가 없으면 패널이 stretch 돼 sticky 가 움직일 여지를 잃는다. */
+.page-products .prod-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-6);
+}
+.page-products .prod-table {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 표 — 공용 tableGrid 를 계속 쓰고 면만 벗긴다(.ctc-list 와 같은 수법) ── */
+.page-products .table-grid {
+  border-radius: var(--r-2xl);
+}
+.page-products .table-grid__head {
+  background: var(--c-surface-2);
+}
+/* 시안 표에는 셀 세로줄이 없다 */
+.page-products .table-grid__cell {
+  border-right: 0;
+}
+.page-products .table-grid__head .table-grid__cell {
+  padding: 11px 12px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-4);
+}
+/* 행 아무 데나 누르면 선택된다.
+   ⚠️ 여기서 background 를 건드리면 `.table-grid__row:hover`(0,2,0)를 이겨 hover 가 죽는다 — cursor 만. */
+.page-products .table-grid__row {
+  cursor: pointer;
+  /* 폴드 아래 이름 버튼으로 Tab 하면 크롬이 그 행을 스크롤포트 맨 위로 올리는데,
+     거기가 스티키 바 밑이라 포커스된 컨트롤이 보이지 않는다. */
+  scroll-margin-top: calc(var(--pc-bar-h) + var(--sp-4));
+}
+/* 선택 행 워시는 **커스텀 프로퍼티로** 넘긴다 — 단일 클래스로 background 를 칠하면
+   위와 같은 이유로 hover 반응이 죽는다(규약에 박힌 `.is-group` 전력). */
+.page-products .prodrow--sel {
+  --row-tone: var(--c-orange-soft);
+  --row-tone-hv: var(--c-orange-soft-hv);
+}
+
+/* 즐겨찾기 별 — base.css 가 `.icon { fill:none; stroke:currentColor }` 를 주므로
+   기본이 외곽선이고, 담긴 상태만 면을 채운다. */
+.page-products .prod-star {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--c-text-dim);
+  transition: color 0.15s, background 0.15s;
+}
+.page-products .prod-star:hover {
+  background: var(--c-orange-soft);
+  color: var(--c-orange);
+}
+.page-products .prod-star.is-on {
+  color: var(--c-orange);
+}
+.page-products .prod-star.is-on .icon {
+  fill: currentColor;
+}
+/* ⚠️ `.table-grid { overflow:hidden }` 이 바깥 아웃라인을 자른다 — 안쪽으로 그린다. */
+.page-products .prod-star:focus-visible,
+.page-products .prod-name:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: -2px;
+}
+
+/* 상세상품 이름 — 무테 버튼이지만 시안의 텍스트처럼 보여야 한다(선택의 키보드 경로) */
+.page-products .prod-name {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+  text-align: left;
+  line-height: 1.4;
+  border-radius: var(--r-sm);
+}
+.page-products .prod-name:hover {
+  color: var(--c-orange-ink);
+}
+.page-products .prod-price {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 상세 패널 ───────────────────────────────────────────
+   ❗ 시안 캔버스는 1600×1000 이라 카드(≈850px)가 겨우 들어가지만, 1366×768 에서는
+      스크롤포트 706px − top 78 = 628px 만 남아 **카드 하단(즐겨찾기 토글 + 면책 문구)이
+      영구히 화면 밖**에 남는다 — 스티키 요소는 자기보다 큰 영역을 끌어올 수 없다.
+      그래서 (1) 사진 높이를 뷰포트에 묶고 (2) 카드에 max-height + 자체 스크롤을 준다.
+      평소엔 스크롤바가 보이지 않고, 짧은 화면에서만 돌아 도달 불가 구간이 사라진다. */
+.page-products .prod-detail {
+  flex: 0 0 var(--pc-aside);
+  width: var(--pc-aside);
+  position: sticky;
+  top: calc(var(--pc-bar-h) + var(--sp-4));
+}
+.page-products .prod-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2xl);
+  max-height: calc(100vh - var(--header-h) - var(--pc-bar-h) - 36px);
+  overflow: hidden auto;
+}
+.page-products .prod-card__mediapad {
+  padding: var(--sp-7) var(--sp-7) 0;
+}
+.page-products .prod-media {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-lg);
+  /* 원격 CDN 사진이라 실패해도 카드가 주저앉지 않게 면을 깔아 둔다 */
+  background: var(--c-surface-2);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.page-products .prod-media.is-34 {
+  aspect-ratio: 3 / 4;
+}
+.page-products .prod-media.is-11 {
+  aspect-ratio: 1 / 1;
+}
+/* 세로 여유에 묶어 둔다 — 3:4 를 그대로 두면 768px 화면에서 카드가 폴드를 넘는다 */
+.page-products .prod-media {
+  max-height: min(38vh, 420px);
+}
+.page-products .prod-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.page-products .prod-media__zoom {
+  position: absolute;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: var(--c-modal-dim);
+  color: var(--c-surface);
+  font-size: var(--fs-12);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.page-products .prod-media:hover .prod-media__zoom,
+.page-products .prod-media:focus-visible .prod-media__zoom {
+  opacity: 1;
+}
+.page-products .prod-media:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+
+.page-products .prod-card__body {
+  padding: var(--sp-6) var(--sp-7) var(--sp-7);
+}
+.page-products .prod-card__cat {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-4);
+}
+.page-products .prod-card__name {
+  margin-top: 3px;
+  font-size: 24px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+}
+.page-products .prod-card__price {
+  margin-top: var(--sp-4);
+  font-size: var(--fs-28);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.025em;
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.page-products .prod-card__desc {
+  margin-top: var(--sp-5);
+  font-size: var(--fs-15);
+  line-height: 1.6;
+  color: var(--c-text-4);
+  text-wrap: pretty;
+}
+.page-products .prod-card__note {
+  margin-top: var(--sp-4);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}
+.page-products .prod-cardfav {
+  margin-top: var(--sp-6);
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--c-orange);
+  color: var(--c-surface);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  transition: background 0.15s, color 0.15s;
+}
+.page-products .prod-cardfav:hover {
+  background: var(--c-orange-hover);
+}
+.page-products .prod-cardfav.is-on {
+  border: 1px solid var(--c-orange);
+  background: var(--c-orange-soft);
+  color: var(--c-orange-ink);
+}
+.page-products .prod-cardfav.is-on:hover {
+  background: var(--c-orange-soft-hv);
+}
+.page-products .prod-cardfav:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+.page-products .prod-card__fine {
+  margin-top: var(--sp-4);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}
+
+/* ── 반응형 — 시안은 1600px 기준이라 좁은 화면에서 설명 칸이 눌린다 ──────
+   ⚠️ 미디어쿼리는 특이도를 올리지 않으므로 **기본 규칙보다 뒤에** 둔다. */
+@media (max-width: 1400px) {
+  .page-products {
+    --pc-fav: 48px;
+    --pc-cat: 80px;
+    --pc-name: 156px;
+    --pc-price: 112px;
+    --pc-aside: 340px;
+    padding: var(--sp-7) var(--sp-7) 64px;
+  }
+}
+/* 1열로 접을 땐 패널을 **표 위로** 올린다 — 아래에 쌓으면 행을 눌러도 피드백이
+   화면 밖이라 선택이라는 장치가 통째로 무의미해진다. */
+@media (max-width: 1240px) {
+  .page-products .prod-layout {
+    flex-direction: column;
+  }
+  .page-products .prod-detail {
+    order: -1;
+    position: static;
+    flex: 0 0 auto;
+    width: 100%;
+  }
+  .page-products .prod-card {
+    max-height: none;
+    overflow: visible;
+  }
+  .page-products .prod-media {
+    max-height: 200px;
+  }
+}
