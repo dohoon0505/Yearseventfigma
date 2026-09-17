@@ -11,7 +11,7 @@
    always have current data regardless of when the demo is viewed.
    ============================================================ */
 
-import { INVOICE_DAYS, invoiceDayOf, invoiceDayFor, issueDate, dueDate, fmtDot, periodOf } from "./settlement-rules.js";
+import { INVOICE_DAYS, invoiceDayOf, invoiceDayFor, issueDate, dueDate, fmtDot, periodOf, periodLabel } from "./settlement-rules.js";
 import { INVOICE_DB } from "./invoice-mock.js";
 export { INVOICE_DAYS, invoiceDayOf };
 
@@ -19,14 +19,13 @@ const NOW = new Date();
 /** 목데이터 생성 기준 시각. 화면의 '이번달/저번달' 기본값은 반드시 이 값을 써야
  *  자정·월 전환 후에도(모듈은 재평가되지 않으므로) 데이터 창과 어긋나지 않는다. */
 export const DATA_NOW = NOW;
-const pad = (n) => String(n).padStart(2, "0");
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 // "YYYY년 MM월" for `monthsAgo` before this month
-const ymLabel = (monthsAgo) => {
-  const d = new Date(NOW.getFullYear(), NOW.getMonth() - monthsAgo, 1);
-  return `${d.getFullYear()}년 ${pad(d.getMonth() + 1)}월`;
-};
+/* ⚠️ 이 문자열은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 이용 내역 맵의 키가 이 포맷이고,
+   호출부가 만든 라벨과 문자열 비교로 그 달을 찾는다. 포맷이 한 글자만 달라도 표가 통째로 빈다.
+   그래서 settlement-rules.periodLabel 한 곳에서만 만든다(예전엔 독립 구현이 다섯 벌이었다). */
+const ymLabel = (monthsAgo) => periodLabel(periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - monthsAgo, 1)));
 
 /* ── 거래처 (client companies) ──────────────────────────────
    구 시스템(flowerdel.pe.kr/adm2 · 거래처 리스트 301)에서 이관한 실데이터다.

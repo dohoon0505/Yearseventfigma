@@ -24,7 +24,6 @@ const dlv = (d, t) => `${formatDateLabel(d)}T${t}`;
 /* 담당자 이름 목록은 시스템 관리 > 담당자 디렉터리(staff-mock)에서 파생 —
    담당자 관련설정에서 추가/삭제하면 B2C 담당자 피커에도 그대로 반영된다. */
 export { staffNames, staffOptions };
-export const B2C_STAFF = staffNames(); // 하위호환 스냅샷(라이브 목록은 staffNames() 사용)
 export const B2C_CHANNELS = ["네이버 스토어", "카카오톡 채널", "전화 주문", "자사몰", "인스타그램 DM", "거래처 직접"];
 /* 주문경로 부가 정보 — **표시 전용**이다. 정산은 거래처별 월 마감 단일 모델이라
    여기 수수료를 끼우면 정산·대쉬보드 집계까지 같이 뒤집어야 한다(→ backend-spec 10.4).
@@ -45,7 +44,7 @@ export const B2C_STATUSES = ["접수대기", "주문접수", "배송완료", "�
 /* 주문상품 옵션(상품 규격 안내 카탈로그) — 선택 시 주문금액 자동 채움 */
 export const B2C_PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, price: priceNum(p.price) }));
 export const productPrice = (name) => B2C_PRODUCTS.find((p) => p.name === name)?.price ?? 0;
-/* 리본 경조사어 추천은 js/data/ribbon-phrases.js 단일 소스 (RIBBON_GROUPS / RIBBON_FLAT) */
+/* 리본 경조사어 추천은 js/data/ribbon-phrases.js 단일 소스 (RIBBON_GROUPS) */
 
 /* 상태 배지 색은 두 주문 화면이 공유한다 → util/order-screen.js ORDER_STATUS_STYLE */
 

@@ -15,6 +15,3 @@ export const RIBBON_GROUPS = [
   { group: "개업·취임", phrases: ["축 개업(祝 開業)", "축 취임(祝 就任)", "번창하시길 기원합니다"] },
   { group: "기타", phrases: ["감사합니다", "항상 건강하세요", "축 승진(祝 昇進)"] },
 ];
-
-/** 드롭다운·datalist 처럼 분류가 필요 없는 곳이 쓰는 평면 목록. */
-export const RIBBON_FLAT = RIBBON_GROUPS.flatMap((g) => g.phrases);

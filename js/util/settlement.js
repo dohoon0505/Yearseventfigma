@@ -15,6 +15,12 @@
    '계산서 발행' 칸으로 새던 결함이 있었다.
    ============================================================ */
 import { store } from "../store.js";
+
+/* 정산 간편조회 → 거래명세서로 **어느 귀속월을 열지** 넘기는 세션 키(같은 탭 한정).
+   라우터가 해시 완전일치로 매칭해 쿼리스트링을 실을 수 없어서 쓰는 우회다 — 받는 쪽(invoice.js)이
+   읽고 바로 지운다. 두 페이지 모듈이 서로를 import 하지 않도록 여기에 둔다(규약). */
+export const INVOICE_YM_KEY = "yeop.invoice.ym";
+
 import { settlementBaseRows } from "../data/admin-mock.js";
 
 /**

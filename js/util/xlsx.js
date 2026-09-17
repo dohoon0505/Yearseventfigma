@@ -6,7 +6,6 @@
      merges    : ["A1:E1", …] 병합 범위
      rowHeights: { 1: 30, … } 1-based 행 높이(pt)
    스타일 스펙 s: { bold, size, color(ARGB), fill(ARGB), align, valign, wrap, border, numFmt }
-   aoaToXlsx(sheetName, rows) : 스타일 없는 단순 버전(하위호환).
    외부 라이브러리 없이 OOXML 패키지(zip)를 직접 조립. TextEncoder만 사용(브라우저·Node 공통).
    ============================================================ */
 
@@ -244,9 +243,4 @@ export function sheetToXlsx({ sheetName, rows, cols, merges, rowHeights } = {}) 
     { name: "xl/worksheets/sheet1.xml", data: enc(sheet) },
   ];
   return zipStore(parts);
-}
-
-/* 하위호환: 스타일 없는 2차원 배열 → .xlsx */
-export function aoaToXlsx(sheetName, rows) {
-  return sheetToXlsx({ sheetName, rows });
 }

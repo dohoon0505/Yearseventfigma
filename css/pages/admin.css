@@ -319,6 +319,20 @@
 .settle-linkbtn .icon {
   flex-shrink: 0;
 }
+/* 발행 전(발급예정) 달은 금액이 아직 쌓이는 중이다 — 확정되지 않은 명세서를 링크·PDF 로 내보내지 않는다.
+   왜 못 누르는지는 title 로 말한다(포털은 같은 상황에서 네 버튼을 잠그고 이유 한 줄을 적는다). */
+.settle-linkbtn:disabled,
+.settle-dlbtn:disabled {
+  border-color: var(--c-border);
+  background: var(--c-surface-3);
+  color: var(--c-text-faint);
+  cursor: not-allowed;
+}
+.settle-linkbtn:disabled:hover,
+.settle-dlbtn:disabled:hover {
+  border-color: var(--c-border);
+  background: var(--c-surface-3);
+}
 
 /* ── 정산회계: 명세서 PDF 다운로드 버튼 ─────────────────── */
 .settle-dlbtn {
@@ -467,19 +481,4 @@
   color: var(--c-text-muted); background: var(--c-surface-3);
   border-radius: var(--r-sm); padding: 1px 6px;
 }
-
-/* 사업자등록증 첨부 미리보기 (거래처 모달 · 가입 승인 심사용) */
-.cli-attach { display: flex; align-items: center; gap: 12px; }
-.cli-attach__img {
-  width: 76px; height: 76px; object-fit: cover; cursor: zoom-in;
-  border: 1px solid var(--c-border); border-radius: var(--r-md); background: var(--c-surface-3);
-}
-.cli-attach__none {
-  width: 76px; height: 76px; display: flex; align-items: center; justify-content: center;
-  border: 1px dashed var(--c-border-strong); border-radius: var(--r-md);
-  font-size: 11px; color: var(--c-text-muted); text-align: center; line-height: 1.4;
-}
-.cli-attach__meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.cli-attach__meta b { font-size: var(--fs-13); color: var(--c-text-strong); word-break: break-all; }
-.cli-attach__meta span { font-size: 11.5px; color: var(--c-text-muted); }
 

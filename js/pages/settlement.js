@@ -6,7 +6,7 @@ import { icon } from "../icons.js";
 import { pageTitle, openModal } from "../ui.js";
 import { store } from "../store.js";
 /* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
-import { settlementsFor } from "../util/settlement.js";
+import { settlementsFor, INVOICE_YM_KEY } from "../util/settlement.js";
 import { invoiceDayOf, deadlineDayOf, fmtMd, fmtMdHm } from "../data/settlement-rules.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
@@ -136,13 +136,13 @@ export function mount(root, { nav }) {
               </div>
               ${rows.map(
                 (r) => html`<div class="settle-trow" style="grid-template-columns:${COL}">
-                  <div class="settle-td"><button class="settle-link" data-action="invoice"><span>${icon("file-text", { size: 13 })}</span>${r.id}</button></div>
+                  <div class="settle-td"><button class="settle-link" data-action="invoice" data-ym="${r.ym}"><span>${icon("file-text", { size: 13 })}</span>${r.id}</button></div>
                   <div class="settle-td settle-td--muted">${r.발행일}</div>
                   <div class="settle-td settle-td--muted">${r.정산기한}</div>
                   <div class="settle-td settle-td--clip"><p class="ellipsis">${r.청구내역}</p></div>
                   <div class="settle-td"><span class="settle-amount">${r.정산금액}</span></div>
                   <div class="settle-td settle-td--muted">${r.입금자}</div>
-                  <div class="settle-td"><button class="settle-link" data-action="invoice">${r.청구년월} 명세서 조회 ${icon("external-link", { size: 11 })}</button></div>
+                  <div class="settle-td"><button class="settle-link" data-action="invoice" data-ym="${r.ym}">${r.청구년월} 명세서 조회 ${icon("external-link", { size: 11 })}</button></div>
                   <div class="settle-td">${issueBadge(r)}</div>
                   <div class="settle-td">${settleBadge(r.입금완료 === "입금완료" ? "정산완료" : "정산필요")}</div>
                 </div>`
@@ -223,7 +223,12 @@ export function mount(root, { nav }) {
   const off = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "edit") openEditModal();
-    else if (a === "invoice") nav("#/app/invoice");
+    else if (a === "invoice") {
+      /* 버튼 문구가 '2026년 07월 명세서 조회' 라고 특정 달을 약속한다 — 그 달을 열어야 한다.
+         예전엔 인자 없이 이동해 거래가 있는 가장 최근 달이 열렸다. */
+      if (t.dataset.ym) { try { sessionStorage.setItem(INVOICE_YM_KEY, t.dataset.ym); } catch { /* storage 비활성 — 기본 달로 열린다 */ } }
+      nav("#/app/invoice");
+    }
   });
 
   return () => { off(); closeModal(); };

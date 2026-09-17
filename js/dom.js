@@ -82,10 +82,6 @@ export function on(parent, type, selector, handler) {
 
 export const qs = (root, sel) => root.querySelector(sel);
 export const qsa = (root, sel) => Array.from(root.querySelectorAll(sel));
-export const clear = (node) => {
-  while (node.firstChild) node.removeChild(node.firstChild);
-  return node;
-};
 
 /** Korean currency: 50000 -> "50,000원" */
 export const won = (n) => Number(n).toLocaleString("ko-KR") + "원";

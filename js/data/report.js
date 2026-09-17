@@ -6,9 +6,13 @@
    ============================================================ */
 
 import { sharedBizKeys, displayName } from "../util/biz.js";
+import { periodLabel } from "./settlement-rules.js";
 
 const pad2 = (n) => String(n).padStart(2, "0");
-export const ymLabelOf = (y, m) => `${y}년 ${pad2(m)}월`;
+/* ⚠️ 이 문자열은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 이용 내역 맵의 키가 이 포맷이고,
+   호출부가 만든 라벨과 문자열 비교로 그 달을 찾는다. 포맷이 한 글자만 달라도 표가 통째로 빈다.
+   그래서 settlement-rules.periodLabel 한 곳에서만 만든다(예전엔 독립 구현이 다섯 벌이었다). */
+const ymLabelOf = (y, m) => periodLabel(`${y}-${pad2(m)}`);
 const wonFmt = (n) => Number(n).toLocaleString("ko-KR") + "원";
 const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 

@@ -35,10 +35,6 @@ export function clearRole() {
   sessionStorage.removeItem(CKEY);
 }
 
-export function isAuthed() {
-  return getRole() !== null;
-}
-
 /** The 거래처(client) id the logged-in enterprise user maps to, or null. */
 export function getClientId() {
   return sessionStorage.getItem(CKEY) || null;
