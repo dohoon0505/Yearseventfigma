@@ -1,7 +1,7 @@
 /* ============================================================
    orders.js — ports RealTimeOrders.tsx (실시간 주문처리 내역)
    ============================================================ */
-import { html, raw, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "../ui.js";
 import { onRowOpen } from "../util/order-screen.js";
@@ -64,7 +64,7 @@ const orderData = [
 ].map((o) => (o.status === "배송완료" ? { ...o, hasPhoto: true } : o)); // 배송완료 주문은 배송 현장사진이 항상 첨부됨
 
 /* 주문현황 색 의미 — 상태 칩·배지·상세 모달이 공유하는 단일 스타일 맵.
-   색은 tokens.css 토큰만(b2c-mock.js 의 B2C_STATUS_STYLE 과 같은 형태). */
+   색은 tokens.css 토큰만(util/order-screen.js 의 ORDER_STATUS_STYLE 과 같은 형태). */
 const STATUS_STYLE = {
   "접수대기": { bg: "var(--c-surface-3)", fg: "var(--c-text-muted)" },
   "주문접수": { bg: "var(--c-blue-soft)", fg: "var(--c-blue)" },

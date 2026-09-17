@@ -12,7 +12,7 @@ import { pageTitle } from "../ui.js";
 import { usageFor, usageMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
 /* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(포털 정산과 같은 소스). */
 import { settlementsFor, settlementsMap } from "../util/settlement.js";
-import { fmtMd, fmtMdHm } from "../data/settlement-rules.js";
+import { fmtMd, fmtMdHm, periodLabel } from "../data/settlement-rules.js";
 import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
@@ -90,8 +90,11 @@ export function mount(root, { nav }) {
       usage: usageMap(cs), settlements: settlementsMap(cs), categories: USAGE_CATEGORIES,
     });
   }
+  /* ⚠️ 이 라벨은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 문자열 비교로 그 달을 찾는다.
+     포맷이 한 글자만 달라도 표가 통째로 빈다. 그래서 규칙 모듈(settlement-rules.periodLabel) 한 곳에서 만든다. */
+  const monthLabel = () => periodLabel(`${state.year}-${pad(state.month)}`);
   function rowsForPeriod() {
-    const label = `${state.year}년 ${pad(state.month)}월`;
+    const label = monthLabel();
     return store.get().clients
       .map((c) => {
         const rec = settlementsFor(c).find((r) => r.청구년월 === label);
@@ -254,7 +257,7 @@ export function mount(root, { nav }) {
 
   function dashBody() {
     const r = reportFor();
-    if (!r) return html`<div class="admin-empty">선택한 조건(${state.year}년 ${pad(state.month)}월)에 이용 데이터가 없습니다.</div>`;
+    if (!r) return html`<div class="admin-empty">선택한 조건(${monthLabel()})에 이용 데이터가 없습니다.</div>`;
     return html`
       <div class="adash">
         ${kpiCards(r)}
@@ -267,7 +270,7 @@ export function mount(root, { nav }) {
   function tableBody() {
     const rows = visibleRows();
     if (rows.length === 0) {
-      return html`<div class="admin-empty">선택한 조건(${state.year}년 ${pad(state.month)}월)에 정산 내역이 없습니다.</div>`;
+      return html`<div class="admin-empty">선택한 조건(${monthLabel()})에 정산 내역이 없습니다.</div>`;
     }
     /* 부서 칩은 사업자번호를 공유하는 거래처에만 — 전 거래처에 부서가 있어
        무조건 병기하면 모든 행이 노이즈가 된다. */
@@ -289,8 +292,10 @@ export function mount(root, { nav }) {
               <div class="settle-td">${agreeBadge(rec)}</div>
               <div class="settle-td">${issueBadge(rec)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
-              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
-              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
+              <!-- 발행 전(발급예정) 달은 금액이 아직 쌓이는 중이다 — 확정되지 않은 명세서를 capability URL 로
+                   내보내거나 PDF 로 찍지 않는다. 포털도 같은 상황에서 네 버튼을 모두 잠근다. -->
+              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}" ${rec.issued ? "" : "disabled"} title="${rec.issued ? "공개 열람 링크를 복사합니다" : `명세서 발행 전입니다 — ${fmtMdHm(rec.발행일시)}에 발급됩니다`}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
+              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}" ${rec.issued ? "" : "disabled"} title="${rec.issued ? "명세서를 PDF로 내려받습니다" : `명세서 발행 전입니다 — ${fmtMdHm(rec.발행일시)}에 발급됩니다`}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
             </div>
             ${state.expanded.has(client.id) ? drillBody(client, rec) : ""}
           `
@@ -307,7 +312,7 @@ export function mount(root, { nav }) {
      지금은 품목 행의 합이 곧 청구금액이라 구조적으로 어긋날 수 없다. 실제 주문
      레코드를 보려면 주문관리로 넘어간다(그쪽이 주문의 단일 소스다). */
   function billItemsOf(client) {
-    const month = usageFor(client)[`${state.year}년 ${pad(state.month)}월`];
+    const month = usageFor(client)[monthLabel()];
     if (!month) return [];
     return Object.entries(month.items)
       .filter(([, v]) => v.count > 0)
@@ -332,7 +337,7 @@ export function mount(root, { nav }) {
       </div>`;
     return html`
       <div class="settle-drill">
-        <div class="settle-drill__cap">${state.year}년 ${pad(state.month)}월 이용 내역 · 품목별</div>
+        <div class="settle-drill__cap">${monthLabel()} 이용 내역 · 품목별</div>
         ${top.map((it) => row(it.product, it.count, won(it.amount)))}
         ${restList.length ? row(`그 외 ${restList.length}개 품목`, rest.count, won(rest.amount), "settle-drill__row--rest") : ""}
         ${row("합계", totalCount, rec.정산금액, "settle-drill__row--sum")}
@@ -465,7 +470,7 @@ export function mount(root, { nav }) {
   });
   const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row) return;
+    if (!row || !row.rec.issued) return; // 발행 전에는 토큰을 발급하지 않는다
     const token = issueLink({ clientId: row.client.id, bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
     const url = publicInvoiceUrl(token);
     const span = t.querySelector("span");
@@ -476,7 +481,7 @@ export function mount(root, { nav }) {
   // 명세서 PDF 즉시 다운로드: doc을 off-DOM으로 렌더 → printInvoiceDoc(새 창 인쇄 → PDF 저장)
   const offDownload = on(root, "click", "[data-action='download']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row) return;
+    if (!row || !row.rec.issued) return; // 발행 전 명세서는 PDF 로도 내보내지 않는다
     const holder = document.createElement("div");
     setHTML(holder, invoiceDoc(buildDoc(row.client, row.rec)));
     const docEl = holder.querySelector(".invoice-doc");

@@ -36,6 +36,7 @@ import {
 } from "../data/admin-mock.js";
 /* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(정산회계 화면과 같은 소스). */
 import { settlementsFor } from "../util/settlement.js";
+import { periodLabel, periodOf } from "../data/settlement-rules.js";
 import { b2cList } from "../data/b2c-mock.js";
 import { b2bList } from "../data/b2b-mock.js";
 
@@ -48,7 +49,10 @@ const pad2 = (n) => String(n).padStart(2, "0");
    구분자를 맞춰 한 파서로 받는다. T 를 빠뜨리면 날짜가 통째로 NaN 이 된다. */
 const dateOf = (s) => parseOrderDate(String(s || "").replace(/-/g, "/").replace("T", " "));
 const live = (o) => o.status !== "취소";
-const ymLabel = (d) => `${d.getFullYear()}년 ${pad2(d.getMonth() + 1)}월`;
+/* ⚠️ 이 문자열은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 이용 내역 맵의 키가 이 포맷이고,
+   호출부가 만든 라벨과 문자열 비교로 그 달을 찾는다. 포맷이 한 글자만 달라도 표가 통째로 빈다.
+   그래서 settlement-rules.periodLabel 한 곳에서만 만든다(예전엔 독립 구현이 다섯 벌이었다). */
+const ymLabel = (d) => periodLabel(periodOf(d));
 /** DATA_NOW 기준 off 개월 전의 1일 */
 const monthStart = (off) => new Date(DATA_NOW.getFullYear(), DATA_NOW.getMonth() - off, 1);
 const inMonth = (s, off) => {

@@ -16,13 +16,13 @@
 
    짝이 되는 스타일은 css/components.css 의 `.ord-*` 블록(파일 끝).
    ============================================================ */
-import { html, setHTML, on, qs, qsa } from "../dom.js";
+import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { makeDropdown, makeDatepicker, makeDateTimePicker, openLightbox } from "../ui.js";
+import { makeDatepicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
 import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
 import { openRowPicker } from "./order-dialogs.js";
-import { openDialog, dlgActions } from "./dialog.js";
+import { openDialog } from "./dialog.js";
 
 /* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
    새 코드는 order-fields.js 에서 직접 가져올 것. */

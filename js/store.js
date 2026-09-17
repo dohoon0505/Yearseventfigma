@@ -160,7 +160,7 @@ function fixBilling(arr) {
   return a;
 }
 
-/* v4(전역 contacts) → v5(거래처별) 이관. 옛 키가 남아 있으면 첫 거래처 버킷으로 옮긴다 —
+/* 구 전역 contacts → 거래처별 contactsByClient 이관(KEY 는 올리지 않는다). 옛 키가 남아 있으면 첫 거래처 버킷으로 옮긴다 —
    데모에서 포털에 로그인하는 거래처가 currentClient() 폴백상 첫 거래처와 같다. */
 function hydrateContacts(data) {
   if (data.contactsByClient && typeof data.contactsByClient === "object") {

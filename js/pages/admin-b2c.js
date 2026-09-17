@@ -29,11 +29,11 @@ import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
-  makeImageBox, managerControl, openStaffPicker, openDeleteConfirm,
+  makeImageBox, openStaffPicker, openDeleteConfirm,
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
-  staffNames, staffOptions, B2C_CHANNELS, B2C_CHANNEL_META, B2C_PAY_STATES, B2C_STATUSES, B2C_PRODUCTS,
+  staffOptions, B2C_CHANNELS, B2C_CHANNEL_META, B2C_PAY_STATES, B2C_STATUSES, B2C_PRODUCTS,
   productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";

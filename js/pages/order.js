@@ -24,6 +24,10 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
    예전엔 이 화면만 정가를 써서, 같은 거래처가 '상품 규격 안내'에서는 계약가를
    보고 결제 화면에서는 정가를 보는 어긋남이 있었다(관리자 기업별 상품단가 참조). */
 const appliedOf = (p) => store.appliedPrice((currentClient() || {}).id || null, p);
+/* 발송인 프로필이 리본에 찍히는 글자. 고정문구는 2026-09-17 부터 **저장 시점 필수**라 새 프로필은 늘
+   값이 있고, 이 폴백은 그 이전에 저장된 레코드(빈 고정문구)가 빈 이름으로 찍히는 것만 막는다.
+   ⚠️ 이 문자열이 곧 `state.sender` 이고 역조회 키이기도 하다 — 두 곳이 같은 규칙을 써야 짝이 맞는다. */
+const senderTextOf = (p) => (p && p.greeting && p.greeting.trim()) || (p ? `${p.role} ${p.name}` : "");
 
 /* 합동 발송 시 함께 알림받을 추가 수신자 상한 */
 const NT_MAX = 5;
@@ -582,7 +586,7 @@ export function mount(root, { nav }) {
         ? html`<div class="pick-empty">저장된 프로필이 없습니다.<br />아래에서 새 명의를 등록해 주세요.</div>`
         : html`<div class="pick-senders">
             ${profiles.map((p) => {
-              const text = (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}`;
+              const text = senderTextOf(p);
               return html`<button class="pick-sender ${state.sender === text ? "sel" : ""}" data-pick-sender="${text}" type="button">
                 <span class="pick-sender__main"><b>${p.name}</b> · ${p.role}</span>
                 <span class="pick-sender__sub">${text}</span>
@@ -705,7 +709,7 @@ export function mount(root, { nav }) {
 
   /* 발송인 프로필에 저장된 번호 — 프로필은 언제든 꺼내 쓰는 값이라 주문 시 여기서 당겨온다. */
   const senderPhone = () => {
-    const p = store.get().profiles.find((x) => ((x.greeting && x.greeting.trim()) || `${x.role} ${x.name}`) === state.sender);
+    const p = store.get().profiles.find((x) => senderTextOf(x) === state.sender);
     return p ? p.phone : "";
   };
   /* 담당자 저장공간에서 수신함으로 설정된 담당자 — 주문서에 자동 편입된다. */

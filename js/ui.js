@@ -2,7 +2,7 @@
    ui.js — shared UI factories
    pageTitle() · openModal() (focus-trapped) · tableGrid() (DataTable)
    ============================================================ */
-import { html, raw, setHTML, on, qsa } from "./dom.js";
+import { html, setHTML, on, qsa } from "./dom.js";
 import { icon } from "./icons.js";
 import { hourOptions, minOptions, clampMin } from "./util/date.js";
 

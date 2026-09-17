@@ -34,16 +34,17 @@ import { applyOrderText } from "../data/order-text.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
-import { staffNames, staffOptions } from "../data/staff-mock.js";
+import { invoiceDayOf } from "../data/settlement-rules.js";
+import { staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
-  makeImageBox, managerControl, openStaffPicker, openDeleteConfirm,
+  makeImageBox, openStaffPicker, openDeleteConfirm,
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
-  B2B_STATUSES, b2bList, b2bFind, b2bUpsert, b2bRemove,
+  B2B_STATUSES, b2bList, b2bUpsert, b2bRemove,
   b2bSetStatus, b2bSetManager, b2bNewId, b2bNextOrderNo,
 } from "../data/b2b-mock.js";
 
@@ -54,8 +55,10 @@ const PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, key: productKey(p),
 /* 적용 단가는 `store.appliedPrice` 단일 소스에 맡긴다 — 여기에 규칙을 복제하면
    포털과 관리자 화면이 갈린다(실제로 갈렸던 전력이 있다). */
 const priceFor = (clientId, name) => store.appliedPrice(clientId, name);
-/* 정산 귀속월 — 주문일시에서 파생("2026/09/15 09:10" → "2026년 09월") */
-function periodLabel(dateStr) {
+/* 정산 귀속월 — **주문일시 문자열**에서 파생("2026/09/15 09:10" → "2026년 09월").
+   ⚠️ `settlement-rules.periodLabel` 은 기간("2026-09")을 받는 다른 함수다 — 이름을 갈라 둔다.
+      같은 이름으로 두면 나중에 규칙 모듈을 import 하는 순간 조용히 섀도잉된다. */
+function orderPeriodLabel(dateStr) {
   const d = parseFlexDate(dateStr);
   return d ? `${d.getFullYear()}년 ${pad2(d.getMonth() + 1)}월` : "-";
 }
@@ -256,7 +259,7 @@ export function mount(root, { nav }) {
   const summaryRows = () => [
     { k: "상품", v: dash(editing.product) },
     { k: "거래처", v: clientName(editing) },
-    { k: "정산 귀속", v: periodLabel(editing.date) },
+    { k: "정산 귀속", v: orderPeriodLabel(editing.date) },
     { k: "담당자", v: editing.manager || "미지정", empty: !editing.manager, action: "pick-manager" },
   ];
 
@@ -364,6 +367,8 @@ export function mount(root, { nav }) {
      (이관 거래처 19곳 중 18곳이 담당자 0명이다 — 예외 경로가 아니라 주경로다.) */
   const cReqManualOn = () => !cContacts().length || cReqManual;
   const cProfile = () => store.get().profiles.find((p) => p.id === cDraft.profileId) || null;
+  /* 고정문구는 2026-09-17 부터 **저장 시점 필수**라 새 프로필은 늘 값이 있다. 이 폴백은 그 이전에
+     저장된 레코드(빈 고정문구)가 빈 이름으로 찍히는 것만 막는다 — 자동조립을 되살린 것이 아니다. */
   const profileText = (p) => (p ? (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}` : "");
 
   /* 거래처 변경 시 초기화 대상 — 계약단가·거래 조건·담당자가 전부 거래처에 매인다.
@@ -652,7 +657,7 @@ export function mount(root, { nav }) {
     };
     /* ⚠️ 레일에서 계약단가·계산서 발행·이번 발주 **카드는 뺐다**(사용자 지시, 2026-09-16).
        세 값 모두 이미 다른 곳에서 말한다 — 계약단가는 '상품 · 단가' 카드 머리글과
-       '단가 기준' 줄(cBasis)이, 이번 발주 금액은 step2 hint() 푸터가, 계산서 발행일은
+       '단가 기준' 줄(cBasis)이, 이번 발주 금액은 step2 hint() 푸터가, 명세서 발행일은
        아래 식별 캡션 한 줄이 말한다. 레일의 자리는 **거래처마다 갈리는 것**,
        곧 거래 조건(clientNote)과 알림 명단에 준다. 되살리지 말 것. */
     const railBody = (i) => {
@@ -664,7 +669,7 @@ export function mount(root, { nav }) {
       return html`
         <div class="ord-side__h"><b class="ord-side__t">${c.companyName}</b></div>
         <p class="ord-side__cap">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`,
-          `매월 ${Number(c.invoiceDay) || 1}일 계산서`].filter(Boolean).join(" · ")}</p>
+          `명세서 매월 ${invoiceDayOf(c)}일`].filter(Boolean).join(" · ")}</p>
         <div class="rail-card">
           <p class="rail-card__k">거래 조건</p>
           ${c.clientNote
@@ -703,13 +708,13 @@ export function mount(root, { nav }) {
 
     createModal = openOrderCreate({
       title: "B2B 거래처 주문 등록",
-      subtitle: "거래처 계약단가로 접수하고, 월 마감 후 계산서로 청구합니다",
+      subtitle: "거래처 계약단가로 접수하고, 월 마감 후 거래명세서 발급 → 동의 → 계산서로 청구합니다",
       autofill: true,
       toast,
       steps: [
         { key: "s1", title: "거래처", cap: "주문의 성격을 정합니다",
           render: step1Body, bind: () => [], required: missing1,
-          hint: () => { const c = cClient(); return c ? `${c.companyName} · 매월 ${Number(c.invoiceDay) || 1}일 계산서로 청구합니다` : ""; } },
+          hint: () => { const c = cClient(); return c ? `${c.companyName} · 매월 ${invoiceDayOf(c)}일 거래명세서 발급 → 동의 후 계산서` : ""; } },
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
           render: step2Body, bind: bindCreateControls, required: missing2,
           hint: () => { // 전 품목 면세 — 금액 뒤에 VAT 표기를 두지 않는다(2026-09-17 사용자 확인)
@@ -1072,7 +1077,7 @@ export function mount(root, { nav }) {
       menuOpen = false;
       openDeleteConfirm({
         orderNo: editing.orderNo,
-        note: html`이 주문은 <b>${periodLabel(editing.date)} 정산</b>의 청구 근거입니다.
+        note: html`이 주문은 <b>${orderPeriodLabel(editing.date)} 정산</b>의 청구 근거입니다.
           삭제하면 그 달 청구 금액에서 <b>${won(editing.amount)}</b>이 빠집니다.`,
         onConfirm: () => {
           const name = editing.orderNo;

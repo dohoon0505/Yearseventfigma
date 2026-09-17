@@ -600,7 +600,7 @@ B2B 와 상태·취소 규칙은 같고 필드가 다릅니다.
 
 ## 4.7 상품 단가 (`#/admin/pricing`)
 
-- 카탈로그 20종(4개 카테고리)이 기준 단가를 갖습니다.
+- 카탈로그 21종(4개 카테고리)이 기준 단가를 갖습니다. **수는 `store.ALL_PRODUCTS` 가 정본**입니다 — 상품이 늘면 이 문장도 같이 고치세요(2026-09-17 에 생화 '특대 꽃바구니' 가 추가돼 20 → 21 이 됐습니다).
 - 거래처별 단가를 덮어쓸 수 있으며, 저장하면 포털 「상품 규격 안내」와
   주문서 적용 단가에 즉시 반영됩니다(읽는 곳 2군데 — 4.2·5.x 참조).
 - 화면은 **좌측 거래처 목록(검색) + 분류 아코디언 + 저장 전 변경 패널** 구조입니다.
@@ -674,7 +674,7 @@ Client (거래처) ──1:N── Order(B2B)
    └─1:N── Contact (담당자 · 알림 수신자)
 
 Staff (내부 담당자·계정) ──0:N── Order (배정)
-Product (카탈로그 20종) ──1:N── ClientPrice
+Product (카탈로그 21종) ──1:N── ClientPrice
 RegionRule (지역 규칙 38건)          ← 전역
 Order(B2C)                            ← 거래처에 속하지 않음
 AuditLog                              ← 전역 (→ 8.4)
@@ -928,8 +928,13 @@ B2B 는 '발송인'(거래처 담당자)으로 표기할 뿐 같은 컬럼입니
 | `id` | string | ✔ | **안정적인 키.** 표시 순번(`no`)은 쓰기마다 재부여되므로 대상 지목에 쓰면 안 됩니다 |
 | `name` | string | ✔ | 성함 |
 | `role` | string | — | 직위 |
-| `greeting` | string | — | 고정문구(예: `(주)올해의경조사 대표이사 홍길동`). 비면 `role name` 으로 조립합니다 |
-| `phone` | string | — | 배송완료 알림 수신 번호 |
+| `greeting` | string | ✔ | 고정문구(예: `(주)올해의경조사 대표이사 홍길동`). **서버가 조립하지 않습니다** — 2026-09-17 결정으로 포털이 저장 시점에 필수로 막습니다(리본에 찍힐 글자를 시스템이 지어내지 않는다) |
+| `phone` | string | ✔ | 배송완료 알림 수신 번호. 포털 저장 게이트가 필수로 막습니다 |
+
+> ⚠️ 구 명세는 `greeting` 이 비면 `role name` 으로 조립한다고 적었습니다. 그 자동조립은 폐기됐습니다.
+> 다만 **표시측 폴백은 남아 있습니다** — 필수화 이전에 저장된 레코드가 빈 이름으로 찍히지 않도록
+> `order.js`·`admin-orders.js` 가 화면에서만 `role name` 으로 대신 보여 줍니다. 서버는 저장을 막는 쪽이고,
+> 이미 빈 값인 레코드는 마이그레이션에서 채우거나 사용자에게 채우게 해야 합니다.
 
 주문은 `profile_id` 로 지목하되 `ribbon_sender` 문자열을 함께 남깁니다(→ 5.3).
 
@@ -1190,7 +1195,7 @@ REST + JSON. 모든 응답은 `Content-Type: application/json; charset=utf-8`.
 | POST | `/api/settlements/{id}/agree` | client 본인 — **`agree_deadline_at` 전에만**. 지나면 `409 SETTLEMENT_ALREADY_AGREED`(자동 동의 완료) |
 | POST | `/api/settlements/{id}/einvoice` | admin — 계산서(면세) 수동 발급·재시도 |
 | POST | `/api/settlements/{id}/payment` | admin — 입금 확인 |
-| POST | `/api/settlements/{id}/link` | admin — 공개 링크 발급·재발급 |
+| POST | `/api/settlements/{id}/link` | admin — 공개 링크 발급·재발급. **`status=SCHEDULED`(발행 전)에는 거부**(`409`) — 금액이 아직 쌓이는 중인 달이다 |
 | GET | `/api/public/invoice/{token}` | **비인증** |
 
 `GET /api/settlements/C003-202608` — 발급일 1일 거래처, 마감 전(9/5 조회):

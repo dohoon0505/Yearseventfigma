@@ -19,13 +19,14 @@ import { setHTML, on, qs, qsa, html } from "../dom.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
 import { monthsOf, invoiceMonth, latestInvoiceKey } from "../data/invoice-mock.js";
-import { fmtAt, fmtYmd, fmtKoShort, fmtKoShortTime } from "../data/settlement-rules.js";
+import { fmtAt, fmtYmd, fmtKoShort, fmtKoShortTime, periodLabel } from "../data/settlement-rules.js";
 import { store } from "../store.js";
 import { currentClient, currentClientName } from "../util/client.js";
 import { pageHead } from "../ui.js";
 import { openDialog, dlgActions } from "../util/dialog.js";
 import { makeToast } from "../toast.js";
 import { sheetToXlsx } from "../util/xlsx.js";
+import { INVOICE_YM_KEY } from "../util/settlement.js";
 
 const DOC_W = 794; /* A4 폭(px) — invoice-doc.js 의 .invoice-page 와 같은 값 */
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
@@ -70,8 +71,20 @@ const xCenter = (z) => ({ size: 10.5, color: XA.text2, align: "center", valign: 
 const xLeft   = (z) => ({ size: 10.5, color: XA.ink, align: "left", valign: "center", wrap: true, border: true, ...(z ? { fill: XA.zebra } : {}) });
 const xMoney  = (z) => ({ size: 10.5, color: XA.ink, align: "right", valign: "center", border: true, numFmt: MONEY_FMT, ...(z ? { fill: XA.zebra } : {}) });
 
+/** 정산 간편조회에서 넘겨 준 귀속월이 있으면 그 달로, 없으면 거래가 있는 가장 최근 달로 연다.
+ *  ⚠️ 읽고 **바로 지운다** — 남겨 두면 나중에 사이드바로 그냥 들어왔을 때도 옛 달이 열린다. */
+function initialKey() {
+  let handoff = null;
+  try {
+    handoff = sessionStorage.getItem(INVOICE_YM_KEY);
+    sessionStorage.removeItem(INVOICE_YM_KEY);
+  } catch { /* storage 비활성 — 기본 달로 */ }
+  if (handoff && /^\d{4}-\d{2}$/.test(handoff)) return handoff;
+  return latestInvoiceKey(currentClient());
+}
+
 export function mount(root) {
-  const first = latestInvoiceKey(currentClient()); /* 이 거래처에서 거래가 있는 가장 최근 달로 연다 */
+  const first = initialKey();
   const state = { year: first.slice(0, 4), month: first.slice(5, 7), fit: true };
   const toast = makeToast();
   let dlg = null;
@@ -89,7 +102,7 @@ export function mount(root) {
   /* ── 현재 선택 월 → invoice-doc.js 문서 데이터 ───────────── */
   function docData() {
     const m = invoiceMonth(currentClient(), ym());
-    const label = `${state.year}년 ${state.month}월`;
+    const label = periodLabel(ym());
     const items = m.empty
       ? [{ date: "", sender: "", address: "해당 월의 거래 내역이 없습니다", product: "", amount: "" }]
       : m.rows.map((r) => ({ date: r[0], sender: r[1], address: r[2], product: r[3], amount: won(r[4]) }));
@@ -300,7 +313,7 @@ export function mount(root) {
   /* ── EXCEL — 현행 로직 그대로(서식 있는 .xlsx) ───────────── */
   function downloadExcel() {
     const m = invoiceMonth(currentClient(), ym());
-    const label = `${state.year}년 ${state.month}월`;
+    const label = periodLabel(ym());
     const rows = [];
     const merges = [];
     const rowHeights = {};
