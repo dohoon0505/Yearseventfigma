@@ -158,14 +158,6 @@ export const photoFlag = (image) =>
 export const notiFlag = (notified) =>
   html`<span class="ord-flag ord-flag--noti ${notified ? "on" : ""}" title="${notified ? "알림 발송완료" : "알림 미발송"}">${icon(notified ? "bell" : "bell-off", { size: 15 })}</span>`;
 export const amtCell = (n) => html`<span class="ord-amt">${won(n)}</span>`;
-/** 행 전체를 '상세 열기' 로 만든다 — 11열 표에서 오른쪽 끝 연필까지 커서를
-    옮기지 않아도 되게. id 는 tableGrid 가 이미 찍어 둔 `data-rowkey` 에서 읽는다
-    (`js/ui.js` 를 고칠 필요가 없다).
-
-    가드 두 개가 핵심이다:
-      · 안쪽 컨트롤(연필·카메라)은 자기 핸들러가 처리한다 — 안 비켜 가면 모달이 두 번 열린다
-      · 드래그로 주소·메모를 긁는 중이면 열지 않는다(mouseup 에서 click 이 뜬다)
-    키보드는 셀 안 버튼이 담당한다 — 행에 tabindex 를 달면 Tab 순서에 44개가 끼어든다. */
 export const editBtn = (id) =>
   html`<button class="tbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
 
