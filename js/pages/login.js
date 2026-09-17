@@ -3,7 +3,7 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { resolveRole, setRole, clearRole, setClientId, clearClientId } from "../session.js";
+import { resolveRole, setRole, clearRole, setClientId, clearClientId, takeReturnTo } from "../session.js";
 import { store } from "../store.js";
 import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
@@ -161,6 +161,15 @@ export function mount(root, { nav }) {
   }
 
   let termsDlg = null;
+  /* 로그인 전에 들어오려던 주소가 있으면 거기로(딥링크 복귀, 2026-09-17). 역할과 맞는 영역일 때만 —
+     거래처 계정이 관리자 주소를 남겨 뒀다고 관리자로 보내면 안 된다. 관리자는 포털도 볼 수 있다. */
+  const landingFor = (role) => {
+    const back = takeReturnTo();
+    const home = role === "admin" ? "#/admin" : "#/app";
+    if (!back) return home;
+    if (role === "admin") return back;
+    return back.startsWith("#/app") ? back : home;
+  };
   const offSubmit = on(form, "submit", (e) => {
     e.preventDefault();
     const id = form.elements.id.value.trim();
@@ -188,7 +197,7 @@ export function mount(root, { nav }) {
           onAgree: () => {
             termsDlg = null;
             store.updateClient({ ...c, termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION });
-            nav("#/app");
+            nav(landingFor("enterprise"));
           },
           onClose: () => {
             termsDlg = null;
@@ -202,7 +211,7 @@ export function mount(root, { nav }) {
     } else {
       clearClientId();
     }
-    nav(role === "admin" ? "#/admin" : "#/app");
+    nav(landingFor(role));
   });
 
   const offInput = on(form, "input", "input", () => clearError());
