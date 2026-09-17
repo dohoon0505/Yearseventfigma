@@ -95,6 +95,10 @@ let state = {
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
   clientPrices: {}, // { [clientId]: { [productKey]: number } } — per-client price overrides
+  /* 거래명세서 '계산서 발급 동의' 기록 — { [clientId]: { "YYYY-MM": "YYYY-MM-DD HH:mm" } }.
+     ⚠️ 관리자 정산 화면의 발급 상태(`settlementsFor` 의 '발행일 ≤ 지금' 파생)와는 **별개**다.
+        이건 거래처가 포털에서 직접 누른 동의 기록이라 시각까지 남긴다. */
+  invoiceAgreed: {},
 };
 
 function persist() {
@@ -107,6 +111,7 @@ function persist() {
         favorites: [...state.favorites], // Set → array
         clients: state.clients,
         clientPrices: state.clientPrices,
+        invoiceAgreed: state.invoiceAgreed,
       })
     );
   } catch {
@@ -127,6 +132,7 @@ function hydrate() {
       // 편집값이 항상 이기고, 삭제한 거래처는 부활시키지 않는다(저장 목록만 순회).
       clients: Array.isArray(data.clients) ? data.clients.map((c) => ({ ...(SEED_BY_ID.get(c.id) || {}), ...c })) : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
+      invoiceAgreed: data.invoiceAgreed && typeof data.invoiceAgreed === "object" ? data.invoiceAgreed : state.invoiceAgreed,
     };
     // 불변식 보정: 버킷마다 정산담당이 없으면 첫 담당자로 지정
     const fixed = {};
@@ -212,6 +218,27 @@ export const store = {
   /* ── 로그인 거래처 기준 축약형 — 포털 화면이 쓴다 ── */
   setContacts(next) { this.setContactsOf(null, next); },
   getBillingContact() { return this.getBillingContactOf(null); },
+
+  /* ── 거래명세서 계산서 발급 동의 ──────────────────────────
+     **거래처별로 가른다** — 담당자·명세서 토큰과 같은 규칙이다(계정을 바꾸면 남의
+     동의 기록이 보이면 안 된다). 되돌릴 수 없는 기록이라 시각까지 남긴다. */
+  /** 그 거래처·귀속월의 동의 시각("YYYY-MM-DD HH:mm"), 없으면 null. */
+  invoiceAgreedAt(clientId, ym) {
+    return (state.invoiceAgreed[scopeId(clientId)] || {})[ym] || null;
+  },
+  /** 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다). */
+  agreeInvoice(clientId, ym) {
+    const k = scopeId(clientId);
+    const cur = state.invoiceAgreed[k] || {};
+    if (cur[ym]) return cur[ym];
+    const d = new Date();
+    const p2 = (n) => String(n).padStart(2, "0");
+    const at = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    state = { ...state, invoiceAgreed: { ...state.invoiceAgreed, [k]: { ...cur, [ym]: at } } };
+    persist();
+    emit();
+    return at;
+  },
   setFavorites(next) {
     state = { ...state, favorites: resolve(next, state.favorites) };
     persist();

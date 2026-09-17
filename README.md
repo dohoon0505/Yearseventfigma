@@ -56,6 +56,7 @@ js/
   public-invoice.js     # invoice/ 전용 — ES 모듈 (dom·icons·invoice-doc·invoice-links 재사용)
   pages/*.js            # 페이지 모듈 (mount(root, { nav }) → cleanup)
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
+  data/invoice-mock.js  # 월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
