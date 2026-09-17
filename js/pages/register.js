@@ -4,6 +4,8 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
+import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
+import { TERMS_VERSION } from "../data/terms.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 
 const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
@@ -36,8 +38,11 @@ export function mount(root, { nav }) {
       /* 사업자등록증 — 관리자가 승인 전에 확인할 증빙. 이미지는 축소해 보관하고
          PDF 는 파일명만 남긴다(실서비스에서는 서버 업로드 후 URL 만 저장). */
       bizLicense: null,
+      /* 이용약관 동의 — 사업자등록증과 같은 게이트다. 체크 없이는 가입이 끝나지 않는다(2026-09-17 결정). */
+      termsAgreed: false,
     },
   };
+  let termsDlg = null;
 
   // ── field factory ──────────────────────────────────────
   function field({ label, name, type = "text", placeholder, hint, eye }) {
@@ -152,6 +157,18 @@ export function mount(root, { nav }) {
         <span class="rf-sign__l">${icon("check-circle", { size: 14 })} 계약서 전자서명</span>
         <span class="rf-sign__r">서명하기 ${icon("arrow-right", { size: 10 })}</span>
       </button>
+      <!-- 이용약관 동의 — 자동 동의 조항(data/terms.js)을 읽고 체크해야 가입이 끝난다(2026-09-17 결정).
+           공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의·삭제 확인과 같은 장치). 재렌더 없이 클래스만 토글. -->
+      <div class="rf rf--agree" data-field="termsAgreed">
+        <button type="button" class="dlg-check ${state.form.termsAgreed ? "is-on" : ""}" data-action="terms-ack" aria-pressed="${state.form.termsAgreed ? "true" : "false"}">
+          <span class="dlg-check__box" aria-hidden="true"></span>
+          <span>이용약관(거래명세서·계산서 발급 동의 조항)을 읽었고 동의합니다</span>
+        </button>
+        <div class="rf--agree__row">
+          <button type="button" class="rf__link" data-action="terms-view">약관 보기</button>
+          ${state.errors.termsAgreed ? html`<p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${state.errors.termsAgreed}</p>` : ""}
+        </div>
+      </div>
     `;
   }
 
@@ -285,6 +302,7 @@ export function mount(root, { nav }) {
       const ok = check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" });
       /* 사업자등록증은 승인 심사의 근거다 — 없으면 관리자가 무엇을 보고 승인할지가 없다. */
       if (!state.form.bizLicense) { state.errors.bizLicense = "사업자등록증을 첨부해주세요"; renderWizard(); return; }
+      if (!state.form.termsAgreed) { state.errors.termsAgreed = "이용약관에 동의해주세요"; renderWizard(); return; }
       if (ok) {
         registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
         state.step = "done";
@@ -306,6 +324,7 @@ export function mount(root, { nav }) {
       managerName: f.managerName, department: f.department, contact: f.contact,
       email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1", clientNote: "",
       bizLicense: f.bizLicense,
+      termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION,
       /* 셀프 가입은 영업 경로가 'SNS·홈페이지'로 고정된다 — 관리자가 등록하면 비어 있다. */
       salesRoute: "셀프 가입", salesMemo: "", salesDate: joinDate,
     });
@@ -407,7 +426,18 @@ export function mount(root, { nav }) {
     if (action === "to-login") nav("#/login");
     else if (action === "next") goNext();
     else if (action === "prev") goPrev();
-    else if (action === "pick-license") {
+    else if (action === "terms-ack") {
+      state.form.termsAgreed = !state.form.termsAgreed;
+      t.classList.toggle("is-on", state.form.termsAgreed);
+      t.setAttribute("aria-pressed", String(state.form.termsAgreed));
+      if (state.form.termsAgreed && state.errors.termsAgreed) {
+        delete state.errors.termsAgreed;
+        const er = qs(root, "[data-field='termsAgreed'] .rf__msg");
+        if (er) er.remove();
+      }
+    } else if (action === "terms-view") {
+      termsDlg = openTermsDialog({ onClose: () => { termsDlg = null; } });
+    } else if (action === "pick-license") {
       const inp = qs(root, "[data-license-input]");
       if (inp) inp.click();
     } else if (action === "toggle-pw") {
@@ -431,6 +461,7 @@ export function mount(root, { nav }) {
   });
 
   return () => {
+    if (termsDlg) termsDlg.close();
     offInput();
     offClick();
     offFile();

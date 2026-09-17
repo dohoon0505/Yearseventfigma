@@ -3,8 +3,10 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { resolveRole, setRole, setClientId, clearClientId } from "../session.js";
+import { resolveRole, setRole, clearRole, setClientId, clearClientId } from "../session.js";
 import { store } from "../store.js";
+import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
+import { TERMS_VERSION } from "../data/terms.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -158,6 +160,7 @@ export function mount(root, { nav }) {
     );
   }
 
+  let termsDlg = null;
   const offSubmit = on(form, "submit", (e) => {
     e.preventDefault();
     const id = form.elements.id.value.trim();
@@ -177,6 +180,25 @@ export function mount(root, { nav }) {
       // 저장된 비밀번호를 검사한다. DEMO 게이트이며 실서비스에서는 서버가 검증한다.
       const c = store.get().clients.find((x) => x.accountId === id && (!x.password || x.password === pw));
       setClientId(c ? c.id : null);
+      /* 이용약관 동의 게이트(2026-09-17 결정) — 이관 거래처 19곳은 가입 절차가 없어 동의 기록이 없다.
+         첫 로그인에 한 번 받고, 약관 버전이 오르면 다시 받는다. 동의 없이는 포털로 보내지 않는다. */
+      if (c && c.termsVersion !== TERMS_VERSION) {
+        termsDlg = openTermsDialog({
+          gate: true,
+          onAgree: () => {
+            termsDlg = null;
+            store.updateClient({ ...c, termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION });
+            nav("#/app");
+          },
+          onClose: () => {
+            termsDlg = null;
+            clearRole();
+            clearClientId();
+            showError("이용약관에 동의해야 서비스를 이용할 수 있습니다.");
+          },
+        });
+        return;
+      }
     } else {
       clearClientId();
     }
@@ -198,6 +220,7 @@ export function mount(root, { nav }) {
   );
 
   return () => {
+    if (termsDlg) termsDlg.close();
     offSubmit();
     offInput();
     offEye();
