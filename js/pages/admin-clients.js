@@ -11,7 +11,7 @@ import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbo
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
-import { deadlineDayOf } from "../data/settlement-rules.js";
+import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod } from "../data/settlement-rules.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -97,12 +97,16 @@ const deleteCopy = (client) => ({
     옛 문구의 "(최대 N일)" 은 **이번 달** 말일이라 거래처와 무관한 숫자였다(그 계산이 0-based 월
     함정으로 다음 달 말일이 나오던 결함까지 있었다). 뺐다. */
 function invoiceHelpText(invoiceDay) {
-  const day = Number(invoiceDay) || 1;
+  const day = invoiceDayOf({ invoiceDay });
   const dl = deadlineDayOf(day);
+  /* 발급일 변경의 **적용 시점**을 같은 문단에서 말한다 — 안 적으면 관리자는 바꾸는 순간 과거 달까지
+     다시 계산된다고 오해한다(실제로는 이미 발급된 달을 그대로 두는 것이 규칙이다). */
+  const from = invoiceDayEffectiveFrom(new Date());
   return `매월 ${day}일 10:00에 전월 귀속 거래명세서가 발급됩니다. 계산서 발급 동의 마감은 같은 달 ${dl}일 13:00이며, `
     + `마감까지 동의가 없으면 그 시각에 자동 동의됩니다. 계산서 작성일자는 `
     + (day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`)
-    + `, 정산기한은 발급일이 속한 달의 말일입니다.`;
+    + `, 정산기한은 발급일이 속한 달의 말일입니다. `
+    + `발급일을 바꾸면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다.`;
 }
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
@@ -407,7 +411,7 @@ export function mount(root, { nav }) {
       const shared = sharedBizKeys(store.get().clients);
       const showDept = isEdit && form.department && shared.has(normalizeBiz(form.bizNumber));
       const meta = [form.accountId || "아이디 미정", isEdit ? `가입 ${form.joinDate}` : "신규 등록",
-        form.bizNumber ? `사업자 ${form.bizNumber}` : null, `명세서 매월 ${Number(form.invoiceDay) || 1}일 · 동의 마감 ${deadlineDayOf(Number(form.invoiceDay) || 1)}일 13:00`]
+        form.bizNumber ? `사업자 ${form.bizNumber}` : null, `명세서 매월 ${invoiceDayOf(form)}일 · 동의 마감 ${deadlineDayOf(invoiceDayOf(form))}일 13:00`]
         .filter(Boolean).join(" · ");
       return html`
         <div class="ord-hd__l">
