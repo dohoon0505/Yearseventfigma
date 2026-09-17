@@ -56,7 +56,8 @@ js/
   public-invoice.js     # invoice/ 전용 — ES 모듈 (dom·icons·invoice-doc·invoice-links 재사용)
   pages/*.js            # 페이지 모듈 (mount(root, { nav }) → cleanup)
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
-  data/invoice-mock.js  # 월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
+  data/invoice-mock.js  # 거래처별·월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
+  data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
@@ -77,6 +78,7 @@ serve.mjs               # 개발용 정적 서버
 | `contacts-modal.js` | 거래처 담당자 관리 다이얼로그 |
 | `cancel-modal.js` | 주문취소 사유·수수료 (B2C·B2B 공용) |
 | `client.js` | 로그인 거래처 결정 **단일 소스** |
+| `settlement.js` | 정산 행 조합층 — 날짜·금액(admin-mock) + store 의 동의 기록 오버레이(`settlementsFor`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |
 | `phone.js` · `image.js` · `postcode.js` · `xlsx.js` | 연락처 포맷 · 첨부 축소 · 주소검색 · 엑셀 |
@@ -92,7 +94,7 @@ serve.mjs               # 개발용 정적 서버
 | **거래처 포털** | |
 | `#/app` | 경조상품 주문(4단계 퍼널) |
 | `#/app/orders` | 실시간 주문처리 내역 |
-| `#/app/invoice` | 거래명세서 조회 (인쇄) |
+| `#/app/invoice` | 거래명세서 조회 (인쇄 · 계산서 발급 동의 — 마감 10일/28일 13:00, 미동의 시 자동 동의) |
 | `#/app/settlement` | 정산회계 간편조회 |
 | `#/app/profile` | 발송 프로필 · 담당자 저장공간 |
 | `#/app/products` | 상품 규격 안내 |

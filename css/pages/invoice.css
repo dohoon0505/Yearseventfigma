@@ -167,6 +167,11 @@
 }
 .page-invoice .iv-agree__done b { display: block; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-success-ink); }
 .page-invoice .iv-agree__done span { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+/* 자동 동의는 '완료' 초록이 아니라 중립 톤 — 거래처가 한 일이 아니다. */
+.page-invoice .iv-agree__done--auto .iv-agree__ck { background: var(--c-text-4); }
+.page-invoice .iv-agree__done--auto b { color: var(--c-text-strong); }
+/* 동의 직후 포커스를 여기로 옮긴다(버튼이 사라져 body 로 떨어지던 자리). 전역 링은 흰 면에서 1.1:1. */
+.page-invoice .iv-agree__done:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 4px; border-radius: 4px; }
 
 /* ── 미리보기 ────────────────────────────────────────────── */
 .page-invoice .iv-doccard { flex: 1; min-height: 0; display: flex; flex-direction: column; }

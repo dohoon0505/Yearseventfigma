@@ -5,7 +5,9 @@ import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, openModal } from "../ui.js";
 import { store } from "../store.js";
-import { settlementsFor, invoiceDayOf } from "../data/admin-mock.js";
+/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
+import { settlementsFor } from "../util/settlement.js";
+import { invoiceDayOf, deadlineDayOf, fmtMd, fmtMdHm } from "../data/settlement-rules.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
 import { currentClient } from "../util/client.js";
@@ -38,12 +40,18 @@ const companyOf = (c) => ({
 
 
 const COL = "118px 120px 120px 1fr 120px 70px 200px 100px 100px";
-const HEADERS = ["문서 번호", "청구서 발행일", "정산 기한", "청구 내역", "정산금액", "입금자", "거래명세서", "계산서발급", "정산확인"];
+const HEADERS = ["문서 번호", "청구서 발행일", "정산 기한", "청구 내역", "정산금액", "입금자", "거래명세서", "계산서 발급", "정산확인"];
 
-const invoiceBadge = (t) =>
-  t === "동의하기"
-    ? html`<span class="settle-badge settle-badge--warn">동의필요</span>`
-    : html`<span class="settle-badge settle-badge--ok">발급완료</span>`;
+/* 계산서 발급 칸 — 배지 + 보조줄(무엇을 기다리는지). 발행 전(회색 발급대기 · 발급 시각) ·
+   동의 마감 전(동의필요 · 마감 시각 — 거래처가 할 일이 있는 유일한 상태라 경고 톤) ·
+   발급완료(작성일자 · 자동 동의면 표시). */
+const issueBadge = (r) => {
+  if (r.계산서발급 === "발급완료")
+    return html`<span class="settle-stack"><span class="settle-badge settle-badge--ok">발급완료</span><span class="settle-td__sub">작성 ${fmtMd(r.작성일자)}${r.동의구분 === "auto" ? " · 자동 동의" : ""}</span></span>`;
+  if (!r.issued)
+    return html`<span class="settle-stack"><span class="settle-badge settle-badge--gray">발급대기</span><span class="settle-td__sub">명세서 ${fmtMdHm(r.발행일시)} 발급</span></span>`;
+  return html`<span class="settle-stack"><span class="settle-badge settle-badge--warn">동의필요</span><span class="settle-td__sub">마감 ${fmtMdHm(r.마감)}</span></span>`;
+};
 const settleBadge = (t) =>
   t === "정산필요"
     ? html`<span class="settle-badge settle-badge--danger">정산필요</span>`
@@ -98,6 +106,8 @@ export function mount(root, { nav }) {
     }
     /* 표는 거래처 레코드에서 파생 — 관리자 정산 화면과 같은 데이터를 본다. */
     const rows = settlementsFor(client);
+    const day = invoiceDayOf(client);
+    const dl = deadlineDayOf(day);
     const 표시명 = displayName(client, sharedBizKeys(store.get().clients));
     setHTML(
       root,
@@ -116,7 +126,8 @@ export function mount(root, { nav }) {
             </div>
 
             <div class="settle-notice">
-              <p>📌 매월 ${invoiceDayOf(client)}일 10:00 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서 자동발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong></p>
+              <p>📌 매월 ${day}일 10:00 전월 귀속 명세서 발급 → 거래 상세내역 확인 → 이상 없는 경우 <strong>"계산서 발급 동의"</strong> → 계산서(면세) 자동 발급 → 금액과 입금 내역 일치 시 <strong>"정산 완료"</strong></p>
+              <p>동의 마감은 발급월 <strong>${dl}일 13:00</strong>이며, 마감까지 동의가 없으면 그 시각에 자동 동의됩니다. 계산서 작성일자는 ${day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`}, 정산기한은 발급일이 속한 달의 말일입니다.</p>
             </div>
 
             <div class="settle-table">
@@ -132,7 +143,7 @@ export function mount(root, { nav }) {
                   <div class="settle-td"><span class="settle-amount">${r.정산금액}</span></div>
                   <div class="settle-td settle-td--muted">${r.입금자}</div>
                   <div class="settle-td"><button class="settle-link" data-action="invoice">${r.청구년월} 명세서 조회 ${icon("external-link", { size: 11 })}</button></div>
-                  <div class="settle-td">${invoiceBadge(r.계산서발급)}</div>
+                  <div class="settle-td">${issueBadge(r)}</div>
                   <div class="settle-td">${settleBadge(r.입금완료 === "입금완료" ? "정산완료" : "정산필요")}</div>
                 </div>`
               )}

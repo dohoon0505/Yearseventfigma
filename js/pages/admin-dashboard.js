@@ -32,8 +32,10 @@ import { parseOrderDate } from "../util/date.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { BIZ_HOURS } from "../shell.js";
 import {
-  DATA_NOW, settlementsFor, usageFor, USAGE_CATEGORIES, CLIENT_CHANNELS, channelOf,
+  DATA_NOW, usageFor, USAGE_CATEGORIES, CLIENT_CHANNELS, channelOf,
 } from "../data/admin-mock.js";
+/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(정산회계 화면과 같은 소스). */
+import { settlementsFor } from "../util/settlement.js";
 import { b2cList } from "../data/b2c-mock.js";
 import { b2bList } from "../data/b2b-mock.js";
 
@@ -399,7 +401,7 @@ export function mount(root, { nav }) {
       if (!r) return;
       const amt = Number(String(r.정산금액).replace(/[^0-9]/g, "")) || 0;
       billed += amt;
-      st.명세서 += 1;
+      if (r.issued) st.명세서 += 1; // 발행일이 아직 안 온 달은 명세서 단계에도 세지 않는다
       if (r.거래명세서동의 === "동의완료") st.동의 += 1;
       if (r.계산서발급 === "발급완료") st.계산서 += 1;
       if (r.입금완료 === "입금완료") st.입금 += 1; else unpaid += amt;

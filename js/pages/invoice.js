@@ -17,8 +17,9 @@
    ============================================================ */
 import { setHTML, on, qs, qsa, html } from "../dom.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
-import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
+import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
 import { monthsOf, invoiceMonth, latestInvoiceKey } from "../data/invoice-mock.js";
+import { fmtAt, fmtYmd, fmtKoShort, fmtKoShortTime } from "../data/settlement-rules.js";
 import { store } from "../store.js";
 import { currentClient, currentClientName } from "../util/client.js";
 import { pageHead } from "../ui.js";
@@ -36,11 +37,11 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
    docData() 가 그 달의 동의 기록을 보고 덮어쓴다. 기본값은 '아직 동의 전'이다. */
 function buyerOf() {
   const c = currentClient();
-  if (!c) return { address: "", company: "", bizNumber: "", ceo: "", summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급" };
+  if (!c) return { address: "", company: "", bizNumber: "", ceo: "", summary: "꽃배달 이용료 청구", invoiceNote: INVOICE_NOTE.wait };
   const name = currentClientName();
   return {
     address: `${c.address} ${name}`, company: name,
-    bizNumber: c.bizNumber, ceo: c.ceoName, summary: "꽃배달 이용료 청구", invoiceNote: "명세서 조회 후 발급",
+    bizNumber: c.bizNumber, ceo: c.ceoName, summary: "꽃배달 이용료 청구", invoiceNote: INVOICE_NOTE.wait,
   };
 }
 
@@ -70,7 +71,7 @@ const xLeft   = (z) => ({ size: 10.5, color: XA.ink, align: "left", valign: "cen
 const xMoney  = (z) => ({ size: 10.5, color: XA.ink, align: "right", valign: "center", border: true, numFmt: MONEY_FMT, ...(z ? { fill: XA.zebra } : {}) });
 
 export function mount(root) {
-  const first = latestInvoiceKey(); /* 거래가 있는 가장 최근 달로 연다 */
+  const first = latestInvoiceKey(currentClient()); /* 이 거래처에서 거래가 있는 가장 최근 달로 연다 */
   const state = { year: first.slice(0, 4), month: first.slice(5, 7), fit: true };
   const toast = makeToast();
   let dlg = null;
@@ -81,12 +82,13 @@ export function mount(root) {
 
   const ym = () => `${state.year}-${state.month}`;
   const clientId = () => (currentClient() || {}).id || "";
-  /* 그릴 때마다 store 에서 다시 읽는다 — 동의 기록은 거래처별이라 계정이 바뀌면 함께 바뀐다. */
-  const agreedAt = () => store.invoiceAgreedAt(clientId(), ym());
+  /* 그릴 때마다 store 에서 다시 파생한다 — 동의 기록은 거래처별이고, 마감(13:00)이 지나면 같은 달이
+     자동 동의로 바뀐다. 발행 전·열림·수동·자동 네 상태의 단일 소스(settlement-rules.js). */
+  const agreement = () => store.agreementOf(clientId(), ym());
 
   /* ── 현재 선택 월 → invoice-doc.js 문서 데이터 ───────────── */
   function docData() {
-    const m = invoiceMonth(ym());
+    const m = invoiceMonth(currentClient(), ym());
     const label = `${state.year}년 ${state.month}월`;
     const items = m.empty
       ? [{ date: "", sender: "", address: "해당 월의 거래 내역이 없습니다", product: "", amount: "" }]
@@ -95,9 +97,9 @@ export function mount(root) {
       _label: label, _month: m,
       title: `${state.year.slice(2)}년 ${state.month}월 꽃배달 거래명세서`,
       period: `${label} 귀속`,
-      /* 동의하면 문서의 '계산서 발행' 칸이 '발급완료' 로 바뀐다 — 화면 우측 동의 카드와
-         문서가 서로 다른 말을 하면 안 된다. */
-      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: agreedAt() ? "발급완료" : "명세서 조회 후 발급" },
+      /* 동의(수동·자동)하면 문서의 '계산서 발행' 칸이 '발급완료' 로 바뀐다 — 화면 우측 동의 카드와
+         문서가 서로 다른 말을 하면 안 된다. 어휘는 INVOICE_NOTE 한 벌(관리자·공개 링크와 같다). */
+      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: agreement().mode ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
       supplier: SUPPLIER,
       items,
       account: ACCOUNT,
@@ -116,38 +118,55 @@ export function mount(root) {
       <span class="iv-month__amt">${m.empty ? "—" : won(m.total)}</span>
     </button>
   `;
-  const monthsBody = () => monthsOf(state.year).map(monthRow);
+  const monthsBody = () => monthsOf(currentClient(), state.year).map(monthRow);
 
-  function sumBody() {
+  function sumTop() {
     const d = docData();
     const m = d._month;
-    const at = agreedAt();
     return html`
-      <div class="iv-sum__top">
-        <p class="iv-sum__k">${d.period}</p>
-        <p class="iv-sum__amt">${d.total}</p>
-        <p class="iv-sum__meta">${m.empty ? "해당 월의 거래 내역이 없습니다" : `거래 ${m.count}건 · 명세서 발행일 ${m.issue}`}</p>
-        <div class="iv-acts">
-          <button class="iv-btn iv-btn--primary" data-action="pdf" ${m.empty ? "disabled" : ""}>PDF 다운로드</button>
-          <div class="iv-acts__row">
-            <button class="iv-btn iv-btn--dark" data-action="excel" ${m.empty ? "disabled" : ""}>EXCEL</button>
-            <button class="iv-btn iv-btn--ghost" data-action="link" ${m.empty ? "disabled" : ""}>열람링크</button>
-          </div>
+      <p class="iv-sum__k">${d.period}</p>
+      <p class="iv-sum__amt">${d.total}</p>
+      <p class="iv-sum__meta">${m.empty ? "해당 월의 거래 내역이 없습니다" : `거래 ${m.count}건 · 명세서 발행일 ${m.issue}`}</p>
+      <div class="iv-acts">
+        <button class="iv-btn iv-btn--primary" data-action="pdf" ${m.empty ? "disabled" : ""}>PDF 다운로드</button>
+        <div class="iv-acts__row">
+          <button class="iv-btn iv-btn--dark" data-action="excel" ${m.empty ? "disabled" : ""}>EXCEL</button>
+          <button class="iv-btn iv-btn--ghost" data-action="link" ${m.empty ? "disabled" : ""}>열람링크</button>
         </div>
-        ${m.empty ? html`<p class="iv-why">거래가 없는 달은 내려받거나 발급할 명세서가 없습니다.</p>` : ""}
       </div>
-      <div class="iv-agree">
-        ${at
-          ? html`<div class="iv-agree__done">
-              <span class="iv-agree__ck" aria-hidden="true">✓</span>
-              <div><b>계산서 발급에 동의했습니다</b><span>${at}</span></div>
-            </div>`
-          : html`
-              <p class="iv-agree__p">동의하면 <b>이 금액으로 세금계산서가 발급</b>됩니다. 동의 후에는 내용을 바꿀 수 없습니다.</p>
-              <button class="iv-btn iv-btn--agree" data-action="agree" ${m.empty ? "disabled" : ""}>계산서 발급에 동의</button>
-            `}
-      </div>
+      ${m.empty ? html`<p class="iv-why">거래가 없는 달은 내려받거나 발급할 명세서가 없습니다.</p>` : ""}
     `;
+  }
+
+  /* ── 계산서 발급 동의 카드 — 네 상태 ─────────────────────
+     발행 전(버튼 잠금) · 열림(캡션 + 버튼) · 수동 동의 · 자동 동의(마감 13:00 경과).
+     캡션은 발급일 그룹으로 갈린다 — 1~10일 그룹은 작성일자가 귀속월 말일로 고정이고,
+     11~28일 그룹은 동의한 날이 작성일자라 "오늘 동의하면 며칠"을 그 자리에서 말한다.
+     ⚠️ html`` 은 Date 를 String(date) 로 찍는다 — 반드시 포맷해서 넣는다. */
+  function agreeBody() {
+    const m = invoiceMonth(currentClient(), ym());
+    const st = agreement();
+    const btn = (disabled) => html`<button class="iv-btn iv-btn--agree" data-action="agree" ${disabled ? "disabled" : ""}>계산서 발급에 동의</button>`;
+    if (m.empty) return html`<p class="iv-agree__p">거래가 없는 달은 발급할 계산서가 없습니다.</p>${btn(true)}`;
+    if (st.mode) {
+      const auto = st.mode === "auto";
+      return html`<div class="iv-agree__done ${auto ? "iv-agree__done--auto" : ""}" tabindex="-1">
+        <span class="iv-agree__ck" aria-hidden="true">✓</span>
+        <div>
+          <b>${auto ? "마감 시각 경과로 자동 동의됐습니다" : "계산서 발급에 동의했습니다"}</b>
+          <span>${auto ? "자동 동의" : "동의"} ${fmtAt(st.at)} · 작성일자 ${fmtYmd(st.docDate)}</span>
+        </div>
+      </div>`;
+    }
+    if (!st.issued) {
+      return html`<p class="iv-agree__p">이 달의 거래명세서는 <b>${fmtKoShortTime(st.issueDate)}</b>에 발급됩니다. 발급 후에 계산서 발급 동의를 받습니다.</p>${btn(true)}`;
+    }
+    const when = st.group === "early"
+      ? html`계산서 작성일자는 동의 시점과 관계없이 <b>${fmtKoShort(st.docDate)}</b>(귀속월 말일)입니다.`
+      : html`계산서 작성일자는 <b>동의한 날</b>입니다(오늘 동의하면 ${fmtKoShort(new Date())}, 자동 동의면 ${fmtKoShort(st.deadline)}).`;
+    return html`
+      <p class="iv-agree__p">동의하면 <b>이 금액으로 계산서(면세)가 발급</b>됩니다. <b>${fmtKoShortTime(st.deadline)}</b>까지 동의가 없으면 그 시각에 자동 동의됩니다. ${when} 동의 후에는 내용을 바꿀 수 없습니다.</p>
+      ${btn(false)}`;
   }
 
   function render() {
@@ -172,7 +191,12 @@ export function mount(root) {
                 </div>
                 <div class="iv-months" data-slot="months" role="group" aria-label="귀속 월">${monthsBody()}</div>
               </div>
-              <div class="iv-card iv-sum" data-slot="sum">${sumBody()}</div>
+              <div class="iv-card iv-sum">
+                <div class="iv-sum__top" data-slot="sumtop">${sumTop()}</div>
+                <!-- 동의 카드는 **살아 있는 영역**이다 — 동의하면 버튼이 사라지고 결과 문구가 들어온다.
+                     요소를 갈아끼우지 않고 안쪽만 바꿔야 aria-live 가 읽는다(그래서 sumtop 과 슬롯이 따로다). -->
+                <div class="iv-agree" data-slot="agree" aria-live="polite" aria-atomic="true">${agreeBody()}</div>
+              </div>
             </aside>
 
             <div class="iv-doc">
@@ -214,8 +238,10 @@ export function mount(root) {
     applyScale();
   }
   const renderSum = () => {
-    const el = qs(root, "[data-slot='sum']");
-    if (el) setHTML(el, sumBody());
+    const top = qs(root, "[data-slot='sumtop']");
+    if (top) setHTML(top, sumTop());
+    const ag = qs(root, "[data-slot='agree']");
+    if (ag) setHTML(ag, agreeBody());
   };
   /* 월만 바뀌면 목록을 **다시 그리지 않는다** — 다시 그리면 스크롤 위치가 날아간다. */
   function markMonth() {
@@ -270,7 +296,7 @@ export function mount(root) {
 
   /* ── EXCEL — 현행 로직 그대로(서식 있는 .xlsx) ───────────── */
   function downloadExcel() {
-    const m = invoiceMonth(ym());
+    const m = invoiceMonth(currentClient(), ym());
     const label = `${state.year}년 ${state.month}월`;
     const rows = [];
     const merges = [];
@@ -339,26 +365,35 @@ export function mount(root) {
      '발급 동의'에 맞지 않는다. 공용 `.dlg-check` 만 빌려 쓴다. */
   function openAgree() {
     const d = docData();
-    if (d._month.empty || agreedAt() || dlg) return;
+    const st = agreement();
+    if (d._month.empty || !st.open || dlg) return;
     let ack = false;
     const HINT_OFF = "확인에 체크해야 발급됩니다";
     const HINT_ON = "발급을 진행할 수 있습니다";
+    /* 작성일자를 요약에 같이 보여 준다 — 1~10 그룹은 귀속월 말일로 확정, 11~28 그룹은 오늘(동의한 날). */
+    const early = st.group === "early";
+    const docLabel = early ? fmtYmd(st.docDate) : `${fmtYmd(new Date())} (오늘)`;
+    const hintline = early
+      ? `작성일자는 귀속월 말일로 고정됩니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`
+      : `작성일자는 동의한 날입니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않으면 자동 동의되고 작성일자는 ${fmtKoShort(st.deadline)}이 됩니다.`;
     dlg = openDialog({
       eyebrow: `${d.period} · ${d.total}`,
       title: "계산서 발급에 동의할까요?",
       width: 520,
       body: html`
-        <p class="dlg-desc"><b>동의 후에는 되돌릴 수 없습니다.</b> 위 금액 그대로 세금계산서가 발급되고,
+        <p class="dlg-desc"><b>동의 후에는 되돌릴 수 없습니다.</b> 위 금액 그대로 계산서(면세)가 발급되고,
           명세서 내용은 더 이상 변경할 수 없습니다.</p>
         <div class="iv-recap">
           <div><span>귀속</span><b>${d.period}</b></div>
           <div><span>거래 건수</span><b class="num">${d._month.count}건</b></div>
+          <div><span>작성일자</span><b class="num">${docLabel}</b></div>
           <div class="iv-recap__total"><span>발급 금액</span><b class="num">${d.total}</b></div>
         </div>
         <button class="dlg-check" data-action="ack" aria-pressed="false">
           <span class="dlg-check__box" aria-hidden="true"></span>
           <span>금액을 확인했고 되돌릴 수 없음에 동의합니다</span>
-        </button>`,
+        </button>
+        <p class="dlg-hintline">${hintline}</p>`,
       hint: HINT_OFF,
       hintBlock: true,
       actions: dlgActions({ ok: "동의하고 발급", disabled: true }),
@@ -377,12 +412,18 @@ export function mount(root) {
     });
     on(p, "click", "[data-action='ok']", () => {
       if (!ack) return;
-      store.agreeInvoice(clientId(), ym());
+      /* store 가 같은 규칙·같은 시계로 다시 판정한다 — 다이얼로그를 열어 둔 채 마감(13:00)이 지나면
+         기록하지 않고 null 을 돌려주고, 그 달은 자동 동의로 그려진다. */
+      const at = store.agreeInvoice(clientId(), ym());
       dlg.close();
       dlg = null;
       renderSum();
       renderDoc(); /* 문서의 '계산서 발행' 칸이 바뀐다 */
-      toast("계산서 발급에 동의했습니다");
+      if (!at) { toast("동의 마감이 지나 자동 동의로 처리되었습니다", "warn"); return; }
+      toast(`계산서 발급에 동의했습니다 · 작성일자 ${fmtYmd(agreement().docDate)}`);
+      /* 버튼이 사라진 자리로 포커스를 옮긴다 — 안 하면 body 로 떨어져 키보드 사용자가 자리를 잃는다. */
+      const done = qs(root, ".iv-agree__done");
+      if (done) done.focus();
     });
   }
 

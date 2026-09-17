@@ -84,6 +84,9 @@
   color: var(--c-text-5);
   line-height: 1.7;
 }
+.settle-notice p + p {
+  margin-top: 4px;
+}
 /* ── Table ──────────────────────────────────────────────── */
 .settle-table {
   background: var(--c-surface);
@@ -154,26 +157,7 @@
   font-weight: var(--fw-semibold);
   color: var(--c-text);
 }
-.settle-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-}
-.settle-badge--warn {
-  background: var(--c-warn-soft-bg);
-  color: var(--c-warn-soft-ink);
-}
-.settle-badge--ok {
-  background: var(--c-success-bg);
-  color: var(--c-success-ink);
-}
-.settle-badge--danger {
-  background: var(--c-danger-bg);
-  color: var(--c-danger-ink);
-}
+/* `.settle-badge*` · `.settle-stack` · `.settle-td__sub` 는 components.css — 관리자·포털 공용이라 옮겼다. */
 
 /* ── 청구금액 → 근거 주문 드릴다운 (관리자 정산회계) ─────────
    화면을 떠나지 않고 여러 거래처를 연달아 확인하기 위한 인라인 아코디언. */

@@ -11,6 +11,7 @@ import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbo
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
+import { deadlineDayOf } from "../data/settlement-rules.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -46,7 +47,7 @@ const CARD_COMPANY = [
 const CARD_BILL = [
   /* 아래로 연다 — 카드 첫 줄이라 위 공간이 113px 뿐이고 패널은 240px 다(유입 경로는 반대) */
   { k: "invoiceDay", label: "발급일", type: "select", down: true, options: () => INVOICE_DAYS, ddLabel: (v) => `매월 ${v}일` },
-  { k: "email", label: "계산서 이메일", ph: "세금계산서 수신 주소" },
+  { k: "email", label: "계산서 이메일", ph: "계산서를 수신할 이메일 주소" },
   { type: "static", label: "정산 일정" },
   { k: "channel", label: "매출 채널", type: "seg", options: CLIENT_CHANNELS,
     help: "'일반' 외 채널은 대쉬보드에서 B2B 합계와 분리해 자기 매출 카드를 갖습니다." },
@@ -76,9 +77,6 @@ function fmtBiz(v) {
   if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
   return d;
 }
-/** 그 달의 말일 — 정산기한 문구에 쓴다(윤년 포함, 하드코딩 금지). **m 은 0-based** 다. */
-const monthEnd = (y, m) => new Date(y, m + 1, 0).getDate();
-
 /** 그 거래처에 등록된 담당자 수 — 목록 배지와 다이얼로그 제목이 같이 읽는다. */
 const contactCount = (id) => store.contactsOf(id).length;
 
@@ -95,14 +93,16 @@ const deleteCopy = (client) => ({
 
 /** 정산 일정 안내문 — 초기 렌더와 부분 갱신이 **같은 문장**을 쓰게 한 곳에 둔다.
     사본이 둘이던 때, 발급일 드롭다운을 건드리는 순간 두 문장이 갈렸다.
-    ⚠️ `monthEnd` 는 0-based 월을 받는다. `getMonth() + 1` 을 넘겨 **다음 달** 말일이
-       나오던 결함이 있었다(2026-09 에 31일 = 10월). 규약은 "정산기한 = 그 발행일이
-       속한 달의 말일" 이므로 이번 달이 맞다. */
+    마감일(10일/28일)은 settlement-rules.js `deadlineDayOf` 단일 소스 — 여기서 숫자를 다시 적지 않는다.
+    옛 문구의 "(최대 N일)" 은 **이번 달** 말일이라 거래처와 무관한 숫자였다(그 계산이 0-based 월
+    함정으로 다음 달 말일이 나오던 결함까지 있었다). 뺐다. */
 function invoiceHelpText(invoiceDay) {
   const day = Number(invoiceDay) || 1;
-  const now = new Date();
-  return `매월 ${day}일에 전월 귀속 거래명세서·계산서가 발급되고, `
-    + `정산기한은 그 발급일이 속한 달의 말일(최대 ${monthEnd(now.getFullYear(), now.getMonth())}일)입니다.`;
+  const dl = deadlineDayOf(day);
+  return `매월 ${day}일 10:00에 전월 귀속 거래명세서가 발급됩니다. 계산서 발급 동의 마감은 같은 달 ${dl}일 13:00이며, `
+    + `마감까지 동의가 없으면 그 시각에 자동 동의됩니다. 계산서 작성일자는 `
+    + (day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`)
+    + `, 정산기한은 발급일이 속한 달의 말일입니다.`;
 }
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
@@ -407,7 +407,7 @@ export function mount(root, { nav }) {
       const shared = sharedBizKeys(store.get().clients);
       const showDept = isEdit && form.department && shared.has(normalizeBiz(form.bizNumber));
       const meta = [form.accountId || "아이디 미정", isEdit ? `가입 ${form.joinDate}` : "신규 등록",
-        form.bizNumber ? `사업자 ${form.bizNumber}` : null, `계산서 매월 ${Number(form.invoiceDay) || 1}일`]
+        form.bizNumber ? `사업자 ${form.bizNumber}` : null, `명세서 매월 ${Number(form.invoiceDay) || 1}일 · 동의 마감 ${deadlineDayOf(Number(form.invoiceDay) || 1)}일 13:00`]
         .filter(Boolean).join(" · ");
       return html`
         <div class="ord-hd__l">

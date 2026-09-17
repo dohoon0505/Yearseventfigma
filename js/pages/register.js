@@ -10,7 +10,7 @@ const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
 const BENEFITS = [
   "신규 가입 기업 경조사 상품 1회 무료 제공",
   "실시간 주문·배송 현황 통합 관리",
-  "세금계산서 자동 발행 및 정산 처리",
+  "거래명세서·계산서 자동 발급 및 월 후불 정산",
   "전담 운영팀 기업 맞춤 1:1 지원",
 ];
 
@@ -137,7 +137,7 @@ export function mount(root, { nav }) {
       </div>
       ${field({ label: "대표자명", name: "ceoName", placeholder: "대표자 성명을 입력해주세요" })}
       ${field({ label: "사업장 소재지", name: "address", placeholder: "사업자등록증 상의 주소를 입력해주세요" })}
-      ${field({ label: "계산서 수신 이메일", name: "email", type: "email", placeholder: "세금계산서를 수신할 이메일 주소" })}
+      ${field({ label: "계산서 수신 이메일", name: "email", type: "email", placeholder: "계산서를 수신할 이메일 주소" })}
       <div class="rf" data-field="bizLicense">
         <label class="rf__label">사업자등록증<span class="rf__req">*</span></label>
         <input type="file" accept="image/*,application/pdf" data-license-input hidden />
