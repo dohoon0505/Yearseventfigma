@@ -769,6 +769,42 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
   color: var(--c-text);
 }
 
+/* 리모델 시안 머리글(js/ui.js pageHead) — 위 .page-title 과 **다른 규격**이다.
+   옛 화면은 .page-title(22px), 시안을 이식한 화면은 .page-hd(28px + 부제). */
+.page-hd {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-8);
+  margin-bottom: 28px;
+}
+.page-hd--rule {
+  padding-bottom: var(--sp-7);
+  border-bottom: 1px solid var(--c-border);
+}
+.page-hd h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  font-size: var(--fs-28);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.028em;
+  color: var(--c-text-strong);
+}
+.page-hd h1 img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.page-hd p {
+  margin-top: 6px;
+  font-size: var(--fs-17);
+  line-height: 1.5;
+  color: var(--c-text-4);
+}
+.page-hd__r { flex-shrink: 0; }
+
 /* ── Small utilities (token-driven) ─────────────────────── */
 .row {
   display: flex;

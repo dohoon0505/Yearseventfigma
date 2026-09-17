@@ -47,7 +47,7 @@ js/
   dom.js                # html`` 템플릿(XSS 이스케이프) · setHTML · on() 이벤트 위임
   icons.js              # lucide 아이콘 SVG 스프라이트
   toast.js              # makeToast
-  ui.js                 # pageTitle · tableGrid · onRowOpen · rowToneLegend
+  ui.js                 # pageTitle · pageHead · tableGrid · onRowOpen · rowToneLegend
                         #  · openModal/closeAllModals · simpleModal · openLightbox
                         #  · makeDropdown · makeDatepicker · makeDateTimePicker
   invoice-doc.js        # 거래명세서 인쇄창 (별도 window — tokens.css 미로드라 hex 예외)
@@ -68,7 +68,8 @@ serve.mjs               # 개발용 정적 서버
 
 | 모듈 | 역할 |
 |---|---|
-| `order-screen.js` | 주문 **상세** 모달(B2C·B2B 공용) · 목록 필터 카드 · 담당자/삭제 다이얼로그 |
+| `order-screen.js` | 주문 **상세** 모달(B2C·B2B 공용) · 목록 필터 카드 · 담당자 지정 다이얼로그 |
+| `dialog.js` | 작은 다이얼로그 공용 셸(`openDialog`·`dlg*`) · 삭제 확인 `openDeleteConfirm` |
 | `order-create.js` | 주문서 **등록** 위저드 셸 (상세와 별개 모달) |
 | `order-fields.js` | 두 모달이 공유하는 폼 조각 (`card`·`renderFields`·`won`·`dtpMarkup`…) |
 | `order-dialogs.js` | 행 리스트 피커(`openRowPicker`) · 링크 자동작성(`openAutofill`) |

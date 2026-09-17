@@ -15,7 +15,7 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, won } from "../store.js";
 import { currentClient } from "../util/client.js";
-import { tableGrid, onRowOpen, openLightbox } from "../ui.js";
+import { pageHead, tableGrid, onRowOpen, openLightbox } from "../ui.js";
 
 const SAMPLE = {
   경조화환: "https://images.unsplash.com/photo-1728080568516-28156ceae0ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdW5lcmFsJTIwZmxvd2VyJTIwS29yZWElMjBjZXJlbW9ueXxlbnwxfHx8fDE3NzU2Mzk0ODd8MA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -151,10 +151,11 @@ export function mount(root) {
       html`
         <div class="page-products">
           <div class="prod-inner">
-            <div class="prod-hd">
-              <h1><img src="./assets/nav-product.png" alt="" />상품 규격 안내</h1>
-              <p>가격과 규격을 비교하고, 자주 쓰는 상품은 즐겨찾기에 담아두세요.</p>
-            </div>
+            ${pageHead({
+              imgSrc: "./assets/nav-product.png",
+              title: "상품 규격 안내",
+              desc: "가격과 규격을 비교하고, 자주 쓰는 상품은 즐겨찾기에 담아두세요.",
+            })}
 
             <div class="prod-bar">
               <div class="prod-cats" role="radiogroup" aria-label="상품조회구분">

@@ -37,6 +37,23 @@ export function pageTitle({ icon, imgSrc, title, action } = {}) {
   `;
 }
 
+/* ── 리모델 시안 머리글 ──────────────────────────────────
+   28px 제목 + 32px 아이콘 + 17px 부제(+ 선택적 아래 구분선).
+   공용 `pageTitle()` 은 22px bold 에 부제 슬롯이 없다 — 그걸 고치면 옛 화면 15개가
+   전부 따라 바뀌므로 새 규격을 옆에 둔다. claude.ai/design 리모델 시안을 이식한
+   화면들이 쓴다(상품 규격 안내·프로필 저장공간…). 페이지마다 복제하지 말 것. */
+export function pageHead({ imgSrc, title, desc, rule = false, action } = {}) {
+  return html`
+    <div class="page-hd ${rule ? "page-hd--rule" : ""}">
+      <div class="page-hd__l">
+        <h1>${imgSrc ? html`<img src="${imgSrc}" alt="" />` : ""}${title}</h1>
+        ${desc ? html`<p>${desc}</p>` : ""}
+      </div>
+      ${action ? html`<div class="page-hd__r">${action}</div>` : ""}
+    </div>
+  `;
+}
+
 /* ── DataTable grid (ports DataTable.tsx) ───────────────── */
 /* rowClass(row, idx) → 행에 추가할 클래스. 그룹 접기처럼 같은 그리드 위에서 행 종류를
    구분해야 할 때 쓴다(미전달 시 기존과 동일). */
