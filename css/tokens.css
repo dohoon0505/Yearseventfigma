@@ -22,6 +22,7 @@
   --c-surface: #ffffff;       /* cards / inputs / modal */
   --c-surface-2: #f5f5f7;     /* form panel background */
   --c-glass-bar: rgba(245, 245, 247, 0.8); /* 스티키 바 유리면(= --c-surface-2 80%) — backdrop-filter 와 짝 */
+  --c-doc-backdrop: #e8e8ec; /* A4 미리보기 뒷면 — 종이(흰색)와 구분되게 surface-2 보다 한 단계 진하다 */
   --c-surface-3: #f5f5f5;     /* subtle fills (table head, company badge) */
   --c-surface-hover: #fafafa;
   --c-surface-hover-2: #f4f4f4;
@@ -126,6 +127,7 @@
   --c-toast-ok: #7be0a0;   /* 다크 토스트 위 성공 아이콘 */
   --c-toast-warn: #ffcf80; /* 다크 토스트 위 경고 아이콘 */
   --sh-pop: 0 8px 28px rgba(17, 17, 24, 0.14); /* dropdown/calendar popover (order 08-brand) */
+  --sh-doc: 3px 5px 30px rgba(0, 0, 0, 0.22); /* 회색 면 위 A4 용지 그림자(거래명세서 미리보기) */
   --ring: 0 0 0 3px rgba(241, 90, 42, 0.09);
   --ring-blue: 0 0 0 3px rgba(65, 105, 225, 0.12);
   --ring-error: 0 0 0 3px rgba(244, 67, 54, 0.1);

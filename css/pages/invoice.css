@@ -1,90 +1,259 @@
 /* ============================================================
-   invoice.css — 거래명세서 조회 (#/app/invoice) · 우측 리모컨 시안 mockups/refresh/03-invoice-remote.html 이식
-   · 모든 선택자는 .page-invoice 하위로 스코프 → 공용·타 페이지 무영향.
-   · 색상은 tokens.css 토큰만 참조(raw hex 0). 시안 var 매핑:
-     흰색→--c-surface · --c-success→--c-success-ink · --c-danger→--c-danger-ink.
-   · 우측은 단일 통합 리모컨(.remote): 기간(스테퍼+드롭다운) · 금액 · 프로세스 · 액션 · 동의 · 푸터.
-   · 드롭다운은 ui.js makeDropdown 와 짝(.dd/.dd-trigger/.dd-panel/.dd-opt), 패널은 아래로 전개.
-   · A4 문서(invoice-doc.js 794×1123)는 프레임만 담당하고 내부는 무수정. 인쇄는 printInvoiceDoc.
+   invoice.css — 거래명세서 조회 (#/app/invoice)
+   시안: claude.ai/design '거래명세서 조회 - 리모델링'
+
+   좌: A4 미리보기(회색 면 · 자체 스크롤) / 우: 340px 레일(연도·월 목록·금액·동의).
+   ⚠️ A4 문서 내부(`.invoice-page` 안)는 `js/invoice-doc.js` 가 인라인 스타일로 그린다 —
+      공개 링크 페이지와 공유하는 자산이라 여기서 내부를 덮지 않는다. 바깥 면만 칠한다.
+   모든 선택자를 `.page-invoice` 아래로 가둔다(다이얼로그 조각만 `.modal-panel--dlg`).
    ============================================================ */
-.page-invoice { max-width: 1250px; padding: 28px 32px 90px; }
-.page-invoice .page-title { margin-bottom: 18px; }
-.page-invoice .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.page-invoice {
+  /* 시안은 페이지가 통째로 스크롤되지 않는다 — 미리보기와 월 목록만 자체 스크롤한다.
+     ⚠️ 이게 성립하려면 조상 사슬이 전부 높이를 넘겨야 한다(.shell__main 이 flex 자식이라 성립). */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 40px;
+  background: var(--c-surface-2);
+  box-sizing: border-box;
+}
+.page-invoice .page-hd { flex: 0 0 auto; }
 
-/* ── 레이아웃 ── */
-.page-invoice .cols { display: flex; gap: 20px; align-items: flex-start; }
-.page-invoice .doc { flex: 0 0 794px; width: 794px; }
-/* 멀티페이지: .a4-frame 은 투명 컨테이너, 카드 프레임은 각 .invoice-page 가 담당 */
-.page-invoice .a4-frame { width: 794px; }
-.page-invoice .invoice-page { border: 1px solid var(--c-border); border-radius: 4px; box-shadow: var(--sh-card); }
-.page-invoice .invoice-page + .invoice-page { margin-top: 24px; }
-/* ══ 우측 리모컨 (단일 통합 패널 · 섹션은 헤어라인 구분) ══════════
-   ⚠ .remote 에 overflow:hidden 금지 — 드롭다운 패널이 잘려 먹통이 됨(시안 주석). */
-.page-invoice .remote { flex: 1; min-width: 300px; position: sticky; top: 24px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 14px; box-shadow: 0 4px 16px rgba(17, 17, 24, 0.07); }
+.page-invoice .iv-cols {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-7);
+}
+/* DOM 은 레일이 먼저(Tab 순서 = 기간 고르기 → 문서 보기), 화면에서는 문서가 왼쪽. */
+.page-invoice .iv-doc { order: 1; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.page-invoice .iv-rail {
+  order: 2;
+  flex: 0 0 340px;
+  width: 340px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+.page-invoice .iv-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+}
 
-/* ① 기간 헤더 + 월 스테퍼 + 드롭다운 */
-.page-invoice .rm-period { padding: 16px 18px; border-bottom: 1px solid var(--c-divider); }
-.page-invoice .rm-period__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.page-invoice .rm-step { width: 32px; height: 32px; flex: 0 0 32px; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-3); font-size: 14px; transition: border-color 0.13s, background 0.13s; }
-.page-invoice .rm-step:hover { border-color: var(--c-border-strong); background: var(--c-bg); }
-.page-invoice .rm-step:disabled { opacity: 0.35; cursor: default; }
-.page-invoice .rm-period__label { text-align: center; }
-.page-invoice .rm-period__label b { font-size: 16px; font-weight: 700; color: var(--c-text-strong); letter-spacing: -0.01em; }
-.page-invoice .rm-period__label span { display: block; font-size: 10.5px; color: var(--c-text-faint); margin-top: 1px; }
-.page-invoice .rm-period__dds { display: flex; gap: 8px; margin-top: 12px; }
+/* ── 연도 스테퍼 + 12개월 목록 ───────────────────────────── */
+.page-invoice .iv-listcard { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-invoice .iv-year {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
+  border-bottom: 1px solid var(--c-border);
+}
+.page-invoice .iv-ystep {
+  width: 34px; height: 34px; flex: 0 0 34px;
+  display: grid; place-items: center;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-strong);
+  font-size: var(--fs-15);
+  transition: border-color 0.15s, background 0.15s;
+}
+.page-invoice .iv-ystep:hover { border-color: var(--c-border-strong); background: var(--c-surface-2); }
+.page-invoice .iv-year__l { text-align: center; min-width: 0; }
+.page-invoice .iv-year__l b {
+  display: block;
+  font-size: 19px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  color: var(--c-text-strong);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.page-invoice .iv-year__l span { display: block; margin-top: 1px; font-size: var(--fs-12); color: var(--c-text-muted); }
 
-/* 커스텀 드롭다운 (ui.js makeDropdown 짝 · 선택 행 블루 · 아래로 전개 · 42px) */
-.page-invoice .dd { position: relative; flex: 1; }
-.page-invoice .dd-trigger { width: 100%; height: 42px; padding: 0 32px 0 13px; text-align: left; font-size: 13.5px; font-weight: 600; background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg); color: var(--c-text-strong); position: relative; transition: border-color 0.15s, box-shadow 0.15s; }
-.page-invoice .dd-trigger::after { content: ""; position: absolute; right: 13px; top: 50%; width: 7px; height: 7px; border-right: 1.6px solid var(--c-text-muted); border-bottom: 1.6px solid var(--c-text-muted); transform: translateY(-70%) rotate(45deg); transition: transform 0.18s; }
-.page-invoice .dd.open .dd-trigger::after { transform: translateY(-30%) rotate(225deg); }
-.page-invoice .dd-trigger:hover { border-color: var(--c-border-strong); }
-.page-invoice .dd.open .dd-trigger,
-.page-invoice .dd-trigger:focus { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
-.page-invoice .dd-panel { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: var(--sh-pop); max-height: 250px; overflow-y: auto; padding: 5px; }
-.page-invoice .dd.open .dd-panel { display: block; }
-.page-invoice .dd-panel::-webkit-scrollbar { width: 12px; }
-.page-invoice .dd-panel::-webkit-scrollbar-thumb { background: var(--c-border-strong); border-radius: 8px; border: 3.5px solid var(--c-surface); }
-.page-invoice .dd-panel::-webkit-scrollbar-track { background: transparent; }
-.page-invoice .dd-opt { width: 100%; display: block; padding: 8px 12px; font-size: 13.5px; text-align: left; border-radius: var(--r-md); color: var(--c-text-2); transition: background 0.1s; }
-.page-invoice .dd-opt:hover { background: var(--c-surface-2); }
-.page-invoice .dd-opt.sel { background: var(--c-blue); color: var(--c-surface); font-weight: 600; }
-.page-invoice .dd-opt.sel:hover { background: var(--c-blue); }
+.page-invoice .iv-months { flex: 1; min-height: 0; overflow-y: auto; }
+.page-invoice .iv-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: 13px var(--sp-6);
+  border: none;
+  border-left: 3px solid transparent; /* 선택 표시 자리를 미리 비워 둔다 — 글자가 밀리지 않게 */
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+  text-align: left;
+  transition: background 0.15s;
+}
+.page-invoice .iv-month:last-child { border-bottom: 0; }
+.page-invoice .iv-month:hover { background: var(--c-surface-2); }
+.page-invoice .iv-month__l b {
+  display: block;
+  font-size: var(--fs-17);
+  font-weight: var(--fw-normal);
+  letter-spacing: -0.01em;
+  color: var(--c-text-strong);
+}
+.page-invoice .iv-month__l span { font-size: var(--fs-13); color: var(--c-text-muted); }
+.page-invoice .iv-month__amt {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-normal);
+  color: var(--c-text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.page-invoice .iv-month.is-sel {
+  border-left-color: var(--c-orange);
+  background: var(--c-orange-soft);
+}
+.page-invoice .iv-month.is-sel:hover { background: var(--c-orange-soft-hv); }
+.page-invoice .iv-month.is-sel .iv-month__l b { font-weight: var(--fw-semibold); }
+.page-invoice .iv-month.is-sel .iv-month__l span { color: var(--c-text-4); }
+.page-invoice .iv-month.is-sel .iv-month__amt { color: var(--c-orange-ink); font-weight: var(--fw-semibold); }
 
-/* ② 금액 요약 (차분한 텍스트 라인 · 필·배지 없음) */
-.page-invoice .rm-hero { padding: 18px 20px 16px; border-bottom: 1px solid var(--c-divider); }
-.page-invoice .rm-hero .lbl { font-size: 12px; color: var(--c-text-muted); font-weight: 600; }
-.page-invoice .rm-hero .amt { font-size: 26px; font-weight: 700; color: var(--c-text-strong); letter-spacing: -0.02em; margin-top: 3px; }
+/* ── 금액 · 액션 · 동의 ──────────────────────────────────── */
+.page-invoice .iv-sum { flex: 0 0 auto; }
+.page-invoice .iv-sum__top { padding: var(--sp-6); }
+.page-invoice .iv-sum__k { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-4); }
+.page-invoice .iv-sum__amt {
+  margin-top: var(--sp-2);
+  font-size: 34px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.page-invoice .iv-sum__meta { margin-top: 6px; font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-4); text-wrap: pretty; }
+.page-invoice .iv-acts { display: flex; flex-direction: column; gap: 9px; margin-top: 18px; }
+.page-invoice .iv-acts__row { display: flex; gap: 9px; }
+.page-invoice .iv-btn {
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.page-invoice .iv-btn--primary { width: 100%; height: 48px; border: none; background: var(--c-orange); color: var(--c-surface); font-size: var(--fs-16); }
+.page-invoice .iv-btn--primary:hover:not(:disabled) { background: var(--c-orange-hover); }
+.page-invoice .iv-btn--dark { flex: 1; min-width: 0; height: 44px; border: none; background: var(--c-dark); color: var(--c-surface); font-size: var(--fs-15); }
+.page-invoice .iv-btn--dark:hover:not(:disabled) { background: var(--c-dark-hover); }
+.page-invoice .iv-btn--ghost { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text-strong); font-size: var(--fs-15); }
+.page-invoice .iv-btn--ghost:hover:not(:disabled) { border-color: var(--c-border-strong); background: var(--c-surface-2); }
+.page-invoice .iv-btn--agree { width: 100%; height: 44px; margin-top: 14px; border: 1px solid var(--c-orange); background: var(--c-surface); color: var(--c-orange-ink); font-size: var(--fs-15); }
+.page-invoice .iv-btn--agree:hover:not(:disabled) { background: var(--c-orange-soft); }
+/* 거래가 없는 달은 내려받을 것도, 보낼 링크도, 발급할 계산서도 없다 — 넷 다 잠근다. */
+.page-invoice .iv-btn:disabled { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-faint); cursor: not-allowed; }
+.page-invoice .iv-why { margin-top: var(--sp-4); font-size: var(--fs-13); line-height: 1.5; color: var(--c-text-muted); }
 
-/* ③ 액션 (PDF 오렌지 · EXCEL 다크 · 열람링크 화이트) */
-.page-invoice .rm-actions { padding: 16px 18px 6px; display: flex; flex-direction: column; gap: 9px; }
-.page-invoice .rm-actions__row { display: flex; gap: 9px; }
-.page-invoice .rm-actions__row .rm-btn { flex: 1; min-width: 0; }
-.page-invoice .rm-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; border-radius: var(--r-xl); font-size: 14.5px; font-weight: 700; transition: background 0.14s, border-color 0.14s, color 0.14s; }
-.page-invoice .rm-btn--primary { background: var(--c-orange); color: var(--c-surface); box-shadow: var(--sh-btn); }
-.page-invoice .rm-btn--primary:hover { background: var(--c-orange-hover); }
-.page-invoice .rm-btn--secondary { background: var(--c-surface); border: 1px solid var(--c-border-strong); color: var(--c-text-2); font-weight: 600; }
-.page-invoice .rm-btn--secondary:hover { border-color: var(--c-text-muted); background: var(--c-bg); }
-.page-invoice .rm-btn--dark { background: var(--c-dark); color: var(--c-surface); }
-.page-invoice .rm-btn--dark:hover { background: var(--c-dark-hover); }
-.page-invoice .rm-btn__sub { font-weight: 400; color: var(--c-text-faint); font-size: 12px; }
+.page-invoice .iv-agree { padding: 18px var(--sp-6); border-top: 1px solid var(--c-border); }
+.page-invoice .iv-agree__p { font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); text-wrap: pretty; }
+.page-invoice .iv-agree__p b { color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.page-invoice .iv-agree__done { display: flex; align-items: flex-start; gap: 10px; }
+.page-invoice .iv-agree__ck {
+  width: 22px; height: 22px; flex: 0 0 22px; margin-top: 1px;
+  border-radius: 50%;
+  background: var(--c-success-ink);
+  color: var(--c-surface);
+  display: grid; place-items: center;
+  font-size: var(--fs-12);
+}
+.page-invoice .iv-agree__done b { display: block; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-success-ink); }
+.page-invoice .iv-agree__done span { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
 
-/* ④ 계산서 발급 동의 (조용한 섹션 · 워시·대시 보더 금지) */
-.page-invoice .rm-agree { margin: 14px 18px 16px; padding-top: 14px; border-top: 1px solid var(--c-divider); }
-.page-invoice .rm-agree p { font-size: 12px; color: var(--c-text-muted); line-height: 1.65; }
-.page-invoice .rm-agree p b { color: var(--c-text-2); font-weight: 600; }
-.page-invoice .rm-agree .pending button { margin-top: 10px; width: 100%; height: 46px; border-radius: var(--r-lg); background: var(--c-surface); border: 1px solid var(--c-orange); color: var(--c-orange-ink); font-size: 13.5px; font-weight: 600; transition: background 0.13s; }
-.page-invoice .rm-agree .pending button:hover { background: var(--c-orange-soft); }
-.page-invoice .rm-agree .complete { display: none; align-items: center; gap: 9px; background: var(--c-success-bg); border-radius: var(--r-lg); padding: 12px 14px; }
-.page-invoice .rm-agree.done .pending { display: none; }
-.page-invoice .rm-agree.done .complete { display: flex; }
-.page-invoice .rm-agree .complete .ck { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; background: var(--c-success-ink); color: var(--c-surface); display: grid; place-items: center; font-size: 12px; }
-.page-invoice .rm-agree .complete b { font-size: 13px; color: var(--c-success-ink); display: block; }
-.page-invoice .rm-agree .complete span { font-size: 11px; color: var(--c-text-muted); }
+/* ── 미리보기 ────────────────────────────────────────────── */
+.page-invoice .iv-doccard { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-invoice .iv-doc__hd {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  padding: 18px var(--sp-7);
+  border-bottom: 1px solid var(--c-border);
+}
+.page-invoice .iv-doc__hdl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.page-invoice .iv-doc__hdl h2 { font-size: var(--fs-17); font-weight: var(--fw-semibold); letter-spacing: -0.01em; color: var(--c-text-strong); }
+.page-invoice .iv-pill {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 11px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-4);
+  white-space: nowrap;
+}
+.page-invoice .iv-doc__hdr { display: flex; align-items: center; gap: var(--sp-4); flex-shrink: 0; }
+.page-invoice .iv-doc__note { font-size: var(--fs-14); color: var(--c-text-muted); white-space: nowrap; }
+.page-invoice .iv-zoom { display: inline-flex; padding: 2px; border-radius: var(--r-pill); background: var(--c-surface-2); }
+.page-invoice .iv-zoom button {
+  height: 26px; padding: 0 12px;
+  border: none; border-radius: var(--r-pill);
+  background: none; color: var(--c-text-4);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold);
+  transition: background 0.15s, color 0.15s;
+}
+.page-invoice .iv-zoom button[aria-pressed="true"] { background: var(--c-surface); color: var(--c-text-strong); box-shadow: var(--sh-seg); }
 
-/* 푸터 캡션 */
-.page-invoice .rm-foot { padding: 0 18px 16px; font-size: 11px; color: var(--c-text-faint); text-align: center; }
+/* 회색 면 위에 그림자를 깔아 '이건 인쇄물'이라는 걸 눈으로 알린다 */
+.page-invoice .iv-doc__view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px var(--sp-7);
+  background: var(--c-doc-backdrop);
+}
+/* ⚠️ transform 은 레이아웃 박스를 줄이지 않는다 — 폭·높이는 JS(applyScale)가 직접 넣는다.
+   여기서 width/height 를 선언하면 인라인 값과 싸우므로 두지 않는다. */
+.page-invoice .iv-doc__fit { margin: 0 auto; }
+.page-invoice .iv-doc__scale { width: 794px; transform-origin: top left; }
+.page-invoice .invoice-page { box-shadow: var(--sh-doc); }
+.page-invoice .invoice-page + .invoice-page { margin-top: 28px; }
 
-/* ── 토스트 (하단 중앙, 다크 필) ── */
-.page-invoice .iv-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(14px); background: var(--c-dark); color: var(--c-surface); font-size: 14px; font-weight: 600; padding: 12px 22px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60; white-space: nowrap; box-shadow: var(--sh-pop); }
-.page-invoice .iv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* ── 포커스 링 — 전역 --ring 은 흰 면에서 1.1:1 이라 없는 것과 같다 ── */
+.page-invoice .iv-ystep:focus-visible,
+.page-invoice .iv-btn:focus-visible,
+.page-invoice .iv-zoom button:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+/* 월 목록은 자체 스크롤 컨테이너라 바깥 아웃라인이 잘린다 — 안쪽으로 그린다. */
+.page-invoice .iv-month:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+
+/* ── 동의 다이얼로그 안 요약 박스 ────────────────────────
+   ⚠️ 다이얼로그는 document.body 에 붙어 `.page-invoice` 스코프가 닿지 않는다. */
+.modal-panel--dlg .iv-recap {
+  margin-top: var(--sp-5);
+  padding: 14px var(--sp-5);
+  border-radius: var(--r-xl);
+  background: var(--c-surface-2);
+}
+.modal-panel--dlg .iv-recap > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4); }
+.modal-panel--dlg .iv-recap > div + div { margin-top: 7px; }
+.modal-panel--dlg .iv-recap span { font-size: var(--fs-14); color: var(--c-text-3); }
+.modal-panel--dlg .iv-recap b { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.modal-panel--dlg .iv-recap__total { margin-top: 7px; padding-top: 9px; border-top: 1px solid var(--c-border); }
+.modal-panel--dlg .iv-recap__total b { font-size: 19px; letter-spacing: -0.015em; color: var(--c-orange-ink); }
+
+/* ── 짧은 화면 — 화면 고정을 포기하고 페이지 전체 스크롤로 ──────
+   1366×768 에서 계산해 보면 우측 아래 카드가 ~360px 를 써서 월 목록에 100px 밖에 안 남는다
+   (12개월 중 2개월). 그 높이에서는 고정 레이아웃이 오히려 못 쓰게 된다.
+   경계 860px — 1920×1080 · 1600×1000 은 고정, 1366×768 · 1280×720 은 스크롤.
+   ⚠️ 미디어쿼리는 특이도를 올리지 않으므로 **기본 규칙보다 뒤에** 둔다. */
+@media (max-height: 859px) {
+  .page-invoice { height: auto; padding: var(--sp-7); }
+  .page-invoice .iv-cols { align-items: flex-start; }
+  .page-invoice .iv-rail { position: sticky; top: var(--sp-7); }
+  .page-invoice .iv-listcard { flex: 0 0 auto; }
+  .page-invoice .iv-months { max-height: 300px; }
+  .page-invoice .iv-doccard { flex: 0 0 auto; }
+  .page-invoice .iv-doc__view { max-height: 62vh; }
+}
+@media (max-width: 1240px) {
+  .page-invoice .iv-doc__note { display: none; } /* 배율 토글에 자리를 내준다 */
+}
