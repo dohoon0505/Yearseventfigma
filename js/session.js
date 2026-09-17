@@ -16,6 +16,7 @@
    ============================================================ */
 const KEY = "yeop.session.v1";
 const CKEY = "yeop.session.client.v1"; // which 거래처 the enterprise user is (drives per-client pricing)
+const RKEY = "yeop.session.return.v1"; // 로그인 전에 들어오려던 주소 — 로그인 직후 한 번 쓰고 지운다
 const VALID = new Set(["admin", "enterprise"]);
 
 // DEMO credential — replace with a server authentication call in production.
@@ -45,6 +46,19 @@ export function setClientId(id) {
 }
 export function clearClientId() {
   sessionStorage.removeItem(CKEY);
+}
+
+/* ── 딥링크 복귀 (2026-09-17 결정) ──
+   가드에 막혀 로그인으로 보낼 때 원래 주소를 남기고, 로그인이 되면 그리로 돌아간다.
+   역할과 맞는 영역인지는 login.js 가 판단한다(거래처 계정이 관리자 주소로 튀면 안 된다). */
+export function setReturnTo(hash) {
+  if (hash && (hash.startsWith("#/app") || hash.startsWith("#/admin"))) sessionStorage.setItem(RKEY, hash);
+}
+/** 남겨 둔 주소를 돌려주고 지운다 — 한 번만 쓴다. */
+export function takeReturnTo() {
+  const h = sessionStorage.getItem(RKEY);
+  sessionStorage.removeItem(RKEY);
+  return h && (h.startsWith("#/app") || h.startsWith("#/admin")) ? h : null;
 }
 
 /** DEMO role resolution. admin/0324 → "admin", anything else → "enterprise". */

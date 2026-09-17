@@ -103,7 +103,7 @@ const mil2 = (v) => (v >= 1e7 ? (v / 1e6).toFixed(1) : (v / 1e6).toFixed(2));
 
 const DONUT_R = 54;
 const DONUT_C = 2 * Math.PI * DONUT_R; // 339.292
-/* 도넛·범례 색 — tokens.css 의 차트 팔레트. 카테고리 순서와 1:1. */
+/* 도넛·범례 색 — tokens.css 의 차트 팔레트. 기본 9종과 1:1이고 그 밖의 품목은 순환한다. */
 const MIX_COLORS = [
   "var(--c-orange)", "var(--c-blue)", "var(--c-success)", "var(--ch-purple)",
   "var(--c-warn)", "var(--ch-cyan)", "var(--ch-pink)", "var(--ch-lime)", "var(--ch-slate)",
@@ -283,25 +283,30 @@ export function mount(root, { nav }) {
   function mixData() {
     const label = ymLabel(DATA_NOW);
     const target = state.mix === "전체" ? clients() : clients().filter((c) => channelOf(c) === state.mix);
-    const amounts = USAGE_CATEGORIES.map(() => 0);
+    /* 9종 고정 순회가 아니라 **실제 집계된 품목 키**를 훑는다(월간 리포트와 같은 방식, 2026-09-17 결정).
+       카탈로그에 뒤늦게 추가된 품목('특대 꽃바구니')이 도넛에서만 빠져 항목 합계가 총계와 어긋났다.
+       기본 9종을 먼저 심어 순서·색이 흔들리지 않게 하고, 그 밖의 품목은 뒤에 붙는다(색은 순환). */
+    const sums = new Map(USAGE_CATEGORIES.map((cat) => [cat.key, 0]));
     let orders = 0;
     target.forEach((c) => {
       const u = usageFor(c)[label];
       if (!u) return;
       orders += u.orders;
-      USAGE_CATEGORIES.forEach((cat, i) => { amounts[i] += u.items[cat.key]?.amount || 0; });
+      Object.entries(u.items).forEach(([k, v]) => sums.set(k, (sums.get(k) || 0) + (v.amount || 0)));
     });
+    const keys = [...sums.keys()];
+    const amounts = keys.map((k) => sums.get(k));
     const sum = amounts.reduce((a, b) => a + b, 0) || 1;
     let cum = 0;
     const donut = amounts.map((amt, i) => {
       const len = (amt / sum) * DONUT_C;
       /* 세그먼트 사이 2px 흰 간격 — 9개가 붙어 있으면 경계가 읽히지 않는다. */
-      const seg = { color: MIX_COLORS[i], dash: `${Math.max(1, len - 2).toFixed(1)} ${DONUT_C.toFixed(1)}`, offset: (-cum).toFixed(1) };
+      const seg = { color: MIX_COLORS[i % MIX_COLORS.length], dash: `${Math.max(1, len - 2).toFixed(1)} ${DONUT_C.toFixed(1)}`, offset: (-cum).toFixed(1) };
       cum += len;
       return seg;
     });
     const ranked = amounts
-      .map((v, i) => ({ name: USAGE_CATEGORIES[i].key, color: MIX_COLORS[i], v }))
+      .map((v, i) => ({ name: keys[i], color: MIX_COLORS[i % MIX_COLORS.length], v }))
       .sort((a, b) => b.v - a.v);
     const top = ranked[0]?.v / sum || 1;
     return {

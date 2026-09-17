@@ -4,20 +4,21 @@
    Page module contract:  export function mount(container, ctx) -> cleanup
    ============================================================ */
 import { mountShell, unmountShell, setActiveNav } from "./shell.js";
-import { getRole } from "./session.js";
+import { getRole, setReturnTo } from "./session.js";
 import { closeAllModals } from "./ui.js";
 
 const routes = [
   { hash: "#/", redirect: "#/login" },
   { hash: "#/login",          load: () => import("./pages/login.js"),      shell: false },
   { hash: "#/register",       load: () => import("./pages/register.js"),   shell: false },
-  // ── Enterprise (no role guard — keeps current deep-link behavior) ──
-  { hash: "#/app",            load: () => import("./pages/order.js"),      shell: true, nav: "#/app" },
-  { hash: "#/app/orders",     load: () => import("./pages/orders.js"),     shell: true, nav: "#/app/orders" },
-  { hash: "#/app/invoice",    load: () => import("./pages/invoice.js"),    shell: true, nav: "#/app/invoice" },
-  { hash: "#/app/settlement", load: () => import("./pages/settlement.js"), shell: true, nav: "#/app/settlement" },
-  { hash: "#/app/profile",    load: () => import("./pages/profile.js"),    shell: true, nav: "#/app/profile" },
-  { hash: "#/app/products",   load: () => import("./pages/products.js"),   shell: true, nav: "#/app/products" },
+  // ── Enterprise — 역할이 있어야 열린다(requiresAuth). 비로그인 딥링크는 로그인 뒤 원래 주소로 돌아온다(2026-09-17).
+  //    예전엔 가드가 없어 주소만 치면 util/client.js 폴백으로 첫 거래처(태원과학)의 명세서가 보였다 — 공개 사이트다. ──
+  { hash: "#/app",            load: () => import("./pages/order.js"),      shell: true, nav: "#/app",            requiresAuth: true },
+  { hash: "#/app/orders",     load: () => import("./pages/orders.js"),     shell: true, nav: "#/app/orders",     requiresAuth: true },
+  { hash: "#/app/invoice",    load: () => import("./pages/invoice.js"),    shell: true, nav: "#/app/invoice",    requiresAuth: true },
+  { hash: "#/app/settlement", load: () => import("./pages/settlement.js"), shell: true, nav: "#/app/settlement", requiresAuth: true },
+  { hash: "#/app/profile",    load: () => import("./pages/profile.js"),    shell: true, nav: "#/app/profile",    requiresAuth: true },
+  { hash: "#/app/products",   load: () => import("./pages/products.js"),   shell: true, nav: "#/app/products",   requiresAuth: true },
   // ── Admin (requires admin role; admin shell variant) ──
   { hash: "#/admin/dashboard",  load: () => import("./pages/admin-dashboard.js"),  shell: true, nav: "#/admin/dashboard",  variant: "admin", requiresRole: "admin" },
   { hash: "#/admin/orders",     load: () => import("./pages/admin-orders.js"),     shell: true, nav: "#/admin/orders",     variant: "admin", requiresRole: "admin" },
@@ -55,8 +56,11 @@ async function render() {
     return;
   }
 
-  // Role guard (DEMO gate — see session.js). Only admin routes are gated.
-  if (route.requiresRole && getRole() !== route.requiresRole) {
+  // Role guard (DEMO gate — see session.js).
+  //  requiresAuth: 역할이 있으면 된다(관리자도 포털을 볼 수 있다 — util/client.js 가 첫 거래처로 폴백).
+  //  requiresRole: 그 역할이어야 한다. 둘 다 막힐 때 원래 주소를 남겨 로그인 뒤 돌아오게 한다.
+  if ((route.requiresAuth && !getRole()) || (route.requiresRole && getRole() !== route.requiresRole)) {
+    setReturnTo(hash);
     location.replace("#/login");
     return;
   }
