@@ -3,6 +3,8 @@
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
 import { INITIAL_CLIENTS } from "./data/admin-mock.js";
+/* 동의 상태(발행·마감·자동 동의·작성일자)는 규칙 모듈 한 곳에서 파생한다 — import 0 이라 순환이 없다. */
+import { agreementState, fmtAt, invoiceDayOf } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
 import { getClientId } from "./session.js";
@@ -38,6 +40,8 @@ export const ALL_PRODUCTS = [
   { category: "생화",     product: "소형 꽃바구니",     price: "50,000원",  description: "생화 5~10송이로 제작, 품종·계절에 따라 상이할 수 있습니다.", icon: "💐" },
   { category: "생화",     product: "중형 꽃바구니",     price: "80,000원",  description: "생화 10~20송이로 제작, 품종·계절에 따라 상이할 수 있습니다.", icon: "💐" },
   { category: "생화",     product: "대형 꽃바구니",     price: "120,000원", description: "생화 20~30송이로 제작, 품종·계절에 따라 상이할 수 있습니다.", icon: "💐" },
+  /* 2026-09-17 신설 — (주)뉴트리 2026-08 실데이터의 꽃바구니 150,000원 항목(사용자 지시). */
+  { category: "생화",     product: "특대 꽃바구니",     price: "150,000원", description: "생화 30송이 이상으로 제작, 품종·계절에 따라 상이할 수 있습니다.", icon: "💐" },
 ];
 
 export const productKey = (r) => `${r.category}__${r.product}`;
@@ -95,9 +99,9 @@ let state = {
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
   clientPrices: {}, // { [clientId]: { [productKey]: number } } — per-client price overrides
-  /* 거래명세서 '계산서 발급 동의' 기록 — { [clientId]: { "YYYY-MM": "YYYY-MM-DD HH:mm" } }.
-     ⚠️ 관리자 정산 화면의 발급 상태(`settlementsFor` 의 '발행일 ≤ 지금' 파생)와는 **별개**다.
-        이건 거래처가 포털에서 직접 누른 동의 기록이라 시각까지 남긴다. */
+  /* 거래명세서 '계산서 발급 동의' **수동** 기록 — { [clientId]: { "YYYY-MM": "YYYY-MM-DD HH:mm" } }.
+     자동 동의(마감 13:00 경과)는 기록하지 않고 `agreementOf` 가 매번 파생한다 — 과거 달을 전부
+     적어 두면 시드·신규 거래처마다 백필이 필요해진다. 관리자 정산 표도 같은 함수를 본다. */
   invoiceAgreed: {},
 };
 
@@ -222,18 +226,23 @@ export const store = {
   /* ── 거래명세서 계산서 발급 동의 ──────────────────────────
      **거래처별로 가른다** — 담당자·명세서 토큰과 같은 규칙이다(계정을 바꾸면 남의
      동의 기록이 보이면 안 된다). 되돌릴 수 없는 기록이라 시각까지 남긴다. */
-  /** 그 거래처·귀속월의 동의 시각("YYYY-MM-DD HH:mm"), 없으면 null. */
-  invoiceAgreedAt(clientId, ym) {
-    return (state.invoiceAgreed[scopeId(clientId)] || {})[ym] || null;
+  /** 그 거래처·귀속월의 동의 상태(settlement-rules.js `agreementState`) — 포털 버튼 활성 ·
+   *  아래 `agreeInvoice` 의 쓰기 가드 · 관리자 정산 표가 **전부 이 한 곳**을 본다.
+   *  수동 기록은 읽을 때 항상 이기고, 마감(13:00)이 지나면 자동 동의로 파생된다. */
+  agreementOf(clientId, ym, now = new Date()) {
+    const k = scopeId(clientId);
+    const client = state.clients.find((c) => c.id === k);
+    return agreementState({ period: ym, invoiceDay: invoiceDayOf(client), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, now });
   },
-  /** 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다). */
-  agreeInvoice(clientId, ym) {
+  /** 수동 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다).
+   *  발행 전이거나 마감이 지났으면(자동 동의) **기록하지 않고 null** — 화면과 같은 함수·같은
+   *  시계로 판정하므로 버튼이 열려 있던 순간과 어긋날 수 없다. */
+  agreeInvoice(clientId, ym, now = new Date()) {
     const k = scopeId(clientId);
     const cur = state.invoiceAgreed[k] || {};
     if (cur[ym]) return cur[ym];
-    const d = new Date();
-    const p2 = (n) => String(n).padStart(2, "0");
-    const at = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    if (!this.agreementOf(clientId, ym, now).open) return null;
+    const at = fmtAt(now);
     state = { ...state, invoiceAgreed: { ...state.invoiceAgreed, [k]: { ...cur, [ym]: at } } };
     persist();
     emit();

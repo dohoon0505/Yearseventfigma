@@ -9,10 +9,13 @@ import { html, setHTML, on, qs, raw, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
-import { settlementsFor, usageFor, usageMap, settlementsMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+import { usageFor, usageMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(포털 정산과 같은 소스). */
+import { settlementsFor, settlementsMap } from "../util/settlement.js";
+import { fmtMd, fmtMdHm } from "../data/settlement-rules.js";
 import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
 import { buildMonthlyReport } from "../data/report.js";
-import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
+import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { reportDoc } from "../report-doc.js";
 
@@ -40,17 +43,29 @@ function deltaBadge(delta, suffix = "원") {
 const ok = (t) => html`<span class="settle-badge settle-badge--ok">${t}</span>`;
 const warn = (t) => html`<span class="settle-badge settle-badge--warn">${t}</span>`;
 const danger = (t) => html`<span class="settle-badge settle-badge--danger">${t}</span>`;
-const agreeBadge = (v) => (v === "동의완료" ? ok("동의완료") : warn("동의대기"));
-const issueBadge = (v) => (v === "발급완료" ? ok("발급완료") : warn("동의필요"));
+const gray = (t) => html`<span class="settle-badge settle-badge--gray">${t}</span>`;
+/* 배지 + 보조줄(날짜·구분). 언제 동의했고 수동인지 자동인지, 작성일자가 며칠인지가 세무 근거라
+   배지 한 단어로 뭉개지 않는다(2026-09-17 사용자 결정). 발행 전 달은 경고가 아니라 회색 '발급예정'. */
+const stack = (badge, sub) => html`<span class="settle-stack">${badge}${sub ? html`<span class="settle-td__sub">${sub}</span>` : ""}</span>`;
+const agreeBadge = (r) => {
+  if (r.거래명세서동의 === "동의완료") return stack(ok("동의완료"), `${fmtMd(r.동의시각)} ${r.동의구분 === "auto" ? "자동" : "수동"}`);
+  if (!r.issued) return stack(gray("발급예정"), fmtMdHm(r.발행일시));
+  return stack(warn("동의대기"), `마감 ${fmtMdHm(r.마감)}`);
+};
+const issueBadge = (r) =>
+  r.계산서발급 === "발급완료"
+    ? stack(ok("발급완료"), `작성 ${fmtMd(r.작성일자)}`)
+    : stack(r.issued ? warn("발급대기") : gray("발급대기"), r.issued ? "동의 후 발급" : "");
 const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : danger("미입금"));
 const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서발급 === "발급완료" && r.입금완료 === "입금완료";
 
 // 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 거래처·귀속월이면 issueLink가 시드 토큰 재사용.
+// '계산서 발행' 칸은 INVOICE_NOTE 어휘로 — 예전엔 표 배지값('동의하기')이 그대로 PDF 에 찍혔다.
 const buildDoc = (client, rec) => ({
   title: `${rec.청구년월} 꽃배달 거래명세서`,
   period: `${rec.청구년월} 귀속`,
   // 부서는 사업자번호를 공유하는 거래처에만 — 그 외엔 빈 값이라 문서에서 행 자체가 빠진다.
-  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 },
+  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 === "발급완료" ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
   supplier: SUPPLIER,
   items: [{ date: rec.청구년월, sender: "-", address: "-", product: `${rec.청구년월} 꽃배달 이용료 합계`, amount: rec.정산금액 }],
   account: ACCOUNT,
@@ -271,8 +286,8 @@ export function mount(root, { nav }) {
                         aria-expanded="${state.expanded.has(client.id) ? "true" : "false"}"
                         title="이 금액의 청구 근거 보기">${rec.정산금액}<span class="settle-caret"></span></button>
               </div>
-              <div class="settle-td">${agreeBadge(rec.거래명세서동의)}</div>
-              <div class="settle-td">${issueBadge(rec.계산서발급)}</div>
+              <div class="settle-td">${agreeBadge(rec)}</div>
+              <div class="settle-td">${issueBadge(rec)}</div>
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
               <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
               <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>

@@ -712,10 +712,10 @@ export function mount(root, { nav }) {
           hint: () => { const c = cClient(); return c ? `${c.companyName} · 매월 ${Number(c.invoiceDay) || 1}일 계산서로 청구합니다` : ""; } },
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
           render: step2Body, bind: bindCreateControls, required: missing2,
-          hint: () => {
+          hint: () => { // 전 품목 면세 — 금액 뒤에 VAT 표기를 두지 않는다(2026-09-17 사용자 확인)
             const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
             const on = notifyRows().filter((r) => !r.locked && !cDraft.notifyOff.includes(r.key)).length;
-            return `${won(cur)} (VAT 별도) · 알림 ${on}명${cDraft.manager ? ` · 담당 ${cDraft.manager}` : ""}`;
+            return `${won(cur)} · 알림 ${on}명${cDraft.manager ? ` · 담당 ${cDraft.manager}` : ""}`;
           } },
       ],
       rail: railBody,

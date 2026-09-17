@@ -12,6 +12,9 @@
    ============================================================ */
 export const SUPPLIER = { company: "도랑플라워", bizNumber: "321-99-01778", ceo: "김도훈", email: "ehgns335@naver.com", fax: "053-715-2699" };
 export const ACCOUNT = "NH농협은행 352-2284-9916-83 예금주 김도훈(도랑플라워)";
+/** 문서의 '계산서 발행' 칸 어휘 — 포털 거래명세서·관리자 정산·공개 링크가 **한 벌**을 쓴다.
+ *  예전엔 관리자가 표 배지값('동의하기')을 그대로 PDF 에 흘렸다. 전 품목 면세라 '계산서' 다. */
+export const INVOICE_NOTE = { wait: "발급대기", done: "발급완료" };
 
 export const INVOICE_LINKS = {
   // 태원과학(주)(C001) · 2026년 04월
@@ -21,7 +24,7 @@ export const INVOICE_LINKS = {
     doc: {
       title: "26년 04월 꽃배달 거래명세서",
       period: "2026년 04월 귀속",
-      buyer: { address: "서울특별시 강남구 선릉로639 태원빌딩", company: "태원과학(주)", bizNumber: "101-81-24696", ceo: "태원과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: "명세서 조회 후 발급" },
+      buyer: { address: "서울특별시 강남구 선릉로639 태원빌딩", company: "태원과학(주)", bizNumber: "101-81-24696", ceo: "태원과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: INVOICE_NOTE.wait },
       supplier: SUPPLIER,
       items: [
         { date: "2026년 04월 28일", sender: "한지훈", address: "서울 관악구 관악로 1 서울대학교 행정관", product: "3단화환(고급형)", amount: "60,000원" },
@@ -39,7 +42,7 @@ export const INVOICE_LINKS = {
     doc: {
       title: "26년 03월 꽃배달 거래명세서",
       period: "2026년 03월 귀속",
-      buyer: { address: "서울특별시 강남구 선릉로639 태원빌딩", company: "태원과학(주)", bizNumber: "101-81-24696", ceo: "태원과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 04월 01일", invoiceNote: "발급완료" },
+      buyer: { address: "서울특별시 강남구 선릉로639 태원빌딩", company: "태원과학(주)", bizNumber: "101-81-24696", ceo: "태원과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 04월 01일", invoiceNote: INVOICE_NOTE.done },
       supplier: SUPPLIER,
       items: [
         { date: "2026년 03월 30일", sender: "한지훈", address: "서울 강남구 테헤란로 152 강남파이낸스센터", product: "3단화환(고급형)", amount: "60,000원" },
@@ -58,7 +61,7 @@ export const INVOICE_LINKS = {
     doc: {
       title: "26년 04월 꽃배달 거래명세서",
       period: "2026년 04월 귀속",
-      buyer: { address: "경기도 의정부시 산단로76번길 39(용현동)", company: "(주)진양코퍼레이션", bizNumber: "127-86-11470", ceo: "한상현", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: "명세서 조회 후 발급" },
+      buyer: { address: "경기도 의정부시 산단로76번길 39(용현동)", company: "(주)진양코퍼레이션", bizNumber: "127-86-11470", ceo: "한상현", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: INVOICE_NOTE.wait },
       supplier: SUPPLIER,
       items: [
         { date: "2026년 04월 26일", sender: "총무팀", address: "서울 서초구 서초대로 396 강남빌딩", product: "3단화환(고급형)", amount: "60,000원" },
