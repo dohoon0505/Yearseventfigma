@@ -151,6 +151,62 @@ export const dlgActions = ({ cancel = "취소", ok, okIcon, okClass = "hm-btn--p
   </button>
 `;
 
+/**
+ * 되돌릴 수 없는 삭제 확인 — 체크를 해야 삭제 버튼이 열린다.
+ * ⚠️ 주문 전용이 아니다. 거래처 모달도 같은 절차를 쓰므로 문구를 파라미터화했다 —
+ *    예전엔 제목이 `주문서를 삭제할까요?` 로 **하드코딩**돼 거래처를 지울 때도
+ *    "주문서"라고 물었다(본문은 '주문취소를 사용하세요'까지 권했다).
+ *    인자를 안 넘기면 주문 문구가 그대로 나오므로 기존 호출부는 무변화다.
+ */
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm }) {
+  let ack = false;
+  /* 힌트 두 문장은 상수로 묶는다 — 초기 렌더와 토글이 각자 문자열을 적으면
+     한쪽만 고쳐져 푸터가 버튼 상태와 다른 말을 하게 된다. */
+  const HINT_OFF = "확인에 체크해야 삭제됩니다";
+  const HINT_ON = "삭제를 진행할 수 있습니다";
+  const d = openDialog({
+    /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호(tabular-nums),
+       거래처면 호출부가 넘긴 식별자(접속 아이디·회사명)라 숫자 정렬을 끈다. */
+    eyebrow: eyebrow ?? orderNo,
+    eyebrowNum: eyebrow == null,
+    title: title ?? "주문서를 삭제할까요?",
+    width: 440,
+    /* ⚠️ 섹션 간격(`--sections`)을 쓰지 않는다 — `.dlg-desc + .dlg-note`(12px)와
+       `.dlg-check`(16px)가 이미 자기 여백을 갖고 있어 flex `gap:20px` 이 **더해진다**
+       (경고가 붙는 B2B 경로에서 32/36px 로 벌어졌다). 간격은 한 곳에서만 준다. */
+    body: html`
+      <p class="dlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
+        기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
+      ${note ? html`<div class="dlg-note">${note}</div>` : ""}
+      <button class="dlg-check" data-action="ack" aria-pressed="false">
+        <span class="dlg-check__box" aria-hidden="true"></span>
+        <span>되돌릴 수 없음을 확인했습니다</span>
+      </button>`,
+    hint: HINT_OFF,
+    hintBlock: true,
+    actions: dlgActions({
+      /* 문구는 호출부 계약이 정한다 — 주문이면 '주문서 삭제', 거래처면 '거래처 삭제'.
+         제목만 갈아 끼우고 버튼을 '삭제' 로 두면 무엇을 지우는지 마지막 순간에 흐려진다. */
+      cancel: "돌아가기", ok: okLabel ?? "주문서 삭제", okIcon: "trash2",
+      okClass: "hm-btn--danger", disabled: true,
+    }),
+  });
+  const p = d.panel;
+  const chk = qs(p, "[data-action='ack']");
+  const go = qs(p, "[data-action='ok']");
+  /* 닫기(✕·돌아가기)는 셸이 이미 위임받아 처리한다 — 여기서 또 걸면 두 번 닫는다. */
+  on(p, "click", "[data-action='ack']", () => {
+    ack = !ack;
+    chk.classList.toggle("is-on", ack);
+    chk.setAttribute("aria-pressed", ack ? "true" : "false");
+    go.disabled = !ack;
+    /* 버튼만 흐려 두지 않는다 — 왜 못 누르는지 푸터가 그 자리에서 말한다. */
+    d.setHint(ack ? HINT_ON : HINT_OFF, !ack);
+  });
+  on(p, "click", "[data-action='ok']", () => { if (ack) { d.close(); onConfirm(); } });
+  return d;
+}
+
 /** 목록 컨테이너. `h` 로 자체 스크롤 높이를 정한다(패널이 아니라 목록이 스크롤한다).
  *  ⚠️ 속성 문자열을 통째로 보간하면 `html` 이 따옴표까지 이스케이프해 속성이 깨진다 —
  *     값만 보간할 것. */

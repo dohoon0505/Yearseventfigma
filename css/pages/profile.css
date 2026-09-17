@@ -1,77 +1,297 @@
 /* ============================================================
-   profile.css — ProfileStorage (프로필/담당자 저장공간)
+   profile.css — 프로필 저장공간 (#/app/profile)
+   시안: claude.ai/design '프로필 저장공간 - 리모델링'
+
+   구조: 머리글(공용 .page-hd) + 섹션 카드 2장(발송인 프로필 · 담당자).
+   다이얼로그는 공용 `.dlg-*` 규격을 그대로 쓰므로 여기엔 **이 화면에만 있는 것**만 둔다.
+   모든 선택자를 `.page-profile` 아래로 가둔다(규약).
    ============================================================ */
 .page-profile {
-  padding: 24px;
+  /* 표 열 폭 — tableGrid 가 grid-template-columns 를 **인라인 style 로** 찍어
+     미디어쿼리가 못 이긴다. 변수로 넘겨 좁은 화면에서 여기만 다시 정의한다.
+     ⚠️ 호출부(profile.js)의 `var(--pf-*, 폴백)` 과 짝이다 — 하나라도 미정의면
+        선언 전체가 무효가 되어 전 셀이 한 열에 쌓인다. */
+  --pf-no: 54px;
+  --pf-name: 110px;
+  --pf-role: 130px;
+  --pf-phone: 180px;
+  --pf-cphone: 170px;
+  --pf-rest: minmax(0, 1fr);
+  --pf-bill: 160px;
+  --pf-acts: 96px;
+
+  padding: 40px 40px 80px;
+  /* .shell__main 은 --c-bg 를 칠한다. 셸을 건드리지 않고 이 화면만 덮되,
+     담당자가 적을 때 아래가 회색으로 남지 않게 min-height 를 준다. */
+  min-height: 100%;
+  background: var(--c-surface-2);
 }
-.profile-sections {
+.page-profile .pf-inner {
+  max-width: 1420px;
+  width: 100%;
+}
+.page-profile .pf-secs {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 36px;
 }
-.psec {
-  width: 1300px;
+
+/* ── 섹션 카드 ───────────────────────────────────────────── */
+.page-profile .pf-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2xl);
+  overflow: hidden;
 }
-.psec-title {
+.page-profile .pf-card__hd {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-7);
+  padding: var(--sp-6) var(--sp-7);
+  border-bottom: 1px solid var(--c-border);
+}
+.page-profile .pf-card__hdl h2 {
+  font-size: var(--fs-21);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.018em;
+  color: var(--c-text-strong);
+}
+.page-profile .pf-count {
+  color: var(--c-text-muted);
+  font-weight: var(--fw-normal);
+  font-variant-numeric: tabular-nums;
+}
+.page-profile .pf-card__hdl p {
+  margin-top: var(--sp-2);
+  max-width: 760px;
+  font-size: var(--fs-15);
+  color: var(--c-text-4);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.page-profile .pf-add {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--c-orange);
+  color: var(--c-surface);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.page-profile .pf-add:hover {
+  background: var(--c-orange-hover);
+}
+/* 전역 :focus-visible 링은 --ring(주황 9% 알파)이라 흰 면에서 1.1:1 — 직접 그린다. */
+.page-profile .pf-add:focus-visible,
+.page-profile .pf-billset:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+
+/* ── 표 — 공용 tableGrid 를 계속 쓰고 면만 벗긴다(.ctc-list 와 같은 수법) ── */
+.page-profile .pf-table .table-grid {
+  border: 0;
+  border-radius: 0;
+}
+.page-profile .table-grid__head {
+  background: var(--c-surface-2);
+}
+/* 시안 표에는 셀 세로줄이 없다 */
+.page-profile .table-grid__cell {
+  border-right: 0;
+}
+.page-profile .table-grid__head .table-grid__cell {
+  padding: 11px 12px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-4);
+}
+.page-profile .table-grid--compact .table-grid__cell {
+  padding: 9px 12px;
+}
+/* 마지막 행 아래 선은 카드 테두리와 겹친다 */
+.page-profile .table-grid__row:last-child {
+  border-bottom: 0;
+}
+.page-profile .pf-no {
+  color: var(--c-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.page-profile .pf-strong {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+}
+.page-profile .pf-num {
+  font-variant-numeric: tabular-nums;
+}
+.page-profile .pf-ink {
+  color: var(--c-text-strong);
+}
+.page-profile .pf-dim {
+  color: var(--c-text-muted);
+}
+
+/* ── 행 액션 — 시안은 무테 원형이다 ─────────────────────── */
+.page-profile .pf-act {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--c-text-4);
+  transition: background 0.15s, color 0.15s;
+}
+.page-profile .pf-act:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text-strong);
+}
+/* ⚠️ `.table-grid { overflow:hidden }` 이 바깥 아웃라인을 자른다 — 안쪽으로 그린다. */
+.page-profile .pf-act:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: -2px;
+}
+/* 정산담당 자리의 잠긴 삭제 — 버튼이 아니라 표식이다(왜 못 지우는지 title 로 말한다) */
+.page-profile .pf-act.is-lock {
+  color: var(--c-text-dim);
+  cursor: not-allowed;
+}
+
+/* ── 정산 · 회계 담당 ────────────────────────────────────── */
+.page-profile .pf-billon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: var(--c-orange-soft);
+  color: var(--c-orange-ink);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.page-profile .pf-billset {
+  padding: 5px 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-4);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.page-profile .pf-billset:hover {
+  border-color: var(--c-orange);
+  color: var(--c-orange-ink);
+}
+
+/* ── 다이얼로그 안 조각 (공용 .dlg-* 위에 얹는 이 화면 전용) ──
+   ⚠️ `.modal-panel--dlg` 아래로 스코프한다 — 다이얼로그는 `.page-profile` **밖**
+      (document.body)에 붙으므로 페이지 스코프로는 닿지 않는다. */
+.modal-panel--dlg .pf-pv {
+  margin-top: var(--sp-3);
+  padding: 13px 16px;
+  border-radius: var(--r-xl);
+  background: var(--c-surface-2);
+}
+.modal-panel--dlg .pf-pv__k {
+  font-size: var(--fs-14);
+  letter-spacing: -0.01em;
+  color: var(--c-text-3);
+}
+.modal-panel--dlg .pf-pv__v {
+  margin-top: 3px;
+  font-size: var(--fs-17);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.015em;
+  color: var(--c-text-strong);
+  word-break: break-all;
+}
+.modal-panel--dlg .pf-set {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: var(--sp-5);
+  width: 100%;
+  margin-top: var(--sp-3);
+  padding: 12px 14px;
+  border-radius: var(--r-xl);
+  background: var(--c-surface-2);
 }
-.psec-title__l {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.modal-panel--dlg .pf-set__l b {
+  display: block;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
 }
-.psec-bar {
-  width: 3px;
-  height: 18px;
-  background: var(--c-blue);
-  border-radius: 999px;
-  display: inline-block;
-}
-.psec-titletext {
-  font-size: var(--fs-16);
-  font-weight: var(--fw-bold);
-  color: var(--c-text);
-}
-.psec-addbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--c-blue);
-  color: var(--c-surface);
-  border-radius: 4px;
+.modal-panel--dlg .pf-set__l span {
+  display: block;
   font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  transition: background 0.15s;
-}
-.psec-addbtn:hover {
-  background: var(--c-blue-hover);
-}
-
-/* 정산·회계 담당자 지정(.tbl-setbilling/.tbl-billing)은 components.css 로 옮겼다
-   — 포털·관리자 담당자 관리 세 화면이 같은 표 행 액션을 쓴다. */
-.psec-billnote {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 9px 14px;
-  border-radius: var(--r-md);
-  background: var(--c-blue-soft);
-  border: 1px solid var(--c-user-border);
-  font-size: var(--fs-13);
+  letter-spacing: -0.01em;
   color: var(--c-text-3);
 }
-.psec-billnote .icon {
-  color: var(--c-blue);
-  flex-shrink: 0;
+.modal-panel--dlg .pf-billon--sm {
+  height: 26px;
+  padding: 0 11px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  font-size: var(--fs-14);
 }
-.psec-billnote__on {
-  color: var(--c-blue);
+.modal-panel--dlg .pf-billset {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-3);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
 }
-.psec-billnote__off {
-  color: var(--c-danger);
+.modal-panel--dlg .pf-billset:hover {
+  border-color: var(--c-orange);
+  color: var(--c-orange-ink);
+}
+.modal-panel--dlg .pf-billset:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+
+/* ── 반응형 — 시안은 1600px 기준이다. 레포 관례 브레이크포인트(1400/1240). ──
+   ⚠️ 미디어쿼리는 특이도를 올리지 않으므로 **기본 규칙보다 뒤에** 둔다. */
+@media (max-width: 1400px) {
+  .page-profile {
+    --pf-role: 110px;
+    --pf-phone: 156px;
+    --pf-cphone: 150px;
+    --pf-bill: 140px;
+    padding: var(--sp-7) var(--sp-7) 64px;
+  }
+}
+@media (max-width: 1240px) {
+  .page-profile {
+    --pf-no: 44px;
+    --pf-name: 92px;
+    --pf-role: 96px;
+    --pf-phone: 140px;
+    --pf-cphone: 136px;
+    --pf-bill: 124px;
+    --pf-acts: 84px;
+  }
+  .page-profile .pf-card__hd {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-4);
+  }
+  .page-profile .pf-add {
+    align-self: flex-start;
+  }
 }

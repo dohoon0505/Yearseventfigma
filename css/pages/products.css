@@ -32,34 +32,6 @@
   width: 100%;
 }
 
-/* ── 머리글 ──────────────────────────────────────────────
-   공용 `pageTitle()` 은 22px bold·부제 슬롯이 없고, 고치면 다른 15개 화면이 따라
-   바뀐다. 이 화면만의 28px + 부제라 페이지 지역 클래스로 둔다. */
-.page-products .prod-hd {
-  margin-bottom: 28px;
-}
-.page-products .prod-hd h1 {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  font-size: var(--fs-28);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.028em;
-  color: var(--c-text-strong);
-}
-.page-products .prod-hd h1 img {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-.page-products .prod-hd p {
-  margin-top: 6px;
-  font-size: var(--fs-17);
-  line-height: 1.5;
-  color: var(--c-text-4);
-}
-
 /* ── 스티키 필터 바 ──────────────────────────────────────
    ⚠️ `backdrop-filter` 는 자손 `position:fixed` 의 컨테이닝 블록이 된다 —
       이 바 안에는 **드롭다운·팝오버를 넣지 말 것**(배송일시 피커가 겪은 그 함정).
