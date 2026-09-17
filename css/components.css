@@ -2412,3 +2412,12 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .settle-badge--gray { background: var(--c-surface-3); color: var(--c-text-4); }
 .settle-stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
 .settle-td__sub { font-size: var(--fs-12); line-height: 1.3; color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 알림 수신자 없음 — 12px 라 --c-warn-soft-ink(3.8:1)는 AA 미달, --c-danger-ink 로 */
+.settle-td__sub--warn { color: var(--c-danger-ink); }
+
+/* ── 이용약관 다이얼로그(util/terms-dialog.js) 본문 조각 ── */
+.terms-sec { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-xl); background: var(--c-surface-2); }
+.terms-sec__t { display: block; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.terms-sec__list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.terms-sec__list li { font-size: 13px; line-height: 1.55; color: var(--c-text-4); word-break: keep-all; }
+.terms-sec + .dlg-check { margin-top: 14px; }

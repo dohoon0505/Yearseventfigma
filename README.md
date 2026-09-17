@@ -58,6 +58,7 @@ js/
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
   data/invoice-mock.js  # 거래처별·월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
+  data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
@@ -80,6 +81,7 @@ serve.mjs               # 개발용 정적 서버
 | `cancel-modal.js` | 주문취소 사유·수수료 (B2C·B2B 공용) |
 | `client.js` | 로그인 거래처 결정 **단일 소스** |
 | `settlement.js` | 정산 행 조합층 — 날짜·금액(admin-mock) + store 의 동의 기록 오버레이(`settlementsFor`) |
+| `terms-dialog.js` | 이용약관 열람·동의 게이트 다이얼로그 (`openTermsDialog`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |
 | `phone.js` · `image.js` · `postcode.js` · `xlsx.js` | 연락처 포맷 · 첨부 축소 · 주소검색 · 엑셀 |

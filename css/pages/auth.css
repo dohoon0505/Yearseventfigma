@@ -770,3 +770,14 @@
 .rf-file__name--empty { color: var(--c-text-faint); }
 .rf-file__re { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--c-blue); }
 .rf__req { color: var(--c-danger-ink); margin-left: 2px; }
+
+/* ── 가입 3단계: 이용약관 동의 행 — 공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의와 같은 장치) ── */
+.rf--agree { margin-top: 12px; }
+.rf--agree__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.rf__link {
+  background: none; border: 0; padding: 0;
+  font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-blue);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+/* 전역 링(주황 9% 알파)은 흰 면에서 1.1:1 — 직접 그린다 */
+.rf__link:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; border-radius: 3px; }

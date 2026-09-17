@@ -283,7 +283,9 @@ export function mount(root, { nav }) {
         ${rows.map(
           ({ client, rec }) => html`
             <div class="settle-trow" style="grid-template-columns:${COL}">
-              <div class="settle-td"><span class="ellipsis">${client.companyName}</span>${sharedBiz.has(normalizeBiz(client.bizNumber)) && client.department ? html`<span class="settle-dept">${client.department}</span>` : ""}</div>
+              <!-- 정산·회계 담당자가 없으면 마감 임박·자동 동의 알림톡을 보낼 사람이 없다(2026-09-17 결정: 미발송 + 경고).
+                   자동 동의는 사전 고지가 전제라, 수신자 없는 거래처를 여기서 보이게 한다. -->
+              <div class="settle-td"><span class="settle-stack"><span><span class="ellipsis">${client.companyName}</span>${sharedBiz.has(normalizeBiz(client.bizNumber)) && client.department ? html`<span class="settle-dept">${client.department}</span>` : ""}</span>${store.getBillingContactOf(client.id) ? "" : html`<span class="settle-td__sub settle-td__sub--warn" title="정산·회계 담당자가 없어 마감 임박·자동 동의 알림을 보낼 수 없습니다">알림 수신자 없음</span>`}</span></div>
               <div class="settle-td">
                 <button class="settle-amount settle-amount--drill" data-action="drill" data-id="${client.id}"
                         aria-expanded="${state.expanded.has(client.id) ? "true" : "false"}"
