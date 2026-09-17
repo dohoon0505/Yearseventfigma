@@ -7,9 +7,9 @@
    스스로 부르지 않기 때문에 가능하다.
    ============================================================ */
 import {
-  invoiceDayOf, deadlineDayOf, splitPeriod, periodOf, periodLabel, shiftPeriod, periodEnd,
-  issueDate, agreeDeadline, dueDate, docDate, fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm,
-  agreementState,
+  invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, splitPeriod, periodOf,
+  periodLabel, shiftPeriod, periodEnd, issueDate, agreeDeadline, dueDate, docDate,
+  fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
 } from "../js/data/settlement-rules.js";
 
 let pass = 0, fail = 0;
@@ -21,6 +21,7 @@ const eq = (name, got, want) => {
 };
 const throws = (name, fn) => { try { fn(); fail++; bad.push(`${name}: expected throw`); } catch { pass++; } };
 const D = (y, m1, d, h = 0, mi = 0, ms = 0) => new Date(y, m1 - 1, d, h, mi, 0, ms);
+const fmtYmdSafe = (d) => (d ? fmtAt(d).slice(0, 10) : null);
 
 /* ── 발급일 정규화 ── */
 eq("invoiceDayOf 15", invoiceDayOf({ invoiceDay: "15" }), 15);
@@ -111,6 +112,51 @@ eq("group late", st(11, D(2026, 9, 17)).group, "late");
 eq("dueDate on state", fmtAt(st(15, D(2026, 9, 17)).dueDate), "2026-09-30 00:00");
 throws("agreementState without now throws", () => agreementState({ period: "2026-08", invoiceDay: 1 }));
 throws("agreementState bad period throws", () => agreementState({ period: "2026-8", invoiceDay: 1, now: D(2026, 9, 17) }));
+
+
+/* ── 발급일 변경은 **다음 달 발급분부터** (2026-09-17 사용자 결정) ──
+   이력이 없으면 지금 값이 전 기간 값이고, 이력이 있으면 그 귀속월에 유효했던 값을 쓴다.
+   이게 깨지면 관리자가 발급일을 바꾸는 순간 과거 6개월의 동의·작성일자가 소급해 바뀐다. */
+eq("effectiveFrom = 변경한 달의 귀속분", invoiceDayEffectiveFrom(D(2026, 9, 17, 15)), "2026-09");
+const noLog = { invoiceDay: "15" };
+eq("이력 없음 → 전 기간 현재값", invoiceDayFor(noLog, "2026-03"), 15);
+eq("이력 없음 → 미래도 현재값", invoiceDayFor(noLog, "2027-01"), 15);
+eq("client 없음 → 1", invoiceDayFor(undefined, "2026-08"), 1);
+// 2026-09 에 15일 → 1일 로 변경: 귀속 2026-09 부터 1일, 그 이전은 15일
+const changed = { invoiceDay: "1", invoiceDayLog: [{ from: "2026-09", day: "1", prev: "15", at: "2026-09-17 15:30" }] };
+eq("변경 전 귀속월은 옛 값", invoiceDayFor(changed, "2026-08"), 15);
+eq("변경 전 먼 과거도 옛 값", invoiceDayFor(changed, "2026-01"), 15);
+eq("적용 시작 귀속월부터 새 값", invoiceDayFor(changed, "2026-09"), 1);
+eq("이후 귀속월도 새 값", invoiceDayFor(changed, "2026-12"), 1);
+// 두 번 바뀐 거래처: 2026-05 에 1→10, 2026-09 에 10→28
+const twice = { invoiceDay: "28", invoiceDayLog: [
+  { from: "2026-05", day: "10", prev: "1", at: "2026-05-02 09:00" },
+  { from: "2026-09", day: "28", prev: "10", at: "2026-09-17 15:30" },
+] };
+eq("2구간 이력: 첫 변경 이전", invoiceDayFor(twice, "2026-04"), 1);
+eq("2구간 이력: 중간 구간", invoiceDayFor(twice, "2026-08"), 10);
+eq("2구간 이력: 마지막 구간", invoiceDayFor(twice, "2026-09"), 28);
+eq("이력 순서가 뒤섞여도 같은 답", invoiceDayFor({ invoiceDay: "28", invoiceDayLog: [twice.invoiceDayLog[1], twice.invoiceDayLog[0]] }, "2026-08"), 10);
+eq("이력값이 범위 밖이면 1로 클램프", invoiceDayFor({ invoiceDay: "5", invoiceDayLog: [{ from: "2026-09", day: "99", prev: "0" }] }, "2026-09"), 1);
+eq("prev 가 범위 밖이면 1로 클램프", invoiceDayFor({ invoiceDay: "5", invoiceDayLog: [{ from: "2026-09", day: "5", prev: "" }] }, "2026-08"), 1);
+throws("invoiceDayFor 도 기간 모양을 검증한다", () => invoiceDayFor(noLog, "2026-8"));
+
+/* 소급 방지의 본론 — 발급일을 바꿔도 과거 달의 동의 상태·작성일자가 그대로여야 한다.
+   (실측으로 잡은 세 사례: 수동 동의 작성일자가 09-17 → 08-31 로 밀림 / 자동 동의 시각이 07-10 → 07-28 로
+    이동 / 자동 동의분이 '동의대기' 로 되돌아가 포털에 동의 버튼이 다시 뜸) */
+const stFor = (client, ym, now, manual = null) =>
+  agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: manual, now });
+const before = { invoiceDay: "15" };
+const after = { invoiceDay: "1", invoiceDayLog: [{ from: "2026-09", day: "1", prev: "15", at: "2026-09-17 15:30" }] };
+const NOW2 = D(2026, 9, 17, 16);
+eq("사례1 수동 동의 작성일자 불변", fmtAt(stFor(after, "2026-08", NOW2, "2026-09-17 14:32").docDate), fmtAt(stFor(before, "2026-08", NOW2, "2026-09-17 14:32").docDate));
+eq("사례1 작성일자 = 동의한 날", fmtYmdSafe(stFor(after, "2026-08", NOW2, "2026-09-17 14:32").docDate), "2026-09-17");
+const auto0 = { invoiceDay: "1" };
+const auto1 = { invoiceDay: "15", invoiceDayLog: [{ from: "2026-09", day: "15", prev: "1", at: "2026-09-17 15:30" }] };
+eq("사례2 자동 동의 시각 불변", fmtAt(stFor(auto1, "2026-06", NOW2).at), fmtAt(stFor(auto0, "2026-06", NOW2).at));
+eq("사례3 자동 동의가 동의대기로 안 돌아간다", stFor(auto1, "2026-08", NOW2).mode, "auto");
+eq("사례3 작성일자도 그대로", fmtYmdSafe(stFor(auto1, "2026-08", NOW2).docDate), "2026-08-31");
+eq("변경 이후 귀속월은 새 발급일로", fmtAt(stFor(auto1, "2026-09", D(2026, 10, 20)).issueDate), "2026-10-15 10:00");
 
 console.log(`settlement-rules: ${pass} passed, ${fail} failed`);
 if (fail) { bad.forEach((b) => console.log("  x " + b)); process.exit(1); }

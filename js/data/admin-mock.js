@@ -11,7 +11,7 @@
    always have current data regardless of when the demo is viewed.
    ============================================================ */
 
-import { INVOICE_DAYS, invoiceDayOf, issueDate, dueDate, fmtDot, periodOf } from "./settlement-rules.js";
+import { INVOICE_DAYS, invoiceDayOf, invoiceDayFor, issueDate, dueDate, fmtDot, periodOf } from "./settlement-rules.js";
 import { INVOICE_DB } from "./invoice-mock.js";
 export { INVOICE_DAYS, invoiceDayOf };
 
@@ -168,15 +168,18 @@ export function usageFor(client) {
    동의 기록을 얹어 완성한다(옛 이름은 그쪽이 쓴다 · 화면은 이 함수를 직접 부르지 않는다).
    메모 키에 invoiceDay 가 들어 있어 발급일을 바꾸면 발행일·정산기한이 다시 계산된다. */
 export function settlementBaseRows(client) {
-  const key = `${client.id}|${invoiceDayOf(client)}|${client.companyName}`;
+  /* 메모 키에 발급일 **이력 지문**까지 넣는다 — 발급일을 바꾸면 새 이력이 붙어 키가 갈리고 다시 계산된다.
+     현재 발급일만 넣으면 "15일 → 1일 → 다시 15일" 이 같은 키가 되어 stale 캐시가 남는다. */
+  const logKey = (client.invoiceDayLog || []).map((e) => `${e.from}:${e.day}`).join(",");
+  const key = `${client.id}|${invoiceDayOf(client)}|${logKey}|${client.companyName}`;
   if (settleCache.has(key)) return settleCache.get(key);
-  const day = invoiceDayOf(client);
   const usage = usageFor(client);
   const rows = [0, 1, 2, 3, 4, 5].map((m) => {
     const ym = periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - m, 1));
     /* 발행일시 = 귀속월 다음 달의 거래처 지정일 10:00 · 정산기한 = 그 발행일이 속한 달의 말일.
-       둘 다 settlement-rules.js 가 계산한다 — 여기서 Date 산술을 다시 하지 않는다. */
-    const issueD = issueDate(ym, day);
+       둘 다 settlement-rules.js 가 계산한다 — 여기서 Date 산술을 다시 하지 않는다.
+       발급일은 **그 귀속월에 유효했던 값**이다(변경은 다음 달 발급분부터 적용). */
+    const issueD = issueDate(ym, invoiceDayFor(client, ym));
     const dueD = dueDate(ym);
     const amount = usage[ymLabel(m)].total; // 이용 내역 합계에서 파생(실데이터 우선)
     return {

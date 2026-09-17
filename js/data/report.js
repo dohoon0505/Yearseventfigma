@@ -99,13 +99,19 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
   const curCats = catSum(rows);
   const prevCats = catSum(prevRows);
   const prevCatTotal = prevRows.reduce((a, r) => a + r.total, 0);
-  const catStats = categories
-    .map((c) => {
-      const cur = curCats[c.key];
+  /* ⚠️ `categories`(9종 고정) 가 아니라 **실제로 집계된 품목 키**를 훑는다. 예전엔 9종만 훑어
+     카탈로그에 뒤늦게 추가된 품목('특대 꽃바구니')이 통째로 빠졌고, 그래서 리포트의 항목별 합계가
+     총 이용금액과 어긋났다(실측 2026-08: 총계 33,360,000 vs 항목 합계 33,210,000). 청구 근거를
+     보여 주는 문서에서 두 수가 다르면 안 된다 — `catSum` 이 9종을 먼저 심으므로 빈 항목도 유지된다.
+     색은 호출부가 `i % 색수` 로 순환시키므로 항목이 9종을 넘어도 안전하다. */
+  const catStats = Object.keys(curCats)
+    .map((key) => {
+      const cur = curCats[key];
       const share = pct(cur.amount, total);
-      const prevShare = hasPrev ? pct(prevCats[c.key].amount, prevCatTotal) : null;
+      const prev = prevCats[key] || { count: 0, amount: 0 };
+      const prevShare = hasPrev ? pct(prev.amount, prevCatTotal) : null;
       return {
-        key: c.key,
+        key,
         count: cur.count,
         amount: cur.amount,
         share,

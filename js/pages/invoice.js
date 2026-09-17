@@ -99,7 +99,10 @@ export function mount(root) {
       period: `${label} 귀속`,
       /* 동의(수동·자동)하면 문서의 '계산서 발행' 칸이 '발급완료' 로 바뀐다 — 화면 우측 동의 카드와
          문서가 서로 다른 말을 하면 안 된다. 어휘는 INVOICE_NOTE 한 벌(관리자·공개 링크와 같다). */
-      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: agreement().mode ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
+      /* ⚠️ 거래가 없는 달은 발행 어휘를 내보내지 않는다. 동의 상태는 거래 유무와 무관하게 날짜에서만
+         파생되므로(마감이 지나면 자동 동의) 빈 달도 '발급완료' 로 찍혀, 합계 0원·발행일 '-' 인 문서에
+         발급완료가 나란히 붙던 결함이 있었다 — 옆 카드는 "발급할 계산서가 없습니다" 라고 말하는 중이었다. */
+      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: m.empty ? "-" : agreement().mode ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
       supplier: SUPPLIER,
       items,
       account: ACCOUNT,

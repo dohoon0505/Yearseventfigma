@@ -14,6 +14,7 @@
        1~10 그룹  → **귀속월 말일**(수동·자동 무관 — 전월분으로 소급 발급)
        11~28 그룹 → **동의한 날**(자동 동의면 28일 — 소급이 불가능해 동의일 귀속)
    ─ 정산기한(입금)은 그대로 **발행일이 속한 달의 말일**.
+   ─ **발급일 변경은 다음 달 발급분부터 적용된다**(2026-09-17 사용자 결정) — `invoiceDayFor` 참조.
    ─ 전 품목 면세라 발급 문서는 '계산서' 다(세금계산서가 아니다).
 
    ⚠️ 기간은 언제나 "YYYY-MM" 문자열이다. 월 인덱스(0-based)를 인자로 받는 API 를 두지
@@ -23,10 +24,39 @@ const pad = (n) => String(n).padStart(2, "0");
 
 /** 거래처별 계산서 발급일 후보(매월 N일, 1~28). 29~31 은 없는 달이 있어 두지 않는다. */
 export const INVOICE_DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1));
-/** 거래처 레코드 → 발급일(숫자). 미설정·범위 밖이면 1일. */
-export function invoiceDayOf(client) {
-  const n = Number(client && client.invoiceDay);
+const clampDay = (v) => {
+  const n = Number(v);
   return n >= 1 && n <= 28 ? n : 1;
+};
+/** 거래처 레코드 → **현재(앞으로 적용될)** 발급일(숫자). 미설정·범위 밖이면 1일.
+ *  ⚠️ 과거 귀속월의 발행일·마감·작성일자를 계산할 때는 이걸 쓰면 안 된다 — `invoiceDayFor` 를 쓸 것. */
+export function invoiceDayOf(client) {
+  return clampDay(client && client.invoiceDay);
+}
+
+/** 발급일 변경이 처음 적용되는 **귀속월**("YYYY-MM").
+ *  변경한 달을 귀속월로 하는 명세서가 곧 다음 달에 발급되므로, "다음 달 발급분부터" 와 같은 뜻이다. */
+export const invoiceDayEffectiveFrom = (now) => periodOf(now);
+
+/**
+ * 그 **귀속월에 유효했던** 발급일. 발급일 변경은 다음 달 발급분부터 적용되므로(2026-09-17 사용자 결정)
+ * 이미 발급된 달은 옛 발급일로 계속 계산된다.
+ *
+ * ⚠️ 이게 없으면 관리자가 발급일 드롭다운을 한 번 바꾸는 순간 **과거 6개월이 통째로 다시 계산된다** —
+ *    실측: 수동 동의한 달의 작성일자가 2026-09-17 → 2026-08-31 로 밀리고(사례 1), 이미 자동 동의로
+ *    계산서가 나간 달이 '동의대기' 로 되돌아가 거래처 포털에 동의 버튼이 다시 떴다(사례 3).
+ *    작성일자는 국세청에 신고되는 날짜라 소급해 바뀌면 발급분과 대사가 되지 않는다.
+ *
+ * 이력(`client.invoiceDayLog`)은 오름차순 `[{ from, day, prev, at }]` 이고 `from` 은 **적용 시작 귀속월**이다.
+ * 이력이 없으면 지금 값이 곧 전 기간의 값이다(변경한 적이 없는 거래처 — 시드 19곳 전부).
+ */
+export function invoiceDayFor(client, period) {
+  splitPeriod(period); // 모양 검증 — "YYYY-MM" 은 사전순 비교가 곧 시간순 비교다
+  const log = (client && Array.isArray(client.invoiceDayLog) ? client.invoiceDayLog : []).filter((e) => e && e.from);
+  if (!log.length) return invoiceDayOf(client);
+  const sorted = [...log].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+  const later = sorted.find((e) => e.from > period);
+  return clampDay(later ? later.prev : sorted[sorted.length - 1].day);
 }
 /** 동의 마감일 — 발급일 그룹으로 정해진다(10일 / 28일). */
 export const deadlineDayOf = (day) => (Number(day) <= 10 ? 10 : 28);

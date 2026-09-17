@@ -4,7 +4,7 @@
    ============================================================ */
 import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 /* 동의 상태(발행·마감·자동 동의·작성일자)는 규칙 모듈 한 곳에서 파생한다 — import 0 이라 순환이 없다. */
-import { agreementState, fmtAt, invoiceDayOf } from "./data/settlement-rules.js";
+import { agreementState, fmtAt, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
 import { getClientId } from "./session.js";
@@ -187,6 +187,28 @@ function resolve(next, current) {
   return typeof next === "function" ? next(current) : next;
 }
 
+/* 발급일이 바뀌면 **언제부터 적용되는지**를 레코드에 남긴다 — 다음 달 발급분(= 변경한 달의 귀속분)부터다.
+   남기지 않으면 과거 귀속월의 발행일·마감·작성일자가 **현재** 발급일로 통째로 다시 계산돼, 이미 동의·
+   발급이 끝난 달의 계산서 작성일자가 소급해 바뀌고 자동 동의분이 '동의대기' 로 되돌아간다(실측).
+   `updateClient` 한 곳에 두는 이유: 거래처 저장 경로가 8곳인데 전부 이 함수를 지난다. */
+function withInvoiceDayLog(prevRec, nextRec, now = new Date()) {
+  const before = String(prevRec.invoiceDay ?? "");
+  const after = String(nextRec.invoiceDay ?? "");
+  if (!after || before === after) return nextRec;
+  const from = invoiceDayEffectiveFrom(now);
+  const log = Array.isArray(prevRec.invoiceDayLog) ? [...prevRec.invoiceDayLog] : [];
+  const last = log[log.length - 1];
+  /* 같은 달에 두 번 바꾸면 항목을 덮어쓴다 — 적용 시작 귀속월이 같아 줄이 둘일 이유가 없다.
+     원래 값으로 되돌렸으면 이력 자체를 지운다(변경이 없던 것과 같아야 한다). */
+  if (last && last.from === from) {
+    if (String(last.prev) === after) log.pop();
+    else log[log.length - 1] = { ...last, day: after, at: fmtAt(now) };
+  } else {
+    log.push({ from, day: after, prev: before || String(invoiceDayOf(prevRec)), at: fmtAt(now) });
+  }
+  return { ...nextRec, invoiceDayLog: log };
+}
+
 export const store = {
   hydrate,
   get: () => state,
@@ -232,7 +254,8 @@ export const store = {
   agreementOf(clientId, ym, now = new Date()) {
     const k = scopeId(clientId);
     const client = state.clients.find((c) => c.id === k);
-    return agreementState({ period: ym, invoiceDay: invoiceDayOf(client), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, now });
+    /* **그 귀속월에 유효했던** 발급일으로 판정한다 — 발급일을 바꿔도 이미 지난 달의 동의·작성일자는 그대로다. */
+    return agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, now });
   },
   /** 수동 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다).
    *  발행 전이거나 마감이 지났으면(자동 동의) **기록하지 않고 null** — 화면과 같은 함수·같은
@@ -270,7 +293,7 @@ export const store = {
     this.setClients((prev) => [...prev, c]);
   },
   updateClient(c) {
-    this.setClients((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+    this.setClients((prev) => prev.map((x) => (x.id === c.id ? withInvoiceDayLog(x, c) : x)));
   },
   removeClient(id) {
     this.setClients((prev) => prev.filter((x) => x.id !== id));

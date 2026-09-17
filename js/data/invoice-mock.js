@@ -15,7 +15,7 @@
    ⚠️ 공급자(SUPPLIER)·입금계좌(ACCOUNT)는 여기가 아니라 `invoice-links.js` 가 소유한다 —
       공개 열람 링크 페이지와 같은 값을 써야 하기 때문이다.
    ============================================================ */
-import { invoiceDayOf, issueDate, fmtKo, periodOf } from "./settlement-rules.js";
+import { invoiceDayFor, issueDate, fmtKo, periodOf } from "./settlement-rules.js";
 
 export const INVOICE_DB = {
   /* 태원과학(주) — 기존 3·4·6월 데모 데이터(2026-09-17 사용자 결정으로 이 거래처 소속) */
@@ -122,8 +122,9 @@ export const INVOICE_DB = {
 const MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
 const sum = (rows) => rows.reduce((a, r) => a + r[4], 0);
 const dbOf = (client) => (client && INVOICE_DB[client.id]) || {};
-/** 명세서 발행일 표기("2026년 09월 15일") — 저장하지 않고 거래처 발급일에서 파생한다. */
-const issueOf = (client, ym) => fmtKo(issueDate(ym, invoiceDayOf(client)));
+/** 명세서 발행일 표기("2026년 09월 15일") — 저장하지 않고 거래처 발급일에서 파생한다.
+ *  **그 귀속월에 유효했던** 발급일을 쓴다 — 발급일을 바꿔도 이미 발급된 달의 발행일은 그대로다. */
+const issueOf = (client, ym) => fmtKo(issueDate(ym, invoiceDayFor(client, ym)));
 
 /** 그 거래처에서 거래가 있는 **가장 최근** 귀속월 키("YYYY-MM"). 화면의 기본 선택월이다.
  *  ⚠️ 상수로 박지 말 것 — 데이터가 늘면 기본값이 따라와야 한다. 한 건도 없으면 지난달. */
