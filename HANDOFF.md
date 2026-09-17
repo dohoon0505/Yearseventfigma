@@ -48,14 +48,27 @@ claude.ai/design 프로젝트 `76f0c42f-…cceaae` 의 **`상품 규격 안내 -
 드래그 선택 중 행 열림 차단 · 카테고리 5종 전환과 선택 자동 이동 · 저장 3상태(2.2초) ·
 **저장 직후 화면을 떠나도 타이머가 다음 페이지 DOM 을 치지 않음** · 스티키 고정 · 1366 에서 즐겨찾기
 버튼 도달 가능 · ≤1240 에서 패널이 표 위로 · 가로 넘침 0 · 계약단가 경유 · 콘솔 오류 0.
-`#/app/orders` 행 클릭 회귀 없음, `.pcar`/`.msplit` 규칙 그대로(products 가 안 쓸 뿐이다).
+`#/app/orders` 행 클릭 회귀 없음, `.msplit*` 규칙 그대로(`.pcar*` 는 아래 '죽은 CSS 정리'에서 걷어냈다).
 ⚠️ 검증 중 규약의 함정을 그대로 밟았다 — **해시가 같은 `goto` 는 ES 모듈을 재로드하지 않아**
 한동안 옛 코드를 검증하고 있었다. `page.reload({waitUntil:"networkidle"})` 로 다시 확인했다.
 
+### 죽은 CSS 정리 (같은 날 후속)
+리모델로 사용처가 0 이 된 규칙을 걷어냈다. 지운 것은 **`.pcar*`**(샘플 사진 캐러셀 — 옛 products.js 가
+유일한 사용처)와 **`.hm-help`**(옛 샘플 모달의 면책 문구 — 새 화면은 `.prod-card__fine` 을 쓴다) 둘이다.
+- ⚠️ `.pcar` 는 한 덩어리가 아니었다 — `.pcar:hover .msplit__zoomhint` 와
+  `.pcar__track:focus-visible ~ .msplit__zoomhint` 가 **orders.js 가 쓰는
+  `.msplit__media--btn:hover/:focus-visible` 과 같은 선택자 목록**에 섞여 있었다. 그 두 줄만 빼고
+  앞의 둘은 남겼다. 블록째 지웠으면 주문내역 배송사진의 '크게 보기' 힌트가 같이 죽는다.
+- 실측 확인: `#/app/orders` 확대 힌트 rest 0 → hover 1 → rest 0, 키보드 포커스에서도 1.
+  상품안내 자체 힌트(`.prod-media__zoom`)와 라이트박스도 그대로. 콘솔 오류 0.
+- 같은 정리에서 **내가 낸 흠 하나도 고쳤다** — `onRowOpen` 을 ui.js 로 옮길 때 본문만 지우고
+  JSDoc 을 두고 와서, 그 문서가 바로 아래 `editBtn` 에 붙어 있었다.
+- 남겨 둔 것: `tableGrid` 의 **`headerLabel` 옵션**은 이제 호출부가 0 이다(옛 products 의 '저장'
+  머리글이 유일했다). 공용 컴포넌트 API 라 이번 범위에서 빼지 않았다. `js/ui.js:5` 의 `raw` import 도
+  미사용인데 **이번 변경 이전부터** 그랬다(내가 만든 것이 아니다). `components.css` 의
+  `/* hm-field 안의 액션 버튼… */` 주석도 설명 대상 규칙이 없는 고아인데 역시 이전부터다.
+
 ### 남은 것
-- `components.css` 의 **`.pcar*` 규칙은 이제 죽었다**(products 가 유일한 사용처였다). 다만
-  `.pcar:hover .msplit__zoomhint` 가 orders.js 가 쓰는 `.msplit__media--btn:hover` 와 **같은 선택자
-  목록**에 묶여 있어 잘못 지우면 주문내역 확대 힌트가 죽는다 — 별도 과제로 뺐다.
 - 경조화환 샘플 사진 URL(시안·현행이 같이 쓰던 Unsplash 링크)이 지금은 **엉뚱한 사진**으로 해석된다.
   모달 뒤에 있을 땐 안 보였는데 400px 히어로가 되면서 눈에 띈다 — 교체가 필요하다.
 
