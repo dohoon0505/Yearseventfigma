@@ -580,7 +580,7 @@ export function mount(root, { nav }) {
   /* 보내는분 간편선택 — 저장된 프로필에서 불러오기(직접입력과 병행) */
   function openSenderPick() {
     closePick();
-    const profiles = store.get().profiles;
+    const profiles = store.profilesOf(); /* 로그인 거래처의 것만 */
     const body = html`
       ${profiles.length === 0
         ? html`<div class="pick-empty">저장된 프로필이 없습니다.<br />아래에서 새 명의를 등록해 주세요.</div>`
@@ -709,7 +709,7 @@ export function mount(root, { nav }) {
 
   /* 발송인 프로필에 저장된 번호 — 프로필은 언제든 꺼내 쓰는 값이라 주문 시 여기서 당겨온다. */
   const senderPhone = () => {
-    const p = store.get().profiles.find((x) => senderTextOf(x) === state.sender);
+    const p = store.profilesOf().find((x) => senderTextOf(x) === state.sender);
     return p ? p.phone : "";
   };
   /* 담당자 저장공간에서 수신함으로 설정된 담당자 — 주문서에 자동 편입된다. */

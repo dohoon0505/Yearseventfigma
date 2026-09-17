@@ -333,7 +333,7 @@ export function mount(root, { nav }) {
   const cDds = [];
   const cDestroy = () => { cDds.forEach((d) => d.destroy()); cDds.length = 0; };
 
-  const chanMeta = (v) => B2C_CHANNEL_META[v] || { desc: "", fee: "" };
+  const chanMeta = (v) => B2C_CHANNEL_META[v] || { desc: "" };
 
   function openCreate() {
     if (createModal) return;   /* 두 번 눌러 등록 모달이 겹쳐 열리지 않게 */
@@ -364,7 +364,7 @@ export function mount(root, { nav }) {
       <section class="ord-card">
         <div class="ord-card__head">
           <b class="ord-card__t">주문경로</b>
-          <span class="ord-card__cap">수수료·정산 주기가 함께 결정됩니다</span>
+          <span class="ord-card__cap">어디서 들어온 주문인지 남깁니다</span>
         </div>
         <div class="ordnew-chan" data-slot="chan">
           ${B2C_CHANNELS.map((v) => html`
@@ -372,7 +372,6 @@ export function mount(root, { nav }) {
               data-cchan="${v}" aria-pressed="${cDraft.channel === v ? "true" : "false"}">
               <span class="ordnew-chan__n">${v}</span>
               <span class="ordnew-chan__d">${chanMeta(v).desc}</span>
-              <span class="ordnew-chan__f">${chanMeta(v).fee}</span>
             </button>`)}
         </div>
         <div class="ord-row">
@@ -402,7 +401,6 @@ export function mount(root, { nav }) {
         ${cDraft.channel ? html`
           <div class="rail-card">
             <p class="rail-card__k">유입</p><p class="rail-card__v">${m.desc}</p>
-            <p class="rail-card__k" style="margin-top:9px">정산</p><p class="rail-card__v">${m.fee}</p>
             ${cDraft.payStatus ? html`<p class="rail-card__k" style="margin-top:9px">결제</p><p class="rail-card__v">${cDraft.payStatus}</p>` : ""}
           </div>` : ""}
         ${i === 1 && cDraft.product ? html`
@@ -433,7 +431,7 @@ export function mount(root, { nav }) {
       steps: [
         { key: "s1", title: "주문경로 · 결제", cap: "주문의 성격을 정합니다",
           render: step1Body, bind: () => [], required: missing1,
-          hint: () => `${cDraft.channel} · ${chanMeta(cDraft.channel).fee}` },
+          hint: () => [cDraft.channel, cDraft.payStatus].filter(Boolean).join(" · ") },
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
           render: step2Body, bind: bindCreateControls, required: missing2,
           hint: () => "등록 준비 완료 · 접수대기로 저장됩니다" },

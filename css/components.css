@@ -2165,7 +2165,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-pane { display: flex; flex-direction: column; gap: 20px; }
 .ordnew-pane[hidden] { display: none; }
 
-/* 주문경로 카드 3열 — 고르는 순간 정산 기준이 정해지므로 수수료를 같이 보여 준다 */
+/* 주문경로 카드 3열 */
 .ordnew-chan {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
   padding: 12px 20px 4px;
@@ -2180,8 +2180,6 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-chan__n { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .ordnew-chan__card.is-on .ordnew-chan__n { color: var(--c-orange-ink); }
 .ordnew-chan__d { font-size: var(--fs-13); color: var(--c-text-muted); }
-.ordnew-chan__f { font-size: var(--fs-12); color: var(--c-text-faint); }
-.ordnew-chan__card.is-on .ordnew-chan__f { color: var(--c-orange-ink); }
 
 /* 거래처 검색 · 목록 (B2B step1) */
 .ordnew-clisrch {
