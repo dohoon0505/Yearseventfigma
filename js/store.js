@@ -7,7 +7,7 @@ import { INITIAL_CLIENTS } from "./data/admin-mock.js";
 import { agreementState, fmtAt, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
-import { getClientId } from "./session.js";
+import { getClientId, isReservedAccountId } from "./session.js";
 
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
@@ -313,6 +313,14 @@ export const store = {
   },
   addClient(c) {
     this.setClients((prev) => [...prev, c]);
+  },
+  /** 접속 아이디가 이미 쓰이는가. 로그인은 **아이디 하나**로 거래처를 가린다(2026-09-25 결정 · 명세 5.2 UNIQUE) —
+   *  같은 아이디가 둘이면 로그인이 먼저 찾은 레코드로 들어가고 나머지는 영영 못 들어간다.
+   *  `exceptClientId` 는 자기 자신을 빼고 볼 때. 관리자 아이디는 예약어로 친다. */
+  accountIdTaken(accountId, exceptClientId) {
+    const id = String(accountId ?? "").trim();
+    if (!id) return false;
+    return isReservedAccountId(id) || state.clients.some((c) => c.id !== exceptClientId && c.accountId === id);
   },
   updateClient(c) {
     this.setClients((prev) => prev.map((x) => (x.id === c.id ? withInvoiceDayLog(x, c) : x)));

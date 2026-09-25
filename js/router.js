@@ -4,8 +4,10 @@
    Page module contract:  export function mount(container, ctx) -> cleanup
    ============================================================ */
 import { mountShell, unmountShell, setActiveNav } from "./shell.js";
-import { getRole, setReturnTo } from "./session.js";
+import { getRole, setReturnTo, getClientId, clearRole, setLoginNotice } from "./session.js";
 import { closeAllModals } from "./ui.js";
+import { store } from "./store.js";
+import { portalBlock } from "./util/client.js";
 
 const routes = [
   { hash: "#/", redirect: "#/login" },
@@ -63,6 +65,18 @@ async function render() {
     setReturnTo(hash);
     location.replace("#/login");
     return;
+  }
+  /* 거래처 세션은 그 거래처가 **지금도 활성**이어야 한다(2026-09-25 결정 — 승인대기·반려·정지는 로그인 불가).
+     로그인 뒤에 관리자가 정지·반려했거나 거래처를 지웠으면 여기서 끊는다. 끊지 않으면 util/client.js 의
+     첫 거래처 폴백(관리자 몫)으로 떨어져 남의 명세서가 보인다. 판정·문구는 login.js 와 같은 portalBlock. */
+  if (route.requiresAuth && getRole() === "enterprise") {
+    const block = portalBlock(store.get().clients.find((c) => c.id === getClientId()));
+    if (block) {
+      clearRole();
+      setLoginNotice(block);
+      location.replace("#/login");
+      return;
+    }
   }
 
   const my = ++token;

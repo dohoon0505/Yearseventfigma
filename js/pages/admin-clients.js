@@ -372,7 +372,9 @@ export function mount(root, { nav }) {
 
   function openClientModal(client) {
     closeModal();
-    const isEdit = !!client;
+    /* 신규 등록은 저장하는 순간 **그 거래처의 수정 창**이 된다(아래 save 에서 true 로). 예전엔 상수라
+       등록 뒤에도 버튼이 '등록'으로 남아, 한 번 더 누르면 같은 id 의 레코드가 하나 더 생겼다(실측 C020 ×2). */
+    let isEdit = !!client;
     const form = client
       ? { salesRoute: "미지정", salesDate: "", salesMemo: "", bizLicense: null, clientNote: "", channel: "일반", ...client }
       : {
@@ -401,6 +403,9 @@ export function mount(root, { nav }) {
       if (dupes().length && !String(form.department ?? "").trim()) out.push("계정 구분");
       return out;
     };
+    /* 접속 아이디는 유일해야 한다(2026-09-25 — 로그인이 아이디 하나로 거래처를 가린다 · 명세 5.2 UNIQUE).
+       신규만 본다 — 등록한 뒤에는 아이디를 바꿀 수 없다(레일에서 읽기 전용). */
+    const idTaken = () => !isEdit && store.accountIdTaken(form.accountId, form.id);
     const dirty = () => Object.keys(touched).length;
     /* 이력 점 색 — 무슨 종류의 변경이었는지 색으로 먼저 읽힌다(주문 HIST_DOT 과 같은 취지).
        한 색으로 고정하면 목록이 길어질수록 "무엇이 중요한 줄인가"가 사라진다. */
@@ -495,14 +500,16 @@ export function mount(root, { nav }) {
     /* ── 푸터 ── */
     const ftBody = () => {
       const m = missing();
+      const taken = idTaken();
       const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}`
+        : taken ? `접속 아이디 '${String(form.accountId).trim()}' 는 이미 쓰고 있습니다`
         : savedAt && !dirty() ? `저장됨 · ${savedAt}`
         : dirty() ? `수정한 항목 ${dirty()}개` : "변경 없음";
-      const cls = m.length ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
+      const cls = m.length || taken ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
       return html`
         <span class="ord-ft__stat ${cls}" data-slot="stat">${stat}</span>
         <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length ? "disabled" : ""}>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length || taken ? "disabled" : ""}>
           ${dirty() ? "변경사항 저장" : isEdit ? "저장" : "등록"}</button>`;
     };
 
@@ -763,13 +770,19 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => {
       if (missing().length) { toast("필수 항목을 채워야 저장됩니다", "warn"); return; }
-      if (isEdit) store.updateClient({ ...form });
-      else store.addClient({ ...form });
+      if (idTaken()) { toast("이미 쓰고 있는 접속 아이디입니다", "warn"); return; }
+      const created = !isEdit;
+      if (created) {
+        form.accountId = String(form.accountId).trim(); // 로그인이 아이디를 trim 해 비교한다
+        store.addClient({ ...form });
+        isEdit = true; // 이제 이 창은 방금 만든 거래처의 수정 창이다 — 헤더·레일·배너가 그 모습으로 바뀐다
+      } else store.updateClient({ ...form });
       savedAt = nowHM();
       Object.keys(touched).forEach((k) => delete touched[k]);
-      push(isEdit ? "거래처 정보 저장" : "거래처 등록", "ok");
+      push(created ? "거래처 등록" : "거래처 정보 저장", "ok");
+      if (created) { renderHd(); renderBanner(); }
       renderFt(); renderRail(); refreshList();
-      toast(isEdit ? "거래처 정보를 저장했습니다" : `${form.companyName} 거래처를 등록했습니다`);
+      toast(created ? `${form.companyName} 거래처를 등록했습니다` : "거래처 정보를 저장했습니다");
     });
 
     qsa(panel, "textarea").forEach(autosize);
