@@ -6,6 +6,7 @@
 
    규칙(2026-09-17 사용자 확정):
    ─ 거래명세서는 귀속월 **다음 달의 거래처 지정일(invoiceDay 1~28) 10:00** 에 발급된다.
+     새로 고를 수 있는 날은 동의 기간이 3일 이상인 **1~7일·11~25일**이다(2026-09-25 결정 — `INVOICE_DAYS`).
    ─ 계산서 발급 동의 **마감**은 발급일 그룹으로 갈린다 —
        발급일 1~10일  → 발급월 **10일 13:00**  (세법상 익월 10일 발급 기한 안)
        발급일 11~28일 → 발급월 **28일 13:00**
@@ -22,8 +23,8 @@
    ============================================================ */
 const pad = (n) => String(n).padStart(2, "0");
 
-/** 거래처별 계산서 발급일 후보(매월 N일, 1~28). 29~31 은 없는 달이 있어 두지 않는다. */
-export const INVOICE_DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1));
+/* 계산이 받는 발급일은 1~28 이다(29~31 은 없는 달이 있다). **새로 고를 수 있는 날**은 더 좁다 —
+   아래 `INVOICE_DAYS` 참조. 계산 쪽을 좁히면 제한 전에 저장된 값과 이력이 조용히 1일로 바뀐다. */
 const clampDay = (v) => {
   const n = Number(v);
   return n >= 1 && n <= 28 ? n : 1;
@@ -62,6 +63,30 @@ export function invoiceDayFor(client, period) {
 export const deadlineDayOf = (day) => (Number(day) <= 10 ? 10 : 28);
 export const ISSUE_HOUR = 10;    // 명세서 발급 시각
 export const DEADLINE_HOUR = 13; // 동의 마감 · 자동 동의 시각
+
+/** 동의 기간의 하한(일). 발급(10:00)에서 마감(13:00)까지 이보다 짧은 발급일은 **새로 고를 수 없다**
+ *  (2026-09-25 사용자 결정). 발급일 10·28일은 발급과 마감이 같은 날이라 거래처에 3시간뿐이었고, 약관 3항의
+ *  '마감 전날 안내'도 불가능했다 — 약관규제법 12조의 '상당한 기한' 문제다(명세 3.4 법무 질문서). */
+export const MIN_CONSENT_DAYS = 3;
+/** 발급일 → 발급 10:00 부터 동의 마감 13:00 까지의 시간. 1일 219h · 7일 75h · 8일 51h · 10일 3h. */
+export const consentWindowHours = (day) => (deadlineDayOf(day) - Number(day)) * 24 + (DEADLINE_HOUR - ISSUE_HOUR);
+/**
+ * 거래처가 **새로 고를 수 있는** 발급일(매월 N일, 문자열) — 동의 기간이 `MIN_CONSENT_DAYS` 이상인 날,
+ * 곧 1~7일 · 11~25일. 관리자 발급일 드롭다운의 선택지다.
+ * ⚠️ 선택지일 뿐이다. 계산(`invoiceDayOf`·`invoiceDayFor`)은 1~28 을 그대로 받는다.
+ */
+export const INVOICE_DAYS = Array.from({ length: 28 }, (_, i) => String(i + 1))
+  .filter((d) => consentWindowHours(d) >= MIN_CONSENT_DAYS * 24);
+/** 선택지를 사람이 읽는 범위로 — "1~7일·11~25일". 안내 문구가 숫자를 따로 적지 않게 여기서 만든다. */
+export function invoiceDayRangeLabel() {
+  const runs = [];
+  INVOICE_DAYS.map(Number).forEach((n) => {
+    const last = runs[runs.length - 1];
+    if (last && n === last[1] + 1) last[1] = n;
+    else runs.push([n, n]);
+  });
+  return runs.map(([a, b]) => (a === b ? `${a}일` : `${a}~${b}일`)).join("·");
+}
 
 /* ── 기간("YYYY-MM") ──────────────────────────────────────── */
 /** "YYYY-MM" → { y, m1 } (m1 은 **1-based**). 모양이 어긋나면 throw — 조용한 NaN 날짜를 만들지 않는다. */

@@ -11,7 +11,7 @@ import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbo
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
-import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod } from "../data/settlement-rules.js";
+import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel } from "../data/settlement-rules.js";
 import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -45,8 +45,11 @@ const CARD_COMPANY = [
   { k: "address", label: "사업장주소", find: true },
 ];
 const CARD_BILL = [
-  /* 아래로 연다 — 카드 첫 줄이라 위 공간이 113px 뿐이고 패널은 240px 다(유입 경로는 반대) */
-  { k: "invoiceDay", label: "발급일", type: "select", down: true, options: () => INVOICE_DAYS, ddLabel: (v) => `매월 ${v}일` },
+  /* 아래로 연다 — 카드 첫 줄이라 위 공간이 113px 뿐이고 패널은 240px 다(유입 경로는 반대).
+     선택지는 동의 기간이 3일 이상인 날뿐이다(2026-09-25 결정). 제한 전에 저장된 값(8~10·26~28)은 트리거에
+     그대로 보여 주고 조용히 바꾸지 않는다 — 그 값으로 이미 발급된 달이 있다. */
+  { k: "invoiceDay", label: "발급일", type: "select", down: true, options: () => INVOICE_DAYS,
+    ddLabel: (v) => (INVOICE_DAYS.includes(String(v)) ? `매월 ${v}일` : `매월 ${v}일 · 지금은 고를 수 없는 날`) },
   { k: "email", label: "계산서 이메일", ph: "계산서를 수신할 이메일 주소" },
   { type: "static", label: "정산 일정" },
   { k: "channel", label: "매출 채널", type: "seg", options: CLIENT_CHANNELS,
@@ -106,7 +109,8 @@ function invoiceHelpText(invoiceDay) {
     + `마감까지 동의가 없으면 그 시각에 자동 동의됩니다. 계산서 작성일자는 `
     + (day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`)
     + `, 정산기한은 발급일이 속한 달의 말일입니다. `
-    + `발급일을 바꾸면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다.`;
+    + `발급일을 바꾸면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다. `
+    + `발급일은 동의 기간이 ${MIN_CONSENT_DAYS}일 이상 남는 ${invoiceDayRangeLabel()} 중에서 고릅니다.`;
 }
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
