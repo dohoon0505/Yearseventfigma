@@ -217,7 +217,7 @@ export function mount(root, { nav }) {
         <h2 class="rdone__title">가입이 완료되었습니다</h2>
         <p class="rdone__sub">
           ${f.companyName ? html`<strong>${f.companyName}</strong>으로 ` : ""}제휴기업
-          회원 등록이 완료되었습니다.<br />담당자 검토 후 승인 안내를 드립니다.
+          회원 등록이 완료되었습니다.<br />담당자 검토 후 승인 안내를 드리며, 승인 후에 로그인할 수 있습니다.
         </p>
         <div class="rdone__card">
           <div class="rdone__card-head"><h4>가입 정보</h4></div>
@@ -291,6 +291,10 @@ export function mount(root, { nav }) {
       next.passwordConfirm = "비밀번호가 일치하지 않습니다";
     if (!next.email && state.step === 3 && state.form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.form.email))
       next.email = "올바른 이메일 형식으로 입력해주세요";
+    /* 접속 아이디는 유일해야 한다 — 로그인이 아이디 하나로 거래처를 가린다(2026-09-25 · 명세 5.2 UNIQUE).
+       예전엔 검사가 없어 이관 계정과 같은 아이디로 가입하면 그 계정은 영영 로그인할 수 없었다. */
+    if (!next.userId && state.step === 1 && store.accountIdTaken(state.form.userId))
+      next.userId = "이미 사용 중인 아이디입니다";
     state.errors = next;
     return Object.keys(next).length === 0;
   }
@@ -319,7 +323,7 @@ export function mount(root, { nav }) {
     const d = new Date();
     const joinDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     store.addClient({
-      id, accountId: f.userId, password: f.password,
+      id, accountId: f.userId.trim(), password: f.password, // 로그인이 아이디를 trim 해 비교한다
       companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
       managerName: f.managerName, department: f.department, contact: f.contact,
       email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1", clientNote: "",

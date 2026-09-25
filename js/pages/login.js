@@ -1,12 +1,14 @@
 /* ============================================================
-   login.js — ports Login.tsx (no real auth; validates → #/app)
+   login.js — ports Login.tsx. No real auth (DEMO): 거래처 계정은 아이디가 맞고
+   상태가 '활성'이며 약관에 동의했을 때만 #/app 으로 들어간다.
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { resolveRole, setRole, clearRole, setClientId, clearClientId, takeReturnTo } from "../session.js";
+import { resolveRole, setRole, clearRole, setClientId, takeReturnTo, takeLoginNotice } from "../session.js";
 import { store } from "../store.js";
 import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
+import { portalBlock } from "../util/client.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -73,19 +75,19 @@ export function mount(root, { nav }) {
                 <form class="login-card" data-form="login" novalidate>
                   <div class="login-card__head">
                     <h3>계정 로그인</h3>
-                    <p>제휴기업 아이디 또는 사업자번호로 로그인하세요</p>
+                    <p>제휴기업 아이디로 로그인하세요</p>
                   </div>
                   <div class="login-card__body">
                     <div data-slot="error"></div>
 
                     <div class="auth-field">
-                      <label class="auth-field__label" for="login-id">아이디 / 사업자번호</label>
+                      <label class="auth-field__label" for="login-id">아이디</label>
                       <input
                         class="auth-field__input"
                         id="login-id"
                         name="id"
                         type="text"
-                        placeholder="아이디 또는 사업자번호를 입력해주세요"
+                        placeholder="아이디를 입력해주세요"
                         autocomplete="username"
                       />
                     </div>
@@ -170,6 +172,17 @@ export function mount(root, { nav }) {
     if (role === "admin") return back;
     return back.startsWith("#/app") ? back : home;
   };
+  /* 거래처 계정에 역할을 주는 곳은 **여기 하나**다 — 약관 게이트를 지난 뒤에만 부른다. */
+  const enterPortal = (c) => {
+    setRole("enterprise");
+    setClientId(c.id);
+    nav(landingFor("enterprise"));
+  };
+
+  /* 라우터가 세션을 끊고 보냈으면(로그인 뒤 정지·반려·삭제) 그 이유를 한 번 말한다. */
+  const notice = takeLoginNotice();
+  if (notice) showError(notice);
+
   const offSubmit = on(form, "submit", (e) => {
     e.preventDefault();
     const id = form.elements.id.value.trim();
@@ -179,39 +192,51 @@ export function mount(root, { nav }) {
       return;
     }
     clearError();
-    const role = resolveRole(id, pw); // "admin" | "enterprise" (DEMO gate)
-    setRole(role);
-    // Map an enterprise login to its 거래처 when the credentials match a
-    // client account → drives per-client pricing in 상품 규격 안내.
-    if (role === "enterprise") {
-      // 이관 시드에는 비밀번호가 없다(관리자가 읽을 수 없는 구조 — admin-clients 참조).
-      // 그래서 시드 계정은 아이디만 맞으면 통과시키고, 셀프 가입으로 만든 레코드만
-      // 저장된 비밀번호를 검사한다. DEMO 게이트이며 실서비스에서는 서버가 검증한다.
-      const c = store.get().clients.find((x) => x.accountId === id && (!x.password || x.password === pw));
-      setClientId(c ? c.id : null);
-      /* 이용약관 동의 게이트(2026-09-17 결정) — 이관 거래처 19곳은 가입 절차가 없어 동의 기록이 없다.
-         첫 로그인에 한 번 받고, 약관 버전이 오르면 다시 받는다. 동의 없이는 포털로 보내지 않는다. */
-      if (c && c.termsVersion !== TERMS_VERSION) {
-        termsDlg = openTermsDialog({
-          gate: true,
-          onAgree: () => {
-            termsDlg = null;
-            store.updateClient({ ...c, termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION });
-            nav(landingFor("enterprise"));
-          },
-          onClose: () => {
-            termsDlg = null;
-            clearRole();
-            clearClientId();
-            showError("이용약관에 동의해야 서비스를 이용할 수 있습니다.");
-          },
-        });
-        return;
-      }
-    } else {
-      clearClientId();
+    /* 로그인 시도는 새 세션이다 — 앞 세션(관리자 등)이 실패한 시도 뒤에 섞여 남지 않게 먼저 끊는다. */
+    clearRole();
+    if (resolveRole(id, pw) === "admin") {
+      setRole("admin");
+      nav(landingFor("admin"));
+      return;
     }
-    nav(landingFor(role));
+    /* 거래처 계정은 **아이디로만** 찾는다(2026-09-25 결정 · 명세 6.2). 예전엔 무엇을 넣든 enterprise 로
+       통과시켜, 모르는 아이디나 사업자번호가 util/client.js 의 첫 거래처 폴백으로 태원과학 포털에
+       들어갔다 — 뉴트리 사업자번호를 넣으면 태원과학 명세서가 보였다.
+       이관 시드에는 비밀번호가 없다(관리자가 읽을 수 없는 구조 — admin-clients 참조). 그래서 시드 계정은
+       아이디만 맞으면 통과시키고, 셀프 가입으로 만든 레코드만 저장된 비밀번호를 검사한다.
+       DEMO 게이트이며 실서비스에서는 서버가 검증한다. */
+    const c = store.get().clients.find((x) => x.accountId === id && (!x.password || x.password === pw));
+    /* 아이디가 있는지 없는지는 말하지 않는다(명세 6.2 AUTH_FAILED). */
+    if (!c) {
+      showError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      return;
+    }
+    /* 승인대기·반려·정지는 로그인 자체를 막는다(2026-09-25 결정). 자격 증명이 맞은 뒤에 보므로
+       상태를 알려 줘도 계정 존재가 새지 않는다. */
+    const block = portalBlock(c);
+    if (block) {
+      showError(block);
+      return;
+    }
+    /* 이용약관 동의 게이트(2026-09-17 결정) — 이관 거래처 19곳은 가입 절차가 없어 동의 기록이 없다.
+       첫 로그인에 한 번 받고, 약관 버전이 오르면 다시 받는다. ⚠️ 역할은 **동의한 뒤에** 준다 —
+       먼저 주면 게이트가 떠 있는 동안 주소창으로 포털에 들어갈 수 있었다(라우터 가드는 역할만 본다). */
+    if (c.termsVersion !== TERMS_VERSION) {
+      termsDlg = openTermsDialog({
+        gate: true,
+        onAgree: () => {
+          termsDlg = null;
+          store.updateClient({ ...c, termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION });
+          enterPortal(c);
+        },
+        onClose: () => {
+          termsDlg = null;
+          showError("이용약관에 동의해야 서비스를 이용할 수 있습니다.");
+        },
+      });
+      return;
+    }
+    enterPortal(c);
   });
 
   const offInput = on(form, "input", "input", () => clearError());
