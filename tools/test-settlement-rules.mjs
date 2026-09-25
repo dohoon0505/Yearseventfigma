@@ -10,6 +10,7 @@ import {
   invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, splitPeriod, periodOf,
   periodLabel, shiftPeriod, periodEnd, issueDate, agreeDeadline, dueDate, docDate,
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
+  INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel,
 } from "../js/data/settlement-rules.js";
 
 let pass = 0, fail = 0;
@@ -33,6 +34,22 @@ eq("deadlineDayOf 1", deadlineDayOf(1), 10);
 eq("deadlineDayOf 10", deadlineDayOf(10), 10);
 eq("deadlineDayOf 11", deadlineDayOf(11), 28);
 eq("deadlineDayOf 28", deadlineDayOf(28), 28);
+
+/* ── 고를 수 있는 발급일 (2026-09-25 결정 — 동의 기간 3일 이상) ──
+   10·28일은 발급 10:00 과 마감 13:00 이 같은 날이라 3시간뿐이었다. 선택지만 좁히고 계산은 1~28 을 그대로 받는다. */
+eq("동의 기간 1일 = 219h", consentWindowHours(1), 219);
+eq("동의 기간 7일 = 75h", consentWindowHours(7), 75);
+eq("동의 기간 8일 = 51h", consentWindowHours(8), 51);
+eq("동의 기간 10일 = 3h", consentWindowHours(10), 3);
+eq("동의 기간 11일 = 411h", consentWindowHours(11), 411);
+eq("동의 기간 25일 = 75h", consentWindowHours(25), 75);
+eq("동의 기간 28일 = 3h", consentWindowHours(28), 3);
+eq("선택지 = 1~7 · 11~25", INVOICE_DAYS.join(","), "1,2,3,4,5,6,7,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25");
+eq("선택지는 문자열(드롭다운 엄격 비교)", INVOICE_DAYS.every((d) => typeof d === "string"), true);
+eq("선택지 전부 하한 이상", INVOICE_DAYS.every((d) => consentWindowHours(d) >= MIN_CONSENT_DAYS * 24), true);
+eq("선택지 범위 문구", invoiceDayRangeLabel(), "1~7일·11~25일");
+eq("제한 전 값(9일)도 계산은 그대로", invoiceDayOf({ invoiceDay: "9" }), 9);
+eq("제한 전 값(28일)의 마감", deadlineDayOf(invoiceDayOf({ invoiceDay: "28" })), 28);
 
 /* ── 기간 ── */
 eq("splitPeriod", JSON.stringify(splitPeriod("2026-08")), JSON.stringify({ y: 2026, m1: 8 }));
