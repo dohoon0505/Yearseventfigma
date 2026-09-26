@@ -17,6 +17,37 @@ import { BIZ } from "./date.js";
 
 /* ── 표기 ──────────────────────────────────────────────── */
 export const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
+
+/* ── 주문금액 입력 (B2B·B2C 상세·등록 네 경로 공용) ─────────────────────
+   주문금액은 관리자가 고칠 수 있다(2026-09-25 결정 — 가입 혜택 '1회 무료'를 0원 주문으로 처리한다).
+   ⚠️ 숫자 이외를 **지우면 안 된다**. `replace(/[^0-9]/g,"")` 는 구분자를 없애며 자릿수를 옮긴다 —
+      `12,345.67` → 1,234,567원, `-1` → 1원, `007` → 7원. 청구 근거라 조용히 다른 수가 되는 것이 가장 나쁘다.
+      그래서 **거부**하고, 호출부는 거부된 값으로 draft 를 건드리지 않는다.
+   (단가 화면 `admin-pricing.js::parseAmount` 는 규칙이 다르다 — 거기서 빈칸은 '정가로 되돌림'이고 0 은 받지 않는다.) */
+export const MAX_ORDER_AMOUNT = 10000000; // 오타 방어 상한 — 카탈로그 최고가가 15만원이다
+/** 금액 칸 원문 → `{ ok, n }`. 숫자·쉼표·공백과 끝의 '원'만 받는다(칸은 `won()` 이 찍은 "70,000원" 으로 시작한다).
+ *  **0원은 받는다.** 빈칸·앞자리 0(`007`)·소수·음수·지수 표기는 거부한다. */
+export function parseWon(raw) {
+  const t = String(raw ?? "").trim().replace(/\s*원$/, "").trim();
+  if (!/^(0|[1-9][0-9,\s]*)$/.test(t)) return { ok: false, n: 0 };
+  const n = parseInt(t.replace(/[,\s]/g, ""), 10);
+  if (!Number.isSafeInteger(n) || n < 0 || n > MAX_ORDER_AMOUNT) return { ok: false, n: 0 };
+  return { ok: true, n };
+}
+/** 금액 칸 한 번의 입력 — 받으면 숫자, 거부하면 `null`. 칸에 거부 표시(`.is-bad`·`aria-invalid`)를 칠한다. */
+export function readWonInput(t) {
+  const { ok, n } = parseWon(t.value);
+  t.classList.toggle("is-bad", !ok);
+  t.setAttribute("aria-invalid", ok ? "false" : "true");
+  return ok ? n : null;
+}
+/** 포커스가 빠질 때 칸을 커밋된 값으로 다시 쓴다 — 거부된 원문이 화면에 남아 저장값과 갈리지 않게.
+ *  `blur` 는 버블링하지 않으니 호출부는 `focusout` 위임으로 부른다. */
+export function settleWonInput(t, n) {
+  t.value = won(n);
+  t.classList.remove("is-bad");
+  t.setAttribute("aria-invalid", "false");
+}
 export const pad2 = (n) => String(n).padStart(2, "0");
 export const dash = (v) => (v != null && String(v).trim() ? v : "-");
 

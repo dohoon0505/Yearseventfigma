@@ -1392,6 +1392,8 @@ textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-
 }
 .ord-in--num { font-variant-numeric: tabular-nums; }
 .ord-in--won { color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+/* 거부된 금액 원문(order-fields.js parseWon) — 값은 저장되지 않았다는 신호. 포커스가 빠지면 커밋값으로 돌아간다 */
+.ord-in.is-bad, .ord-in.is-bad:focus { border-color: var(--c-danger); box-shadow: var(--ring-error); }
 textarea.ord-in {
   height: auto; min-height: 34px; padding: 4px 8px; line-height: 1.6;
   font-weight: var(--fw-normal); resize: none; overflow: hidden;

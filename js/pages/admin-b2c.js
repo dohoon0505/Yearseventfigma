@@ -21,6 +21,7 @@ import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowT
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
+import { readWonInput, settleWonInput } from "../util/order-fields.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openAutofill } from "../util/order-dialogs.js";
 import { applyOrderText } from "../data/order-text.js";
@@ -406,7 +407,7 @@ export function mount(root, { nav }) {
         ${i === 1 && cDraft.product ? html`
           <div class="rail-card">
             <p class="rail-card__k">주문상품</p><p class="rail-card__v">${cDraft.product}</p>
-            <p class="rail-card__k" style="margin-top:9px">주문금액</p><p class="rail-card__v">${won(Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0)}</p>
+            <p class="rail-card__k" style="margin-top:9px">주문금액</p><p class="rail-card__v">${won(Number(cDraft.amount) || 0)}</p>
           </div>` : ""}
         <p class="ord-side__note">경로는 정산 집계의 기준입니다. 실제 유입 경로와 다르게 두면 매출이 어긋납니다.</p>`;
     };
@@ -485,10 +486,18 @@ export function mount(root, { nav }) {
     on(panel, "input", "[data-cf]", (e, t) => { cDraft[t.dataset.cf] = t.value; });
     on(panel, "input", "[data-f]", (e, t) => {
       const k = t.dataset.f;
+      if (k === "amount") {
+        const n = readWonInput(t);
+        if (n === null) return; /* 거부 — draft 는 마지막으로 받은 값 그대로 */
+        cDraft.amount = n;
+        createModal.rerenderRail();
+        return;
+      }
       cDraft[k] = (k === "ordererPhone" || k === "recipientPhone") ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
-      if (k === "amount" || k === "product") createModal.rerenderRail();
+      if (k === "product") createModal.rerenderRail();
     });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (cDraft) settleWonInput(t, cDraft.amount); });
   }
 
   function bindCreateControls(pane) {
@@ -505,7 +514,7 @@ export function mount(root, { nav }) {
         if (price > 0) {
           cDraft.amount = price;
           const amt = qs(pane, "[data-f='amount']");
-          if (amt) amt.value = won(price); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
+          if (amt) settleWonInput(amt, price); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
         }
         createModal && createModal.rerenderRail();
         createModal && createModal.syncFooter();
@@ -526,7 +535,7 @@ export function mount(root, { nav }) {
     const rec = {
       ...cDraft,
       id: b2cNewId(), orderNo: b2cNextOrderNo(),
-      amount: Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0,
+      amount: Number(cDraft.amount) || 0,
     };
     delete rec.history;
     b2cUpsert(rec);
@@ -561,12 +570,15 @@ export function mount(root, { nav }) {
       label: (v) => v || "상품을 선택하세요",
       get: () => editing.product,
       set: (v) => {
+        /* ⚠️ 같은 상품을 다시 눌러도 이 set 이 돈다(makeDropdown 에 동일값 가드가 없다) — 가드가 없으면
+           고쳐 둔 주문금액이 정가로 조용히 덮인다(등록 모달·B2B 상세에는 이미 있던 가드다). */
+        if (editing.product === v) return;
         editing.product = v;
         const price = productPrice(v);
         if (price > 0) {
           editing.amount = price;
           const amt = qs(panel, "[data-f='amount']");
-          if (amt) amt.value = won(price); // DOM 직접 갱신 — 재렌더하면 커서가 날아간다
+          if (amt) settleWonInput(amt, price); // DOM 직접 갱신 — 재렌더하면 커서가 날아간다
         }
         renderSum();
         syncDirty();
@@ -588,7 +600,7 @@ export function mount(root, { nav }) {
       toast("주문자 성함과 주문상품은 필수입니다", "warn"); return;
     }
     const n = dirtyCount();
-    const merged = { ...editing, amount: Number(String(editing.amount).replace(/[^0-9]/g, "")) || 0 };
+    const merged = { ...editing, amount: Number(editing.amount) || 0 };
     let autoDone = false;
     /* 자동 배송완료 — 주문접수 + 사진 + 인수자 */
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
@@ -715,12 +727,19 @@ export function mount(root, { nav }) {
       if (!editing) return;
       const k = t.dataset.f;
       if (k === "ordererPhone" || k === "recipientPhone") editing[k] = onPhoneInput(t);
-      else if (k === "amount") editing[k] = t.value;
-      else editing[k] = t.value;
+      else if (k === "amount") {
+        /* 숫자 외 문자를 지우지 않고 거부한다(order-fields.js parseWon) — 예전엔 원문을 그대로 담았다가
+           저장 때 `replace(/[^0-9]/g,"")` 로 읽어 `12,345.67` 이 1,234,567원이 됐다. */
+        const n = readWonInput(t);
+        if (n === null) return;
+        editing.amount = n;
+        renderSum();
+      } else editing[k] = t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
       if (k === "receiver" || k === "image") renderHd(); // 배송완료 조건이 바뀐다
       syncDirty();
     });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) settleWonInput(t, editing.amount); });
     /* API 자동등록(담당자 미지정) 주문을 열면 담당자 지정을 우선 노출 */
     if (!editing.manager) openManagerModal();
   }

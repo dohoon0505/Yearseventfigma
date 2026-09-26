@@ -35,6 +35,7 @@ import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
 import { invoiceDayOf } from "../data/settlement-rules.js";
+import { readWonInput, settleWonInput } from "../util/order-fields.js";
 import { staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -227,14 +228,16 @@ export function mount(root, { nav }) {
   let savedAt = "";
   let menuOpen = false;
 
-  /* 주문정보 — 4번째 칸이 주문금액(확정). B2B 는 거래처 계약 단가라 **잠근다**:
-     여기서 바뀌면 정산 드릴다운과 그 달 청구가 어긋난다.
+  /* 주문정보 — 4번째 칸이 주문금액. 상품을 고르면 거래처 계약 단가로 채워지고, **관리자가 고칠 수 있다**
+     (2026-09-25 결정 — 가입 혜택 '1회 무료'를 0원 주문으로 처리한다. 예전엔 계약단가 보호로 잠가 뒀다).
+     입력은 order-fields.js `readWonInput` — 숫자 외 문자를 지우지 않고 거부한다. 등록 모달의 '단가 기준' 줄이
+     계약단가와 다르면 그렇다고 말한다.
      2번째 칸은 거래처 대표 연락처 — B2B 에는 ordererPhone 이 없다. */
   const ORDER_FIELDS = () => [
     { k: "ordererName", label: "발송인", type: "text", ph: "예) 총무팀 · 한지훈" },
     { label: "연락처", type: "static", k: "clientPhone", value: (o) => dash(clientOf(o)?.contact) },
     { k: "product", label: "주문상품", type: "select" },
-    { k: "amount", label: "주문금액", type: "won", lock: true },
+    { k: "amount", label: "주문금액", type: "won" },
   ];
   const DELIVER_FIELDS = [
     { k: "deliverAt", label: "배송일시", type: "datetime", full: true },
@@ -246,7 +249,7 @@ export function mount(root, { nav }) {
     { k: "request", label: "요청사항", type: "textarea", full: true, ph: "거래처가 남긴 요청사항" },
   ];
   /* 적용 단가는 파생값이라 dirty 대상이 아니다 */
-  const DIRTY_KEYS = ["ordererName", "product", ...DELIVER_FIELDS.map((d) => d.k), "receiver", "memo", "image"];
+  const DIRTY_KEYS = ["ordererName", "product", "amount", ...DELIVER_FIELDS.map((d) => d.k), "receiver", "memo", "image"];
 
   const canComplete = () => !!editing?.image && !!String(editing?.receiver || "").trim();
   const dirtyCount = () =>
@@ -421,9 +424,13 @@ export function mount(root, { nav }) {
     if (!cDraft.product) return "상품 선택 후 자동 적용";
     const base = priceNum((ALL_PRODUCTS.find((p) => p.product === cDraft.product) || {}).price);
     const c = store.contractPrice(cDraft.clientId, cDraft.product);
-    const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
-    if (c == null || c === base) return "계약단가 미등록 · 기준단가 적용";
-    return cur === c ? "계약단가 적용" : `계약단가(${won(c)})와 다름`;
+    const cur = Number(cDraft.amount) || 0;
+    /* 금액을 고칠 수 있으므로(2026-09-25) 계약단가가 없는 거래처에서도 '적용 단가와 다름'을 말해야 한다 —
+       예전엔 이 경우 금액과 무관하게 "기준단가 적용"이라 0원(가입 혜택)을 적어도 그렇게 찍혔다. */
+    const contract = c != null && c !== base;
+    const ref = contract ? c : base;
+    if (cur === ref) return contract ? "계약단가 적용" : "계약단가 미등록 · 기준단가 적용";
+    return `${contract ? "계약단가" : "기준단가"}(${won(ref)})와 다름 — 직접 입력한 금액`;
   }
 
   /* 등록 모달의 발주정보 = 상세와 같은 배열 + 시안의 '발송 프로필' 한 줄.
@@ -721,7 +728,7 @@ export function mount(root, { nav }) {
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
           render: step2Body, bind: bindCreateControls, required: missing2,
           hint: () => { // 전 품목 면세 — 금액 뒤에 VAT 표기를 두지 않는다(2026-09-17 사용자 확인)
-            const cur = Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0;
+            const cur = Number(cDraft.amount) || 0;
             const on = notifyRows().filter((r) => !r.locked && !cDraft.notifyOff.includes(r.key)).length;
             return `${won(cur)} · 알림 ${on}명${cDraft.manager ? ` · 담당 ${cDraft.manager}` : ""}`;
           } },
@@ -867,11 +874,19 @@ export function mount(root, { nav }) {
     });
     on(panel, "input", "[data-f]", (e, t) => {
       const k = t.dataset.f;
+      if (k === "amount") {
+        const n = readWonInput(t);
+        if (n === null) return; /* 거부 — draft 는 마지막으로 받은 값 그대로 */
+        cDraft.amount = n;
+        const b = qs(panel, "[data-slot='basis']"); if (b) b.textContent = cBasis();
+        createModal.syncFooter(); /* 푸터 hint() 가 이번 발주 금액을 말한다 */
+        return;
+      }
       cDraft[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
-      if (k === "amount") { const b = qs(panel, "[data-slot='basis']"); if (b) b.textContent = cBasis(); }
       if (k === "recipientName" || k === "recipientPhone") createModal.rerenderRail();
     });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (cDraft) settleWonInput(t, cDraft.amount); });
   }
 
   /* step2 의 드롭다운·피커 */
@@ -886,8 +901,8 @@ export function mount(root, { nav }) {
         if (cDraft.product === v) return; /* 동일값 재선택이 협의 금액을 덮지 않게 */
         cDraft.product = v;
         cDraft.amount = priceFor(cDraft.clientId, v);
-        const amt = qs(pane, "[data-slot='amount']");
-        if (amt) amt.value = won(cDraft.amount); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
+        const amt = qs(pane, "[data-f='amount']"); /* data-slot 은 잠긴 칸에만 붙는다 — 상세 모달 주석 참조 */
+        if (amt) settleWonInput(amt, cDraft.amount); /* DOM 직접 — 재렌더하면 커서가 날아간다 */
         const b = qs(pane, "[data-slot='basis']"); if (b) b.textContent = cBasis();
         createModal && createModal.rerenderRail();
         createModal && createModal.syncFooter();
@@ -909,7 +924,7 @@ export function mount(root, { nav }) {
     const rec = {
       ...cDraft,
       id: b2bNewId(), orderNo: b2bNextOrderNo(),
-      amount: Number(String(cDraft.amount).replace(/[^0-9]/g, "")) || 0,
+      amount: Number(cDraft.amount) || 0,
       /* 요청자 스냅샷은 고를 때 이미 draft 에 적혔다 — 여기서 목록으로 다시 파생하면
          직접 입력한 요청자가 저장 직전에 증발한다. 목록에 있는 사람만 최신값으로 갱신. */
       requesterName: req ? req.name : cDraft.requesterName,
@@ -969,14 +984,15 @@ export function mount(root, { nav }) {
       get: () => editing.product,
       set: (v) => {
         /* ⚠️ 같은 상품을 다시 눌러도 이 set 이 돈다(makeDropdown 에 동일값 가드가 없다).
-           그때 금액을 다시 파생시키면 주문에 적힌 **협의 금액이 정가로 덮인다** —
-           `amount` 는 DIRTY_KEYS 에 없어 '수정한 항목' 에도 안 잡히고 저장까지 따라간다. */
+           그때 금액을 다시 파생시키면 주문에 적힌 **협의 금액(0원 가입 혜택 포함)이 정가로 덮인다**. */
         if (editing.product === v) return;
         editing.product = v;
-        /* 적용 단가는 (거래처 × 상품)에서 파생 — 직접 입력받지 않는다 */
+        /* 상품을 바꾸면 (거래처 × 상품) 적용 단가로 다시 채운다 — 그 뒤 고치는 것은 관리자 몫 */
         editing.amount = priceFor(editing.clientId, v);
-        const amt = qs(panel, "[data-slot='amount']");
-        if (amt) amt.value = won(editing.amount);
+        /* ⚠️ `[data-slot]` 이 아니라 `[data-f]` 다 — data-slot 은 잠긴 칸에만 붙는다(order-fields fieldCell).
+           잠금을 풀 때 이걸 안 바꾸면 상품을 바꿔도 칸의 금액이 옛 값으로 남는다. */
+        const amt = qs(panel, "[data-f='amount']");
+        if (amt) settleWonInput(amt, editing.amount);
         renderSum(); syncDirty();
       },
     }));
@@ -993,7 +1009,7 @@ export function mount(root, { nav }) {
     if (!editing) return;
     if (!editing.clientId || !editing.product) { toast("거래처와 주문상품은 필수입니다", "warn"); return; }
     const n = dirtyCount();
-    const merged = { ...editing, amount: Number(String(editing.amount).replace(/[^0-9]/g, "")) || 0 };
+    const merged = { ...editing, amount: Number(editing.amount) || 0 }; // 칸은 readWonInput 이 받은 숫자만 쓴다
     let autoDone = false;
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
       merged.status = "배송완료";
@@ -1118,11 +1134,17 @@ export function mount(root, { nav }) {
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
-      editing[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
+      if (k === "amount") {
+        const n = readWonInput(t);
+        if (n === null) return; /* 거부 — 잘못 읽힌 수가 저장되는 것보다 낫다 */
+        editing.amount = n;
+        renderSum();
+      } else editing[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
       if (k === "receiver" || k === "image") renderHd();
       syncDirty();
     });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) settleWonInput(t, editing.amount); });
     /* 담당자 미지정(포털 자동 유입) 주문은 열자마자 지정을 받는다 */
     if (!editing.manager) openManagerModal();
   }
