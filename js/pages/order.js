@@ -7,7 +7,9 @@
 import { html, raw, setHTML, on, qs, qsa } from "../dom.js";
 import { store, ALL_PRODUCTS, productKey, receivingContacts } from "../store.js";
 import { currentClient } from "../util/client.js";
-import { pageTitle, makeDropdown, makeDatepicker, simpleModal } from "../ui.js";
+import { pageTitle, makeDropdown, makeDatepicker } from "../ui.js";
+import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
+import { openRowPicker } from "../util/order-dialogs.js";
 import { deliveryFeeFor } from "../data/delivery-fees.js";
 import { evaluateAddress, matchesProduct } from "../data/intake-rules.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -555,21 +557,31 @@ export function mount(root, { nav }) {
   let pickModal = null;
   const closePick = () => { if (pickModal) { pickModal.close(); pickModal = null; } };
 
-  /* 리본 문구 간편선택 — 추천 문구 가이드 모달(직접입력과 병행) */
+  /* 리본 문구 간편선택 — 추천 문구 가이드(직접입력과 병행). 공용 다이얼로그 규격(util/dialog.js)이고
+     2026-09-26 에 옮겼다 — 예전엔 simpleModal 에 손수 짠 본문이라 제목·버튼 규격이 관리자 다이얼로그와 달랐다.
+     칩은 **누르면 바로 채우고 닫는** 동작 버튼이다(선택 목록이 아니라 role=radio 를 달지 않는다). */
   function openRibbonPick() {
     closePick();
-    const body = html`
-      <p class="pick-intro">추천 문구를 선택하면 입력란에 채워져요. 이후 자유롭게 수정할 수 있어요.</p>
-      ${RIBBON_GROUPS.map((g) => html`
-        <div class="pick-group">
-          <p class="pick-group__label">${g.group}</p>
-          <div class="pick-opts">
-            ${g.phrases.map((ph) => html`<button class="pick-opt ${state.ribbon === ph ? "sel" : ""}" data-pick-phrase="${ph}" type="button">${ph}</button>`)}
-          </div>
-        </div>
-      `)}
-    `;
-    pickModal = simpleModal({ title: "리본 문구 간편선택", panelClass: "modal-panel--pick", body, onClose: () => { pickModal = null; } });
+    pickModal = openDialog({
+      eyebrow: "리본 문구",
+      title: "추천 문구에서 고르기",
+      width: 480,
+      panelClass: "modal-panel--pick",
+      bodyClass: "dlg-body--sections",
+      body: html`
+        <p class="dlg-desc">고르면 입력란에 채워지고, 그 뒤 자유롭게 고칠 수 있어요.</p>
+        ${RIBBON_GROUPS.map((g) => html`
+          <section class="pick-group">
+            ${dlgRule({ t: g.group })}
+            <div class="pick-opts">
+              ${g.phrases.map((ph) => html`<button class="pick-opt ${state.ribbon === ph ? "sel" : ""}" type="button"
+                data-pick-phrase="${ph}" aria-current="${state.ribbon === ph ? "true" : "false"}">${ph}</button>`)}
+            </div>
+          </section>`)}`,
+      hint: "리본에는 20자까지 들어갑니다",
+      actions: html`<button class="hm-btn hm-btn--secondary" data-action="close">닫기</button>`,
+      onClose: () => { pickModal = null; },
+    });
     on(pickModal.panel, "click", "[data-pick-phrase]", (e, t) => {
       state.ribbon = t.dataset.pickPhrase;
       $("[data-ribbon-input]").value = state.ribbon;
@@ -577,31 +589,34 @@ export function mount(root, { nav }) {
     });
   }
 
-  /* 보내는분 간편선택 — 저장된 프로필에서 불러오기(직접입력과 병행) */
+  /* 보내는분 간편선택 — 저장된 발송 프로필에서 불러오기(직접입력과 병행).
+     관리자 B2B 등록 모달의 '발송 프로필' 과 **같은 행 목록**(openRowPicker)이다 — 화살표로 옮기고
+     '불러오기' 로 확정한다. 로그인 거래처의 프로필만 보인다(store.profilesOf). */
   function openSenderPick() {
     closePick();
-    const profiles = store.profilesOf(); /* 로그인 거래처의 것만 */
-    const body = html`
-      ${profiles.length === 0
-        ? html`<div class="pick-empty">저장된 프로필이 없습니다.<br />아래에서 새 명의를 등록해 주세요.</div>`
-        : html`<div class="pick-senders">
-            ${profiles.map((p) => {
-              const text = senderTextOf(p);
-              return html`<button class="pick-sender ${state.sender === text ? "sel" : ""}" data-pick-sender="${text}" type="button">
-                <span class="pick-sender__main"><b>${p.name}</b> · ${p.role}</span>
-                <span class="pick-sender__sub">${text}</span>
-              </button>`;
-            })}
-          </div>`}
-      <button class="pick-addprofile" data-pick-newprofile type="button">＋ 새 명의 등록하기</button>
-    `;
-    pickModal = simpleModal({ title: "보내는분 간편선택", panelClass: "modal-panel--pick", body, onClose: () => { pickModal = null; } });
-    on(pickModal.panel, "click", "[data-pick-sender]", (e, t) => {
-      state.sender = t.dataset.pickSender;
-      $("[data-sender-input]").value = state.sender;
-      updateSenderCnt(); refreshCtas(); closePick();
+    const profiles = store.profilesOf();
+    const cur = profiles.find((p) => senderTextOf(p) === state.sender);
+    pickModal = openRowPicker({
+      eyebrow: "발송 프로필",
+      title: "리본 보내는분 명의",
+      width: 500,
+      listH: 272,
+      rows: profiles.map((p) => ({ v: p.id, name: senderTextOf(p), sub: `${p.name} · ${p.role}`, meta: p.phone || "" })),
+      current: cur ? cur.id : "",
+      confirmLabel: "불러오기",
+      hint: "고른 명의가 보내는분 칸에 채워집니다",
+      empty: "저장된 발송 프로필이 없습니다.",
+      after: html`<div class="dlg-after"><button type="button" class="dlg-minibtn" data-action="new-profile">＋ 새 명의 등록하기</button></div>`,
+      onPick: (v) => {
+        const pf = profiles.find((x) => x.id === v);
+        state.sender = senderTextOf(pf);
+        $("[data-sender-input]").value = state.sender;
+        updateSenderCnt(); refreshCtas();
+        return false; /* 토스트 없이 닫기만 — 칸이 채워진 것이 곧 결과다 */
+      },
+      onClose: () => { pickModal = null; },
     });
-    on(pickModal.panel, "click", "[data-pick-newprofile]", () => { closePick(); nav("#/app/profile"); });
+    on(pickModal.panel, "click", "[data-action='new-profile']", () => { closePick(); nav("#/app/profile"); });
   }
 
   /* ── STEP 4 · 확인 · 접수 ── */
@@ -633,16 +648,31 @@ export function mount(root, { nav }) {
         return;
       }
     }
-    const body = html`
-      <div class="hm-info"><span><b>${state.product.product}</b> · <b class="num">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</b>으로 주문을 접수합니다. 접수 후에는 리본문구·보내는분을 수정할 수 없어요.</span></div>
-    `;
-    const footer = html`
-      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-      <button class="hm-btn hm-btn--primary" data-confirm>주문 접수하기</button>
-    `;
-    submitModal = simpleModal({ title: "이대로 주문을 접수할까요?", size: "sm", body, footer, onClose: () => { submitModal = null; } });
-    submitModal.panel.addEventListener("click", (e) => {
-      if (!e.target.closest("[data-confirm]")) return;
+    /* 접수하면 리본 문구·보내는분을 고칠 수 없다 — 그래서 확인 창이 그 둘을 **다시 보여 준다**(2026-09-26,
+       공용 다이얼로그로 옮기며). 예전엔 상품·금액 한 줄만 보여 줘 마지막 확인이 이름뿐이었다. */
+    const val = (v, cls = "") => html`<span class="dlg-val ${cls}">${v || "-"}</span>`;
+    submitModal = openDialog({
+      eyebrow: state.product.product,
+      title: "이대로 주문을 접수할까요?",
+      width: 480,
+      bodyClass: "dlg-body--sections",
+      body: html`
+        <section>
+          ${dlgRule({ t: "접수 내용", cap: "접수 후에는 리본 문구·보내는분을 고칠 수 없어요" })}
+          <div class="dlg-rows">
+            ${dlgRow({ k: "결제 금액", v: val(won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee), "dlg-val--won") })}
+            ${dlgRow({ k: "배송", v: val(dateLabel()) })}
+            ${dlgRow({ k: "배송지", top: true, v: val(state.addr) })}
+            ${dlgRow({ k: "받는분", v: val(state.toName) })}
+            ${dlgRow({ k: "리본 문구", top: true, v: val(state.ribbon) })}
+            ${dlgRow({ k: "보내는분", top: true, v: val(state.sender) })}
+          </div>
+        </section>`,
+      hint: "리본 문구와 보내는분을 한 번 더 확인하세요",
+      actions: dlgActions({ cancel: "돌아가기", ok: "주문 접수하기" }),
+      onClose: () => { submitModal = null; },
+    });
+    on(submitModal.panel, "click", "[data-action='ok']", () => {
       submitModal.close();
       submit();
     });

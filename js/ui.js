@@ -259,27 +259,9 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
   return { close };
 }
 
-/** Standard titled modal (ports Modal.tsx chrome): title bar + X + body slot.
- *  Any [data-action="close"] / [data-modal-close] element closes it. */
-export function simpleModal({ title, subtitle, body, footer, size = "sm", panelClass = "", onClose } = {}) {
-  const sizeClass = size ? `modal-panel--${size}` : "";
-  const inner = html`
-    <div class="hm__head">
-      <div>
-        <h3 id="modal-title">${title}</h3>
-        ${subtitle ? html`<p>${subtitle}</p>` : ""}
-      </div>
-      <button class="hm__x" data-action="close" data-modal-close aria-label="닫기">${icon("x", { size: 14 })}</button>
-    </div>
-    <div class="hm__body">${body}</div>
-    ${footer ? html`<div class="hm__foot">${footer}</div>` : ""}
-  `;
-  const m = openModal({ panelClass: `${sizeClass} ${panelClass}`.trim(), body: inner, labelledBy: "modal-title", onClose });
-  m.panel.addEventListener("click", (e) => {
-    if (e.target.closest("[data-action='close']")) m.close();
-  });
-  return m;
-}
+/* simpleModal(구 Modal.tsx 크롬 — `.hm__head`/`.hm__foot` 를 손으로 조립하던 작은 모달)은 2026-09-26 에 지웠다.
+   마지막 호출부 다섯(가입 거부 · 리본 문구 · 보내는분 · 주문 접수 확인 · 회사정보 수정)을 공용 다이얼로그
+   (`js/util/dialog.js` openDialog)로 옮겼다. 작은 창은 그 규격 하나다 — 이 헬퍼를 되살리지 말 것. */
 
 /* ── Custom dropdown (harim mob 스타일 · 선택 행 블루) ─────────
    makeDropdown(rootEl, { unit, options, get, set }) → { renderTrigger, open, close, destroy }

@@ -44,6 +44,9 @@ export const MANUAL = "__manual";
  *                            ⚠️ 이 경로가 없으면 담당자가 0명인 거래처에서 **등록 자체가
  *                            막힌다**. 구 시스템에 담당자 필드가 없어 이관 거래처 19곳 중
  *                            18곳이 담당자 0명이다 — 목록만으로는 막다른 길이다.
+ *  - onClose                 닫힐 때(✕·취소·확정 모두) — 호출부가 핸들을 비울 자리
+ *  - after                   목록 아래에 붙일 Html(선택) — 포털 '보내는분' 의 '새 명의 등록' 처럼 목록 밖 동작.
+ *                            그 안의 버튼은 호출부가 돌려받은 `panel` 에 위임으로 묶는다.
  *  - toast
  */
 export function openRowPicker(o) {
@@ -113,7 +116,8 @@ export function openRowPicker(o) {
     width: o.width || 440,
     body: html`
       ${dlgList({ rows: listRows, label: o.title, h: o.listH || 280 })}
-      ${man ? manualFields() : ""}`,
+      ${man ? manualFields() : ""}
+      ${o.after || ""}`,
     hint: canOk() ? baseHint : blockHint(),
     hintBlock: !canOk(),
     /* ⚠️ `confirmLabel` 에 " 지정" 처럼 앞 공백을 실어 보내는 호출부가 있다(아이콘과
@@ -123,6 +127,7 @@ export function openRowPicker(o) {
       okIcon: o.confirmIcon,
       disabled: !canOk(),
     }),
+    onClose: o.onClose,
   });
   const panel = d.panel;
 

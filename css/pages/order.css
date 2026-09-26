@@ -194,28 +194,16 @@
   .page-order .pick-btn { height: 48px; }
 }
 
-/* ── 간편선택 모달 (리본 문구 · 보내는분) · 모달 레이어(.page-order 밖) ── */
-.modal-panel--pick { max-width: 30rem; }
-/* 리본문구 픽커 모달은 푸터가 없어 hm__body(기본 하단 4px)로는 바닥이 붙어 보임 → 하단 여백 보정 */
-.modal-panel--pick .hm__body { padding: 18px 24px 22px; }
-.modal-panel--pick .pick-intro { font-size: 13px; color: var(--c-text-muted); line-height: 1.6; margin-bottom: 16px; }
-.modal-panel--pick .pick-group + .pick-group { margin-top: 18px; }
-.modal-panel--pick .pick-group__label { font-size: 12.5px; font-weight: 600; color: var(--c-text-muted); margin-bottom: 9px; }
+/* ── 리본 문구 간편선택 · 모달 레이어(.page-order 밖) ──
+   공용 다이얼로그(util/dialog.js) 위에 칩만 얹는다(2026-09-26 이식) — 제목·푸터·섹션 룰은 `.dlg-*` 규격이다.
+   보내는분 간편선택은 openRowPicker(관리자 '발송 프로필'과 같은 행 목록)로 옮겨 여기 규칙이 없다. */
+.modal-panel--pick .pick-group .dlg-rule + .pick-opts { margin-top: 10px; }
 .modal-panel--pick .pick-opts { display: flex; flex-direction: column; gap: 8px; }
 .modal-panel--pick .pick-opt { text-align: left; padding: 13px 15px; border-radius: var(--r-lg); background: var(--c-surface-2); border: 1px solid transparent; font-size: 14.5px; font-weight: 500; color: var(--c-text-2); transition: background 0.13s, border-color 0.13s, color 0.13s; }
 .modal-panel--pick .pick-opt:hover { background: var(--c-surface-hover-2); }
 .modal-panel--pick .pick-opt.sel { background: var(--c-blue-soft); border-color: var(--c-user-border); color: var(--c-blue); font-weight: 600; }
-.modal-panel--pick .pick-senders { display: flex; flex-direction: column; gap: 8px; }
-.modal-panel--pick .pick-sender { text-align: left; padding: 13px 15px; border-radius: var(--r-lg); background: var(--c-surface-2); border: 1px solid transparent; transition: background 0.13s, border-color 0.13s; }
-.modal-panel--pick .pick-sender:hover { background: var(--c-surface-hover-2); }
-.modal-panel--pick .pick-sender.sel { background: var(--c-blue-soft); border-color: var(--c-user-border); }
-.modal-panel--pick .pick-sender__main { display: block; font-size: 14.5px; color: var(--c-text-strong); }
-.modal-panel--pick .pick-sender__main b { font-weight: 600; }
-.modal-panel--pick .pick-sender.sel .pick-sender__main { color: var(--c-blue); }
-.modal-panel--pick .pick-sender__sub { display: block; margin-top: 3px; font-size: 13px; color: var(--c-text-muted); }
-.modal-panel--pick .pick-empty { padding: 28px 16px; text-align: center; font-size: 13.5px; color: var(--c-text-ghost); line-height: 1.6; background: var(--c-surface-2); border-radius: var(--r-lg); }
-.modal-panel--pick .pick-addprofile { width: 100%; margin-top: 14px; padding: 13px; border-radius: var(--r-lg); border: 1px dashed var(--c-border-strong); font-size: 14px; font-weight: 600; color: var(--c-blue); transition: background 0.13s, border-color 0.13s; }
-.modal-panel--pick .pick-addprofile:hover { background: var(--c-blue-soft); border-color: var(--c-user-border); }
+/* 전역 링은 흰 면에서 1.1:1 — 직접 그린다(스크롤되는 본문 안이라 안쪽으로) */
+.modal-panel--pick .pick-opt:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
 
 /* ── 확인 단계 ── */
 .page-order .confirm-list { border-top: 1px solid var(--c-divider); margin-top: 28px; }

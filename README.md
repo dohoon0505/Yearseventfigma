@@ -48,7 +48,7 @@ js/
   icons.js              # lucide 아이콘 SVG 스프라이트
   toast.js              # makeToast
   ui.js                 # pageTitle · pageHead · tableGrid · onRowOpen · rowToneLegend
-                        #  · openModal/closeAllModals · simpleModal · openLightbox
+                        #  · openModal/closeAllModals · openLightbox
                         #  · makeDropdown · makeDatepicker · makeDateTimePicker
   invoice-doc.js        # 거래명세서 인쇄창 (별도 window — tokens.css 미로드라 hex 예외)
   report-doc.js         # 리포트 인쇄창 (같은 이유로 hex 예외)

@@ -3,7 +3,8 @@
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
-import { pageTitle, openModal } from "../ui.js";
+import { pageTitle } from "../ui.js";
+import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { store } from "../store.js";
 /* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
 import { settlementsFor, INVOICE_YM_KEY } from "../util/settlement.js";
@@ -154,54 +155,67 @@ export function mount(root, { nav }) {
     );
   }
 
+  /* 섹션 캡션은 '이 구역이 어디 쓰이는지' 를 말한다(공용 다이얼로그 규격) — 공급받는자 칸에 찍히는 값인지가
+     거래처에게는 제일 중요한 정보다(invoice-doc.js 의 buyer: 회사명·사업자번호·대표자명·사업장주소). */
+  const EDIT_CAPS = {
+    "회사 기본정보": "거래명세서의 공급받는자로 찍힙니다",
+    "계산서 및 담당자 정보": "계산서 수신과 정산 연락에 쓰입니다",
+    "사업장 주소": "거래명세서에 찍힙니다",
+  };
+
+  /* 회사정보 수정 — 공용 다이얼로그 규격(util/dialog.js)으로 옮겼다(2026-09-26). 예전엔 `.hm__head`/`.hm__foot`
+     를 손수 짠 lg 모달이었고, 필수 7칸 중 하나라도 비면 버튼만 흐려져 **무엇이 비었는지** 말하지 않았다 —
+     이관 거래처는 계산서 이메일·담당자명이 비어 있어(구 시스템에 대응 필드가 없었다) 열자마자 막힌다. */
   function openEditModal() {
     closeModal();
     const form = { ...state.company };
-    const isValid = () => EDIT_FIELDS.every((f) => f.section || form[f.key].trim());
+    const missing = () => EDIT_FIELDS.filter((f) => !f.section && !String(form[f.key] ?? "").trim()).map((f) => f.label);
+    const HINT_OK = "포털과 관리자 화면에 함께 반영됩니다";
+    const hintNow = () => { const m = missing(); return m.length ? `필수 항목이 남았습니다 — ${m.join(" · ")}` : HINT_OK; };
 
-    const editField = (f) => html`
-      <div class="hm-field">
-        <label for="se-${f.key}">${f.label}<span class="req">*</span></label>
-        <input class="hm-input" id="se-${f.key}" data-cf="${f.key}" type="text" value="${form[f.key]}" placeholder="${f.placeholder}" />
-      </div>
-    `;
+    const sections = [];
+    EDIT_FIELDS.forEach((f) => {
+      if (f.section) sections.push({ t: f.section, fields: [] });
+      else sections[sections.length - 1].fields.push(f);
+    });
+    const numeric = (k) => k === "사업자번호" || k === "담당자연락처";
+    const row = (f) => dlgRow({
+      k: f.label, req: true, htmlFor: `se-${f.key}`,
+      v: html`<input class="ord-in" id="se-${f.key}" data-cf="${f.key}" type="${f.key === "계산서이메일" ? "email" : "text"}"
+        inputmode="${numeric(f.key) ? "numeric" : f.key === "계산서이메일" ? "email" : "text"}"
+        value="${form[f.key]}" placeholder="${f.placeholder}" />`,
+    });
 
-    const body = html`
-      <div class="hm__head">
-        <div><h3>회사정보 수정</h3><p>정산에 사용될 회사 정보를 수정합니다.</p></div>
-        <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
-      </div>
-      <div class="hm__body">
-        ${(() => {
-          const out = [];
-          let i = 0;
-          while (i < EDIT_FIELDS.length) {
-            const f = EDIT_FIELDS[i];
-            if (f.section) { out.push(html`<div class="hm-section">${f.section}</div>`); i++; continue; }
-            if (f.grid && EDIT_FIELDS[i + 1] && EDIT_FIELDS[i + 1].grid) {
-              out.push(html`<div class="hm-grid2">${editField(f)}${editField(EDIT_FIELDS[i + 1])}</div>`);
-              i += 2;
-            } else { out.push(editField(f)); i++; }
-          }
-          return out;
-        })()}
-      </div>
-      <div class="hm__foot">
-        <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${isValid() ? "" : "disabled"}>저장</button>
-      </div>
-    `;
-    activeModal = openModal({ panelClass: "modal-panel--lg", body });
-    const saveBtn = () => qs(activeModal.panel, "[data-action='save']");
-    on(activeModal.panel, "input", "[data-cf]", (e, t) => {
+    activeModal = openDialog({
+      eyebrow: state.company.회사명 || "회사정보",
+      title: "회사정보 수정",
+      width: 580,
+      bodyClass: "dlg-body--sections",
+      body: html`${sections.map((sec) => html`
+        <section>
+          ${dlgRule({ t: sec.t, cap: EDIT_CAPS[sec.t] || "" })}
+          <div class="dlg-rows">${sec.fields.map(row)}</div>
+        </section>`)}`,
+      hint: hintNow(),
+      hintBlock: missing().length > 0,
+      actions: dlgActions({ ok: "저장", disabled: missing().length > 0 }),
+      onClose: () => { activeModal = null; },
+    });
+    const panel = activeModal.panel;
+    const saveBtn = () => qs(panel, "[data-action='ok']");
+    const sync = () => {
+      const blocked = missing().length > 0;
+      const b = saveBtn();
+      if (b) b.disabled = blocked;
+      activeModal.setHint(hintNow(), blocked);
+    };
+    on(panel, "input", "[data-cf]", (e, t) => {
       /* 연락처 하이픈은 공용 규칙(util/phone.js) — 관리자 화면과 같은 모양으로 레코드에 남아야 한다. */
       form[t.dataset.cf] = t.dataset.cf === "담당자연락처" ? onPhoneInput(t) : t.value;
-      const b = saveBtn();
-      if (b) b.disabled = !isValid();
+      sync(); /* 칸을 다시 그리지 않는다 — 버튼과 힌트만 */
     });
-    on(activeModal.panel, "click", "[data-action='close']", () => closeModal());
-    on(activeModal.panel, "click", "[data-action='save']", () => {
-      if (!isValid()) return;
+    on(panel, "click", "[data-action='ok']", () => {
+      if (missing().length) return;
       /* ⚠️ 예전엔 state.company 에만 담아 화면을 나가면 편집이 사라졌고, 관리자
          거래처 화면은 옛 값을 계속 보여 줬다. 포털과 관리자는 같은 레코드를 본다. */
       client = { ...client, ...recordPatch(form) };
@@ -210,11 +224,13 @@ export function mount(root, { nav }) {
       state.company = companyOf(client);
       const b = saveBtn();
       if (b) {
-        b.className = "hm-btn hm-btn--ok";
+        b.className = "hm-btn hm-btn--ok"; /* 저장 순간 초록 — 예전 모달의 확인 신호를 그대로 둔다 */
         b.disabled = true;
-        setHTML(b, html`${icon("check", { size: 15 })} 저장 완료!`);
+        setHTML(b, html`${icon("check", { size: 15 })} 저장했습니다`);
       }
-      saveTimer = setTimeout(() => { saveTimer = null; closeModal(); render(); }, 900);
+      activeModal.setHint(HINT_OK);
+      const m = activeModal;
+      saveTimer = setTimeout(() => { saveTimer = null; m.close(); render(); }, 900);
     });
   }
 
