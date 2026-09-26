@@ -7,7 +7,8 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
-import { pageTitle, tableGrid, openModal, simpleModal, makeDropdown, openLightbox } from "../ui.js";
+import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
+import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
@@ -803,31 +804,49 @@ export function mount(root, { nav }) {
       ⚠️ 이 다이얼로그는 거래처 모달 **위에 스택**된다 — 핸들을 `activeModal` 에 담으면 안 된다.
          담았더니 아래 거래처 모달의 핸들이 덮여 사라지고, `closeModal()` 만 보는 X·취소 버튼이
          그 뒤로 **무반응**이 됐다(ESC 와 라우터의 closeAllModals 로만 닫혔다). 로컬 핸들을 쓴다. */
+  /* 가입 거부 사유 — 공용 다이얼로그 규격(util/dialog.js, 2026-09-26 이식). 거래처 모달 **위에 스택**되므로
+     핸들은 지역 변수다(페이지의 activeModal 에 담으면 아래 모달의 핸들이 덮인다 — 규약의 그 결함).
+     사유가 **어디로 가는지**를 캡션이 말한다: 알림톡 T10(명세 9.4)과 로그인 화면(util/client.js portalBlock). */
   function openReject(client, onDone) {
     if (!onDone) closeModal();
-    const body = html`
-      <div class="hm-warn"><span><b>${client.companyName}</b> 거래처의 가입을 거부합니다. 입력한 사유는 담당자에게 통보됩니다.</span></div>
-      <div class="hm-field" style="margin-top:16px;">
-        <label for="reject-reason">거부 사유<span class="req">*</span></label>
-        <textarea class="hm-input hm-textarea" id="reject-reason" data-reason rows="3" placeholder="거부 사유를 입력하세요."></textarea>
-      </div>
-    `;
-    const footer = html`
-      <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-      <button class="hm-btn hm-btn--danger" data-action="do-reject" disabled>거부 처리</button>
-    `;
-    const m = simpleModal({ title: "가입 거부", subtitle: client.companyName, size: "sm", body, footer });
-    const ta = qs(m.panel, "[data-reason]");
-    const btn = qs(m.panel, "[data-action='do-reject']");
-    on(m.panel, "input", "[data-reason]", () => { btn.disabled = !ta.value.trim(); });
-    on(m.panel, "click", "[data-action='do-reject']", () => {
+    const HINT_OFF = "사유를 적어야 거부할 수 있습니다";
+    const HINT_ON = "거부하면 상태가 '반려'로 바뀌고 신청자에게 알림톡이 갑니다";
+    const d = openDialog({
+      eyebrow: client.companyName,
+      title: "가입을 거부할까요?",
+      width: 480,
+      bodyClass: "dlg-body--sections",
+      body: html`
+        <p class="dlg-desc"><b>${client.companyName}</b>의 가입 신청을 반려합니다. 신청자는 로그인할 수 없고, 로그인을 시도하면 이 사유를 봅니다.</p>
+        <section>
+          ${dlgRule({ t: "거부 사유", cap: "신청자에게 그대로 전달됩니다" })}
+          <div class="dlg-rows">
+            ${dlgRow({ k: "사유", req: true, top: true, htmlFor: "reject-reason",
+              v: html`<textarea class="ord-in" id="reject-reason" data-reason rows="3" placeholder="예) 사업자등록증과 입력한 사업자번호가 다릅니다"></textarea>` })}
+          </div>
+        </section>`,
+      hint: HINT_OFF,
+      hintBlock: true,
+      actions: dlgActions({ ok: "가입 거부", okClass: "hm-btn--danger", disabled: true }),
+    });
+    const ta = qs(d.panel, "[data-reason]");
+    const btn = qs(d.panel, "[data-action='ok']");
+    autosize(ta);
+    on(d.panel, "input", "[data-reason]", () => {
+      autosize(ta);
+      const ok = !!ta.value.trim();
+      btn.disabled = !ok;
+      d.setHint(ok ? HINT_ON : HINT_OFF, !ok); /* 버튼만 흐려 두지 않는다 — 왜 못 누르는지 푸터가 말한다 */
+    });
+    on(d.panel, "click", "[data-action='ok']", () => {
       const reason = ta.value.trim();
       if (!reason) return;
-      m.close();
+      d.close();
       if (onDone) onDone(reason);
       else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); }
       toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
     });
+    ta.focus();
   }
 
   /* 삭제 확인은 모달 안(⋯ 메뉴)과 목록이 **같은 다이얼로그**를 쓴다 —

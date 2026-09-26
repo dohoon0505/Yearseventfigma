@@ -236,11 +236,12 @@
 }
 
 /* ══ HModal — 통일 모달 시스템 (USER · ADMIN 공통) ═══════════════
-   ui.js openModal/simpleModal 이 .modal-overlay > .modal-panel 을 생성.
-   패널 = 단일 규격, 변형은 '크기'만: S 400 · M 480(기본) · L 640 · Split 700.
-   내부 컴포넌트: hm__head/hm__body/hm__foot · hm-btn(primary/secondary/danger)
-   · hm-field/hm-input/hm-grid2 · hm-warn/hm-info 배너 · hm-dl/hm-badge · hm-success.
-   위험·안내는 배너로 전달(이모지·아이콘 박스 금지). raw hex 없음(토큰만). */
+   ui.js openModal 이 .modal-overlay > .modal-panel 을 생성.
+   큰 모달(주문 상세·등록·거래처)은 자기 패널 클래스로 폭을 정하고, **작은 창은 `.dlg-*` 규격**
+   (util/dialog.js openDialog — 아래 '전체 모달 리모델링' 블록)이다. 옛 simpleModal 과 크기 변형
+   S/L·hm-warn/hm-info 배너·hm-grid2·hm-section 은 2026-09-26 에 사용처가 사라져 지웠다.
+   내부 컴포넌트: hm__head/hm__body/hm__foot · hm-btn(primary/secondary/danger/ok)
+   · hm-field/hm-input · hm-dl/hm-badge · hm-success. raw hex 없음(토큰만). */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -267,8 +268,6 @@
   from { opacity: 0; transform: scale(0.97) translateY(4px); }
   to { opacity: 1; transform: none; }
 }
-.modal-panel--sm { width: 400px; }
-.modal-panel--lg { width: 640px; }
 .modal-panel--split { width: 700px; padding: 0; overflow: hidden; }
 
 /* 헤더 */
@@ -294,13 +293,6 @@
 .hm-btn--danger:hover:not(:disabled) { background: var(--c-danger-ink-strong); }
 .hm-btn--ok { background: var(--c-success-ink); color: var(--c-surface); } /* 저장/등록 완료 순간 표시 */
 
-/* 안내/경고 배너 (아이콘 없이 색 워시 + 볼드 리드 문장) */
-.hm-warn, .hm-info { border-radius: var(--r-lg); padding: 12px 14px; font-size: var(--fs-13); color: var(--c-text-2); line-height: 1.6; }
-.hm-warn { background: var(--c-danger-bg); }
-.hm-warn b { color: var(--c-danger-ink); }
-.hm-info { background: var(--c-blue-soft); }
-.hm-info b { color: var(--c-blue); }
-
 /* 폼 필드 (인디고 포커스 — 기존 Text Field 규격) */
 .hm-field { margin-bottom: 16px; }
 .hm-field label { display: block; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2); margin-bottom: 7px; }
@@ -310,13 +302,6 @@
 .hm-input:hover:not(:focus):not(:disabled) { border-color: var(--c-border-strong); }
 .hm-input:focus { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
 .hm-input:disabled { background: var(--c-surface-2); color: var(--c-text-faint); cursor: not-allowed; }
-/* textarea 변형(가입 거부 사유 등) — hm-input 규격 + 여러 줄 높이 */
-textarea.hm-textarea { height: auto; min-height: 92px; padding: 12px 15px; line-height: 1.55; resize: vertical; font-family: inherit; }
-.hm-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-/* 라디오 그리드(수신 ON/OFF) 아래 안내 배너가 붙지 않도록 여백 확보 */
-.hm-grid2 + .hm-info, .hm-grid2 + .hm-warn { margin-top: 14px; }
-.hm-section { font-size: 12px; font-weight: var(--fw-bold); color: var(--c-text-muted); margin: 22px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--c-divider); }
-.hm-section:first-child { margin-top: 4px; }
 
 /* 모달 내 커스텀 드롭다운 (ui.js makeDropdown 짝 · hm-input 규격 · 패널은 위로 전개
    → 모달 하단 select 도 overflow 클리핑 없이 열림). 페이지 .dd 와 독립 스코프. */
@@ -1620,6 +1605,11 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .dlg-row__v { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .dlg-row .ord-in { height: 38px; padding: 0 10px; }
 .dlg-row__unit { flex: 0 0 auto; font-size: var(--fs-14); color: var(--c-text-4); }
+/* 읽기 전용 값(주문 접수 확인의 요약) — 입력칸이 아니라는 게 보이게 테두리·hover 없이 값만 굵게 */
+.dlg-val { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+.dlg-val--won { color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+/* 목록 아래 보조 동작 한 줄(포털 보내는분의 '새 명의 등록') — openRowPicker 의 `after` */
+.dlg-after { margin-top: 14px; display: flex; justify-content: flex-end; }
 /* 값이 핵심인 칸만 굵게(이름·연락처·금액). 부서처럼 보조적인 값까지 600 이면
    행 전체가 제목처럼 읽힌다 — 시안의 굵기 구분을 이 변형이 담당한다. */
 .dlg-row .ord-in--plain { font-weight: var(--fw-normal); }
