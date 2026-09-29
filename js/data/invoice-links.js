@@ -41,7 +41,7 @@ export const INVOICE_LINKS = {
     doc: seedDoc("C001", "2026-04", {
       title: "26년 04월 꽃배달 거래명세서",
       period: "2026년 04월 귀속",
-      buyer: { address: "서울특별시 강남구 예시로 101 한빛빌딩", company: "한빛과학(주)", bizNumber: "000-00-00001", ceo: "한빛과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: INVOICE_NOTE.wait },
+      buyer: { address: "서울특별시 강남구 예시로 101 한빛빌딩", company: "한빛과학(주)", bizNumber: "000-00-00001", ceo: "김민준", summary: "꽃배달 이용료 청구", issueDate: "2026년 05월 01일", invoiceNote: INVOICE_NOTE.wait },
       supplier: SUPPLIER,
       items: [],
       account: ACCOUNT,
@@ -55,7 +55,7 @@ export const INVOICE_LINKS = {
     doc: seedDoc("C001", "2026-03", {
       title: "26년 03월 꽃배달 거래명세서",
       period: "2026년 03월 귀속",
-      buyer: { address: "서울특별시 강남구 예시로 101 한빛빌딩", company: "한빛과학(주)", bizNumber: "000-00-00001", ceo: "한빛과학", summary: "꽃배달 이용료 청구", issueDate: "2026년 04월 01일", invoiceNote: INVOICE_NOTE.done },
+      buyer: { address: "서울특별시 강남구 예시로 101 한빛빌딩", company: "한빛과학(주)", bizNumber: "000-00-00001", ceo: "김민준", summary: "꽃배달 이용료 청구", issueDate: "2026년 04월 01일", invoiceNote: INVOICE_NOTE.done },
       supplier: SUPPLIER,
       items: [],
       account: ACCOUNT,

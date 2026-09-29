@@ -6,11 +6,14 @@
    bypassable via devtools / direct hash navigation), so this gate is
    a UX/demo convenience only — the same posture as the existing mock
    enterprise login (login.js has no real authentication either).
-   There are no real secrets here (seed accounts carry no passwords).
-   ⚠️ PII: the 거래처 seed (data/admin-mock.js INITIAL_CLIENTS) IS real data
-   migrated from the old system — CEO names and contact numbers included.
-   It stays in this public repo/site by user decision (2026-09-25,
-   HANDOFF '일부러 남긴 것'). Do not describe it as mock.
+   There are no real secrets here — the seed 거래처 share the demo password
+   `demo1234` (data/admin-mock.js DEMO_PASSWORD).
+   The 거래처 seed (INITIAL_CLIENTS) is FICTIONAL since 2026-09-29: clients are
+   not migrated from the old system (everyone signs up anew), so the real
+   records were replaced. Do not put real companies/people/contacts back —
+   this repo and site are public. (Operator-side data stays: the supplier
+   block in data/invoice-links.js and the two system staff numbers in
+   data/staff-mock.js.)
 
    PRODUCTION PATH: replace resolveRole() with a real server call and
    enforce the role SERVER-SIDE — session cookie or JWT with a role

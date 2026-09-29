@@ -2,7 +2,7 @@
    store.js — global state (profiles / contacts / favorites)
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
-import { INITIAL_CLIENTS } from "./data/admin-mock.js";
+import { INITIAL_CLIENTS, SEED_BILLING } from "./data/admin-mock.js";
 /* 동의 상태(발행·마감·자동 동의·작성일자)는 규칙 모듈 한 곳에서 파생한다 — import 0 이라 순환이 없다. */
 import { agreementState, fmtAt, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
@@ -15,8 +15,8 @@ import { getClientId, isReservedAccountId } from "./session.js";
 /* ⚠️ Contact 의 키는 `id` 다. `no` 는 화면에 보이는 순번일 뿐이라 쓰기마다 다시 매겨진다 —
    삭제하면 뒤 번호가 전부 당겨지므로 `no` 로 대상을 지목하면 엉뚱한 사람이 바뀐다. */
 /** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string}} Client */
-/* password 는 셀프 가입(register.js)으로 만든 레코드에만 있다. 이관 시드에는 없다 —
-   관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
+/* password 는 셀프 가입(register.js)·데모 시드(`demo1234`)·관리자의 임시비밀번호 발급이 채운다. 로그인은 언제나
+   검사한다(login.js). 관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
 
 /* ── Static product catalog (immutable) ─────────────────── */
 export const ALL_PRODUCTS = [
@@ -73,8 +73,15 @@ const INITIAL_CONTACTS = [
 ];
 
 /* 담당자는 **거래처별**이다(백엔드 명세서 5.1 Client 1:N Contact).
-   이관 시드 3명은 데모에서 포털에 로그인하는 거래처, 즉 첫 거래처에 귀속시킨다. */
+   위 3명은 데모에서 포털에 주로 로그인하는 첫 거래처 소속이다. 나머지 거래처는 SEED_BILLING(admin-mock)의
+   정산담당 1명씩 — 데모 거래처는 모두 '가입 완료' 상태라 가입 2단계 담당자가 정산담당이 된 모양과 같다
+   (2026-09-29 · 법무 답 '정산담당자는 필수'). */
 const FIRST_CLIENT = INITIAL_CLIENTS[0] ? INITIAL_CLIENTS[0].id : "C001";
+const seedContactsByClient = () => Object.fromEntries(INITIAL_CLIENTS.map((c) => {
+  if (c.id === FIRST_CLIENT) return [c.id, INITIAL_CONTACTS.map((x) => ({ ...x }))];
+  const [name, role, phone] = SEED_BILLING[c.id] || [c.managerName, "", c.contact];
+  return [c.id, [{ id: `ct-${c.id}`, name, role, phone, message: MSG_RECEIVE, isBilling: true }]];
+}));
 let ctSeq = 100;
 export const newContactId = () => `ct${++ctSeq}`;
 /* 프로필도 안정 id 를 갖는다 — `no` 는 `reindexNo` 가 쓰기마다 다시 매기는 표시
@@ -83,9 +90,12 @@ let pfSeq = 100;
 export const newProfileId = () => `pf${++pfSeq}`;
 
 /* ── Reactive store ─────────────────────────────────────── */
-/* ⚠️ 키를 올리지 않는다. 올리면 담당자뿐 아니라 거래처 편집·단가·프로필까지 **전부** 버려진다.
-   담당자 구조 변경(전역 → 거래처별)은 hydrateContacts 가 두 모양을 다 읽어 흡수한다. */
-const KEY = "yeop.store.v4"; // v4: 구 시스템 거래처 실데이터 이관(19곳) + clientNote 필드
+/* ⚠️ 키는 함부로 올리지 않는다. 올리면 담당자뿐 아니라 거래처 편집·단가·프로필까지 **전부** 버려진다.
+   담당자 구조 변경(전역 → 거래처별)은 hydrateContacts 가 두 모양을 다 읽어 흡수한다.
+   v5 는 예외다(2026-09-29) — 거래처를 가상 데모로 바꿨는데 hydrate 는 저장값이 시드를 이기므로, 올리지 않으면
+   이미 열어 본 브라우저에 구 시스템 **실데이터**가 계속 남는다. 옛 키는 읽지 않고 지운다. */
+const KEY = "yeop.store.v5"; // v5: 가상 데모 거래처 19곳(비밀번호·약관·정산담당 포함)
+const RETIRED_KEYS = ["yeop.store.v4"]; // v4: 구 시스템 거래처 실데이터 — 남기지 않는다
 const subs = new Set();
 const SEED_BY_ID = new Map(INITIAL_CLIENTS.map((c) => [c.id, c]));
 
@@ -97,7 +107,7 @@ let state = {
   /* 발송 프로필도 담당자처럼 **거래처별**이다(2026-09-17 결정). 전역 목록이던 시절 관리자가 한빛과학
      주문에 다른 회사 명의를 고를 수 있었고, 포털에서 남의 거래처 프로필이 보였다. */
   profilesByClient: { [FIRST_CLIENT]: INITIAL_PROFILES.map((p) => ({ ...p })) },
-  contactsByClient: { [FIRST_CLIENT]: INITIAL_CONTACTS.map((c) => ({ ...c })) },
+  contactsByClient: seedContactsByClient(),
   favorites: new Set(),
   clients: INITIAL_CLIENTS.map((c) => ({ ...c })),
   clientPrices: {}, // { [clientId]: { [productKey]: number } } — per-client price overrides
@@ -126,6 +136,7 @@ function persist() {
 }
 
 function hydrate() {
+  RETIRED_KEYS.forEach((k) => { try { localStorage.removeItem(k); } catch { /* storage 비활성 */ } });
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return;
