@@ -13,6 +13,7 @@
 import { store } from "../store.js";
 import { getClientId } from "../session.js";
 import { sharedBizKeys, displayName } from "./biz.js";
+import { CS_PHONE } from "../data/contact.js";
 
 /** @returns {object|null} 로그인한 거래처 레코드(없으면 첫 거래처, 그마저 없으면 null) */
 export function currentClient() {
@@ -32,11 +33,11 @@ export function portalBlock(client) {
     case "승인대기":
       return "가입 승인 심사 중입니다. 승인 안내를 받은 뒤 로그인할 수 있습니다.";
     case "반려":
-      return `가입이 반려되었습니다${client.rejectReason ? ` (사유: ${client.rejectReason})` : ""}. 고객센터로 문의해 주세요.`;
+      return `가입이 반려되었습니다${client.rejectReason ? ` (사유: ${client.rejectReason})` : ""}. 고객센터(${CS_PHONE})로 문의해 주세요.`;
     case "정지":
-      return "이용이 정지된 계정입니다. 고객센터로 문의해 주세요.";
+      return `이용이 정지된 계정입니다. 고객센터(${CS_PHONE})로 문의해 주세요.`;
     default:
-      return "지금은 이용할 수 없는 계정입니다. 고객센터로 문의해 주세요.";
+      return `지금은 이용할 수 없는 계정입니다. 고객센터(${CS_PHONE})로 문의해 주세요.`;
   }
 }
 

@@ -59,6 +59,7 @@ js/
   data/invoice-mock.js  # 거래처별·월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
+  data/contact.js       # 고객센터 번호 단일 소스 — 1668-1840 (로그인 안내·계정 차단 문구·주문 안내)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)

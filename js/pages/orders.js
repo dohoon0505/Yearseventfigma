@@ -7,6 +7,7 @@ import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "..
 import { onRowOpen } from "../util/order-screen.js";
 import { getDateRange, parseOrderDate, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { DATA_NOW } from "../data/admin-mock.js";
+import { CS_PHONE } from "../data/contact.js";
 
 /* 배송 현장사진은 2:3 세로형으로 촬영·수신된다. (데모: 카테고리별 샘플) */
 const DELIVERY_PHOTO = {
@@ -215,7 +216,7 @@ export function mount(root, { nav }) {
 
             <div class="orders-notice">
               <span>🔴</span>
-              <p>아래에 기재되어 있지 않은 주문은 누락 가능성이 있으므로, 고객센터로 확인 문의를 꼭 부탁드립니다.</p>
+              <p>아래에 기재되어 있지 않은 주문은 누락 가능성이 있으므로, 고객센터(${CS_PHONE})로 확인 문의를 꼭 부탁드립니다.</p>
             </div>
 
             <div class="orders-count" data-slot="count">${countBody()}</div>

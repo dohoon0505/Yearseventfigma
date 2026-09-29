@@ -9,6 +9,7 @@ import { store } from "../store.js";
 import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
 import { portalBlock } from "../util/client.js";
+import { CS_PHONE, CS_TEL } from "../data/contact.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -132,7 +133,7 @@ export function mount(root, { nav }) {
 
                 <p class="auth__help">
                   로그인에 문제가 있으신가요?
-                  <button type="button" class="auth__help-link">고객센터 문의</button>
+                  <a class="auth__help-link" href="${CS_TEL}">고객센터 ${CS_PHONE}</a>
                 </p>
               </div>
             </div>

@@ -318,6 +318,12 @@
 .auth__help-link:hover {
   color: var(--c-text-3);
 }
+/* 고객센터 번호(tel: 링크, 2026-09-29) — 전역 링은 흰 면에서 안 보인다 */
+.auth__help-link:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 
 /* ── Responsive: show brand panel ≥1024px, hide mobile bits ── */
 @media (min-width: 1024px) {

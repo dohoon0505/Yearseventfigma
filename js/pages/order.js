@@ -17,6 +17,7 @@ import { BIZ, hourOptions, minOptions } from "../util/date.js";
 import { fmtPhone, phoneOk } from "../util/phone.js";
 import { RIBBON_GROUPS } from "../data/ribbon-phrases.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
+import { CS_PHONE } from "../data/contact.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -268,7 +269,7 @@ function markup() {
             <button class="btn-back" data-goto="3">이전</button>
             <button class="btn-next" data-submit>주문 접수하기</button>
           </div>
-          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 청구될 수 있어요 · 문의 02-0000-0000</p>
+          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 청구될 수 있어요 · 문의 ${CS_PHONE}</p>
         </section>
 
         <!-- 완료 -->
