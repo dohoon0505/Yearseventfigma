@@ -158,25 +158,32 @@ export const fmtKoShortTime = (d) => `${fmtKoShort(d)} ${pad(d.getHours())}:${pa
  * 관리자 표가 **전부 이 한 함수**를 본다.
  *   issued ⇔ issueDate ≤ now
  *   auto   ⇔ 수동 기록이 없고 now > deadline (13:00:00.000 정각은 아직 열려 있다)
+ *            **그리고 마감 전에 약관에 동의했다**(termsAt ≤ deadline — 2026-09-29 법무 답). 의제 조항은 동의한
+ *            약관에서만 나온다. 약관 전이면 마감이 지나도 자동 동의하지 않고, 수동 동의를 기다리며 열려 있다.
+ *            termsAt: `undefined` = 약관을 따지지 않는 순수 규칙 계산(테스트) · `null` = 동의 기록 없음
  *   open   ⇔ issued && mode === null
  * 수동 기록은 **읽을 때 항상 이긴다**(마감은 쓰기에서만 막는다 — store.agreeInvoice).
  * @returns {{ period, invoiceDay, group:"early"|"late", issueDate, deadline, dueDate,
  *            issued, open, mode: null|"manual"|"auto", at: Date|null, docDate: Date|null }}
  */
-export function agreementState({ period, invoiceDay, manualAt = null, now }) {
+export function agreementState({ period, invoiceDay, manualAt = null, termsAt, now }) {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new Error("agreementState: now(Date) is required");
   const day = invoiceDayOf({ invoiceDay });
   const issue = issueDate(period, day);
   const deadline = agreeDeadline(period, day);
   const issued = issue.getTime() <= now.getTime();
   const manual = manualAt instanceof Date ? manualAt : parseAt(manualAt);
+  const terms = termsAt === undefined ? undefined : termsAt instanceof Date ? termsAt : parseAt(termsAt);
+  const termsOk = terms === undefined || (!!terms && terms.getTime() <= deadline.getTime());
   let mode = null, at = null;
   if (manual) { mode = "manual"; at = manual; }
-  else if (now.getTime() > deadline.getTime()) { mode = "auto"; at = deadline; }
+  else if (termsOk && now.getTime() > deadline.getTime()) { mode = "auto"; at = deadline; }
   return {
     period, invoiceDay: day, group: day <= 10 ? "early" : "late",
     issueDate: issue, deadline, dueDate: dueDate(period),
     issued, open: issued && mode === null, mode, at,
+    /* 마감이 지났는데 약관 동의 전이라 자동 동의하지 않은 달 — 화면이 이유를 말할 수 있게 */
+    termsHold: !manual && !termsOk && now.getTime() > deadline.getTime(),
     docDate: mode ? docDate(period, day, at) : (day <= 10 ? periodEnd(period) : null),
   };
 }

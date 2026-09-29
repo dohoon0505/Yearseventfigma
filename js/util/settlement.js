@@ -43,6 +43,8 @@ export function settlementsFor(client, now = new Date()) {
       동의구분: st.mode,
       동의시각: st.at,
       작성일자: st.docDate,
+      /* 마감이 지났지만 약관 동의 전이라 자동 동의하지 않은 달(2026-09-29 법무 답) — 표가 이유를 말한다 */
+      약관보류: st.termsHold,
       /* 수동 기록은 읽을 때 항상 이긴다 — 동의 뒤에 발급일을 늦춰 '발행 전' 이 돼도 동의완료다. */
       거래명세서동의: agreed ? "동의완료" : !st.issued ? "발급예정" : "동의대기",
       계산서발급: agreed ? "발급완료" : "발급대기",

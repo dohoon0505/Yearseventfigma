@@ -50,6 +50,8 @@ const stack = (badge, sub) => html`<span class="settle-stack">${badge}${sub ? ht
 const agreeBadge = (r) => {
   if (r.거래명세서동의 === "동의완료") return stack(ok("동의완료"), `${fmtMd(r.동의시각)} ${r.동의구분 === "auto" ? "자동" : "수동"}`);
   if (!r.issued) return stack(gray("발급예정"), fmtMdHm(r.발행일시));
+  /* 약관 동의 전에 마감된 달 — 마감을 찍으면 '곧 자동 동의된다'로 읽힌다. 자동 동의하지 않는 이유를 쓴다. */
+  if (r.약관보류) return stack(warn("동의대기"), "약관 동의 전 · 자동 동의 안 함");
   return stack(warn("동의대기"), `마감 ${fmtMdHm(r.마감)}`);
 };
 const issueBadge = (r) =>

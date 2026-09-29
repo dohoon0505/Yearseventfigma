@@ -25,6 +25,7 @@ import { icon } from "../icons.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, won } from "../store.js";
 import { pageTitle } from "../ui.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
+import { takeFocusClient, setFocusClient } from "../session.js";
 
 /* 분류는 카탈로그에서 파생한다 — 상수로 박아 두면 상품이 늘 때 조용히 빠진다 */
 const CATS = [...new Set(ALL_PRODUCTS.map((p) => p.category))];
@@ -58,8 +59,10 @@ function parseAmount(raw) {
 
 export function mount(root, { nav }) {
   const clients = () => store.get().clients;
+  /* 거래처 관리의 승인 심사에서 '단가 조정'으로 넘어왔으면 그 거래처로 연다(가입 신청 → 단가 조정 → 승인). */
+  const focus = takeFocusClient("pricing");
   const state = {
-    clientId: clients()[0] ? clients()[0].id : null,
+    clientId: focus && clients().some((c) => c.id === focus) ? focus : clients()[0] ? clients()[0].id : null,
     q: "",
     closed: new Set(), // 접힌 분류 — 기본은 전부 펼침(비교가 목적이므로)
     /* 거래처별 미저장 편집. 거래처를 옮겨도 버리지 않는다 — 단가를 고치다
@@ -137,6 +140,7 @@ export function mount(root, { nav }) {
       return html`<button type="button" class="prc-cli ${state.clientId === c.id ? "is-on" : ""}"
         data-action="pick" data-cid="${c.id}" aria-pressed="${state.clientId === c.id ? "true" : "false"}">
         <span class="prc-cli__nm">${displayName(c, shared)}</span>
+        ${c.status === "승인대기" ? html`<span class="prc-cli__tag">승인대기</span>` : ""}
         ${isDirty(c.id) ? html`<span class="prc-cli__dot" title="저장하지 않은 변경"></span>` : ""}
         <span class="prc-cli__cnt ${n ? "is-on" : ""}">${n ? n : "–"}</span>
       </button>`;
@@ -245,6 +249,7 @@ export function mount(root, { nav }) {
                 </div>
                 <button type="button" class="prc-minibtn" data-action="reset-all">전체 정가로</button>
               </header>
+              <div class="prc-wait" data-slot="wait" ${isPending() ? "" : "hidden"}>${waitBody()}</div>
               <div class="prc-acc" data-slot="acc">${accBody()}</div>
             </section>
           </div>
@@ -255,6 +260,12 @@ export function mount(root, { nav }) {
         </div>
       </div>`);
   }
+  /* 승인대기 거래처 — 여기가 가입 절차의 가운데 단계라는 것과 다음 단계로 가는 길을 말한다. */
+  const isPending = () => (clientOf(state.clientId) || {}).status === "승인대기";
+  const waitBody = () => html`
+    ${icon("info", { size: 14, cls: "prc-wait__ic" })}
+    <span class="prc-wait__msg"><b>가입 승인 대기</b> · 단가를 맞춰 저장한 뒤 승인하면 가입이 끝납니다.</span>
+    <button type="button" class="prc-wait__btn" data-action="to-approve">승인하러 가기 ${icon("arrow-right", { size: 11 })}</button>`;
   const capBody = () => {
     const n = customCount(state.clientId);
     return html`맞춤 <strong>${n}</strong>/${ALL_PRODUCTS.length}종`;
@@ -311,9 +322,16 @@ export function mount(root, { nav }) {
       state.clientId = t.dataset.cid;
       put("side", sideBody());
       put("co", nameOf(state.clientId));
+      const w = qs(root, "[data-slot='wait']");
+      if (w) w.hidden = !isPending();
       put("acc", accBody());
       syncCounts();
       syncPend();
+    } else if (a === "to-approve") {
+      /* 저장 안 한 단가를 두고 떠나면 편집이 사라진다(drafts 는 이 화면 안에만 산다) — 막고 이유를 말한다. */
+      if (isDirty(state.clientId)) { toast("저장하지 않은 단가가 있습니다 · 먼저 저장해 주세요", "warn"); return; }
+      setFocusClient("clients", state.clientId);
+      nav("#/admin");
     } else if (a === "toggle") {
       const cat = t.dataset.cat;
       if (state.closed.has(cat)) state.closed.delete(cat); else state.closed.add(cat);

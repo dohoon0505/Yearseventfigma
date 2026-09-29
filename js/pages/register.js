@@ -7,8 +7,21 @@ import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
+import {
+  INVOICE_DAYS, MIN_CONSENT_DAYS, ISSUE_HOUR, DEADLINE_HOUR, deadlineDayOf, consentWindowHours,
+  periodOf, periodLabel, issueDate, agreeDeadline, dueDate, periodEnd, fmtKoShort, fmtKoShortTime,
+} from "../data/settlement-rules.js";
 
-const STEPS = ["계정 설정", "담당자 정보", "사업자 정보"];
+/* 4단계 '정산 방식'(2026-09-29 사용자 지시) — **발급일은 가입자가 고른다.** 예전엔 가입하면 1일로 박히고
+   관리자만 바꿀 수 있어서, 거래처는 자기 명세서가 언제 나오고 언제까지 동의해야 하는지 모른 채 약관에
+   동의했다. 약관의 자동 동의 조항이 바로 그 일정에 기대므로 발급 안내·발급일·약관 동의를 한 단계에 모은다. */
+const STEPS = ["계정 설정", "담당자 정보", "사업자 정보", "정산 방식"];
+const LAST = STEPS.length;
+/* 발급일 두 무리 — 선택지(INVOICE_DAYS)에서 파생한다. 숫자를 손으로 적으면 규칙이 바뀔 때 갈린다. */
+const EARLY = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);
+const LATE = INVOICE_DAYS.filter((d) => deadlineDayOf(d) !== 10);
+const span = (days) => `${days[0]}~${days[days.length - 1]}일`;
+const hm = (h) => `${String(h).padStart(2, "0")}:00`;
 const BENEFITS = [
   "신규 가입 기업 경조사 상품 1회 무료 제공",
   "실시간 주문·배송 현황 통합 관리",
@@ -38,6 +51,9 @@ export function mount(root, { nav }) {
       /* 사업자등록증 — 관리자가 승인 전에 확인할 증빙. 이미지는 축소해 보관하고
          PDF 는 파일명만 남긴다(실서비스에서는 서버 업로드 후 URL 만 저장). */
       bizLicense: null,
+      /* 거래명세서 발급일 — 빈 값으로 시작한다(고르지 않으면 4단계를 넘길 수 없다). 문자열로 저장한다
+         (관리자 드롭다운이 문자열을 넘기고 선택 표시가 엄격 비교다). */
+      invoiceDay: "",
       /* 이용약관 동의 — 사업자등록증과 같은 게이트다. 체크 없이는 가입이 끝나지 않는다(2026-09-17 결정). */
       termsAgreed: false,
     },
@@ -114,6 +130,7 @@ export function mount(root, { nav }) {
   }
 
   function stepBody() {
+    if (state.step === LAST) return invoiceStep();
     if (state.step === 1) {
       return html`
         ${field({ label: "접속 아이디", name: "userId", placeholder: "4자 이상의 아이디를 입력해주세요", hint: "영문 소문자와 숫자 조합을 권장합니다" })}
@@ -157,12 +174,33 @@ export function mount(root, { nav }) {
         <span class="rf-sign__l">${icon("check-circle", { size: 14 })} 계약서 전자서명</span>
         <span class="rf-sign__r">서명하기 ${icon("arrow-right", { size: 10 })}</span>
       </button>
+    `;
+  }
+
+  /* 4단계 — 발급일 + 발급 안내 + 약관 동의. 발급일을 바꾸면 안내만 부분 갱신한다(셀렉트 포커스 유지). */
+  function invoiceStep() {
+    const v = state.form.invoiceDay;
+    const err = state.errors.invoiceDay;
+    const opt = (d) => html`<option value="${d}" ${v === d ? "selected" : ""}>매월 ${d}일</option>`;
+    return html`
+      <div class="rf" data-field="invoiceDay">
+        <label class="rf__label" for="rf-invoiceDay">거래명세서 발급일<span class="rf__req">*</span></label>
+        <select class="rf__input rf__select ${err ? "is-error" : ""}" id="rf-invoiceDay" name="invoiceDay">
+          <option value="" ${v ? "" : "selected"} disabled>발급일을 선택해주세요</option>
+          <optgroup label="${`매월 ${span(EARLY)} — 계산서 작성일자: 이용한 달의 말일`}">${EARLY.map(opt)}</optgroup>
+          <optgroup label="${`매월 ${span(LATE)} — 계산서 작성일자: 동의한 날`}">${LATE.map(opt)}</optgroup>
+        </select>
+        ${err
+          ? html`<p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${err}</p>`
+          : html`<p class="rf__hint">가입 후에도 바꿀 수 있습니다. 바꾸면 다음 달 발급분부터 적용됩니다.</p>`}
+      </div>
+      <div class="rf-inv" data-slot="inv-guide">${invGuide()}</div>
       <!-- 이용약관 동의 — 자동 동의 조항(data/terms.js)을 읽고 체크해야 가입이 끝난다(2026-09-17 결정).
            공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의·삭제 확인과 같은 장치). 재렌더 없이 클래스만 토글. -->
       <div class="rf rf--agree" data-field="termsAgreed">
         <button type="button" class="dlg-check ${state.form.termsAgreed ? "is-on" : ""}" data-action="terms-ack" aria-pressed="${state.form.termsAgreed ? "true" : "false"}">
           <span class="dlg-check__box" aria-hidden="true"></span>
-          <span>이용약관(거래명세서·계산서 발급 동의 조항)을 읽었고 동의합니다</span>
+          <span>위 발급 방식과 이용약관(거래명세서·계산서 발급 동의 조항)을 읽었고 동의합니다</span>
         </button>
         <div class="rf--agree__row">
           <button type="button" class="rf__link" data-action="terms-view">약관 보기</button>
@@ -172,14 +210,55 @@ export function mount(root, { nav }) {
     `;
   }
 
+  /* 발급 안내 — 날짜는 전부 settlement-rules.js 가 계산한다(관리자 정산·포털 명세서와 같은 규칙).
+     발급일을 고르기 전에는 두 무리의 차이를, 고른 뒤에는 **이번 달 이용분**의 실제 일정을 보여 준다. */
+  function invGuide() {
+    const day = state.form.invoiceDay;
+    if (!day) {
+      return html`
+        <p class="rf-inv__lead">발급일에 따라 동의 마감과 계산서 작성일자가 달라집니다</p>
+        <table class="rf-inv__tbl">
+          <thead><tr><th scope="col"></th><th scope="col">${span(EARLY)}</th><th scope="col">${span(LATE)}</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">동의 마감</th><td>발급한 달 10일 ${hm(DEADLINE_HOUR)}</td><td>발급한 달 28일 ${hm(DEADLINE_HOUR)}</td></tr>
+            <tr><th scope="row">계산서 작성일자</th><td>이용한 달의 말일</td><td>동의한 날</td></tr>
+          </tbody>
+        </table>`;
+    }
+    const period = periodOf(new Date());
+    const issue = issueDate(period, day);
+    const deadline = agreeDeadline(period, day);
+    const remind = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate() - 1, ISSUE_HOUR);
+    const early = deadlineDayOf(day) === 10;
+    const hours = consentWindowHours(day);
+    const who = state.form.managerName.trim() ? `${state.form.managerName.trim()}님` : "정산·회계 담당자";
+    return html`
+      <p class="rf-inv__lead"><b>${periodLabel(period)} 이용분</b>은 이렇게 정산됩니다</p>
+      <ol class="rf-inv__steps">
+        <li><b>${fmtKoShortTime(issue)}</b><span>거래명세서 발급 · ${who}에게 알림톡</span></li>
+        <li><b>${fmtKoShortTime(remind)}</b><span>아직 동의하지 않았으면 한 번 더 알림</span></li>
+        <li><b>${fmtKoShortTime(deadline)}</b><span>동의 마감 — 이때까지 동의나 이의가 없으면 <em>자동으로 동의</em>한 것으로 봅니다</span></li>
+        <li><b>동의 즉시</b><span>계산서 발급 · 작성일자 ${early
+          ? `${fmtKoShort(periodEnd(period))}(이용한 달의 말일)`
+          : `동의한 날(자동 동의면 ${fmtKoShort(deadline)})`}</span></li>
+        <li><b>${fmtKoShort(dueDate(period))}</b><span>정산기한 — 이날까지 입금</span></li>
+      </ol>
+      <ul class="rf-inv__notes">
+        <li>동의할 수 있는 시간은 ${Math.floor(hours / 24)}일 ${hours % 24}시간입니다(어느 발급일이든 최소 ${MIN_CONSENT_DAYS}일).</li>
+        <li>품목(생화·화환)이 모두 면세라 세금계산서가 아니라 <b>계산서</b>가 발급됩니다.</li>
+        <li>알림톡이 실패하면 같은 내용을 문자로 보냅니다.</li>
+      </ul>`;
+  }
+
   const cardHead = {
     1: ["계정 정보 설정", "서비스 접속에 사용할 아이디와 비밀번호를 설정해주세요"],
     2: ["경조사 담당자 정보", "서비스를 관리할 담당자 정보를 입력해주세요"],
     3: ["사업자 정보", "거래명세서 및 계약 처리에 필요한 사업자 정보를 입력해주세요"],
+    4: ["정산 방식", "거래명세서를 받을 날짜를 고르고, 계산서가 어떻게 발급되는지 확인해주세요"],
   };
 
   function stepIndicator() {
-    const cur = typeof state.step === "number" ? state.step : 4;
+    const cur = typeof state.step === "number" ? state.step : LAST + 1;
     return STEPS.map((label, i) => {
       const num = i + 1;
       const done = cur > num;
@@ -210,6 +289,7 @@ export function mount(root, { nav }) {
       ["담당자", f.managerName],
       ["연락처", f.contact],
       ["회사명", f.companyName],
+      ["발급일", f.invoiceDay ? `매월 ${f.invoiceDay}일` : ""],
     ];
     return html`
       <div class="rdone">
@@ -271,10 +351,10 @@ export function mount(root, { nav }) {
             ? html`<button type="button" class="rbtn rbtn--prev" data-action="prev">이전</button>`
             : ""}
           <button type="button" class="rbtn rbtn--next" data-action="next">
-            ${state.step === 3 ? "가입 완료하기" : "다음 단계"}
+            ${state.step === LAST ? "가입 완료하기" : "다음 단계"}
           </button>
         </div>
-        <p class="rstep-count">${state.step} / 3 단계</p>
+        <p class="rstep-count">${state.step} / ${LAST} 단계</p>
       `
     );
   }
@@ -306,8 +386,13 @@ export function mount(root, { nav }) {
       const ok = check({ bizNumber: "사업자번호를 입력해주세요", companyName: "회사명을 입력해주세요", ceoName: "대표자명을 입력해주세요", address: "소재지를 입력해주세요", email: "이메일을 입력해주세요" });
       /* 사업자등록증은 승인 심사의 근거다 — 없으면 관리자가 무엇을 보고 승인할지가 없다. */
       if (!state.form.bizLicense) { state.errors.bizLicense = "사업자등록증을 첨부해주세요"; renderWizard(); return; }
-      if (!state.form.termsAgreed) { state.errors.termsAgreed = "이용약관에 동의해주세요"; renderWizard(); return; }
-      if (ok) {
+      if (ok) state.step = 4;
+    } else if (state.step === LAST) {
+      const next = {};
+      if (!INVOICE_DAYS.includes(state.form.invoiceDay)) next.invoiceDay = "발급일을 선택해주세요";
+      if (!state.form.termsAgreed) next.termsAgreed = "이용약관에 동의해주세요";
+      state.errors = next;
+      if (!Object.keys(next).length) {
         registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
         state.step = "done";
       }
@@ -322,13 +407,15 @@ export function mount(root, { nav }) {
     const id = "C" + String(max + 1).padStart(3, "0");
     const d = new Date();
     const joinDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    /* 약관 동의 시각 — 처음 동의한 시각은 따로 둔다(자동 동의 판정용 · store.agreementOf). */
+    const stamp = termsStamp();
     store.addClient({
       id, accountId: f.userId.trim(), password: f.password, // 로그인이 아이디를 trim 해 비교한다
       companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
       managerName: f.managerName, department: f.department, contact: f.contact,
-      email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: "1", clientNote: "",
+      email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: f.invoiceDay, clientNote: "",
       bizLicense: f.bizLicense,
-      termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION,
+      termsAgreedAt: stamp, termsFirstAgreedAt: stamp, termsVersion: TERMS_VERSION,
       /* 셀프 가입은 영업 경로가 'SNS·홈페이지'로 고정된다 — 관리자가 등록하면 비어 있다. */
       salesRoute: "셀프 가입", salesMemo: "", salesDate: joinDate,
     });
@@ -344,6 +431,7 @@ export function mount(root, { nav }) {
   function goPrev() {
     if (state.step === 2) state.step = 1;
     else if (state.step === 3) state.step = 2;
+    else if (state.step === LAST) state.step = 3;
     renderWizard();
   }
 
@@ -454,6 +542,19 @@ export function mount(root, { nav }) {
     }
   });
 
+  /* 발급일 — 안내만 부분 갱신한다. 단계를 다시 그리면 셀렉트가 갈려 나가 키보드로 훑던 포커스가 날아간다. */
+  const offDay = on(root, "change", "select[name='invoiceDay']", (e, t) => {
+    state.form.invoiceDay = t.value;
+    if (state.errors.invoiceDay) {
+      delete state.errors.invoiceDay;
+      t.classList.remove("is-error");
+      const msg = qs(t.closest(".rf"), ".rf__msg--error");
+      if (msg) msg.remove();
+    }
+    const slot = qs(root, "[data-slot='inv-guide']");
+    if (slot) setHTML(slot, invGuide());
+  });
+
   /* 첨부 선택 — 이미지는 축소해 보관한다(localStorage 용량). 실패해도 이름·용량은 남는다. */
   const offFile = on(root, "change", "[data-license-input]", async (e, t) => {
     const file = t.files && t.files[0];
@@ -469,5 +570,6 @@ export function mount(root, { nav }) {
     offInput();
     offClick();
     offFile();
+    offDay();
   };
 }

@@ -10,8 +10,9 @@ import {
   invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, splitPeriod, periodOf,
   periodLabel, shiftPeriod, periodEnd, issueDate, agreeDeadline, dueDate, docDate,
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
-  INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel,
+  INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel, DEADLINE_HOUR,
 } from "../js/data/settlement-rules.js";
+import { TERMS } from "../js/data/terms.js";
 
 let pass = 0, fail = 0;
 const bad = [];
@@ -174,6 +175,31 @@ eq("사례2 자동 동의 시각 불변", fmtAt(stFor(auto1, "2026-06", NOW2).at
 eq("사례3 자동 동의가 동의대기로 안 돌아간다", stFor(auto1, "2026-08", NOW2).mode, "auto");
 eq("사례3 작성일자도 그대로", fmtYmdSafe(stFor(auto1, "2026-08", NOW2).docDate), "2026-08-31");
 eq("변경 이후 귀속월은 새 발급일로", fmtAt(stFor(auto1, "2026-09", D(2026, 10, 20)).issueDate), "2026-10-15 10:00");
+
+/* ── 약관 동의 전에는 자동 동의하지 않는다 (2026-09-29 법무 답 · 명세 3.4) ── */
+const stT = (termsAt, now, manual = null) => agreementState({ period: "2026-08", invoiceDay: "1", manualAt: manual, termsAt, now });
+const AFTER = D(2026, 9, 12); // 마감(2026-09-10 13:00) 이틀 뒤
+eq("약관: termsAt 미지정(순수 규칙)이면 기존대로 자동", stT(undefined, AFTER).mode, "auto");
+eq("약관: 마감 전에 동의했으면 자동", stT("2026-09-01 09:00", AFTER).mode, "auto");
+eq("약관: 마감 정각에 동의했어도 자동", stT("2026-09-10 13:00", AFTER).mode, "auto");
+eq("약관: 동의 기록 없음 → 자동 아님", stT(null, AFTER).mode, null);
+eq("약관: 동의 기록 없음 → 수동 동의를 기다리며 열림", stT(null, AFTER).open, true);
+eq("약관: 동의 기록 없음 → termsHold", stT(null, AFTER).termsHold, true);
+eq("약관: 마감 뒤에 동의 → 그 달은 자동 아님", stT("2026-09-11 09:00", AFTER).mode, null);
+eq("약관: 마감 전이면 termsHold 아님", stT(null, D(2026, 9, 5)).termsHold, false);
+eq("약관: 수동 기록은 약관과 무관하게 이긴다", stT(null, AFTER, "2026-09-11 10:00").mode, "manual");
+eq("약관: 자동 동의 작성일자는 그대로(1일 → 말일)", fmtYmdSafe(stT("2026-09-01 09:00", AFTER).docDate), "2026-08-31");
+
+/* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 버전 고정 문장이라 파생하지 않는다) ── */
+const clause2 = TERMS[0].items[1];
+const early = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);
+const late = INVOICE_DAYS.filter((d) => deadlineDayOf(d) !== 10);
+eq("약관 ②: 이른 무리 범위", clause2.includes(`${early[0]}일~${early[early.length - 1]}일인 경우 발급월 10일`), true);
+eq("약관 ②: 늦은 무리 범위", clause2.includes(`${late[0]}일~${late[late.length - 1]}일인 경우 발급월 28일`), true);
+eq("약관 ②: 최소 동의 기간", clause2.includes(`${MIN_CONSENT_DAYS}일 이상`), true);
+eq("약관 ②: 마감 시각", clause2.includes(`13:00`) && DEADLINE_HOUR === 13, true);
+eq("약관 ⑤: 무리 범위가 ②와 같다", TERMS[0].items[4].includes(`${early[0]}일~${early[early.length - 1]}일`) && TERMS[0].items[4].includes(`${late[0]}일~${late[late.length - 1]}일`), true);
+eq("약관 ⑥: '수정할 수 없다' 가 남아 있지 않다", /취소·수정할 수 없/.test(TERMS[0].items[5]), false);
 
 console.log(`settlement-rules: ${pass} passed, ${fail} failed`);
 if (fail) { bad.forEach((b) => console.log("  x " + b)); process.exit(1); }

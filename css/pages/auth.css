@@ -777,7 +777,7 @@
 .rf-file__re { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--c-blue); }
 .rf__req { color: var(--c-danger-ink); margin-left: 2px; }
 
-/* ── 가입 3단계: 이용약관 동의 행 — 공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의와 같은 장치) ── */
+/* ── 가입 4단계(정산 방식): 이용약관 동의 행 — 공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의와 같은 장치) ── */
 .rf--agree { margin-top: 12px; }
 .rf--agree__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .rf__link {
@@ -787,3 +787,50 @@
 }
 /* 전역 링(주황 9% 알파)은 흰 면에서 1.1:1 — 직접 그린다 */
 .rf__link:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; border-radius: 3px; }
+
+/* ── 가입 4단계(정산 방식): 발급일 셀렉트 + 발급 안내 (2026-09-29) ──
+   안내는 약관 동의 바로 위에 있다 — 자동 동의 조항이 기대는 일정이 여기서 처음 보인다.
+   힌트(.rf__hint 11px)보다 크게 둔다: 읽고 동의하라는 내용이라 작은 회색 글씨면 건너뛴다. */
+.rf__select { cursor: pointer; }
+.rf__select:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 1px; }
+.rf-inv {
+  margin-top: 4px;
+  background: var(--c-surface-hover);
+  border: 1px solid var(--c-fill-3);
+  border-radius: 7px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rf-inv__lead { font-size: var(--fs-13); color: var(--c-text-2); }
+.rf-inv__lead b { color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.rf-inv__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rf-inv__steps li {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  font-size: var(--fs-12);
+  line-height: 1.55;
+  color: var(--c-text-3);
+}
+.rf-inv__steps b { color: var(--c-text-strong); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.rf-inv__steps em { font-style: normal; font-weight: var(--fw-semibold); color: var(--c-danger-ink); }
+.rf-inv__notes {
+  margin: 0;
+  list-style: disc;
+  padding: 12px 0 0 16px;
+  border-top: 1px solid var(--c-fill-3);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  color: var(--c-text-muted);
+}
+.rf-inv__notes b { color: var(--c-text-2); }
+.rf-inv__tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-12); }
+.rf-inv__tbl th, .rf-inv__tbl td { padding: 7px 8px; text-align: left; border-top: 1px solid var(--c-fill-3); }
+.rf-inv__tbl thead th { border-top: 0; color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.rf-inv__tbl tbody th { color: var(--c-text-muted); font-weight: var(--fw-medium); white-space: nowrap; }
+.rf-inv__tbl td { color: var(--c-text-2); }
+@media (max-width: 420px) {
+  .rf-inv__steps li { grid-template-columns: 1fr; gap: 2px; }
+}

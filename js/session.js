@@ -22,6 +22,7 @@ const KEY = "yeop.session.v1";
 const CKEY = "yeop.session.client.v1"; // which 거래처 the enterprise user is (drives per-client pricing)
 const RKEY = "yeop.session.return.v1"; // 로그인 전에 들어오려던 주소 — 로그인 직후 한 번 쓰고 지운다
 const NKEY = "yeop.session.notice.v1"; // 라우터가 세션을 끊은 이유 — 로그인 화면이 한 번 말하고 지운다
+const FKEY = "yeop.session.focus.v1"; // 화면 사이에 넘겨주는 "이 거래처를 열어라" — 받는 화면이 한 번 쓰고 지운다
 const VALID = new Set(["admin", "enterprise"]);
 
 // DEMO credential — replace with a server authentication call in production.
@@ -74,6 +75,21 @@ export function takeReturnTo() {
    그 이유를 한 번 말한다. 이유 없이 로그인 화면으로 튕기면 사용자는 무엇이 잘못됐는지 모른다. */
 export function setLoginNotice(msg) {
   if (msg) sessionStorage.setItem(NKEY, msg);
+}
+/* ── 화면 사이 거래처 넘겨주기 (2026-09-29) ──
+   가입 승인은 **가입 신청 → 단가 조정 → 승인** 순서다(사용자 지시). 거래처 관리와 기업별 상품단가가 다른
+   화면이라, 한쪽에서 "이 거래처" 를 들고 다른 쪽으로 건너가야 한다. 라우터가 쿼리를 모르므로 세션에 남긴다.
+   `screen` 이 맞는 화면만 꺼내 쓰고, 꺼내면 지운다(남겨 두면 나중에 사이드바로 들어와도 그 거래처가 열린다). */
+export function setFocusClient(screen, clientId) {
+  try { sessionStorage.setItem(FKEY, JSON.stringify({ screen, clientId })); } catch { /* storage 비활성 — 첫 거래처로 열린다 */ }
+}
+export function takeFocusClient(screen) {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(FKEY) || "null");
+    if (!v || v.screen !== screen) return null;
+    sessionStorage.removeItem(FKEY);
+    return v.clientId || null;
+  } catch { return null; }
 }
 export function takeLoginNotice() {
   const m = sessionStorage.getItem(NKEY);

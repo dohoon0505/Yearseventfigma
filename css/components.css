@@ -1932,6 +1932,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   height: 36px; padding: 0 10px; margin-top: 4px;
   font-size: var(--fs-17); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
 }
+.rail-card .hm-input + .hm-input { margin-top: 6px; } /* 신규 등록의 정산담당자 이름·연락처 두 칸 */
 
 /* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 목록만 잘라 안에서 스크롤한다. */
 .cli-hist {
@@ -1995,6 +1996,11 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-banner__btn--rej { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-danger-ink); }
 .cli-banner__btn--ok { background: var(--c-orange); color: var(--c-surface); }
 .cli-banner__btn--ok:hover { background: var(--c-orange-hover); }
+/* 단가 조정(2026-09-29) — 승인 심사의 가운데 단계. 거부(빨강)·승인(주황) 사이의 중립 버튼 */
+.cli-banner__btn--sub { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-2); }
+.cli-banner__btn--sub:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+.cli-banner__btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
+.cli-banner__state { font-style: normal; font-weight: var(--fw-semibold); }
 
 /* ── 매출 채널 세그먼트 ────────────────────────────────────── */
 .seg-pill { display: flex; gap: 6px; }

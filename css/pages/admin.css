@@ -132,6 +132,27 @@
 }
 .prc-cli__cnt.is-on { color: var(--c-blue); font-weight: var(--fw-semibold); }
 .prc-cli.is-on .prc-cli__cnt { color: inherit; }
+/* 승인대기 거래처 — 가입 절차의 '단가 조정' 단계에 있는 곳(2026-09-29) */
+.prc-cli__tag {
+  flex: 0 0 auto; padding: 1px 6px; border-radius: var(--r-pill);
+  background: var(--c-warn-soft-bg); color: var(--c-warn-soft-ink);
+  font-size: var(--fs-11); font-weight: var(--fw-semibold);
+}
+.prc-wait {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; background: var(--c-warn-soft-bg); border-bottom: 1px solid var(--c-warn-border);
+  font-size: var(--fs-13); color: var(--c-warn-soft-ink);
+}
+.prc-wait[hidden] { display: none; }
+.prc-wait__msg { flex: 1; min-width: 0; }
+.prc-wait__btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 12px; border-radius: var(--r-pill);
+  background: var(--c-orange); color: var(--c-surface);
+  font-size: var(--fs-12); font-weight: var(--fw-semibold);
+}
+.prc-wait__btn:hover { background: var(--c-orange-hover); }
+.prc-wait__btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 
 /* 원장 */
 .prc-main {

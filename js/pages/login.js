@@ -227,7 +227,10 @@ export function mount(root, { nav }) {
         gate: true,
         onAgree: () => {
           termsDlg = null;
-          store.updateClient({ ...c, termsAgreedAt: termsStamp(), termsVersion: TERMS_VERSION });
+          /* 처음 동의한 시각은 **한 번만** 적는다 — 자동 동의가 이 시각 이후 마감만 인정하므로(store.agreementOf),
+             재동의 때 덮어쓰면 이미 자동 동의된 달이 '동의대기'로 되돌아간다. */
+          const stamp = termsStamp();
+          store.updateClient({ ...c, termsAgreedAt: stamp, termsFirstAgreedAt: c.termsFirstAgreedAt || c.termsAgreedAt || stamp, termsVersion: TERMS_VERSION });
           enterPortal(c);
         },
         onClose: () => {

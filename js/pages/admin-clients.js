@@ -6,7 +6,8 @@
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
-import { store } from "../store.js";
+import { store, MSG_RECEIVE, newContactId } from "../store.js";
+import { onPhoneInput, phoneOk } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
@@ -17,6 +18,7 @@ import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 import { openContactsModal } from "../util/contacts-modal.js";
+import { setFocusClient, takeFocusClient } from "../session.js";
 
 const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
 /* 구 시스템 계약체결 리스트(302)의 '계약요청유형'. 별도 화면 대신 거래처 레코드에
@@ -395,6 +397,10 @@ export function mount(root, { nav }) {
     let pwOut = "";
     let savedAt = "";
     const touched = {};
+    /* 신규 등록의 정산·회계 담당자 — **필수**다(2026-09-29 사용자 결정 · 법무 답 '정산담당자는 필수 요소').
+       가입 화면(register.js)은 2단계 담당자를 정산담당으로 만든다. 관리자 등록도 같은 불변식을 지켜야
+       자동 동의의 알림(T3·T4)이 닿을 사람이 늘 있다. 레코드 키가 아니라 담당자 저장공간으로 가므로 form 밖에 둔다. */
+    const bill = { name: "", phone: "" };
     const log = []; // 변경 이력 — 데모는 세션 한정. 서버에서는 감사 로그의 거래처 영역(명세 8.4)이 이 자리를 채운다(2026-09-17 결정)
 
     /* 사업자번호 중복은 "같은 법인의 계정 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
@@ -405,6 +411,8 @@ export function mount(root, { nav }) {
     const missing = () => {
       const out = REQUIRED.filter(([k]) => !String(form[k] ?? "").trim()).map(([, l]) => l);
       if (isEdit ? false : !String(form.accountId ?? "").trim()) out.unshift("접속 아이디");
+      if (!isEdit && !bill.name.trim()) out.push("정산담당자 이름");
+      if (!isEdit && !phoneOk(bill.phone)) out.push("정산담당자 연락처");
       if (dupes().length && !String(form.department ?? "").trim()) out.push("계정 구분");
       return out;
     };
@@ -476,6 +484,19 @@ export function mount(root, { nav }) {
         </div>`;
     };
 
+    /* 신규 등록용 — 입력 두 칸. 등록하면 이 사람이 그 거래처의 첫 담당자이자 정산담당이 되고,
+       카드는 위의 읽기 전용 billingCard 로 바뀐다. */
+    const newBillingCard = () => html`
+      <div class="rail-card">
+        <div class="rail-card__hd">
+          <p class="rail-card__k">정산·회계 담당자</p>
+          <span class="rail-card__bdg">필수</span>
+        </div>
+        <input class="hm-input" data-bill="name" value="${bill.name}" placeholder="이름" aria-label="정산·회계 담당자 이름" />
+        <input class="hm-input" data-bill="phone" value="${bill.phone}" placeholder="010-0000-0000" inputmode="numeric" aria-label="정산·회계 담당자 연락처" />
+        <p class="rail-card__out">거래명세서 발급·동의 마감 알림을 받는 사람입니다.</p>
+      </div>`;
+
     /* ── 레일 ── */
     const railBody = () => html`
       <div class="ord-side__h"><b class="ord-side__t">계정</b><span class="ord-side__cap">${isEdit ? "아이디 변경 불가" : "새 계정"}</span></div>
@@ -489,7 +510,7 @@ export function mount(root, { nav }) {
              정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
         ${pwOut ? html`<p class="rail-card__out">${pwOut}</p>` : ""}
       </div>
-      ${isEdit ? billingCard() : ""}
+      ${isEdit ? billingCard() : newBillingCard()}
       ${isEdit ? html`
         <div class="ord-side__h"><b class="ord-side__t">변경 이력</b><span class="ord-side__cap">${log.length}건</span></div>
         <div class="cli-hist">
@@ -526,9 +547,11 @@ export function mount(root, { nav }) {
     const banners = () => html`
       ${isEdit && form.status === "승인대기" ? html`
         <div class="cli-banner cli-banner--wait">
-          <span class="cli-banner__msg"><b>가입 승인 심사</b> · 사업자등록증의 사업자번호·대표자명이 입력값과 일치하는지 확인하세요.</span>
+          <span class="cli-banner__msg"><b>가입 승인 심사</b> · ① 사업자등록증의 사업자번호·대표자명 확인
+            ② 단가 조정 <em class="cli-banner__state">${priceState(form.id)}</em> ③ 승인</span>
           <span class="cli-banner__acts">
             <button class="cli-banner__btn cli-banner__btn--rej" data-action="reject">거부</button>
+            <button class="cli-banner__btn cli-banner__btn--sub" data-action="to-pricing">단가 조정</button>
             <button class="cli-banner__btn cli-banner__btn--ok" data-action="approve">승인</button>
           </span>
         </div>` : ""}
@@ -656,6 +679,12 @@ export function mount(root, { nav }) {
       if (k === "companyName" || k === "accountId" || k === "bizNumber") renderHd();
       renderFt();
     });
+    on(panel, "input", "[data-bill]", (e, t) => {
+      const k = t.dataset.bill;
+      bill[k] = k === "phone" ? onPhoneInput(t) : t.value;
+      touched[`bill.${k}`] = 1;
+      renderFt();
+    });
     on(panel, "click", "[data-seg]", (e, t) => {
       form[t.dataset.seg] = t.dataset.v;
       touched[t.dataset.seg] = 1;
@@ -685,13 +714,20 @@ export function mount(root, { nav }) {
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${v}(으)로 변경했습니다`);
     });
-    on(panel, "click", "[data-action='approve']", () => {
+    /* 저장하지 않은 편집을 두고 단가 화면으로 가면 편집이 사라진다(라우터가 모달을 닫는다) — 막고 이유를 말한다. */
+    const canLeave = () => {
+      if (!dirty()) return true;
+      toast("저장하지 않은 변경이 있습니다 · 먼저 저장해 주세요", "warn");
+      return false;
+    };
+    on(panel, "click", "[data-action='to-pricing']", () => { if (canLeave()) goPricing(form.id); });
+    on(panel, "click", "[data-action='approve']", () => confirmApprove(form, () => {
       form.status = "활성"; form.rejectReason = "";
       store.updateClient({ ...form });
       push("가입 승인 · 활성 전환", "ok");
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${form.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
-    });
+    }, canLeave));
     on(panel, "click", "[data-action='reject']", () => openReject(form, (reason) => {
       form.status = "반려"; form.rejectReason = reason;
       store.updateClient({ ...form });
@@ -779,7 +815,14 @@ export function mount(root, { nav }) {
       const created = !isEdit;
       if (created) {
         form.accountId = String(form.accountId).trim(); // 로그인이 아이디를 trim 해 비교한다
+        /* 대표 연락처 키(managerName·contact)는 정산 명세서·주문 모달이 읽는다 — 비어 있으면 정산담당으로 채운다(가입과 같은 규칙). */
+        if (!String(form.managerName ?? "").trim()) form.managerName = bill.name.trim();
+        if (!String(form.contact ?? "").trim()) form.contact = bill.phone;
         store.addClient({ ...form });
+        store.setContactsOf(form.id, [{
+          id: newContactId(), name: bill.name.trim(), role: "", phone: bill.phone,
+          message: MSG_RECEIVE, isBilling: true,
+        }]);
         isEdit = true; // 이제 이 창은 방금 만든 거래처의 수정 창이다 — 헤더·레일·배너가 그 모습으로 바뀐다
       } else store.updateClient({ ...form });
       savedAt = nowHM();
@@ -795,9 +838,46 @@ export function mount(root, { nav }) {
 
   // ── approve / reject ───────────────────────────────────
   function approve(client) {
-    store.updateClient({ ...client, status: "활성", rejectReason: undefined });
-    refreshList();
-    toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
+    confirmApprove(client, () => {
+      store.updateClient({ ...client, status: "활성", rejectReason: undefined });
+      refreshList();
+      toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
+    });
+  }
+
+  /* 가입은 **신청 → 단가 조정 → 승인** 순서다(2026-09-29 사용자 지시). 승인 두 경로(목록 버튼·모달 배너)가
+     이 함수 하나를 지난다. 맞춤 단가가 없으면 한 번 묻는다 — 정가 거래가 맞는 거래처도 있으니 막지는 않는다.
+     맞춤 단가 = 저장된 양수 오버라이드(단가 화면이 정가와 같은 값·0 은 저장하지 않는다 — 같은 정의다). */
+  function customPriceCount(id) {
+    return Object.values(store.get().clientPrices[id] || {}).filter((v) => Number(v) > 0).length;
+  }
+  function priceState(id) {
+    const n = customPriceCount(id);
+    return n ? `맞춤 ${n}종` : "아직 없음 · 정가";
+  }
+  function goPricing(id) {
+    setFocusClient("pricing", id);
+    nav("#/admin/pricing");
+  }
+  function confirmApprove(client, doApprove, canLeave = () => true) {
+    if (customPriceCount(client.id)) return doApprove();
+    const d = openDialog({
+      eyebrow: client.companyName,
+      title: "단가를 조정하지 않았습니다",
+      width: 460,
+      body: html`<p class="dlg-desc">이 거래처에는 맞춤 단가가 없습니다. 이대로 승인하면 <b>모든 상품을 정가로</b> 거래하고,
+        가입 완료 알림이 바로 나갑니다.</p>`,
+      hint: "계약 단가가 있으면 먼저 단가를 조정하세요",
+      actions: html`
+        <button class="hm-btn hm-btn--secondary" data-action="to-pricing">단가 조정하기</button>
+        <button class="hm-btn hm-btn--primary" data-action="ok">정가로 승인</button>`,
+    });
+    on(d.panel, "click", "[data-action='to-pricing']", () => {
+      if (!canLeave()) return;
+      d.close();
+      goPricing(client.id);
+    });
+    on(d.panel, "click", "[data-action='ok']", () => { d.close(); doApprove(); });
   }
 
   /** 가입 거부 — 사유는 필수. onDone(reason) 이 있으면 저장은 호출부가 한다(모달 안에서 호출).
@@ -890,6 +970,10 @@ export function mount(root, { nav }) {
     state.search = t.value;
     refreshTableOnly();
   });
+
+  /* 단가 화면의 '승인하러 가기'로 돌아왔으면 그 거래처 창을 바로 연다 — 승인 배너가 거기 있다. */
+  const back = takeFocusClient("clients");
+  if (back && findClient(back)) openClientModal(findClient(back));
 
   return () => {
     offClick();

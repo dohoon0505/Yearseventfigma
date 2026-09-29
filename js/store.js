@@ -277,7 +277,11 @@ export const store = {
     const k = scopeId(clientId);
     const client = state.clients.find((c) => c.id === k);
     /* **그 귀속월에 유효했던** 발급일으로 판정한다 — 발급일을 바꿔도 이미 지난 달의 동의·작성일자는 그대로다. */
-    return agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, now });
+    /* 약관에 **처음** 동의한 시각으로 자동 동의를 가른다(2026-09-29 법무 답 — 약관 동의 전에는 자동 동의 불가).
+       재동의 시각(termsAgreedAt)을 쓰면 약관 버전을 올리는 순간 이미 자동 동의된 달이 '동의대기'로 되돌아간다
+       (발급일 변경 때 겪은 소급 결함과 같은 모양). termsFirstAgreedAt 이 없는 옛 저장본은 termsAgreedAt 을 쓴다. */
+    const termsAt = client ? client.termsFirstAgreedAt || client.termsAgreedAt || null : null;
+    return agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, termsAt, now });
   },
   /** 수동 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다).
    *  발행 전이거나 마감이 지났으면(자동 동의) **기록하지 않고 null** — 화면과 같은 함수·같은

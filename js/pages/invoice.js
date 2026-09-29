@@ -177,6 +177,16 @@ export function mount(root) {
     if (!st.issued) {
       return html`<p class="iv-agree__p">이 달의 거래명세서는 <b>${fmtKoShortTime(st.issueDate)}</b>에 발급됩니다. 발급 후에 계산서 발급 동의를 받습니다.</p>${btn(true)}`;
     }
+    /* 약관에 동의하기 전에 마감된 달 — 자동 동의하지 않았다(2026-09-29 법무 답). 지난 마감 시각을 들어
+       "그때까지 없으면 자동 동의" 라고 말하면 거짓이 된다 → 이유를 말하고 수동 동의를 받는다. */
+    if (st.termsHold) {
+      const holdWhen = st.group === "early"
+        ? html`계산서 작성일자는 <b>${fmtKoShort(st.docDate)}</b>(귀속월 말일)입니다.`
+        : html`계산서 작성일자는 <b>동의한 날</b>입니다(오늘 동의하면 ${fmtKoShort(new Date())}).`;
+      return html`
+        <p class="iv-agree__p">이 명세서는 이용약관에 동의하기 전에 동의 마감(${fmtKoShortTime(st.deadline)})이 지나 <b>자동 동의되지 않았습니다</b>. 내용을 확인하시고 동의해 주세요. ${holdWhen}</p>
+        ${btn(false)}`;
+    }
     const when = st.group === "early"
       ? html`계산서 작성일자는 동의 시점과 관계없이 <b>${fmtKoShort(st.docDate)}</b>(귀속월 말일)입니다.`
       : html`계산서 작성일자는 <b>동의한 날</b>입니다(오늘 동의하면 ${fmtKoShort(new Date())}, 자동 동의면 ${fmtKoShort(st.deadline)}).`;
@@ -389,7 +399,10 @@ export function mount(root) {
     /* 작성일자를 요약에 같이 보여 준다 — 1~10 그룹은 귀속월 말일로 확정, 11~28 그룹은 오늘(동의한 날). */
     const early = st.group === "early";
     const docLabel = early ? fmtYmd(st.docDate) : `${fmtYmd(new Date())} (오늘)`;
-    const hintline = early
+    const hintline = st.termsHold
+      ? (early ? "작성일자는 귀속월 말일로 고정됩니다." : "작성일자는 동의한 날(오늘)입니다.")
+        + " 약관 동의 전에 마감된 달이라 자동 동의되지 않았습니다."
+      : early
       ? `작성일자는 귀속월 말일로 고정됩니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`
       : `작성일자는 동의한 날입니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않으면 자동 동의되고 작성일자는 ${fmtKoShort(st.deadline)}이 됩니다.`;
     dlg = openDialog({
