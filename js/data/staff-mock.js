@@ -21,9 +21,9 @@
 export const STAFF_ROLES = ["최고관리자", "담당자"];
 
 export const STAFF = [
-  /* 구 시스템 이관 — 최근 1년 내 로그인 계정만(나머지 4계정은 폐기). */
-  { id: "s1", name: "최고관리자", dept: "시스템",     phone: "010-7615-2699", notify: true,  accountId: "admin",     role: "최고관리자", system: true },
-  { id: "s2", name: "개발",       dept: "시스템",     phone: "010-8714-1540", notify: false, accountId: "dev",       role: "최고관리자", system: true },
+  /* 구 시스템 이관 — 최근 1년 내 로그인 계정만(나머지 4계정은 폐기). 연락처는 자리표시(2026-10-03 · 알림 체계 M61). */
+  { id: "s1", name: "최고관리자", dept: "시스템",     phone: "010-0000-0201", notify: true,  accountId: "admin",     role: "최고관리자", system: true },
+  { id: "s2", name: "개발",       dept: "시스템",     phone: "010-0000-0202", notify: false, accountId: "dev",       role: "최고관리자", system: true },
   { id: "s3", name: "메이플라워", dept: "운영",       phone: "",              notify: false, accountId: "mayflower", role: "담당자", system: true },
   /* 주문 처리 담당자 — 로그인 계정 없이 배정·알림만 받는다(구 시스템에 대응 없음). */
   { id: "s4", name: "김총무", dept: "총무팀",     phone: "010-1234-5678", notify: true,  accountId: "", role: "담당자" },

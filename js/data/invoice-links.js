@@ -12,8 +12,10 @@
    ============================================================ */
 import { INVOICE_DB } from "./invoice-mock.js";
 
-export const SUPPLIER = { company: "도랑플라워", bizNumber: "321-99-01778", ceo: "김도훈", email: "ehgns335@naver.com", fax: "053-715-2699" };
-export const ACCOUNT = "NH농협은행 352-2284-9916-83 예금주 김도훈(도랑플라워)";
+/** 공급자·입금계좌는 **자리표시**다(2026-10-03 결정 · 알림 체계 M61). 이 저장소·데모 사이트는 공개라 실제 값을 두지 않는다 —
+ *  실서비스 값은 서버 설정값으로 둔다(명세 9.4 · 5.4). 문서·알림톡(T6~T8 #{입금계좌})은 서버가 그 값을 채운다. */
+export const SUPPLIER = { company: "예시플라워", bizNumber: "000-00-00000", ceo: "홍길동", email: "billing@example.com", fax: "02-0000-0000" };
+export const ACCOUNT = "예시은행 000-0000-0000-00 예금주 홍길동(예시플라워)";
 /** 문서의 '계산서 발행' 칸 어휘 — 포털 거래명세서·관리자 정산·공개 링크가 **한 벌**을 쓴다.
  *  예전엔 관리자가 표 배지값('동의하기')을 그대로 PDF 에 흘렸다. 전 품목 면세라 '계산서' 다. */
 export const INVOICE_NOTE = { wait: "발급대기", done: "발급완료" };
