@@ -828,8 +828,8 @@ export function mount(root, { nav }) {
       syncReqSum();
       createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
     });
-    /* 직접 입력 — write-through 만 한다. 푸터 카운터는 셸의 input 위임이
-       queueMicrotask 로 다시 세므로 여기서 건드리지 않는다. */
+    /* 직접 입력 — write-through 만 한다. 푸터 카운터는 셸이 오버레이에서(이 위임이
+       끝난 뒤에) 다시 세므로 여기서 건드리지 않는다. */
     on(panel, "input", "[data-creq]", (e, t) => {
       const k = t.dataset.creq;
       cDraft[k] = k === "requesterPhone" ? onPhoneInput(t) : t.value;

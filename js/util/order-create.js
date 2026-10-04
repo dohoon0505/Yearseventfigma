@@ -208,11 +208,18 @@ export function openOrderCreate(spec) {
   });
   /* 한 글자라도 치면 ESC 가드가 켜진다. 필수 카운터는 매 입력마다 다시 센다 —
      푸터 텍스트/버튼만 건드리고 본문은 재렌더하지 않는다(커서 유지).
-     ⚠️ 세는 시점을 **마이크로태스크로 미룬다.** 이 위임은 셸이 먼저 걸므로 호출부의
-        write-through(`draft[k] = t.value`)보다 **앞서** 실행된다 — 그대로 세면 푸터가
-        항상 한 입력 늦고, 마지막 필수 칸을 채워도 등록 버튼이 비활성인 채 남는다
-        (B2C 에서 리본문구를 다 적고도 등록이 막혔다). */
-  on(modal.panel, "input", "input,textarea", () => { touched = true; queueMicrotask(syncFooter); });
+     ⚠️ 카운터는 **패널이 아니라 오버레이(패널의 부모)에서** 받는다. 호출부의
+        write-through(`draft[k] = t.value`)는 같은 패널에 **셸보다 나중에** 걸리므로
+        패널에서 세면 한 입력 늦은 draft 를 센다. 버블은 패널의 리스너를 전부 돌린 뒤에야
+        오버레이에 닿는다 — 등록 순서와 무관하게 언제나 쓰인 뒤의 값을 센다.
+        (그래서 호출부의 input 위임은 `stopPropagation` 하면 안 된다.)
+     ⚠️ 예전엔 `queueMicrotask(syncFooter)` 로 미뤘는데 **실제 키 입력에서는 소용이 없었다.**
+        사용자 이벤트는 리스너 콜백 하나가 끝날 때마다 마이크로태스크를 비우므로 여전히
+        호출부보다 먼저 돌았다 — 리본문구 마지막 한 글자를 쳐도 등록이 잠긴 채, 지워도 열린
+        채 남았다. `dispatchEvent` 는 스크립트 실행 중이라 끝까지 미뤄져 테스트에서만
+        멀쩡했다. `setTimeout` 도 쓰지 않는다 — 닫힌 뒤에 도는 타이머가 호출부가 비운
+        draft(`cDraft = null`)를 읽는다. */
+  on(modal.panel.parentElement, "input", "input,textarea", () => { touched = true; syncFooter(); });
   on(modal.panel, "click", ".ordnew-pane [data-action], .ordnew-pane button", () => { touched = true; });
 
   steps.forEach((_, i) => { bindStep(i); if (i !== 0) setDisabled(i, true); });
