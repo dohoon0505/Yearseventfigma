@@ -32,7 +32,7 @@ const DOC_W = 794; /* A4 폭(px) — invoice-doc.js 의 .invoice-page 와 같은
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 /* 공급받는자 — 로그인한 거래처에서 매번 파생한다(util/client.js).
-   모듈 로드 시점에 한 번 굽지 않는 이유: 셸 배지·정산 간편조회와 같은 거래처를
+   모듈 로드 시점에 한 번 굽지 않는 이유: 셸 배지·정산회계 조회와 같은 거래처를
    가리켜야 하고, 거래처 정보를 수정하면 문서에도 바로 반영돼야 한다. */
 /* `invoiceNote`(문서의 '계산서 발행' 칸)는 **동의 여부에 따라 달라지므로** 여기서 확정하지 않는다 —
    docData() 가 그 달의 동의 기록을 보고 덮어쓴다. 기본값은 '아직 동의 전'이다. */
@@ -71,7 +71,7 @@ const xCenter = (z) => ({ size: 10.5, color: XA.text2, align: "center", valign: 
 const xLeft   = (z) => ({ size: 10.5, color: XA.ink, align: "left", valign: "center", wrap: true, border: true, ...(z ? { fill: XA.zebra } : {}) });
 const xMoney  = (z) => ({ size: 10.5, color: XA.ink, align: "right", valign: "center", border: true, numFmt: MONEY_FMT, ...(z ? { fill: XA.zebra } : {}) });
 
-/** 정산 간편조회에서 넘겨 준 귀속월이 있으면 그 달로, 없으면 거래가 있는 가장 최근 달로 연다.
+/** 정산회계 조회에서 넘겨 준 귀속월이 있으면 그 달로, 없으면 거래가 있는 가장 최근 달로 연다.
  *  ⚠️ 읽고 **바로 지운다** — 남겨 두면 나중에 사이드바로 그냥 들어왔을 때도 옛 달이 열린다. */
 function initialKey() {
   let handoff = null;

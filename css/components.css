@@ -1774,6 +1774,52 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
       생기면 CSS 로 방향을 뒤집지 말고 배송일시 피커처럼 JS 로 자리를 재야 한다
       (한쪽으로 못박는 규칙은 반대 문맥에서 반드시 어긋난다). */
 
+/* ── 날짜 칸 팝오버 (js/util/day-picker.js · 포털 회사정보 수정의 발급일) ──────────
+   위 경고의 처방이다 — 패널을 **position:fixed + JS 좌표**로 놓아 스크롤 본문에 잘리지 않는다
+   (아래 → 위 → 화면 안으로 당기기, 배송일시 피커 `.ord-dtp__panel` 과 같은 수법).
+   ⚠️ 루트가 `.dd` 가 아니다 — makeDropdown 의 open() 이 문서의 `.dd.open` 을 전부 닫는다.
+   ⚠️ 이 피커를 담는 모달 패널은 transform 없는 등장 애니메이션이어야 한다(hmPopOrd). */
+.dpk { position: relative; display: inline-flex; max-width: 100%; }
+.dpk-trigger {
+  position: relative; display: inline-flex; align-items: center; max-width: 100%;
+  height: 38px; padding: 0 34px 0 12px;
+  border: 1px solid transparent; border-radius: var(--r-lg); background: var(--c-surface-2);
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  white-space: nowrap; transition: background 0.15s, border-color 0.15s;
+}
+.dpk-trigger__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dpk-trigger::after {
+  content: ""; position: absolute; right: 13px; top: 50%; width: 7px; height: 7px;
+  border-right: 1.6px solid var(--c-text-muted); border-bottom: 1.6px solid var(--c-text-muted);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.18s;
+}
+.dpk.is-open .dpk-trigger::after { transform: translateY(-30%) rotate(225deg); }
+.dpk-trigger:hover { background: var(--c-fill-1); }
+.dpk.is-open .dpk-trigger,
+.dpk-trigger:focus-visible {
+  outline: none; background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+.dpk-panel {
+  display: none; position: fixed; left: 0; top: 0; z-index: calc(var(--z-modal) + 5);
+  width: 288px; max-width: calc(100vw - 16px); padding: 8px;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-xl);
+  box-shadow: var(--sh-pop);
+}
+.dpk.is-open .dpk-panel { display: block; }
+.dpk-grp + .dpk-grp { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--c-fill-1); }
+/* 무리 캡션 — 이 무리를 고르면 무엇이 달라지는지(작성일자). 12px 이라 --c-text-4(AA) */
+.dpk-grp__t { padding: 4px 6px 6px; font-size: var(--fs-12); color: var(--c-text-4); }
+.dpk-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.dpk-cell {
+  height: 36px; border-radius: var(--r-lg);
+  font-size: var(--fs-14); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  transition: background 0.1s;
+}
+.dpk-cell:hover { background: var(--c-surface-2); }
+.dpk-cell.is-sel { background: var(--c-orange); color: var(--c-surface); font-weight: var(--fw-semibold); }
+/* 칸 사이 4px 안에 그린다 — 패널은 스크롤 컨테이너가 아니라 바깥 offset 이 잘리지 않는다 */
+.dpk-cell:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 1px; box-shadow: none; }
+
 /* ── 모달 안 드롭다운 전개 방향 ────────────────────────────
    공용 `.modal-panel .dd-panel`(위쪽 343행)은 **위로** 연다 — 작은 모달에서
    패널 하단 필드가 잘리지 않게 한 규칙이다. 주문 모달은 문맥이 둘로 갈리는데
@@ -2390,7 +2436,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   .ordnew-rail { max-height: 220px; overflow-y: auto; }
 }
 
-/* ── 정산 상태 배지 — 관리자 정산회계 · 포털 정산 간편조회 **공용** ────────
+/* ── 정산 상태 배지 — 관리자 정산회계 · 포털 정산회계 조회 **공용** ────────
    페이지 CSS(settlement.css)에 있던 것을 옮겼다 — 두 화면이 쓰는 클래스가 한 페이지 CSS 에 있으면
    다른 화면이 전역 로드에 기대는 암시적 의존이 된다(`.tbl-*`·`.bf-*` 전례).
    배지 아래 보조줄(.settle-td__sub)이 날짜·구분(수동/자동 · 마감 · 작성일자)을 말한다 —

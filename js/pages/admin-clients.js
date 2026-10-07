@@ -14,7 +14,7 @@ import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel } from "../data/settlement-rules.js";
-import { normalizeBiz, sharedBizKeys } from "../util/biz.js";
+import { normalizeBiz, sharedBizKeys, onBizInput } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 import { openContactsModal } from "../util/contacts-modal.js";
@@ -76,13 +76,6 @@ const STATUS_DOT = {
   "반려": "var(--c-text-4)",
 };
 
-/** 사업자번호 입력 정형 — 숫자만 남겨 `###-##-#####` 로. 10자리를 넘기지 않는다. */
-function fmtBiz(v) {
-  const d = String(v || "").replace(/\D/g, "").slice(0, 10);
-  if (d.length > 5) return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
-  if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  return d;
-}
 /** 그 거래처에 등록된 담당자 수 — 목록 배지와 다이얼로그 제목이 같이 읽는다. */
 const contactCount = (id) => store.contactsOf(id).length;
 
@@ -665,13 +658,7 @@ export function mount(root, { nav }) {
     /* 상시 편집 — 값은 write-through 하고 **재렌더하지 않는다** */
     on(panel, "input", "[data-cf]", (e, t) => {
       const k = t.dataset.cf;
-      if (k === "bizNumber") {
-        const pos = t.selectionStart;
-        const before = t.value.length;
-        t.value = fmtBiz(t.value);
-        const move = t.value.length - before;
-        t.setSelectionRange(Math.max(0, pos + move), Math.max(0, pos + move));
-      }
+      if (k === "bizNumber") onBizInput(t); // 하이픈 정형 — 포털 회사정보 수정과 같은 규칙(util/biz.js)
       form[k] = t.value;
       touched[k] = 1;
       if (t.tagName === "TEXTAREA") autosize(t);

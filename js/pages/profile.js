@@ -20,6 +20,7 @@ import { pageHead, tableGrid } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions, openDeleteConfirm } from "../util/dialog.js";
 import { onPhoneInput } from "../util/phone.js";
 import { makeToast } from "../toast.js";
+import { takeFocusSection } from "../session.js";
 
 const trim = (v) => String(v ?? "").trim();
 
@@ -76,11 +77,13 @@ export function mount(root) {
   ];
 
   /* ── 화면 ─────────────────────────────────────────────── */
-  const section = ({ slot, title, count, desc, addAction, addLabel, table }) => html`
-    <section class="pf-card">
+  /* `sec` 는 다른 화면이 이 카드를 지목할 때 쓰는 이름이다(정산회계 조회 › 정산 담당 '변경' → 담당자).
+     제목에 tabindex=-1 을 둔 것은 그때 포커스를 옮겨 화면 낭독기가 어디에 왔는지 읽게 하려는 것이다. */
+  const section = ({ sec, slot, title, count, desc, addAction, addLabel, table }) => html`
+    <section class="pf-card" data-sec="${sec}">
       <div class="pf-card__hd">
         <div class="pf-card__hdl">
-          <h2>${title} <span class="pf-count">${count}</span></h2>
+          <h2 tabindex="-1">${title} <span class="pf-count">${count}</span></h2>
           <p>${desc}</p>
         </div>
         <button class="pf-add" data-action="${addAction}">${addLabel}</button>
@@ -121,6 +124,7 @@ export function mount(root) {
             })}
             <div class="pf-secs">
               ${section({
+                sec: "profiles",
                 slot: "ptable",
                 title: "발송인 프로필",
                 count: html`<span data-slot="pcount">${profiles().length}</span>`,
@@ -130,6 +134,7 @@ export function mount(root) {
                 table: profileTable(),
               })}
               ${section({
+                sec: "contacts",
                 slot: "ctable",
                 title: "담당자",
                 count: html`<span data-slot="ccount">${contacts().length}</span>`,
@@ -340,6 +345,25 @@ export function mount(root) {
 
   render();
 
+  /* 다른 화면이 구역을 지목하고 왔다 — 그 카드를 화면에 올리고 잠깐 표시한다.
+     담당자 카드는 발송인 프로필 카드 아래라, 그냥 이동하면 프로필이 많은 거래처에서는 첫 화면에 안 보인다. */
+  let flashTimer = null;
+  let flashRaf = 0;
+  const focusSec = takeFocusSection("profile");
+  const target = focusSec ? qs(root, `[data-sec='${focusSec}']`) : null;
+  if (target) {
+    /* ⚠️ 다음 프레임에 스크롤한다 — 라우터가 mount() 가 끝나자마자 `target.scrollTop = 0` 으로 되돌린다
+       (router.js). 여기서 바로 scrollIntoView 하면 그 한 줄에 지워져 카드가 첫 화면 아래에 남는다(1366x768 실측). */
+    flashRaf = requestAnimationFrame(() => {
+      flashRaf = 0;
+      target.scrollIntoView({ block: "start" });
+      const h = qs(target, "h2");
+      if (h) h.focus({ preventScroll: true });
+    });
+    target.classList.add("is-flash");
+    flashTimer = setTimeout(() => { flashTimer = null; target.classList.remove("is-flash"); }, 1600);
+  }
+
   const off = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "new-profile") return openForm("profile", null);
@@ -363,5 +387,7 @@ export function mount(root) {
     off();
     closeDlg();
     toast.destroy();
+    if (flashTimer) clearTimeout(flashTimer);
+    if (flashRaf) cancelAnimationFrame(flashRaf);
   };
 }

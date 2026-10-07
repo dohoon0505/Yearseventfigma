@@ -185,7 +185,7 @@ export function mountShell(appRoot, variant = "enterprise") {
 
 /** 셸 상단 거래처 배지를 현재 로그인 거래처 이름으로 다시 칠한다.
  *  마운트마다 부르고, 화면 안에서 회사명을 고친 직후에도 부른다
- *  (정산 간편조회의 회사정보 수정 — 안 부르면 헤더만 옛 이름으로 남는다). */
+ *  (정산회계 조회의 회사정보 수정 — 안 부르면 헤더만 옛 이름으로 남는다). */
 export function refreshClientBadge() {
   if (!shellEl || currentVariant === "admin") return;
   const badge = qs(shellEl, "[data-company]");

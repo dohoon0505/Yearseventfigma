@@ -192,7 +192,7 @@ export function mount(root, { nav }) {
         </select>
         ${err
           ? html`<p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${err}</p>`
-          : html`<p class="rf__hint">가입 후에도 바꿀 수 있습니다. 바꾸면 다음 달 발급분부터 적용됩니다.</p>`}
+          : html`<p class="rf__hint">가입 후에도 정산회계 조회 › 회사정보 수정에서 바꿀 수 있습니다. 바꾸면 다음 달 발급분부터 적용됩니다.</p>`}
       </div>
       <div class="rf-inv" data-slot="inv-guide">${invGuide()}</div>
       <!-- 이용약관 동의 — 자동 동의 조항(data/terms.js)을 읽고 체크해야 가입이 끝난다(2026-09-17 결정).

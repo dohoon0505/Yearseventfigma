@@ -43,6 +43,18 @@
   border-radius: var(--r-2xl);
   overflow: hidden;
 }
+/* 다른 화면이 이 카드를 지목하고 왔을 때(정산회계 조회 › 정산 담당 '변경') 잠깐 테두리를 칠한다.
+   transition 이 있어 class 를 떼면 서서히 사라진다. 스크롤 컨테이너(.shell__main) 바깥 여백이 없으니
+   outline 이 아니라 box-shadow 로 — 카드 overflow:hidden 에 잘리지 않는다. */
+.page-profile .pf-card {
+  transition: box-shadow 0.6s ease;
+  scroll-margin-top: 24px;
+}
+.page-profile .pf-card.is-flash {
+  box-shadow: 0 0 0 2px var(--c-indigo), var(--ring-field);
+}
+/* 제목은 포커스만 받는다(tabindex=-1 · 탭 순서에는 없다) — 카드 테두리가 이미 위치를 알리므로 링을 두 번 그리지 않는다 */
+.page-profile .pf-card__hdl h2:focus { outline: none; }
 .page-profile .pf-card__hd {
   display: flex;
   align-items: flex-end;

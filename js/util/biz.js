@@ -1,5 +1,5 @@
 /* ============================================================
-   biz.js — 사업자번호 유틸 (순수 함수 · DOM 비의존).
+   biz.js — 사업자번호 유틸 (순수 함수 · DOM 최소 — `onBizInput` 하나만 입력칸을 만진다).
 
    같은 법인이 부서별로 여러 거래처 레코드를 갖는 경우(기업B)를 다루기 위한
    공용 헬퍼. 사업자번호 중복은 정상 시나리오이므로 "중복 = 오류"가 아니라
@@ -8,6 +8,26 @@
 
 /** 사업자번호에서 숫자만 남긴다 — "680-87-02988" 과 "6808702988" 을 같은 값으로 취급. */
 export const normalizeBiz = (s) => String(s || "").replace(/[^0-9]/g, "");
+
+/** 사업자번호 입력 정형 — 숫자만 남겨 `###-##-#####` 로. 10자리를 넘기지 않는다.
+ *  관리자 거래처 모달과 포털 회사정보 수정이 **같은 모양**으로 레코드에 남겨야 한다
+ *  (예전엔 관리자 화면에만 있어 포털에서 고친 번호는 하이픈 없이 저장됐다). */
+export function fmtBiz(v) {
+  const d = String(v || "").replace(/\D/g, "").slice(0, 10);
+  if (d.length > 5) return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+  if (d.length > 3) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return d;
+}
+/** input 엘리먼트에 write-through 하고 정형값을 돌려준다. 커서는 **늘어난 하이픈만큼 옮겨** 제자리에 둔다
+ *  (연락처의 onPhoneInput 은 끝으로 보내지만 사업자번호는 중간 한 자리를 고치는 일이 흔하다). */
+export function onBizInput(el) {
+  const pos = el.selectionStart ?? el.value.length;
+  const before = el.value.length;
+  el.value = fmtBiz(el.value);
+  const at = Math.max(0, pos + (el.value.length - before));
+  el.setSelectionRange(at, at);
+  return el.value;
+}
 
 /** 2건 이상이 공유하는 사업자번호(정규화값) 집합 — 부서 분리 여부 판정의 단일 기준. */
 export function sharedBizKeys(clients) {

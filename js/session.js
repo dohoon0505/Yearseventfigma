@@ -11,9 +11,10 @@
    The 거래처 seed (INITIAL_CLIENTS) is FICTIONAL since 2026-09-29: clients are
    not migrated from the old system (everyone signs up anew), so the real
    records were replaced. Do not put real companies/people/contacts back —
-   this repo and site are public. (Operator-side data stays: the supplier
+   this repo and site are public. (Operator-side values — the supplier
    block in data/invoice-links.js and the two system staff numbers in
-   data/staff-mock.js.)
+   data/staff-mock.js — were replaced with placeholders on 2026-10-03;
+   the real values are server settings.)
 
    PRODUCTION PATH: replace resolveRole() with a real server call and
    enforce the role SERVER-SIDE — session cookie or JWT with a role
@@ -26,6 +27,7 @@ const CKEY = "yeop.session.client.v1"; // which 거래처 the enterprise user is
 const RKEY = "yeop.session.return.v1"; // 로그인 전에 들어오려던 주소 — 로그인 직후 한 번 쓰고 지운다
 const NKEY = "yeop.session.notice.v1"; // 라우터가 세션을 끊은 이유 — 로그인 화면이 한 번 말하고 지운다
 const FKEY = "yeop.session.focus.v1"; // 화면 사이에 넘겨주는 "이 거래처를 열어라" — 받는 화면이 한 번 쓰고 지운다
+const SKEY = "yeop.session.section.v1"; // 화면 사이에 넘겨주는 "이 구역을 보여 줘라" — 받는 화면이 한 번 쓰고 지운다
 const VALID = new Set(["admin", "enterprise"]);
 
 // DEMO credential — replace with a server authentication call in production.
@@ -92,6 +94,22 @@ export function takeFocusClient(screen) {
     if (!v || v.screen !== screen) return null;
     sessionStorage.removeItem(FKEY);
     return v.clientId || null;
+  } catch { return null; }
+}
+/* ── 화면 사이 구역 넘겨주기 (2026-10-07) ──
+   정산회계 조회의 회사정보 수정에서 '정산 담당 › 변경' 을 누르면 프로필 저장공간의 **담당자 카드**로
+   가야 한다(정산담당은 거기서만 지정한다). 그 카드는 발송인 프로필 카드 아래라 그냥 이동하면 첫 화면에
+   안 보인다. 거래처 넘겨주기(setFocusClient)와 같은 모양이지만 실어 나르는 것이 거래처 id 가 아니라
+   구역 이름이라 키를 따로 둔다 — 한 키에 두 뜻을 실으면 받는 쪽이 무엇을 꺼냈는지 모른다. */
+export function setFocusSection(screen, section) {
+  try { sessionStorage.setItem(SKEY, JSON.stringify({ screen, section })); } catch { /* storage 비활성 — 맨 위에서 열린다 */ }
+}
+export function takeFocusSection(screen) {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(SKEY) || "null");
+    if (!v || v.screen !== screen) return null;
+    sessionStorage.removeItem(SKEY);
+    return v.section || null;
   } catch { return null; }
 }
 export function takeLoginNotice() {

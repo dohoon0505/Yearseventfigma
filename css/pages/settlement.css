@@ -1,93 +1,476 @@
 /* ============================================================
-   settlement.css — SettlementView (정산회계 간편조회)
+   settlement.css — 정산회계 조회 (#/app/settlement) + 관리자 정산회계 표
+
+   포털 화면은 시안 '정산회계 조회 - 리모델링'(2026-10-07)이다 — `.page-settlement` 아래 `.st-*`.
+   회사정보 수정 다이얼로그는 `document.body` 에 붙어 페이지 스코프가 닿지 않으므로 `.modal-panel--setco`.
+   ⚠️ 아래쪽 `.settle-table`/`.settle-trow`/`.settle-td`/`.settle-amount`/`.settle-drill*` 는
+      **관리자 정산회계(admin-settlement.js)** 가 쓴다. 포털은 이제 그것들을 쓰지 않는다 — 포털 모양을
+      바꾸려고 그 규칙을 고치면 관리자 표가 같이 바뀐다.
    ============================================================ */
 .page-settlement {
-  padding: 24px;
+  /* 표 열 폭 — tableGrid 가 grid-template-columns 를 **인라인 style 로** 찍어 미디어쿼리가 못 이긴다.
+     변수로 넘겨 좁은 화면에서 여기만 다시 정의한다. ⚠️ settlement.js 의 `var(--st-*, 폴백)` 과 짝이다. */
+  --st-id: 130px;
+  --st-desc: minmax(0, 1fr);
+  --st-date: 116px;
+  --st-amt: 130px;
+  --st-inv: 156px;
+  --st-pay: 104px;
+  --st-doc: 168px;
+
+  padding: 40px 40px 80px;
+  /* .shell__main 은 --c-bg 를 칠한다 — 셸을 건드리지 않고 이 화면만 덮는다(프로필·상품 화면과 같은 처방) */
+  min-height: 100%;
+  background: var(--c-surface-2);
 }
-.settle-inner {
-  width: 1300px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.page-settlement .st-inner {
+  max-width: 1420px;
+  width: 100%;
 }
-.settle-head {
+.page-settlement .st-edit {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 22px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-strong);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.page-settlement .st-edit:hover {
+  background: var(--c-surface-hover);
+  border-color: var(--c-border-strong);
+}
+/* 전역 :focus-visible 링은 --ring(주황 9% 알파)이라 흰 면에서 1.1:1 — 직접 그린다 */
+.page-settlement .st-edit:focus-visible,
+.page-settlement .st-docno:focus-visible,
+.page-settlement .st-doclink:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* ── 카드 공통 ───────────────────────────────────────────── */
+.page-settlement .st-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+}
+
+/* ── 회사정보 카드 ───────────────────────────────────────── */
+.page-settlement .st-co {
+  margin-bottom: 20px;
+}
+.page-settlement .st-co__hd {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--c-border);
 }
-.settle-head .page-title {
-  margin-bottom: 0;
+.page-settlement .st-co__hl {
+  min-width: 0;
 }
-.settle-edit-btn {
+.page-settlement .st-co__biz {
+  font-size: var(--fs-13);
+  color: var(--c-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.page-settlement .st-co__name {
+  margin-top: 2px;
+  font-size: var(--fs-21);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.018em;
+  color: var(--c-text-strong);
+  overflow-wrap: anywhere;
+}
+.page-settlement .st-co__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.page-settlement .st-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--c-border-input-2);
-  border-radius: 4px;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
   font-size: var(--fs-14);
-  color: var(--c-text-3);
-  font-weight: var(--fw-medium);
-  flex-shrink: 0;
-  transition: background 0.15s;
+  color: var(--c-text-4);
+  white-space: nowrap;
 }
-.settle-edit-btn:hover {
-  background: var(--c-surface-3);
+.page-settlement .st-chip b {
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+}
+/* 이번 달 발급이 바꾸기 전 날짜로 남아 있을 때 — 주황 워시 위 글자는 AA 안전한 ink-strong(tokens 주석) */
+.page-settlement .st-chip--note {
+  background: var(--c-orange-soft);
+  color: var(--c-orange-ink-strong);
+}
+.page-settlement .st-co__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 24px;
+  padding: 8px 24px 14px;
+}
+.page-settlement .st-co__row {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 0 12px;
+  align-items: baseline;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--c-fill-1);
+}
+.page-settlement .st-co__row.is-full {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+}
+.page-settlement .st-co__k {
+  font-size: var(--fs-14);
+  color: var(--c-text-4);
+}
+/* 이메일·주소는 자르지 않는다(시안은 말줄임) — 계산서가 갈 주소를 끝까지 확인할 수 있어야 한다 */
+.page-settlement .st-co__v {
+  min-width: 0;
+  font-size: var(--fs-15);
+  color: var(--c-text-strong);
+  overflow-wrap: anywhere;
+}
+.page-settlement .st-co__v.is-empty {
+  color: var(--c-text-4);
+}
+/* 정산 담당이 없다 — 명세서·계산서 알림을 받을 사람이 없다는 뜻이라 경고색(흰 면 AA 는 danger-ink) */
+.page-settlement .st-co__v.is-warn {
+  color: var(--c-danger-ink);
 }
 
-/* ── Company info ───────────────────────────────────────── */
-.settle-company {
+/* ── 정산 절차 4단계(예전 노란 안내문) ────────────────────── */
+.page-settlement .st-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.page-settlement .st-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  overflow: hidden;
+  border-radius: var(--r-2xl);
 }
-.settle-inforow {
-  display: flex;
-  border-bottom: 1px solid var(--c-border);
+.page-settlement .st-step__n {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--c-surface-2);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
 }
-.settle-inforow:last-child {
-  border-bottom: none;
+.page-settlement .st-step__b {
+  min-width: 0;
 }
-.settle-infocell {
-  display: flex;
+.page-settlement .st-step__b b {
+  display: block;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
 }
-.settle-infocell.has-border {
-  border-left: 1px solid var(--c-border);
+.page-settlement .st-step__b span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  color: var(--c-text-4);
+  word-break: keep-all;
 }
-.settle-infolabel {
-  width: 120px;
-  flex-shrink: 0;
-  background: var(--c-surface-3);
-  padding: 10px 12px;
-  font-size: var(--fs-14);
-  color: var(--c-text-3);
-  font-weight: var(--fw-medium);
-  border-right: 1px solid var(--c-border);
-}
-.settle-infoval {
-  flex: 1;
-  padding: 10px 12px;
-  font-size: var(--fs-14);
-  color: var(--c-text-2);
+/* 단계에 들어가지 않는 규칙(작성일자 · 발급일 변경) — 안내문이 하던 말을 버리지 않는다 */
+.page-settlement .st-steps__note {
+  margin: 10px 2px 20px;
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  color: var(--c-text-4);
+  word-break: keep-all;
 }
 
-/* ── Notice ─────────────────────────────────────────────── */
-.settle-notice {
-  background: var(--c-warn-bg);
-  border: 1px solid var(--c-warn-border);
-  border-radius: 4px;
-  padding: 12px 16px;
+/* ── 정산 내역 표 ────────────────────────────────────────── */
+.page-settlement .st-tbl__hd {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--c-border);
 }
-.settle-notice p {
-  font-size: var(--fs-13);
-  color: var(--c-text-5);
-  line-height: 1.7;
+.page-settlement .st-tbl__hd h2 {
+  font-size: var(--fs-21);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.018em;
+  color: var(--c-text-strong);
 }
-.settle-notice p + p {
+.page-settlement .st-count {
+  color: var(--c-text-muted); /* 21px 큰 글자라 3:1 기준 — 본문 크기였다면 --c-text-4 */
+  font-weight: var(--fw-normal);
+  font-variant-numeric: tabular-nums;
+}
+.page-settlement .st-tbl__hd p {
   margin-top: 4px;
+  font-size: var(--fs-15);
+  color: var(--c-text-4);
 }
-/* ── Table ──────────────────────────────────────────────── */
+.page-settlement .st-unpaid {
+  font-size: var(--fs-14);
+  color: var(--c-text-4);
+  white-space: nowrap;
+}
+/* 시안은 #d94000 — 흰 면 14px 에서 4.49:1 로 AA 바로 아래라 ink-strong(5.1:1) */
+.page-settlement .st-unpaid b {
+  font-weight: var(--fw-semibold);
+  color: var(--c-orange-ink-strong);
+  font-variant-numeric: tabular-nums;
+}
+.page-settlement .st-unpaid.is-zero b {
+  color: var(--c-text-strong);
+}
+/* 공용 tableGrid 를 쓰고 면만 벗긴다(프로필 저장공간 · 담당자 관리 .ctc-list 와 같은 수법) */
+.page-settlement .st-table .table-grid {
+  border: 0;
+  border-radius: 0;
+}
+.page-settlement .st-table .table-grid__head {
+  background: var(--c-surface-2);
+}
+.page-settlement .st-table .table-grid__cell {
+  border-right: 0;
+}
+.page-settlement .st-table .table-grid__head .table-grid__cell {
+  padding: 11px 12px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-4);
+}
+.page-settlement .st-table .table-grid__row .table-grid__cell {
+  padding: 10px 12px;
+  min-height: 58px;
+}
+/* 첫·끝 칸은 카드 안쪽 여백(24px)에 맞춘다 */
+.page-settlement .st-table .table-grid__cell:first-child { padding-left: 24px; }
+.page-settlement .st-table .table-grid__cell:last-child { padding-right: 24px; }
+.page-settlement .st-table .table-grid__row:last-child {
+  border-bottom: 0;
+}
+.page-settlement .st-docno {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--c-orange-ink-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.page-settlement .st-docno:hover { text-decoration: underline; }
+.page-settlement .st-desc {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-text-strong);
+}
+.page-settlement .st-num {
+  color: var(--c-text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.page-settlement .st-amt {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.page-settlement .st-doclink {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.page-settlement .st-doclink:hover { color: var(--c-orange-ink-strong); }
+/* 배지 — 공용 .settle-badge(관리자 표와 공유, 4px 각진 모양)의 **모양만** 시안의 pill 로 바꾼다.
+   색 변형(--ok·--danger·--gray)은 공용 그대로 — 같은 상태가 두 화면에서 다른 색이면 다시 배워야 한다. */
+.page-settlement .settle-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-semibold);
+}
+/* '동의 필요' — 거래처가 할 일이 있는 유일한 상태. 시안의 주황 워시(글자는 AA 안전한 ink-strong) */
+.page-settlement .settle-badge--need {
+  background: var(--c-orange-soft);
+  color: var(--c-orange-ink-strong);
+}
+.page-settlement .st-table .is-center .settle-stack {
+  align-items: center;
+}
+
+/* 연락처·시각은 한 덩어리 — 하이픈·공백에서 줄이 갈리면 번호를 잘못 읽는다(1280 실측: '010-' / '0000-0111') */
+.page-settlement .st-nw {
+  white-space: nowrap;
+}
+
+/* 1440 이하 — 노트북 폭에서 표가 가로로 넘치지 않게 여백과 고정 열을 줄인다. 남는 폭은 청구 내역 칸이 받는다
+   (1366 에서 고정 열을 그대로 두면 청구 내역이 157px 라 '…' 로 잘렸다). 날짜·금액·배지 칸은 내용 폭에 맞춘 값이다. */
+@media (max-width: 1440px) {
+  .page-settlement {
+    --st-id: 124px;
+    --st-date: 108px;
+    --st-amt: 120px;
+    --st-inv: 150px;
+    --st-pay: 100px;
+    --st-doc: 160px;
+    padding: 32px 24px 64px;
+  }
+}
+/* 그보다 좁아도 **잘라 버리지 않는다** — 고정 열 합계(+ 청구 내역 최소 90px)보다 좁아지면 표가 카드 안에서 가로로
+   스크롤한다. 예전엔 `.table-grid`·`.st-card` 의 overflow:hidden 에 오른쪽 '거래명세서' 열이 잘려(1100 실측 ≈30px)
+   행마다 하나뿐인 키보드 경로(명세서 링크)가 사라졌다. 최소 폭은 열 변수에서 계산한다 — 숫자를 따로 적으면 갈린다. */
+.page-settlement .st-table {
+  overflow-x: auto;
+}
+.page-settlement .st-table .table-grid {
+  overflow: visible;
+  min-width: calc(var(--st-id) + var(--st-date) * 2 + var(--st-amt) + var(--st-inv) + var(--st-pay) + var(--st-doc) + 24px + 90px);
+}
+@media (max-width: 1240px) {
+  .page-settlement {
+    /* 문서 번호는 줄이지 않는다 — C001-202610 이 첫 칸 여백(24px) 포함 121px 를 쓴다(1240 실측) */
+    --st-date: 100px;
+    --st-amt: 112px;
+    --st-pay: 92px;
+  }
+  .page-settlement .st-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .page-settlement .st-co__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── 회사정보 수정 다이얼로그(.modal-panel--setco · 시안 '1a · 640px 2열') ───────────
+   공용 `.dlg-*` 규격 위에 이 창에만 있는 것만 둔다. */
+/* ⚠️ transform 없는 등장 애니메이션 — 발급일 패널(.dpk-panel)이 position:fixed 다. 공용 hmPop 의
+   scale 이 도는 0.18s 동안 이 패널이 containing block 이 되어 fixed 패널이 갇힌다(배송일시 피커와 같은 함정).
+   페이지 CSS 가 components.css 뒤에 로드돼 같은 특이도(0,1,0)의 `.modal-panel` 을 이긴다. */
+.modal-panel--setco {
+  animation: hmPopOrd 0.18s ease;
+}
+/* 회사명 | 사업자번호 한 줄 — 짧은 두 칸을 나란히(시안). 라벨은 88px */
+.modal-panel--setco .setco-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+/* ⚠️ 짝 안 두 번째 행은 `.dlg-row:last-child`(0,2,0)라 구분선이 빠진다 — (0,3,0)으로 다시 긋는다 */
+.modal-panel--setco .setco-pair .dlg-row {
+  grid-template-columns: 88px minmax(0, 1fr);
+  border-bottom: 1px solid var(--c-fill-1);
+}
+/* 값 칸이 두 줄(입력 + 안내)인 행 — 라벨을 첫 줄(38px 컨트롤)의 가운데에 맞춘다 */
+.modal-panel--setco .dlg-row--top .dlg-row__k {
+  padding-top: 9px;
+}
+.modal-panel--setco .setco-narrow {
+  max-width: 280px;
+}
+.modal-panel--setco .setco-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.modal-panel--setco .setco-stack .dlg-hintline {
+  margin-top: 6px;
+}
+.modal-panel--setco .setco-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.modal-panel--setco .setco-file {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-2);
+  text-align: left;
+}
+.modal-panel--setco button.setco-file {
+  transition: background 0.15s;
+}
+.modal-panel--setco button.setco-file:hover {
+  background: var(--c-fill-1);
+}
+.modal-panel--setco button.setco-file:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+.modal-panel--setco .setco-file.is-empty {
+  justify-content: flex-start;
+  font-size: var(--fs-15);
+  color: var(--c-text-4);
+}
+.modal-panel--setco .setco-file__n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+}
+.modal-panel--setco .setco-file__m {
+  flex: 0 0 auto;
+  font-size: var(--fs-13);
+  color: var(--c-text-4);
+  font-variant-numeric: tabular-nums;
+}
+.modal-panel--setco .dlg-val {
+  padding-left: 10px; /* 옆 입력칸(.ord-in 10px 안쪽 여백)과 글자 시작을 맞춘다 */
+}
+.modal-panel--setco .setco-none {
+  color: var(--c-danger-ink);
+}
+.modal-panel--setco .setco-note {
+  margin-top: 10px;
+}
+
+/* ── 관리자 정산회계 표(admin-settlement.js) ─────────────────
+   포털은 2026-10-07 리모델로 `.st-*` 로 옮겼다. 여기는 관리자 전용이다. */
 .settle-table {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
@@ -131,14 +514,6 @@
 }
 .settle-td:last-child {
   border-right: 0;
-}
-.settle-td--muted {
-  font-size: var(--fs-14);
-  color: var(--c-text-4);
-  white-space: nowrap;
-}
-.settle-td--clip {
-  overflow: hidden;
 }
 .settle-link {
   display: inline-flex;
