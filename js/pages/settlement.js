@@ -31,7 +31,7 @@ import {
   issueDate, agreeDeadline, shiftPeriod, periodLabel, ISSUE_HOUR, DEADLINE_HOUR,
   fmtYmd, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime,
 } from "../data/settlement-rules.js";
-import { sharedBizKeys, displayName, normalizeBiz, onBizInput } from "../util/biz.js";
+import { sharedBizKeys, displayName, onBizInput } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
 import { currentClient } from "../util/client.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
@@ -241,14 +241,9 @@ export function mount(root, { nav }) {
 
     const missing = () => REQUIRED.filter(([k]) => !trim(form[k])).map(([, l]) => l);
     const emailBad = () => !!trim(form.email) && !EMAIL_RE.test(trim(form.email));
-    /* 다른 계정이 쓰는 사업자번호로 바꾸려 한다 — 같은 법인의 부서 분리는 정상이지만 그때는 **계정 구분**이
-       있어야 하고(서버 400 CLIENT_DEPARTMENT_REQUIRED), 그 칸은 거래처가 고칠 수 없다. 다른 회사 이름은
-       말하지 않는다(남의 거래처 정보다). */
-    const bizTaken = () => {
-      const n = normalizeBiz(form.bizNumber);
-      if (!n || n === normalizeBiz(orig.bizNumber) || trim(client.department)) return false;
-      return store.get().clients.some((c) => c.id !== client.id && normalizeBiz(c.bizNumber) === n);
-    };
+    /* ⚠️ 사업자번호가 **다른 계정과 겹쳐도 막지도, 알리지도 않는다**(2차 결정 N17 ⓖ 와 같은 이유 — '이미 등록된
+       번호' 라고 말하면 남이 우리 거래처를 알아내는 통로가 된다. 로그인한 거래처도 서로에게는 남이다).
+       같은 법인의 부서 분리는 정상이고, 계정 구분은 직원이 채운다(가입과 같은 흐름). */
     const changed = () =>
       TEXT_KEYS.filter((k) => trim(form[k]) !== orig[k]).length
       + (form.invoiceDay !== orig.invoiceDay ? 1 : 0)
@@ -258,7 +253,6 @@ export function mount(root, { nav }) {
       const m = missing();
       if (m.length) return { block: true, text: `필수 항목이 남았습니다 — ${m.join(" · ")}` };
       if (emailBad()) return { block: true, text: "이메일 형식을 확인해 주세요 — 예) billing@company.com" };
-      if (bizTaken()) return { block: true, text: `다른 계정에 등록된 사업자번호입니다 — 바꾸려면 고객센터(${CS_PHONE})에 문의해 주세요` };
       const n = changed();
       return { block: false, text: n ? `수정한 항목 ${n}개 · 관리자 화면에도 함께 반영됩니다` : "관리자 화면에도 함께 반영됩니다" };
     };
