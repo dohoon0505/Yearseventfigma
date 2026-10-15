@@ -24,7 +24,7 @@ import { pageHead, tableGrid, openLightbox } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { dayPickerMarkup, makeDayPicker } from "../util/day-picker.js";
 import { store } from "../store.js";
-/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
+/* 정산 행은 B2B 주문(배송일시의 달)에서 파생한 금액 + store 의 정산 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
 import { settlementsFor, INVOICE_YM_KEY } from "../util/settlement.js";
 import {
   INVOICE_DAYS, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf,
@@ -82,16 +82,29 @@ const badge = (kind, text) => html`<span class="settle-badge settle-badge--${kin
 const stack = (b, sub, warn = false) =>
   html`<span class="settle-stack">${b}${sub ? html`<span class="settle-td__sub ${warn ? "settle-td__sub--warn" : ""}">${sub}</span>` : ""}</span>`;
 const invoiceCell = (r) => {
+  /* 발행 시각이 지났는데 거래가 없는 달 — 명세서도 계산서도 없다(0원 달과 다르다 — 거래명세서 조회도 '내역 없음'). */
+  if (r.계산서발급 === "거래없음") return stack(badge("gray", "거래 없음"), "");
+  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 명세 6.6 의 표 낱말 '0원 · 계산서 없음'. */
+  if (r.계산서발급 === "해당없음") return stack(badge("gray", "0원"), "계산서 없음");
   if (r.계산서발급 === "발급완료")
     return stack(badge("ok", "발급완료"), `작성 ${fmtMd(r.작성일자)}${r.동의구분 === "auto" ? " · 자동 동의" : ""}`);
   if (!r.issued) return stack(badge("gray", "발급대기"), `명세서 ${fmtMdHm(r.발행일시)} 발급`);
   /* 약관 동의 전에 마감된 달(2026-09-29 법무 답) — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다. 이유를 쓴다. */
+  /* 동의는 됐지만 계산서 발급이 아직인 달(AGREED — 발급 실패 뒤 다시 시도·수기 발급 대기). '동의 필요' 가 아니다. */
+  if (r.동의구분) return stack(badge("gray", "발급대기"), "동의 완료 · 계산서 발급 중");
+  /* 마감이 지났는데 자동 동의하지 않은 달 — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다.
+     ⚠️ HOLD_LABEL 은 **관리자 낱말**이다('고지 미도달'·'정지 중 마감' 은 내부 운영 사정). 거래처 화면에는 약관 보류만
+     예전 문구 그대로 두고, 나머지 둘은 사실(마감 지남 · 자동 동의 보류)만 말한다 — 포털 문구는 명세에 아직 없다(열린 질문 10).
+     거래명세서 조회의 동의 카드도 같은 말을 한다('자동 동의가 보류되었습니다'). */
   if (r.약관보류) return stack(badge("need", "동의 필요"), "약관 동의 전 · 자동 동의 안 함", true);
+  if (r.보류) return stack(badge("need", "동의 필요"), "마감 지남 · 자동 동의 보류", true);
   return stack(badge("need", "동의 필요"), `마감 ${fmtMdHm(r.마감)}`);
 };
 /* 정산 칸 — 명세서가 아직 안 나간 달은 '정산 필요' 가 아니다(낼 청구서가 없다). */
 const payCell = (r) =>
-  r.입금완료 === "입금완료" ? badge("ok", "정산완료") : !r.issued ? badge("gray", "청구 전") : badge("danger", "정산 필요");
+  r.입금완료 === "입금완료" ? badge("ok", "정산완료")
+  : r.입금완료 === "거래없음" ? badge("gray", "청구 없음")
+  : !r.issued ? badge("gray", "청구 전") : badge("danger", "정산 필요");
 
 /* 표 열 폭은 `--st-*` 로 넘긴다 — tableGrid 가 grid-template-columns 를 인라인 style 로 찍어
    미디어쿼리가 못 이긴다(상품 규격 안내 `--pc-*` · 프로필 `--pf-*` 와 같은 이유). ⚠️ 폴백을 반드시 함께. */
@@ -139,7 +152,7 @@ export function mount(root, { nav }) {
     const bill = store.getBillingContactOf(client.id);
     const name = displayName(client, sharedBizKeys(store.get().clients));
     /* 미정산 = 명세서가 나갔는데 입금이 확인되지 않은 달. 발행 전 달은 낼 청구서가 없어 세지 않는다. */
-    const unpaid = rows.filter((r) => r.issued && r.입금완료 !== "입금완료").length;
+    const unpaid = rows.filter((r) => r.issued && r.입금완료 === "미입금").length;
 
     const info = (k, v, { full = false, empty = false, warn = false } = {}) => html`
       <div class="st-co__row ${full ? "is-full" : ""}">

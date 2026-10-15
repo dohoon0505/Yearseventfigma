@@ -1,18 +1,15 @@
 /* ============================================================
    admin-mock.js — ADMIN console mock datasets.
    - INITIAL_CLIENTS: 거래처(client companies) — persisted/editable via store.
-   - usageFor(client) / settlementBaseRows(client): 호출 시점에 client 레코드에서
-     파생하는 lazy 목데이터(id 기준 메모이제이션). 정적 맵을 미리 굽지 않으므로
-     UI로 새로 등록한 거래처도 정산 표·리포트에 즉시 나타난다.
-   - 동의·발급 상태는 여기서 찍지 않는다 — store 의 동의 기록이 필요한데 store → admin-mock
-     이라 import 할 수 없다. 조합은 `js/util/settlement.js`(settlementsFor) 가 한다.
+   - 이용 내역·정산 행(usageFor · settlementBaseRows)은 **여기 없다** — 2026-10-16 운영자 결정('주문과 정산을
+     완전히 연결')으로 `js/util/settlement.js` 가 B2B 주문(b2b-mock)에서 파생한다. admin-mock 은 store 와
+     b2b-mock 이 import 하는 바닥층이라 주문을 읽을 수 없다(거꾸로 걸면 순환).
    - 발행일·마감·작성일자 규칙은 `settlement-rules.js` 단일 소스. 여기서는 재수출만 한다.
    Dates are generated RELATIVE TO NOW so the date / year-month filters
    always have current data regardless of when the demo is viewed.
    ============================================================ */
 
-import { INVOICE_DAYS, invoiceDayOf, invoiceDayFor, issueDate, dueDate, fmtDot, periodOf, periodLabel } from "./settlement-rules.js";
-import { INVOICE_DB } from "./invoice-mock.js";
+import { INVOICE_DAYS, invoiceDayOf, periodOf } from "./settlement-rules.js";
 import { TERMS_VERSION } from "./terms.js";
 export { INVOICE_DAYS, invoiceDayOf };
 
@@ -20,13 +17,13 @@ const NOW = new Date();
 /** 목데이터 생성 기준 시각. 화면의 '이번달/저번달' 기본값은 반드시 이 값을 써야
  *  자정·월 전환 후에도(모듈은 재평가되지 않으므로) 데이터 창과 어긋나지 않는다. */
 export const DATA_NOW = NOW;
-const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
-
-// "YYYY년 MM월" for `monthsAgo` before this month
-/* ⚠️ 이 문자열은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 이용 내역 맵의 키가 이 포맷이고,
-   호출부가 만든 라벨과 문자열 비교로 그 달을 찾는다. 포맷이 한 글자만 달라도 표가 통째로 빈다.
-   그래서 settlement-rules.periodLabel 한 곳에서만 만든다(예전엔 독립 구현이 다섯 벌이었다). */
-const ymLabel = (monthsAgo) => periodLabel(periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - monthsAgo, 1)));
+/** DATA_NOW 기준 `monthsAgo` 달 전의 `day` 일("YYYY-MM-DD", 그 달 말일을 넘지 않게). 가상 거래처의 가입일처럼
+ *  **날짜가 지나도 같은 모양으로 보여야 하는** 시드에만 쓴다(첫 명세서가 곧/이미 발급 · 마감 전/뒤로 갈리게). */
+const relDate = (monthsAgo, day) => {
+  const first = new Date(NOW.getFullYear(), NOW.getMonth() - monthsAgo, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return `${periodOf(first)}-${String(Math.min(day, last)).padStart(2, "0")}`;
+};
 
 /* ── 거래처 (client companies) ──────────────────────────────
    **가상 데모 데이터다**(2026-09-29 사용자 결정). 예전엔 구 시스템(flowerdel.pe.kr/adm2)에서 옮긴 실거래처
@@ -62,6 +59,15 @@ export const SEED_BILLING = {
   C017: ["유건우", "구매팀", "010-0000-0117"],
   C018: ["문가람", "총무팀", "010-0000-0118"],
   C019: ["김하나", "총무팀", "010-0000-0119"],
+  /* 관리자가 등록한 가상 거래처(아래 seedPending) — C026 온새미로는 연락처를 비웠다('알림 수신자 없음' 시연). */
+  C020: ["배수아", "경영지원팀", "010-0000-0120"],
+  C021: ["남궁연", "디자인팀", "010-0000-0121"],
+  C022: ["차민호", "총무팀", "010-0000-0122"],
+  C023: ["염다솜", "재무팀", "010-0000-0123"],
+  C024: ["표소담", "운영팀", "010-0000-0124"],
+  C025: ["기윤서", "경영지원팀", "010-0000-0125"],
+  C026: ["설하람", "총무팀", ""],
+  C027: ["서도현", "연구지원팀", "010-0000-0127"],
 };
 /* 매출을 별도 KPI 로 떼어 보는 거래처 채널.
    '일반' 이 기본이고, 그 외 값은 대쉬보드에서 B2B 합계에서 빠져 자기 카드를 갖는다.
@@ -81,6 +87,13 @@ const seed = (c) => {
     termsAgreedAt: at, termsFirstAgreedAt: at, termsVersion: TERMS_VERSION,
     ...c,
   };
+};
+/* 관리자가 등록했고 **아직 약관에 동의하지 않은** 거래처(2026-10-16 운영자 결정 — 예시 상태 시연). 약관 시각이 없어
+   첫 로그인에 약관 게이트가 뜨고, 마감이 지나도 자동 동의하지 않는다(명세 3.4 · termsHold). 가입일은 DATA_NOW 상대 —
+   첫 명세서가 '곧 발급 · 발급·마감 전 · 마감 지남' 으로 갈리게(정확한 D-n 은 보는 날짜에 따라 달라지는 것이 정상). */
+const seedPending = (c) => {
+  const [name, , phone] = SEED_BILLING[c.id];
+  return { status: "활성", password: DEMO_PASSWORD, managerName: name, contact: phone, ...c };
 };
 
 export const INITIAL_CLIENTS = [
@@ -103,13 +116,25 @@ export const INITIAL_CLIENTS = [
   seed({ id: "C017", accountId: "homebox", companyName: "(주)홈박스", bizNumber: "000-00-00017", ceoName: "송지후", department: "", email: "c017@example.com", address: "경기도 파주시 예시로 117", joinDate: "2025-06-24", invoiceDay: "1", clientNote: "★ 상품금액 75,000원으로 기재, 무조건 특대상품 발송\n★ 추가배송비·취소비용 등 추가비용 개별청구\n★ 배송완료 이미지 전달 필수" }),
   seed({ id: "C018", accountId: "coretech", companyName: "(주)코어테크", bizNumber: "000-00-00018", ceoName: "전하율", department: "", email: "c018@example.com", address: "서울특별시 금천구 예시로 118, 4층", joinDate: "2025-05-26", invoiceDay: "1", clientNote: "화환 무조건 8만(기본) / 배송비 일절 없음" }),
   seed({ id: "C019", accountId: "haneul", companyName: "주식회사 하늘빛", bizNumber: "000-00-00019", ceoName: "노승우", department: "", email: "c019@example.com", address: "서울특별시 중랑구 예시로 119, 6층", joinDate: "2026-02-10", invoiceDay: "1", clientNote: "담당: 김하나" }),
+  /* ── 약관 동의 전 가상 거래처(C020~) — 주문은 b2b-mock 이 가입일 이후로만 만든다(누리솔루션은 0건) ──
+     발급일을 INVOICE_DAYS 안에서 갈라 첫 명세서 단계가 다르게 보인다: 1·3·7일(지난달분 마감 지남) ·
+     11·15일(발급·마감 전) · 20일(곧 발급) · 이음테크(이번 달부터 — 다음 달 발급). */
+  seedPending({ id: "C020", accountId: "saesol", companyName: "(주)새솔테크", bizNumber: "000-00-00020", ceoName: "고은결", department: "", email: "c020@example.com", address: "서울특별시 마포구 예시로 120", joinDate: relDate(1, 2), invoiceDay: "1", clientNote: "" }),
+  seedPending({ id: "C021", accountId: "hanbyeol", companyName: "(주)한별디자인", bizNumber: "000-00-00021", ceoName: "류하진", department: "", email: "c021@example.com", address: "서울특별시 성동구 예시로 121, 5층", joinDate: relDate(1, 3), invoiceDay: "15", clientNote: "" }),
+  seedPending({ id: "C022", accountId: "nurisol", companyName: "누리솔루션", bizNumber: "000-00-00022", ceoName: "변지호", department: "", email: "c022@example.com", address: "경기도 성남시 예시로 122", joinDate: relDate(0, 1), invoiceDay: "5", clientNote: "" }),
+  seedPending({ id: "C023", accountId: "dasom", companyName: "(주)다솜물산", bizNumber: "000-00-00023", ceoName: "엄태윤", department: "", email: "c023@example.com", address: "인천광역시 남동구 예시로 123", joinDate: relDate(1, 4), invoiceDay: "3", clientNote: "", status: "정지" }),
+  seedPending({ id: "C024", accountId: "sodam", companyName: "소담케이터링", bizNumber: "000-00-00024", ceoName: "편서우", department: "", email: "c024@example.com", address: "서울특별시 용산구 예시로 124", joinDate: relDate(1, 5), invoiceDay: "20", clientNote: "" }),
+  seedPending({ id: "C025", accountId: "ieum", companyName: "이음테크", bizNumber: "000-00-00025", ceoName: "육민결", department: "", email: "c025@example.com", address: "대전광역시 유성구 예시로 125", joinDate: relDate(0, 1), invoiceDay: "1", clientNote: "" }),
+  seedPending({ id: "C026", accountId: "onsaemiro", companyName: "온새미로", bizNumber: "000-00-00026", ceoName: "탁하늘", department: "", email: "c026@example.com", address: "광주광역시 서구 예시로 126", joinDate: relDate(1, 2), invoiceDay: "7", clientNote: "" }),
+  /* 한빛과학(주)의 연구소 계정 — 같은 사업자번호의 부서 분리(정상 시나리오 · 계정 구분으로 가른다) */
+  seedPending({ id: "C027", accountId: "hanbit-lab", companyName: "한빛과학(주)", bizNumber: "000-00-00001", ceoName: "김민준", department: "연구소 계정", email: "c027@example.com", address: "서울특별시 강남구 예시로 101 한빛빌딩 별관", joinDate: relDate(1, 6), invoiceDay: "11", clientNote: "" }),
 ];
 
-/* ── 거래처별·월별 이용 내역 (항목 카테고리 단위) ──────────────
-   대시보드 인포그래픽·월간 분석 리포트의 원천 데이터.
-   시드 고정 PRNG(mulberry32)로 결정적 생성 → 새로고침해도 값이 흔들리지 않는다.
-   정산금액(settlementBaseRows)은 이 이용 내역의 합계에서 파생 → 표·차트·리포트 정합. */
-/* 항목별 이용 비중은 개별 상품 단위(상품 규격 안내 = store.js ALL_PRODUCTS 와 동일). */
+/* ── 상품 카테고리 (대쉬보드 도넛·월간 리포트의 **기본 순서·색**) ──────────────
+   이용 내역·청구금액은 여기서 만들지 않는다 — 2026-10-16 운영자 결정('주문과 정산을 완전히 연결')으로
+   B2B 주문(배송일시의 달)에서 파생한다(`js/util/settlement.js` usageFor · billingRowsOf). 예전의 난수 생성기
+   (usageMonth · CAT_WEIGHTS)는 주문 생성기(b2b-mock)가 대신해 지웠다.
+   이 목록은 도넛이 품목을 늘어놓는 **기본 순서**일 뿐이고, 실제로 집계된 그 밖의 품목은 뒤에 붙는다(색은 순환). */
 export const USAGE_CATEGORIES = [
   { key: "3단화환(기본형)",  unit: 50000 },
   { key: "3단화환(고급형)",  unit: 60000 },
@@ -121,123 +146,6 @@ export const USAGE_CATEGORIES = [
   { key: "동양란(기본형)",   unit: 50000 },
   { key: "중형 꽃바구니",    unit: 80000 },
 ];
-const CAT_WEIGHTS = [0.2, 0.1, 0.28, 0.14, 0.04, 0.03, 0.03, 0.11, 0.07]; // 상품별 이용 비중(대략, 합=1)
-
-const mulberry32 = (a) => () => {
-  a |= 0; a = (a + 0x6d2b79f5) | 0;
-  let t = Math.imul(a ^ (a >>> 15), 1 | a);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
-/** 거래처 id → 0-based 시퀀스. 배열 인덱스 대신 id를 쓰므로 목록에서 한 건을 지워도
- *  나머지 거래처의 과거 데이터가 흔들리지 않는다. */
-const idNum = (id) => parseInt(String(id).replace(/\D/g, ""), 10) || 0;
-/** 규모 계수는 20주기로 순환 — 21번째 이후 신규 거래처가 랭킹·도넛을 지배하지 않게. */
-const scaleIdx = (ci) => ci % 20;
-
-function usageMonth(ci, m) {
-  const rnd = mulberry32(97 + ci * 131 + m * 17);
-  const scale = 1 + scaleIdx(ci) * 0.35; // 거래처 규모 차이
-  const growth = 1 + (5 - m) * 0.09;  // 최근 월일수록 이용 증가 추세
-  const items = {};
-  let orders = 0, total = 0;
-  USAGE_CATEGORIES.forEach((cat, i) => {
-    const base = 4 * scale * growth * CAT_WEIGHTS[i];
-    const count = Math.max(0, Math.round(base + (rnd() - 0.35) * 3));
-    items[cat.key] = { count, amount: count * cat.unit };
-    orders += count;
-    total += count * cat.unit;
-  });
-  if (orders === 0) { // 최소 1건 보장(빈 월 방지) — 3단화환(특대형)
-    const f = USAGE_CATEGORIES[2];
-    items[f.key] = { count: 1, amount: f.unit };
-    orders = 1; total = f.unit;
-  }
-  return { items, orders, total };
-}
-
-/* ── lazy 파생 + 메모이제이션 ────────────────────────────────
-   시드 배열을 미리 순회해 굽지 않고, 호출 시점에 client 레코드에서 파생한다.
-   → UI로 새로 등록한 거래처도 정산 표·리포트에 즉시 나타난다(예전엔 통째로 누락).
-   메모 키에는 "출력에 영향을 주는 필드"를 모두 넣어, 개명·발급일 변경이
-   stale 캐시로 남지 않게 한다. */
-const usageCache = new Map();
-const settleCache = new Map();
-
-/** 거래명세서 실데이터(invoice-mock.js) 행 → 이용 내역 집계. 품목 키는 상품명 그대로라
- *  드릴다운·리포트(Object.entries 순회)에 그대로 실리고, 대쉬보드 도넛(USAGE_CATEGORIES 9종
- *  고정)은 `?.amount || 0` 가드로 9종 밖 품목('특대 꽃바구니')을 조용히 제외한다. */
-function usageFromRows(rows) {
-  const items = {};
-  let total = 0;
-  rows.forEach((r) => {
-    const k = r[3];
-    if (!items[k]) items[k] = { count: 0, amount: 0 };
-    items[k].count += 1;
-    items[k].amount += r[4];
-    total += r[4];
-  });
-  return { items, orders: rows.length, total };
-}
-
-/** usageFor(client)["YYYY년 MM월"] = { items:{상품:{count,amount}}, orders, total }
- *  ⚠️ **실데이터가 있는 달은 실데이터가 이긴다**(2026-09-17 사용자 결정) — 포털 거래명세서에
- *     4건·300,000원이 찍혀 있는데 관리자 청구금액이 난수 1,795,000원이면 같은 달을 두 화면이
- *     다르게 청구하는 것이다. INVOICE_DB 는 정적이라 캐시 키는 id 그대로다. */
-export function usageFor(client) {
-  const id = client.id;
-  if (usageCache.has(id)) return usageCache.get(id);
-  const ci = idNum(id) - 1;
-  const real = INVOICE_DB[id] || {};
-  const byMonth = {};
-  for (let m = 0; m <= 5; m++) {
-    const ym = periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - m, 1));
-    const rows = real[ym] && real[ym].rows;
-    byMonth[ymLabel(m)] = rows && rows.length ? usageFromRows(rows) : usageMonth(ci, m);
-  }
-  usageCache.set(id, byMonth);
-  return byMonth;
-}
-
-/* ── per-client 정산 행의 **바탕**(날짜·금액) ───────────────────
-   동의·발급·입금 문자열은 여기 없다 — `js/util/settlement.js::settlementsFor` 가 store 의
-   동의 기록을 얹어 완성한다(옛 이름은 그쪽이 쓴다 · 화면은 이 함수를 직접 부르지 않는다).
-   메모 키에 invoiceDay 가 들어 있어 발급일을 바꾸면 발행일·정산기한이 다시 계산된다. */
-export function settlementBaseRows(client) {
-  /* 메모 키에 발급일 **이력 지문**까지 넣는다 — 발급일을 바꾸면 새 이력이 붙어 키가 갈리고 다시 계산된다.
-     현재 발급일만 넣으면 "15일 → 1일 → 다시 15일" 이 같은 키가 되어 stale 캐시가 남는다. */
-  const logKey = (client.invoiceDayLog || []).map((e) => `${e.from}:${e.day}`).join(",");
-  const key = `${client.id}|${invoiceDayOf(client)}|${logKey}|${client.companyName}`;
-  if (settleCache.has(key)) return settleCache.get(key);
-  const usage = usageFor(client);
-  const rows = [0, 1, 2, 3, 4, 5].map((m) => {
-    const ym = periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - m, 1));
-    /* 발행일시 = 귀속월 다음 달의 거래처 지정일 10:00 · 정산기한 = 그 발행일이 속한 달의 말일.
-       둘 다 settlement-rules.js 가 계산한다 — 여기서 Date 산술을 다시 하지 않는다.
-       발급일은 **그 귀속월에 유효했던 값**이다(변경은 다음 달 발급분부터 적용). */
-    const issueD = issueDate(ym, invoiceDayFor(client, ym));
-    const dueD = dueDate(ym);
-    const amount = usage[ymLabel(m)].total; // 이용 내역 합계에서 파생(실데이터 우선)
-    return {
-      id: `${client.id}-${ym.replace("-", "")}`,
-      ym, m,
-      발행일시: issueD,
-      정산기한일: dueD,
-      발행일: fmtDot(issueD),
-      정산기한: fmtDot(dueD),
-      청구내역: `${ymLabel(m)} 꽃배달 이용금 청구`,
-      청구년월: ymLabel(m),
-      정산금액: won(amount),
-      입금자: client.companyName,
-    };
-  });
-  settleCache.set(key, rows);
-  return rows;
-}
-
-/** report.js 계약 유지용 — { [clientId]: … } 맵으로 묶어 넘긴다. (`settlementsMap` 은 util/settlement.js) */
-export const usageMap = (clients) => Object.fromEntries(clients.map((c) => [c.id, usageFor(c)]));
 
 /** Available billing year/month options (for the settlement selector). */
 export const SETTLEMENT_YEARS = (() => {

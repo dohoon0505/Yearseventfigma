@@ -124,11 +124,14 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
     })
     .sort((a, b) => b.amount - a.amount);
 
-  /* ── 정산 진행 현황 (해당 월 정산 레코드 기준) ── */
+  /* ── 정산 진행 현황 (해당 월 정산 레코드 기준) ──
+     ⚠️ 정산 절차를 밟는 달만 센다 — 0원 달(발행과 함께 계산서 없이 닫힘)·거래 없는 달은 동의·계산서·입금 단계가 없다.
+     세면 '입금 완료 2건 · 입금완료 0원' 처럼 건수와 금액이 어긋나고, 대쉬보드 '정산 진행'(같은 판정 — util/settlement
+     inSettlementFlow)과 같은 달을 다른 수로 말했다. data 층이라 util 을 import 하지 않고 같은 두 칸을 직접 본다. */
   const recs = clients
     .map((c) => {
       const rec = (settlements[c.id] || []).find((r) => r.청구년월 === label);
-      return rec ? { client: c, rec } : null;
+      return rec && !rec.zero && !rec.empty ? { client: c, rec } : null;
     })
     .filter(Boolean);
   const wonToNum = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;

@@ -9,14 +9,17 @@
    발행일은 저장하지 않고 거래처 발급일(invoiceDay)에서 파생한다(settlement-rules.js) —
    관리자가 발급일을 바꾸면 문서의 발행일도 따라온다.
    상품명은 **카탈로그명**(store.js ALL_PRODUCTS)과 정확히 같아야 한다 — 관리자 청구금액·드릴다운이
-   이 행을 품목별로 묶어 쓴다(admin-mock.js usageFor 가 실데이터를 우선한다).
+   이 행을 품목별로 묶어 쓴다.
+
+   ⚠️ **이 파일은 시드만 담는다**(2026-10-16 운영자 결정 '주문과 정산을 완전히 연결'). 화면은 INVOICE_DB 를 직접
+      읽지 않는다 — b2b-mock 이 이 행을 배송완료 주문으로 바꾸고, 명세서 행·달 목록(billingRowsOf · monthsOf ·
+      invoiceMonth · latestInvoiceKey)은 `js/util/settlement.js` 가 주문에서 다시 만든다. 그래서 주문을 고치면
+      명세서가 따라온다. 예외: 공개 링크 시드(invoice-links.js seedDoc)는 store 를 쓰지 않는 공개 페이지라 여기를 읽는다.
    2026-06(한빛과학)은 A4 여러 장 분할을 시연하려고 60건을 담았다.
 
    ⚠️ 공급자(SUPPLIER)·입금계좌(ACCOUNT)는 여기가 아니라 `invoice-links.js` 가 소유한다 —
       공개 열람 링크 페이지와 같은 값을 써야 하기 때문이다.
    ============================================================ */
-import { invoiceDayFor, issueDate, fmtKo, periodOf } from "./settlement-rules.js";
-
 export const INVOICE_DB = {
   /* 한빛과학(주) — 기존 3·4·6월 데모 데이터(2026-09-17 사용자 결정으로 이 거래처 소속) */
   C001: {
@@ -118,35 +121,3 @@ export const INVOICE_DB = {
     },
   },
 };
-
-const MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-const sum = (rows) => rows.reduce((a, r) => a + r[4], 0);
-const dbOf = (client) => (client && INVOICE_DB[client.id]) || {};
-/** 명세서 발행일 표기("2026년 09월 15일") — 저장하지 않고 거래처 발급일에서 파생한다.
- *  **그 귀속월에 유효했던** 발급일을 쓴다 — 발급일을 바꿔도 이미 발급된 달의 발행일은 그대로다. */
-const issueOf = (client, ym) => fmtKo(issueDate(ym, invoiceDayFor(client, ym)));
-
-/** 그 거래처에서 거래가 있는 **가장 최근** 귀속월 키("YYYY-MM"). 화면의 기본 선택월이다.
- *  ⚠️ 상수로 박지 말 것 — 데이터가 늘면 기본값이 따라와야 한다. 한 건도 없으면 지난달. */
-export function latestInvoiceKey(client) {
-  const db = dbOf(client);
-  const keys = Object.keys(db).filter((k) => (db[k].rows || []).length);
-  const now = new Date();
-  return keys.sort().pop() || periodOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-}
-
-/** 한 해를 12칸으로. **거래가 없는 달도 칸을 만든다** — 달력 감각이 깨지지 않게
- *  비어 있음을 '빈 줄'로 보여 주는 것이 화면 계약이다(빈 해로 가면 12칸 모두 empty). */
-export function monthsOf(client, year) {
-  return MONTHS.map((mm) => {
-    const ym = `${year}-${mm}`;
-    const rows = (dbOf(client)[ym] || {}).rows || [];
-    return { ym, mm, rows, issue: rows.length ? issueOf(client, ym) : "", count: rows.length, total: sum(rows), empty: !rows.length };
-  });
-}
-
-/** 한 달치. 없는 달도 빈 껍데기를 돌려준다(호출부가 null 분기를 하지 않게). */
-export function invoiceMonth(client, ym) {
-  const rows = (dbOf(client)[ym] || {}).rows || [];
-  return { ym, rows, issue: rows.length ? issueOf(client, ym) : "", count: rows.length, total: sum(rows), empty: !rows.length };
-}

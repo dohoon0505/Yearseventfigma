@@ -9,13 +9,14 @@ import { html, setHTML, on, qs, raw, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
-import { usageFor, usageMap, USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
+import { USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
 /* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(포털 정산과 같은 소스). */
-import { settlementsFor, settlementsMap } from "../util/settlement.js";
+/* 이용 내역·정산 행은 B2B 주문에서 파생한다(2026-10-16 — 주문과 정산 연결). 청구금액·드릴다운·리포트가 같은 소스. */
+import { settlementsFor, settlementsMap, usageFor, usageMap, invoiceNoteOf } from "../util/settlement.js";
 import { fmtMd, fmtMdHm, periodLabel } from "../data/settlement-rules.js";
 import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
 import { buildMonthlyReport } from "../data/report.js";
-import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
+import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { reportDoc } from "../report-doc.js";
 
@@ -48,26 +49,41 @@ const gray = (t) => html`<span class="settle-badge settle-badge--gray">${t}</spa
    배지 한 단어로 뭉개지 않는다(2026-09-17 사용자 결정). 발행 전 달은 경고가 아니라 회색 '발급예정'. */
 const stack = (badge, sub) => html`<span class="settle-stack">${badge}${sub ? html`<span class="settle-td__sub">${sub}</span>` : ""}</span>`;
 const agreeBadge = (r) => {
+  /* 발행 시각이 지났는데 거래가 없는 달(NONE) — 명세서도 청구서도 없다. 0원 달과 다른 달이다. */
+  if (r.거래명세서동의 === "거래없음") return stack(gray("거래 없음"), "명세서 없음");
+  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 명세 6.6 의 표 낱말 '0원 · 계산서 없음'. */
+  if (r.거래명세서동의 === "해당없음") return stack(gray("0원"), "계산서 없음");
   if (r.거래명세서동의 === "동의완료") return stack(ok("동의완료"), `${fmtMd(r.동의시각)} ${r.동의구분 === "auto" ? "자동" : "수동"}`);
   if (!r.issued) return stack(gray("발급예정"), fmtMdHm(r.발행일시));
   /* 약관 동의 전에 마감된 달 — 마감을 찍으면 '곧 자동 동의된다'로 읽힌다. 자동 동의하지 않는 이유를 쓴다. */
-  if (r.약관보류) return stack(warn("동의대기"), "약관 동의 전 · 자동 동의 안 함");
+  /* 보류 3종(약관 동의 전 · 고지 미도달 · 정지 중 마감)의 낱말은 settlement-rules HOLD_LABEL 한 벌이다(명세 6.6). */
+  if (r.보류) return stack(warn("동의대기"), r.보류);
   return stack(warn("동의대기"), `마감 ${fmtMdHm(r.마감)}`);
 };
 const issueBadge = (r) =>
-  r.계산서발급 === "발급완료"
+  r.계산서발급 === "해당없음" || r.계산서발급 === "거래없음" ? stack(gray("계산서 없음"), "")
+  : r.계산서발급 === "발급완료"
     ? stack(ok("발급완료"), `작성 ${fmtMd(r.작성일자)}`)
     : stack(r.issued ? warn("발급대기") : gray("발급대기"), r.issued ? "동의 후 발급" : "");
-const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : danger("미입금"));
-const isDone = (r) => r.거래명세서동의 === "동의완료" && r.계산서발급 === "발급완료" && r.입금완료 === "입금완료";
+const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : v === "거래없음" ? gray("청구 없음") : danger("미입금"));
+/* 정산완료 = 닫힌 달(PAID — 0원으로 닫힌 달 포함). 거래 없는 달(NONE)은 완료도 미완료도 아니다 — 두 탭 어디에도 넣지 않는다. */
+const isDone = (r) => r.status === "PAID";
+const isPending = (r) => r.status !== "PAID" && r.status !== "NONE";
+
+/* 내보낼 명세서가 있는 달 — 발행됐고 거래가 있다. 포털도 거래 없는 달에는 PDF·EXCEL·열람링크를 모두 잠근다. */
+const hasDoc = (r) => r.issued && !r.empty;
+const docTitle = (r, okText) =>
+  r.empty && r.issued ? "거래가 없는 달은 명세서가 없습니다"
+  : r.issued ? okText : `명세서 발행 전입니다 — ${fmtMdHm(r.발행일시)}에 발급됩니다`;
 
 // 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 거래처·귀속월이면 issueLink가 시드 토큰 재사용.
 // '계산서 발행' 칸은 INVOICE_NOTE 어휘로 — 예전엔 표 배지값('동의하기')이 그대로 PDF 에 찍혔다.
+// 판정은 util/settlement invoiceNoteOf 한 곳(포털 미리보기와 같다 — 둘이 같은 issueLink 토큰을 덮어쓴다).
 const buildDoc = (client, rec) => ({
   title: `${rec.청구년월} 꽃배달 거래명세서`,
   period: `${rec.청구년월} 귀속`,
   // 부서는 사업자번호를 공유하는 거래처에만 — 그 외엔 빈 값이라 문서에서 행 자체가 빠진다.
-  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: rec.계산서발급 === "발급완료" ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
+  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: invoiceNoteOf(rec) },
   supplier: SUPPLIER,
   items: [{ date: rec.청구년월, sender: "-", address: "-", product: `${rec.청구년월} 꽃배달 이용료 합계`, amount: rec.정산금액 }],
   account: ACCOUNT,
@@ -107,7 +123,7 @@ export function mount(root, { nav }) {
   function visibleRows() {
     let rows = rowsForPeriod();
     if (state.statusFilter === "done") rows = rows.filter(({ rec }) => isDone(rec));
-    else if (state.statusFilter === "pending") rows = rows.filter(({ rec }) => !isDone(rec));
+    else if (state.statusFilter === "pending") rows = rows.filter(({ rec }) => isPending(rec));
     const q = state.search.trim();
     if (q) rows = rows.filter(({ client }) => client.companyName.includes(q));
     return rows;
@@ -298,8 +314,8 @@ export function mount(root, { nav }) {
               <div class="settle-td">${payBadge(rec.입금완료)}</div>
               <!-- 발행 전(발급예정) 달은 금액이 아직 쌓이는 중이다 — 확정되지 않은 명세서를 capability URL 로
                    내보내거나 PDF 로 찍지 않는다. 포털도 같은 상황에서 네 버튼을 모두 잠근다. -->
-              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}" ${rec.issued ? "" : "disabled"} title="${rec.issued ? "공개 열람 링크를 복사합니다" : `명세서 발행 전입니다 — ${fmtMdHm(rec.발행일시)}에 발급됩니다`}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
-              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}" ${rec.issued ? "" : "disabled"} title="${rec.issued ? "명세서를 PDF로 내려받습니다" : `명세서 발행 전입니다 — ${fmtMdHm(rec.발행일시)}에 발급됩니다`}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
+              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}" ${hasDoc(rec) ? "" : "disabled"} title="${docTitle(rec, "공개 열람 링크를 복사합니다")}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
+              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}" ${hasDoc(rec) ? "" : "disabled"} title="${docTitle(rec, "명세서를 PDF로 내려받습니다")}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
             </div>
             ${state.expanded.has(client.id) ? drillBody(client, rec) : ""}
           `
@@ -474,7 +490,7 @@ export function mount(root, { nav }) {
   });
   const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row || !row.rec.issued) return; // 발행 전에는 토큰을 발급하지 않는다
+    if (!row || !hasDoc(row.rec)) return; // 발행 전·거래 없는 달에는 토큰을 발급하지 않는다
     const token = issueLink({ clientId: row.client.id, bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
     const url = publicInvoiceUrl(token);
     const span = t.querySelector("span");
@@ -485,7 +501,7 @@ export function mount(root, { nav }) {
   // 명세서 PDF 즉시 다운로드: doc을 off-DOM으로 렌더 → printInvoiceDoc(새 창 인쇄 → PDF 저장)
   const offDownload = on(root, "click", "[data-action='download']", (e, t) => {
     const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row || !row.rec.issued) return; // 발행 전 명세서는 PDF 로도 내보내지 않는다
+    if (!row || !hasDoc(row.rec)) return; // 발행 전·거래 없는 달 명세서는 PDF 로도 내보내지 않는다
     const holder = document.createElement("div");
     setHTML(holder, invoiceDoc(buildDoc(row.client, row.rec)));
     const docEl = holder.querySelector(".invoice-doc");

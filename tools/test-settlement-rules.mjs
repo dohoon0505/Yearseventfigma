@@ -11,6 +11,7 @@ import {
   periodLabel, shiftPeriod, periodEnd, issueDate, agreeDeadline, dueDate, docDate,
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
   INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel, DEADLINE_HOUR,
+  editLockAt, overdueAt, isEditLocked, isPastOverdue, LOCK_REASON, HOLD_LABEL, HOLD_CODES,
 } from "../js/data/settlement-rules.js";
 import { TERMS } from "../js/data/terms.js";
 
@@ -189,6 +190,40 @@ eq("약관: 마감 뒤에 동의 → 그 달은 자동 아님", stT("2026-09-11 
 eq("약관: 마감 전이면 termsHold 아님", stT(null, D(2026, 9, 5)).termsHold, false);
 eq("약관: 수동 기록은 약관과 무관하게 이긴다", stT(null, AFTER, "2026-09-11 10:00").mode, "manual");
 eq("약관: 자동 동의 작성일자는 그대로(1일 → 말일)", fmtYmdSafe(stT("2026-09-01 09:00", AFTER).docDate), "2026-08-31");
+
+/* ── 수정 마감 · 기한 초과 (2026-10-15 결정 — 정정 체계 폐지 · 명세 3.4 · 6.6) ── */
+eq("수정 마감: 9월분 1일 그룹 → 10-09 10:00", editLockAt("2026-09", "1"), D(2026, 10, 9, 10));
+eq("수정 마감: 9월분 7일 그룹 → 10-09 10:00", editLockAt("2026-09", "7"), D(2026, 10, 9, 10));
+eq("수정 마감: 9월분 15일 그룹 → 10-27 10:00", editLockAt("2026-09", "15"), D(2026, 10, 27, 10));
+eq("수정 마감: 12월분 1일 그룹 → 다음 해 01-09 10:00", editLockAt("2026-12", "1"), D(2027, 1, 9, 10));
+eq("수정 마감: 1월분 15일 그룹 → 02-27 10:00", editLockAt("2027-01", "15"), D(2027, 2, 27, 10));
+eq("수정 마감 정각 1ms 전은 열림", isEditLocked("2026-09", "1", D(2026, 10, 9, 9, 59, 999)), false);
+eq("수정 마감 정각부터 잠김", isEditLocked("2026-09", "1", D(2026, 10, 9, 10)), true);
+eq("기한 초과: 9월분 → 11-01 10:00", overdueAt("2026-09"), D(2026, 11, 1, 10));
+eq("기한 초과: 8월분 → 10-01 10:00", overdueAt("2026-08"), D(2026, 10, 1, 10));
+eq("기한 초과: 12월분 → 다음 해 02-01 10:00", overdueAt("2026-12"), D(2027, 2, 1, 10));
+eq("기한 초과: 1월분(정산기한 2월 말) → 03-01 10:00", overdueAt("2027-01"), D(2027, 3, 1, 10));
+eq("기한 초과 정각 1ms 전은 아직", isPastOverdue("2026-09", D(2026, 11, 1, 9, 59, 999)), false);
+eq("기한 초과 정각부터", isPastOverdue("2026-09", D(2026, 11, 1, 10)), true);
+eq("잠긴 이유 3종은 모두 '배송일이 지난 달' 로 시작", Object.values(LOCK_REASON).every((s) => s.startsWith("배송일이 지난 달 · ")), true);
+eq("잠긴 이유: 수정 마감", LOCK_REASON.editLock, "배송일이 지난 달 · 마감 안내가 나갔습니다 — 금액 조정은 동의 뒤 수정계산서로");
+eq("보류 낱말 3종", HOLD_CODES.join(","), "TERMS_NOT_AGREED,NOTICE_UNDELIVERED,CLIENT_SUSPENDED");
+eq("보류 낱말: 약관", HOLD_LABEL.TERMS_NOT_AGREED, "약관 동의 전 · 자동 동의 안 함");
+
+/* ── 자동 동의 보류(잠정 Q19·Q20) — 그 달의 자동 동의만 막고 수동 동의는 받는다 ── */
+const stH = (hold, now, manual = null, termsAt = "2026-01-01 09:00") =>
+  agreementState({ period: "2026-08", invoiceDay: "1", manualAt: manual, termsAt, hold, now });
+eq("보류: 고지 미도달 → 자동 아님", stH("NOTICE_UNDELIVERED", AFTER).mode, null);
+eq("보류: 고지 미도달 → 열림(수동 동의 대기)", stH("NOTICE_UNDELIVERED", AFTER).open, true);
+eq("보류: 이유 = NOTICE_UNDELIVERED", stH("NOTICE_UNDELIVERED", AFTER).autoAgreeHold, "NOTICE_UNDELIVERED");
+eq("보류: 정지 중 마감 → 이유", stH("CLIENT_SUSPENDED", AFTER).autoAgreeHold, "CLIENT_SUSPENDED");
+eq("보류: 마감 전이면 이유 없음", stH("CLIENT_SUSPENDED", D(2026, 9, 5)).autoAgreeHold, null);
+eq("보류: 수동 기록이 이긴다", stH("CLIENT_SUSPENDED", AFTER, "2026-09-11 10:00").mode, "manual");
+eq("보류: 수동 동의면 이유 없음", stH("CLIENT_SUSPENDED", AFTER, "2026-09-11 10:00").autoAgreeHold, null);
+eq("보류: 약관 보류가 먼저", stH("NOTICE_UNDELIVERED", AFTER, null, null).autoAgreeHold, "TERMS_NOT_AGREED");
+eq("보류: termsHold 는 약관일 때만", stH("NOTICE_UNDELIVERED", AFTER).termsHold, false);
+eq("보류: 모르는 값은 무시(자동)", stH("WHATEVER", AFTER).mode, "auto");
+eq("보류: 없으면 자동 · 이유 null", stH(null, AFTER).autoAgreeHold, null);
 
 /* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 버전 고정 문장이라 파생하지 않는다) ── */
 const clause2 = TERMS[0].items[1];

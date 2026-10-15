@@ -18,6 +18,8 @@ import { fmtPhone, phoneOk } from "../util/phone.js";
 import { RIBBON_GROUPS } from "../data/ribbon-phrases.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
 import { CS_PHONE } from "../data/contact.js";
+import { b2bUpsert, b2bNewId, b2bNextOrderNo } from "../data/b2b-mock.js";
+import { histEntry } from "../data/order-history.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
 const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -882,9 +884,53 @@ export function mount(root, { nav }) {
       <div class="cf-amount__total"><span>결제 금액</span><b class="num">${won(total)}</b></div>
     `);
   }
+  /* 배송완료 알림 명단 — 관리자 등록 모달의 notifySnapshot 과 **같은 모양**으로 남긴다(명세 5.3):
+     recipient / sender / contact / extra. 끈 줄은 on:false, 번호 없는 줄은 phone:null — 끈 것인지 처음부터
+     없던 것인지 나중에 가를 수 있어야 한다. 번호 없는 줄의 on 은 사람의 의사 그대로다(관리자 쪽 주석 참조). */
+  function notifySnapshot() {
+    const ph = (v) => String(v || "").trim() || null;
+    const pf = store.profilesOf().find((x) => senderTextOf(x) === state.sender) || null;
+    return [
+      { kind: "recipient", name: state.toName, phone: ph(state.toPhone), on: !!state.notify.recipient },
+      { kind: "sender", profileId: pf ? pf.id : null, name: pf ? pf.name : state.sender, phone: ph(senderPhone()), on: !!state.notify.sender },
+      ...autoManagers().map((c) => ({ kind: "contact", contactId: c.id, name: c.name, phone: ph(c.phone), on: !state.managerOff.has(c.id) })),
+      ...state.notifyExtra.filter((r) => r.name.trim() || r.phone)
+        .map((r) => ({ kind: "extra", name: r.name.trim(), phone: ph(r.phone), on: !!r.on })),
+    ];
+  }
+  /* 접수 = **실제 B2B 주문을 만든다**(2026-10-16 운영자 결정 — 포털 접수가 관리자 주문관리·실시간 주문내역·
+     정산에 모두 나타난다). 금액은 화면에 보인 결제 금액(적용 단가 + 추가 배송비) 그대로다.
+     담당자(우리 직원)는 미지정으로 둔다 — 관리자가 열면 지정 다이얼로그가 자동으로 뜬다(자동 배정 금지). */
+  function createOrder(contact) {
+    const cl = currentClient();
+    const now = new Date();
+    const rec = {
+      id: b2bNewId(), orderNo: b2bNextOrderNo(), clientId: cl ? cl.id : "",
+      date: `${now.getFullYear()}/${pad2(now.getMonth() + 1)}/${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
+      ordererName: contact ? contact.name : "",
+      requesterId: contact ? contact.id : "", requesterName: contact ? contact.name : "", requesterPhone: contact ? contact.phone || "" : "",
+      address: state.addr, deliverAt: `${state.date}T${state.hour}:${state.min}`,
+      recipientName: state.toName, recipientPhone: state.toPhone,
+      ribbonPhrase: state.ribbon, ribbonSender: state.sender,
+      image: "", notified: false,
+      product: state.product.product,
+      amount: appliedOf(state.product) + deliveryFeeFor(state.addr).fee,
+      status: "접수대기", receiver: "", manager: "",
+      /* 청첩 측근은 주문서에 칸이 없다 — 화원이 알아야 하므로 요청사항으로 넘긴다. */
+      request: state.occ === "wed" && state.side ? `측근: ${state.side}` : "",
+      memo: "", cancelFee: 0, cancelReason: "",
+      notifyList: notifySnapshot(),
+      history: [histEntry("created", "주문 접수 · 포털")],
+    };
+    /* 저장이 실패하면(브라우저 저장 공간 한도) null — 접수됐다고 말하면 안 된다. */
+    return b2bUpsert(rec) ? rec : null;
+  }
   function submit() {
     const c = managerOf();
+    const rec = createOrder(c);
+    if (!rec) { showToast("주문을 접수하지 못했습니다 · 브라우저 저장 공간이 부족합니다"); return; }
     setHTML($("[data-done-box]"), html`
+      <div class="cf-row"><span class="cl">주문번호</span><span class="cv num">${rec.orderNo}</span></div>
       <div class="cf-row"><span class="cl">상품</span><span class="cv">${state.product.product}</span></div>
       <div class="cf-row"><span class="cl">리본 문구</span><span class="cv">${state.ribbon}</span></div>
       <div class="cf-row"><span class="cl">배송</span><span class="cv">${dateLabel()}<small>${state.addr}</small></span></div>

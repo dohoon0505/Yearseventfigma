@@ -41,6 +41,11 @@ export function portalBlock(client) {
   }
 }
 
+/** 아직 약관에 동의하지 않은 거래처인가(관리자가 등록하고 첫 로그인 전 · 약관 게이트를 지나지 않은 계정).
+ *  처음 동의 시각(termsFirstAgreedAt)이나 마지막 동의 시각(termsAgreedAt) 중 하나라도 있으면 동의한 것이다 —
+ *  자동 동의 판정(store.agreementOf)과 같은 두 칸을 본다. 약관 버전이 올라 재동의를 기다리는 계정은 여기 들지 않는다. */
+export const termsPending = (client) => !!client && !(client.termsFirstAgreedAt || client.termsAgreedAt);
+
 /** 표시용 회사명. 사업자번호를 공유하는 거래처끼리만 부서를 병기한다. */
 export function currentClientName() {
   const c = currentClient();

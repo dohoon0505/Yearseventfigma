@@ -21,7 +21,7 @@ import { pageTitle, tableGrid, openModal, makeDropdown, makeDateTimePicker, rowT
 import { getDateRange, formatDateLabel, orderRowTone, byToneRank } from "../util/date.js";
 import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
-import { readWonInput, settleWonInput } from "../util/order-fields.js";
+import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openAutofill } from "../util/order-dialogs.js";
 import { applyOrderText } from "../data/order-text.js";
@@ -421,7 +421,10 @@ export function mount(root, { nav }) {
     const missing2 = () => {
       const need = [["ordererName", "주문자"], ["product", "주문상품"], ["address", "배송지"],
                     ["recipientName", "받는분"], ["ribbonPhrase", "리본문구"]];
-      return need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+      const out = need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+      /* 배송일시는 필수다 — 날짜와 시각 모두(명세 4.3 · M32, B2B 등록 모달과 같은 규칙) */
+      if (!DELIVER_AT_OK.test(String(cDraft.deliverAt || ""))) out.splice(2, 0, "배송일시");
+      return out;
     };
 
     createModal = openOrderCreate({

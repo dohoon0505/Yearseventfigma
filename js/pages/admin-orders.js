@@ -31,11 +31,11 @@ import { onPhoneInput } from "../util/phone.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
 import { applyOrderText } from "../data/order-text.js";
-import { pushHistory } from "../data/order-history.js";
+import { histEntry } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
 import { invoiceDayOf, periodOf, periodLabel } from "../data/settlement-rules.js";
-import { readWonInput, settleWonInput } from "../util/order-fields.js";
+import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
 import { staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -44,8 +44,10 @@ import {
   makeImageBox, openStaffPicker, openDeleteConfirm,
   ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
+/* ⚠️ 주문 레코드는 **저장 함수로만** 고친다(b2bUpsert·b2bPushHistory·b2bCancel·…) — b2b-mock 이 변경분을
+   store 에 영속한다. `findOrder()` 로 받은 레코드에 pushHistory·필드 대입을 직접 하면 새로고침에 사라진다. */
 import {
-  B2B_STATUSES, b2bList, b2bUpsert, b2bRemove,
+  B2B_STATUSES, b2bList, b2bUpsert, b2bRemove, b2bPushHistory, b2bCancel,
   b2bSetStatus, b2bSetManager, b2bNewId, b2bNextOrderNo,
 } from "../data/b2b-mock.js";
 
@@ -88,6 +90,8 @@ export function mount(root, { nav }) {
     return c ? displayName(c, sharedBizKeys(clients())) : "(삭제된 거래처)";
   };
   const findOrder = (id) => b2bList().find((o) => o.id === id);
+  /* 주문 저장 함수는 브라우저 저장 공간이 차면 실패를 돌려준다(b2b-mock) — 그때 화면이 하는 말. */
+  const SAVE_FAIL = "저장하지 못했습니다 · 브라우저 저장 공간이 부족합니다";
   const closeModal = () => { const m = activeModal; activeModal = null; if (m) m.close(); };
 
   /* ══ 필터 ═══════════════════════════════════════════════ */
@@ -716,10 +720,14 @@ export function mount(root, { nav }) {
       if (!String(cDraft.requesterName || "").trim()) out.push("주문 요청자");
       return out;
     };
+    /* 배송일시는 필수다 — 날짜와 시각 모두(명세 4.3 · M32). 정산 귀속월이 이 값의 달이라, 비면 그 주문은 어느 달
+       명세서에도 들어가지 않고 포털 실시간 주문내역에서는 날짜 없이 모든 기간 필터를 통과했다(2026-10-16 검증). */
     const missing2 = () => {
       const need = [["product", "주문상품"], ["address", "배송지"], ["recipientName", "받는분"],
                     ["ribbonPhrase", "리본문구"], ["profileId", "발송 프로필"]];
-      return need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+      const out = need.filter(([k]) => !String(cDraft[k] ?? "").trim()).map(([, l]) => l);
+      if (!DELIVER_AT_OK.test(String(cDraft.deliverAt || ""))) out.splice(1, 0, "배송일시");
+      return out;
     };
 
     createModal = openOrderCreate({
@@ -941,10 +949,9 @@ export function mount(root, { nav }) {
       notifyList: notifySnapshot(),
     };
     delete rec.notifyOff;
-    delete rec.history;
-    b2bUpsert(rec);
-    const stored = findOrder(rec.id);
-    if (stored) pushHistory(stored, "created", `주문 접수 · ${(cClient() || {}).companyName || ""}`.trim());
+    /* 첫 이력은 레코드와 **한 번에** 저장한다 — 저장 뒤 레코드에 직접 push 하면 영속되지 않는다. */
+    rec.history = [histEntry("created", `주문 접수 · ${(cClient() || {}).companyName || ""}`.trim())];
+    if (!b2bUpsert(rec)) { toast(SAVE_FAIL, "warn"); return; } // 등록 창을 닫지 않는다 — 적은 내용을 잃지 않게
     createModal && createModal.close();
     ensureVisible(rec);
   }
@@ -1021,10 +1028,11 @@ export function mount(root, { nav }) {
       autoDone = true;
     }
     delete merged.history; // draft 의 history 는 넘기지 않는다(참조 공유 방지)
-    b2bUpsert(merged);
+    /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다. */
+    if (!b2bUpsert(merged)) { toast(SAVE_FAIL, "warn"); return; }
+    if (n) b2bPushHistory(merged.id, "edit", `주문 정보 수정 ${n}건`);
+    if (autoDone) b2bPushHistory(merged.id, "delivered", "배송완료 · 알림톡 발송");
     const stored = findOrder(merged.id);
-    if (stored && n) pushHistory(stored, "edit", `주문 정보 수정 ${n}건`);
-    if (stored && autoDone) pushHistory(stored, "delivered", "배송완료 · 알림톡 발송");
     refreshList();
     editing = { ...merged, history: stored ? stored.history : [] };
     baseline = { ...editing };
@@ -1043,8 +1051,8 @@ export function mount(root, { nav }) {
       toast,
       onPick: (v) => {
         if (!editing) return false;
+        if (!b2bSetManager(editing.id, v)) { toast(SAVE_FAIL, "warn"); return false; }
         editing.manager = v;
-        b2bSetManager(editing.id, v);
         const stored = findOrder(editing.id);
         if (stored) editing.history = stored.history;
         if (baseline) baseline.manager = v;
@@ -1063,13 +1071,24 @@ export function mount(root, { nav }) {
     if (to < 0 || to === cur) return;
     if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 쓰세요", "warn"); return; }
     if (next === "배송완료" && !canComplete()) { toast("현장사진과 인수자를 먼저 입력하세요", "warn"); return; }
+    /* 배송완료의 근거(사진·인수자)는 **상태와 함께 저장**한다. canComplete() 는 작성 중인 값(editing)을 보는데
+       b2bSetStatus 는 저장된 레코드에만 상태를 쓴다 — 저장 안 한 사진·인수자로 스테퍼를 누르면 '배송완료 · 사진
+       없음 · 인수자 없음' 레코드가 영속됐다(2026-10-16 검증). 다른 미저장 수정은 건드리지 않는다(저장 버튼 몫). */
+    if (next === "배송완료") {
+      const st = findOrder(editing.id);
+      if (st && (st.image !== editing.image || String(st.receiver || "") !== String(editing.receiver || ""))) {
+        if (!b2bUpsert({ ...st, image: editing.image, receiver: editing.receiver })) { toast(SAVE_FAIL, "warn"); return; }
+        if (baseline) { baseline.image = editing.image; baseline.receiver = editing.receiver; }
+      }
+    }
+    if (!b2bSetStatus(editing.id, next)) { toast(SAVE_FAIL, "warn"); syncDirty(); return; }
     editing.status = next;
     if (next === "배송완료") editing.notified = true;
-    b2bSetStatus(editing.id, next);
+    if (baseline) { baseline.status = next; baseline.notified = editing.notified; }
     const stored = findOrder(editing.id);
     if (stored) editing.history = stored.history;
     refreshList();
-    renderHd(); renderHist();
+    renderHd(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다
     toast(next === "배송완료" ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : `${next}(으)로 변경했습니다`);
     const p = panelOf();
     if (p) qs(p, ".ord-step__btn.is-now")?.focus();
@@ -1107,7 +1126,7 @@ export function mount(root, { nav }) {
           삭제하면 그 달 청구 금액에서 <b>${won(saved.amount)}</b>이 빠집니다.`,
         onConfirm: () => {
           const name = editing.orderNo;
-          b2bRemove(editing.id);
+          if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
           closeModal();
           refreshList();
           toast(`${name} 주문을 삭제했습니다`, "warn");
@@ -1124,16 +1143,21 @@ export function mount(root, { nav }) {
            주문의 귀속월(배송한 달)이 아니다 — 그래서 달 이름을 넘겨 안내문이 그 달을 말하게 한다. B2C 는 정산이 없다. */
         settle: periodLabel(periodOf(new Date())),
         onConfirm: ({ reason, fee }) => {
-          editing.status = "취소";
-          editing.cancelReason = reason;
-          editing.cancelFee = fee;
+          /* 작성 중인 수정은 지금 상태 그대로 먼저 저장하고, 취소는 b2bCancel 이 한 번에 남긴다(사유·수수료·
+             취소 시각 canceledAt·이력). ⚠️ 예전엔 상태를 '취소'로 바꾼 레코드를 먼저 upsert 해서 뒤의
+             b2bSetStatus 가 '값이 그대로'로 건너뛰어 **취소 이력이 한 줄도 남지 않았다**. */
           const { history: _x, ...rec } = editing;
-          b2bUpsert(rec);
-          b2bSetStatus(editing.id, "취소");
+          if (!b2bUpsert(rec) || !b2bCancel(editing.id, { reason, fee })) { toast(SAVE_FAIL, "warn"); return; }
           const stored = findOrder(editing.id);
-          if (stored) editing.history = stored.history;
+          if (stored) {
+            Object.assign(editing, {
+              status: stored.status, cancelReason: stored.cancelReason, cancelFee: stored.cancelFee,
+              canceledAt: stored.canceledAt, history: stored.history,
+            });
+          }
+          baseline = { ...editing }; // 작성 중이던 수정도 방금 함께 저장됐다
           refreshList();
-          renderHd(); renderHist();
+          renderHd(); renderHist(); syncDirty();
           toast("주문을 취소 처리했습니다", "warn");
         },
       });

@@ -2,9 +2,9 @@
    store.js — global state (profiles / contacts / favorites)
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
-import { INITIAL_CLIENTS, SEED_BILLING } from "./data/admin-mock.js";
+import { INITIAL_CLIENTS, SEED_BILLING, DATA_NOW } from "./data/admin-mock.js";
 /* 동의 상태(발행·마감·자동 동의·작성일자)는 규칙 모듈 한 곳에서 파생한다 — import 0 이라 순환이 없다. */
-import { agreementState, fmtAt, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom } from "./data/settlement-rules.js";
+import { agreementState, fmtAt, parseAt, periodOf, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, HOLD_CODES } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
 import { getClientId, isReservedAccountId } from "./session.js";
@@ -115,8 +115,108 @@ let state = {
      자동 동의(마감 13:00 경과)는 기록하지 않고 `agreementOf` 가 매번 파생한다 — 과거 달을 전부
      적어 두면 시드·신규 거래처마다 백필이 필요해진다. 관리자 정산 표도 같은 함수를 본다. */
   invoiceAgreed: {},
+  /* B2B 주문의 **사용자 변경분만** — 시드(b2b-mock)는 매번 다시 만들고 그 위에 이것을 덧입힌다.
+     { created: { [id]: 레코드 }, patched: { [시드 id]: 레코드 }, removed: [시드 id] }.
+     주문 전체를 저장하지 않는 이유: 시드가 600건 가까이라 통째로 넣으면 저장 용량을 먹고, 시드 생성 규칙을
+     고쳐도 이미 열어 본 브라우저에는 옛 시드가 남는다. 읽기·쓰기는 b2b-mock 이 한다(`orderOps`/`setOrderOps`). */
+  orderOps: { created: {}, patched: {}, removed: [], lastNo: 0 },
+  /* ── 정산 기록(서버 대역 · 2026-10-16 F2) — 모두 { [clientId]: { "YYYY-MM": … } } ──
+     einvoice     : 계산서 발급 결과 **기록분만** { no, at, mode: "retry"|"manual" }. 동의(수동·자동)된 달은 동의 시각에
+                    자동 발급된 것으로 util/settlement.js 가 **파생**한다(데모 규칙) — 기록하지 않는다.
+     einvoiceFail : 자동 발급이 실패한 달 { detail }(바로빌 오류 예시) — 이 달만 AGREED(발급 전)에 머문다. 다시 시도·
+                    직접 입력이 성공하면 einvoice 에 기록되고 실패 기록은 이력으로 남는다.
+     payments     : 입금 확인 { at }. 0원 달은 입금 없이 닫히므로 여기 있어도 읽지 않는다(util 이 무시).
+     holds        : 잠정 보류(10.4 Q19 고지 미도달 · Q20 정지 중 마감)의 데모 대역 — "NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED".
+                    그 달은 마감에 자동 동의하지 않는다(agreementOf 가 존중). 약관 보류는 거래처 약관 시각에서 파생한다.
+     ⚠️ 저장값이 시드를 이긴다 — 시드는 저장소가 빈 브라우저(또는 이 칸이 없는 옛 저장본)에서만 보인다. */
+  einvoice: {},
+  einvoiceFail: {},
+  payments: {},
+  holds: {},
 };
 
+/* ── 정산 기록 시드 — DATA_NOW 상대(늘 같은 모양으로 보이게) ──────────────────
+   ⚠️ 실제 회사·사람이 아니다(가상 거래처). 오류 문구도 예시다. */
+const seedYm = (monthsAgo) => periodOf(new Date(DATA_NOW.getFullYear(), DATA_NOW.getMonth() - monthsAgo, 1));
+/* 발급 실패 — 푸른누리협회(C004)의 지난달분: 동의(자동)는 됐지만 바로빌 발급이 실패해 AGREED 에 머문다. */
+const seedEinvoiceFail = () => ({
+  C004: { [seedYm(1)]: { detail: "[예시] 바로빌 오류 -10002 · 공급받는자 사업자번호 상태 조회 실패 — 다시 시도하거나 수기 발급 승인번호를 입력하세요" } },
+});
+/* 보류 — 둘 다 1~7일 그룹이라 지난달분 마감(발급월 10일)이 이미 지난 곳. (주)싱싱마켓은 마감 때 정지였고 지금은 풀렸다(활성). */
+const seedHolds = () => ({
+  C005: { [seedYm(1)]: "NOTICE_UNDELIVERED" },
+  C009: { [seedYm(1)]: "CLIENT_SUSPENDED" },
+});
+/* 기한 초과 시연 — 한빛과학(주)(C001)의 두 달 전분은 입금 시드를 넣지 않는다(정산기한 다음 날 10:00 이 지나 OVERDUE). */
+const NO_PAY_SEED = { C001: [2] };
+/** 입금 시드 — 예전 화면 모습('두 달 이전이고 동의된 달은 입금됨')을 유지한다. 입금일은 정산기한 3일 전 14:00
+ *  (계산서보다 앞서지 않게 동의 시각 + 2시간 이후). 발급 실패·보류 달은 계산서가 없어 넣지 않는다. */
+function seedPayments(clients, holds, fails, agreed) {
+  const out = {};
+  clients.forEach((c) => {
+    const termsAt = c.termsFirstAgreedAt || c.termsAgreedAt || null;
+    for (let m = 2; m <= 5; m++) {
+      const ym = seedYm(m);
+      if ((NO_PAY_SEED[c.id] || []).includes(m) || ((fails[c.id] || {})[ym])) continue;
+      const st = agreementState({
+        period: ym, invoiceDay: invoiceDayFor(c, ym), manualAt: (agreed[c.id] || {})[ym] || null,
+        termsAt, hold: (holds[c.id] || {})[ym] || null, now: DATA_NOW,
+      });
+      if (!st.mode) continue;
+      const due = st.dueDate;
+      const cand = new Date(due.getFullYear(), due.getMonth(), due.getDate() - 3, 14, 0);
+      const floor = new Date(st.at.getTime() + 2 * 3600e3);
+      const at = cand > floor ? cand : floor;
+      if (at > DATA_NOW) continue;
+      (out[c.id] = out[c.id] || {})[ym] = { at: fmtAt(at) };
+    }
+  });
+  return out;
+}
+state.einvoiceFail = seedEinvoiceFail();
+state.holds = seedHolds();
+state.payments = seedPayments(state.clients, state.holds, state.einvoiceFail, state.invoiceAgreed);
+
+/** 계산서 승인번호 예시 꼴 — `YYYYMMDD-8자리-8자리`(명세 5.4 · 6.6 예시. ⚠ 미확정 M62 — 바로빌 레퍼런스로 확정한다). */
+export const EINVOICE_NO_RE = /^\d{8}-\d{8}-\d{8}$/;
+/** 데모 승인번호 — (거래처, 귀속월)에서 결정적으로 만든다. 앞 8자리는 발급일. 실서비스는 바로빌 응답을 가공하지 않고 저장. */
+export function einvoiceNoFor(clientId, ym, at) {
+  const d = at instanceof Date ? at : parseAt(at) || new Date(0);
+  let h = 2166136261;
+  for (const ch of `${clientId}|${ym}`) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const a = String(41000000 + (h % 1000000)).padStart(8, "0");
+  const b = String(Math.imul(h, 2654435761) >>> 0).padStart(8, "0").slice(-8);
+  return `${fmtAt(d).slice(0, 10).replace(/-/g, "")}-${a}-${b}`;
+}
+
+/* 저장본의 { [clientId]: { [ym]: … } } 모양만 받는다 — 깨진 조각은 버린다(다른 상태까지 버리지 않게). */
+function hydrateByClient(v, okVal) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out = {};
+  Object.keys(v).forEach((cid) => {
+    const m = v[cid];
+    if (!m || typeof m !== "object" || Array.isArray(m)) return;
+    Object.keys(m).forEach((ym) => {
+      if (/^\d{4}-\d{2}$/.test(ym) && okVal(m[ym])) (out[cid] = out[cid] || {})[ym] = m[ym];
+    });
+  });
+  return out;
+}
+const okAt = (x) => !!x && typeof x === "object" && !!parseAt(x.at);
+
+/* 저장본의 orderOps 를 모양 그대로 받아들인다 — 깨진 조각은 빈 값으로(다른 상태까지 버리지 않게). */
+function hydrateOrderOps(v) {
+  const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : {});
+  if (!v || typeof v !== "object") return { created: {}, patched: {}, removed: [], lastNo: 0 };
+  return {
+    created: obj(v.created),
+    patched: obj(v.patched),
+    removed: Array.isArray(v.removed) ? v.removed.filter((x) => typeof x === "string") : [],
+    lastNo: Number.isFinite(v.lastNo) ? v.lastNo : 0, // 마지막으로 내준 새 주문번호(숫자) — 지운 새 주문의 번호를 다시 쓰지 않게
+  };
+}
+
+/* 저장에 성공했는지 돌려준다 — 실패를 아는 쪽은 `setOrderOps` 하나다(아래). 다른 쓰기는 예전처럼 메모리로 계속 돈다. */
 function persist() {
   try {
     localStorage.setItem(
@@ -128,10 +228,17 @@ function persist() {
         clients: state.clients,
         clientPrices: state.clientPrices,
         invoiceAgreed: state.invoiceAgreed,
+        orderOps: state.orderOps,
+        einvoice: state.einvoice,
+        einvoiceFail: state.einvoiceFail,
+        payments: state.payments,
+        holds: state.holds,
       })
     );
+    return true;
   } catch {
     /* storage full / disabled — keep running from memory */
+    return false;
   }
 }
 
@@ -150,7 +257,15 @@ function hydrate() {
       clients: Array.isArray(data.clients) ? data.clients.map((c) => ({ ...(SEED_BY_ID.get(c.id) || {}), ...c })) : state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
       invoiceAgreed: data.invoiceAgreed && typeof data.invoiceAgreed === "object" ? data.invoiceAgreed : state.invoiceAgreed,
+      orderOps: hydrateOrderOps(data.orderOps),
+      /* 정산 기록 — 칸이 없는 옛 저장본이면 시드(F2 이전에 열어 본 브라우저도 예시 달이 보이게) */
+      einvoice: hydrateByClient(data.einvoice, (x) => okAt(x) && typeof x.no === "string") || {},
+      einvoiceFail: hydrateByClient(data.einvoiceFail, (x) => !!x && typeof x === "object") || seedEinvoiceFail(),
+      holds: hydrateByClient(data.holds, (x) => HOLD_CODES.includes(x)) || seedHolds(),
+      payments: null,
     };
+    state.payments = hydrateByClient(data.payments, okAt)
+      || seedPayments(state.clients, state.holds, state.einvoiceFail, state.invoiceAgreed);
     // 불변식 보정: 버킷마다 정산담당이 없으면 첫 담당자로 지정
     const fixed = {};
     Object.keys(state.contactsByClient).forEach((k) => { fixed[k] = fixBilling(state.contactsByClient[k]); });
@@ -292,21 +407,97 @@ export const store = {
        재동의 시각(termsAgreedAt)을 쓰면 약관 버전을 올리는 순간 이미 자동 동의된 달이 '동의대기'로 되돌아간다
        (발급일 변경 때 겪은 소급 결함과 같은 모양). termsFirstAgreedAt 이 없는 옛 저장본은 termsAgreedAt 을 쓴다. */
     const termsAt = client ? client.termsFirstAgreedAt || client.termsAgreedAt || null : null;
-    return agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, termsAt, now });
+    /* 잠정 보류(Q19·Q20)도 같은 자리에서 존중한다 — 그 달은 마감에 자동 동의하지 않는다. */
+    const hold = (state.holds[k] || {})[ym] || null;
+    return agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, termsAt, hold, now });
   },
   /** 수동 동의 기록. 이미 동의했으면 **덮어쓰지 않는다**(최초 시각이 기록이다).
    *  발행 전이거나 마감이 지났으면(자동 동의) **기록하지 않고 null** — 화면과 같은 함수·같은
-   *  시계로 판정하므로 버튼이 열려 있던 순간과 어긋날 수 없다. */
-  agreeInvoice(clientId, ym, now = new Date()) {
+   *  시계로 판정하므로 버튼이 열려 있던 순간과 어긋날 수 없다.
+   *
+   *  `opts`(선택) — `{ amount, currentAmount }`: 거래처 화면이 **보여 준 금액**과 지금 금액(명세 3.4 '마감 전 수정' 5 ·
+   *  6.6 agree). 둘 다 숫자이고 다르면 기록하지 않고 `{ error: "SETTLEMENT_AMOUNT_CHANGED", amount: 지금 금액 }`.
+   *  store 는 금액을 모른다(주문은 b2b-mock 이 store 를 import 한다) — 지금 금액은 호출부(util/settlement.js
+   *  `agreeSettlement`)가 같은 소스에서 계산해 넘긴다. 지금 금액이 0 이면 0원 달이라 동의를 받지 않는다(null).
+   *  옛 호출 모양 `agreeInvoice(clientId, ym, now)` 도 받는다. */
+  agreeInvoice(clientId, ym, opts = {}, now = new Date()) {
+    if (opts instanceof Date) { now = opts; opts = {}; }
     const k = scopeId(clientId);
     const cur = state.invoiceAgreed[k] || {};
     if (cur[ym]) return cur[ym];
     if (!this.agreementOf(clientId, ym, now).open) return null;
+    const { amount, currentAmount } = opts || {};
+    if (currentAmount === 0) return null;
+    if (Number.isFinite(amount) && Number.isFinite(currentAmount) && amount !== currentAmount) {
+      return { error: "SETTLEMENT_AMOUNT_CHANGED", amount: currentAmount };
+    }
     const at = fmtAt(now);
     state = { ...state, invoiceAgreed: { ...state.invoiceAgreed, [k]: { ...cur, [ym]: at } } };
     persist();
     emit();
     return at;
+  },
+  /* ── 정산 기록 (서버 대역) — 상태 판정은 util/settlement.js `settlementOf` 가 한다 ──────
+     아래 두 쓰기는 **store 가 아는 사실만으로** 가드한다(동의 여부 · 발급 실패 기록 · 기존 기록). 금액(0원 달)은 store 가
+     모르므로 util 의 `issueEinvoiceFor`·`confirmPaymentFor` 가 settlementOf 로 한 번 더 거른다 — 화면은 그쪽을 부를 것. */
+  einvoiceOf(clientId, ym) { return (state.einvoice[scopeId(clientId)] || {})[ym] || null; },
+  einvoiceFailOf(clientId, ym) { return (state.einvoiceFail[scopeId(clientId)] || {})[ym] || null; },
+  paymentOf(clientId, ym) { return (state.payments[scopeId(clientId)] || {})[ym] || null; },
+  holdOf(clientId, ym) { return (state.holds[scopeId(clientId)] || {})[ym] || null; },
+  /** 계산서 발급 재시도·수기 입력(명세 6.6 `POST …/einvoice`). **AGREED(동의완료 · 발급 전)에서만** 받는다 —
+   *  동의 전이거나, 이미 발급됐거나(기록 또는 자동 발급 파생 = 실패 기록이 없는 달) 이면 null.
+   *  - `{ mode: "retry" }` — 데모에서는 늘 성공한다(승인번호는 결정적으로 만든다 — 실서비스는 바로빌 응답).
+   *  - `{ mode: "manual", no, at }` — 승인번호(예시 꼴 `YYYYMMDD-8자리-8자리` · ⚠ 미확정 M62)와 발급 시각(미래 불가) 필수.
+   *    형식이 틀리면 `{ error: "EINVOICE_NO_INVALID" }`, 시각이 틀리거나 미래면 `{ error: "EINVOICE_AT_INVALID" }`.
+   *  성공하면 `{ no, at, mode }`. */
+  issueEinvoice(clientId, ym, { mode, no, at } = {}, now = new Date()) {
+    const k = scopeId(clientId);
+    if (!this.agreementOf(k, ym, now).mode) return null;
+    if (this.einvoiceOf(k, ym) || !this.einvoiceFailOf(k, ym)) return null;
+    let rec;
+    if (mode === "retry") {
+      rec = { no: einvoiceNoFor(k, ym, now), at: fmtAt(now), mode: "retry" };
+    } else if (mode === "manual") {
+      const n = String(no || "").trim();
+      if (!EINVOICE_NO_RE.test(n)) return { error: "EINVOICE_NO_INVALID" };
+      const d = at instanceof Date ? at : parseAt(at);
+      if (!d || d > now) return { error: "EINVOICE_AT_INVALID" };
+      rec = { no: n, at: fmtAt(d), mode: "manual" };
+    } else return null;
+    state = { ...state, einvoice: { ...state.einvoice, [k]: { ...(state.einvoice[k] || {}), [ym]: rec } } };
+    persist();
+    emit();
+    return rec;
+  },
+  /** 입금 확인(명세 6.6 `POST …/payment` — 전액만). 계산서가 나간 달(ISSUED·OVERDUE)만 받는다 — 동의 전 · 발급 실패로
+   *  계산서가 없는 달 · 이미 입금된 달이면 null. `at` 생략 시 지금. 성공하면 `{ at }`. */
+  confirmPayment(clientId, ym, at, now = new Date()) {
+    const k = scopeId(clientId);
+    if (this.paymentOf(k, ym)) return null;
+    if (!this.agreementOf(k, ym, now).mode) return null;
+    if (!this.einvoiceOf(k, ym) && this.einvoiceFailOf(k, ym)) return null;
+    const d = at instanceof Date ? at : at ? parseAt(at) : now;
+    if (!d || d > now) return null;
+    const rec = { at: fmtAt(d) };
+    state = { ...state, payments: { ...state.payments, [k]: { ...(state.payments[k] || {}), [ym]: rec } } };
+    persist();
+    emit();
+    return rec;
+  },
+  /* ── B2B 주문 변경분 (b2b-mock 전용) ─────────────────────
+     ⚠️ 페이지가 이걸 직접 부르지 말 것 — 주문 쓰기는 b2b-mock 의 저장 함수(b2bUpsert·b2bSetStatus·…)를
+        지나야 캐시와 기록이 함께 바뀐다. 여기는 그 함수들이 쓰는 저장 칸일 뿐이다. */
+  orderOps() { return state.orderOps; },
+  /** 저장에 성공하면 true. **실패하면 변경분을 되돌리고 false** — 용량을 넘긴 변경분이 메모리에 남아 있으면
+   *  그 뒤의 **모든** 저장(다른 주문·담당자·거래처·동의 기록)이 같이 실패한다. 예전엔 빈 catch 가 삼켜
+   *  '저장했습니다' 토스트가 뜬 채 새로고침에 전부 사라졌다(2026-10-16 실측 — 원본 HEIC 사진 4MB). */
+  setOrderOps(next) {
+    const prev = state.orderOps;
+    state = { ...state, orderOps: hydrateOrderOps(resolve(next, prev)) };
+    if (persist()) { emit(); return true; }
+    state = { ...state, orderOps: prev };
+    persist(); // 되돌린 상태로 다시 — 실패해도 이전 저장본은 그대로다
+    return false;
   },
   setFavorites(next) {
     state = { ...state, favorites: resolve(next, state.favorites) };

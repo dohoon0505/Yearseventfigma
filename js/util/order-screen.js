@@ -23,6 +23,7 @@ import { HIST_DOT } from "../data/order-history.js";
 import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
 import { openRowPicker } from "./order-dialogs.js";
 import { openDialog } from "./dialog.js";
+import { attachmentOf } from "./image.js";
 
 /* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
    새 코드는 order-fields.js 에서 직접 가져올 것. */
@@ -194,17 +195,24 @@ export function makeImageBox({ get, toast }) {
   const onFile = (panel, file) => {
     if (!file) return;
     if (!/^image\//.test(file.type)) { toast("이미지 파일만 업로드할 수 있습니다", "warn"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
+    const apply = (url) => {
       const o = get();
       if (!o) return;
-      o.image = String(reader.result);
+      o.image = url;
       const box = qs(panel, "[data-slot='imgbox']");
       if (box) { box.classList.add("has"); setHTML(box, inner()); box.title = "클릭하여 크게 보기"; }
       toast("이미지를 업로드했습니다");
       if (notify) notify();
     };
-    reader.readAsDataURL(file);
+    /* 줄여서 담는다(util/image.js) — B2B 주문은 변경분이 localStorage 에 저장되는데(store.orderOps),
+       휴대폰 원본 사진 한 장(수 MB)이 들어가면 용량 한도를 넘어 저장이 실패한다.
+       ⚠️ **줄이지 못하는 형식(HEIC 등)은 받지 않는다.** 예전엔 그때 원본을 그대로 읽어 담았는데, 4MB HEIC 한 장이
+          들어간 뒤로는 그 주문뿐 아니라 다른 주문·담당자·거래처 저장까지 전부 조용히 실패했다(2026-10-16 검증).
+          브라우저가 그리지 못하는 형식은 화면에도 안 보이니 받아 둘 이유도 없다. */
+    attachmentOf(file).then((a) => {
+      if (a.dataUrl) { apply(a.dataUrl); return; }
+      toast("이 형식의 사진은 올릴 수 없습니다 · JPG·PNG 로 다시 올려 주세요", "warn");
+    });
   };
 
   const bind = (panel, onUpload) => {

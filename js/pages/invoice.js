@@ -18,15 +18,18 @@
 import { setHTML, on, qs, qsa, html } from "../dom.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT, INVOICE_NOTE } from "../data/invoice-links.js";
-import { monthsOf, invoiceMonth, latestInvoiceKey } from "../data/invoice-mock.js";
 import { fmtAt, fmtYmd, fmtKoShort, fmtKoShortTime, periodLabel } from "../data/settlement-rules.js";
-import { store } from "../store.js";
 import { currentClient, currentClientName } from "../util/client.js";
 import { pageHead } from "../ui.js";
 import { openDialog, dlgActions } from "../util/dialog.js";
 import { makeToast } from "../toast.js";
 import { sheetToXlsx } from "../util/xlsx.js";
-import { INVOICE_YM_KEY, settlementsFor } from "../util/settlement.js";
+/* 명세서 행·달 목록·동의는 B2B 주문(배송일시의 달)에서 파생한다(2026-10-16 — 주문과 정산 연결). 예전엔 정적 목데이터
+   (invoice-mock)를 읽어 주문을 고쳐도 명세서가 그대로였다. */
+import {
+  INVOICE_YM_KEY, settlementsFor, monthsOf, invoiceMonth, latestInvoiceKey, agreementFor, agreeSettlement,
+  settlementOf, invoiceNoteOf,
+} from "../util/settlement.js";
 
 const DOC_W = 794; /* A4 폭(px) — invoice-doc.js 의 .invoice-page 와 같은 값 */
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
@@ -34,8 +37,8 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 /* 공급받는자 — 로그인한 거래처에서 매번 파생한다(util/client.js).
    모듈 로드 시점에 한 번 굽지 않는 이유: 셸 배지·정산회계 조회와 같은 거래처를
    가리켜야 하고, 거래처 정보를 수정하면 문서에도 바로 반영돼야 한다. */
-/* `invoiceNote`(문서의 '계산서 발행' 칸)는 **동의 여부에 따라 달라지므로** 여기서 확정하지 않는다 —
-   docData() 가 그 달의 동의 기록을 보고 덮어쓴다. 기본값은 '아직 동의 전'이다. */
+/* `invoiceNote`(문서의 '계산서 발행' 칸)는 **그 달의 정산 상태에 따라 달라지므로** 여기서 확정하지 않는다 —
+   docData() 가 settlementOf 로 덮어쓴다. 기본값은 '발급대기'다. */
 function buyerOf() {
   const c = currentClient();
   if (!c) return { address: "", company: "", bizNumber: "", ceo: "", summary: "꽃배달 이용료 청구", invoiceNote: INVOICE_NOTE.wait };
@@ -103,7 +106,8 @@ export function mount(root) {
   const clientId = () => (currentClient() || {}).id || "";
   /* 그릴 때마다 store 에서 다시 파생한다 — 동의 기록은 거래처별이고, 마감(13:00)이 지나면 같은 달이
      자동 동의로 바뀐다. 발행 전·열림·수동·자동 네 상태의 단일 소스(settlement-rules.js). */
-  const agreement = () => store.agreementOf(clientId(), ym());
+  /* 0원 달은 동의를 받지 않는다(발급과 함께 계산서 없이 닫힌다 — 10.4 Q21 잠정 ①) — agreementFor 가 open 을 끈다. */
+  const agreement = () => agreementFor(currentClient() || { id: clientId() }, ym());
 
   /* ── 현재 선택 월 → invoice-doc.js 문서 데이터 ───────────── */
   function docData() {
@@ -116,12 +120,15 @@ export function mount(root) {
       _label: label, _month: m,
       title: `${state.year.slice(2)}년 ${state.month}월 꽃배달 거래명세서`,
       period: `${label} 귀속`,
-      /* 동의(수동·자동)하면 문서의 '계산서 발행' 칸이 '발급완료' 로 바뀐다 — 화면 우측 동의 카드와
+      /* 동의(수동·자동)하고 계산서가 나가면 문서의 '계산서 발행' 칸이 '발급완료' 로 바뀐다 — 화면 우측 동의 카드와
          문서가 서로 다른 말을 하면 안 된다. 어휘는 INVOICE_NOTE 한 벌(관리자·공개 링크와 같다). */
       /* ⚠️ 거래가 없는 달은 발행 어휘를 내보내지 않는다. 동의 상태는 거래 유무와 무관하게 날짜에서만
          파생되므로(마감이 지나면 자동 동의) 빈 달도 '발급완료' 로 찍혀, 합계 0원·발행일 '-' 인 문서에
          발급완료가 나란히 붙던 결함이 있었다 — 옆 카드는 "발급할 계산서가 없습니다" 라고 말하는 중이었다. */
-      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: m.empty ? "-" : agreement().mode ? INVOICE_NOTE.done : INVOICE_NOTE.wait },
+      /* ⚠️ 동의 여부(agreement().mode)로 정하면 안 된다 — 0원 달도 마감이 지나면 mode 가 'auto' 이고, 발급에 실패한 달(AGREED)도
+         동의는 돼 있어 둘 다 '발급완료' 로 찍혔다(관리자 표·PDF 는 같은 달을 '계산서 없음'·'발급대기' 라고 하는 중). 칸은
+         **계산서가 실제로 나갔는지**를 말한다 — invoiceNoteOf(settlementOf) 한 곳(관리자 buildDoc 과 같은 판정). */
+      buyer: { ...buyerOf(), issueDate: m.empty ? "-" : m.issue, invoiceNote: m.empty ? "-" : invoiceNoteOf(settlementOf(currentClient() || { id: clientId() }, ym())) },
       supplier: SUPPLIER,
       items,
       account: ACCOUNT,
@@ -170,6 +177,8 @@ export function mount(root) {
     const st = agreement();
     const btn = (disabled) => html`<button class="iv-btn iv-btn--agree" data-action="agree" ${disabled ? "disabled" : ""}>계산서 발급에 동의</button>`;
     if (m.empty) return html`<p class="iv-agree__p">거래가 없는 달은 발급할 계산서가 없습니다.</p>${btn(true)}`;
+    /* 0원 달 — 명세서는 발급되지만 동의·계산서 없이 닫힌다(명세 3.4 예외표 · 6.4 셋째 잠금 문구와 같은 사실). */
+    if (st.zero && st.issued) return html`<p class="iv-agree__p">0원이라 계산서 없이 닫는 달입니다. 동의할 계산서가 없습니다.</p>${btn(true)}`;
     if (st.mode) {
       const auto = st.mode === "auto";
       return html`<div class="iv-agree__done ${auto ? "iv-agree__done--auto" : ""}" tabindex="-1">
@@ -191,6 +200,13 @@ export function mount(root) {
         : html`계산서 작성일자는 <b>동의한 날</b>입니다(오늘 동의하면 ${fmtKoShort(new Date())}).`;
       return html`
         <p class="iv-agree__p">이 명세서는 이용약관에 동의하기 전에 동의 마감(${fmtKoShortTime(st.deadline)})이 지나 <b>자동 동의되지 않았습니다</b>. 내용을 확인하시고 동의해 주세요. ${holdWhen}</p>
+        ${btn(false)}`;
+    }
+    /* 잠정 보류(10.4 Q19 고지 미도달 · Q20 정지 중 마감) — 마감이 지났지만 자동 동의하지 않았다. 약관 문구를 쓰면 거짓이 된다.
+       포털 문구는 명세에 아직 없다(열린 질문 10) — 사실만 말한다. */
+    if (st.autoAgreeHold) {
+      return html`
+        <p class="iv-agree__p">이 명세서는 동의 마감(${fmtKoShortTime(st.deadline)})이 지났지만 <b>자동 동의가 보류되었습니다</b>. 내용을 확인하시고 동의해 주세요.</p>
         ${btn(false)}`;
     }
     const when = st.group === "early"
@@ -408,6 +424,8 @@ export function mount(root) {
     const hintline = st.termsHold
       ? (early ? "작성일자는 귀속월 말일로 고정됩니다." : "작성일자는 동의한 날(오늘)입니다.")
         + " 약관 동의 전에 마감된 달이라 자동 동의되지 않았습니다."
+      : st.autoAgreeHold
+      ? (early ? "작성일자는 귀속월 말일로 고정됩니다." : "작성일자는 동의한 날(오늘)입니다.") + " 마감이 지났지만 자동 동의가 보류된 달입니다."
       : early
       ? `작성일자는 귀속월 말일로 고정됩니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`
       : `작성일자는 동의한 날입니다 — ${fmtKoShortTime(st.deadline)}까지 동의하지 않으면 자동 동의되고 작성일자는 ${fmtKoShort(st.deadline)}이 됩니다.`;
@@ -449,11 +467,26 @@ export function mount(root) {
       if (!ack) return;
       /* store 가 같은 규칙·같은 시계로 다시 판정한다 — 다이얼로그를 열어 둔 채 마감(13:00)이 지나면
          기록하지 않고 null 을 돌려주고, 그 달은 자동 동의로 그려진다. */
-      const at = store.agreeInvoice(clientId(), ym());
+      /* 화면이 보여 준 금액을 함께 보낸다(명세 3.4 '마감 전 수정' 5) — 다이얼로그를 열어 둔 사이 직원이 그 달 주문을
+         고쳤으면 기록하지 않고 거부한다. 거부되면 새 금액으로 다시 그려 다시 확인받는다. */
+      const at = agreeSettlement(currentClient() || { id: clientId() }, ym(), d._month.total);
       dlg.close();
       dlg = null;
       renderSum();
       renderDoc(); /* 문서의 '계산서 발행' 칸이 바뀐다 */
+      if (at && at.error === "SETTLEMENT_AMOUNT_CHANGED") {
+        /* 월 목록의 그 달 금액도 맞춘다 — 목록 전체를 다시 그리면 스크롤 위치가 날아가므로 그 칸의 글자만. */
+        const sel = qs(root, ".iv-month.is-sel");
+        const mm = invoiceMonth(currentClient(), ym());
+        if (sel) {
+          const amt = qs(sel, ".iv-month__amt");
+          const cnt = qs(sel, ".iv-month__l > span");
+          if (amt) amt.textContent = mm.empty ? "—" : won(mm.total);
+          if (cnt) cnt.textContent = mm.empty ? "내역 없음" : `거래 ${mm.count}건`;
+        }
+        toast(`금액이 바뀌었습니다. 다시 확인해 주세요 · 지금 ${won(at.amount)}`, "warn");
+        return;
+      }
       if (!at) { toast("동의 마감이 지나 자동 동의로 처리되었습니다", "warn"); return; }
       toast(`계산서 발급에 동의했습니다 · 작성일자 ${fmtYmd(agreement().docDate)}`);
       /* 버튼이 사라진 자리로 포커스를 옮긴다 — 안 하면 body 로 떨어져 키보드 사용자가 자리를 잃는다. */

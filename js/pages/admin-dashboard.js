@@ -32,10 +32,10 @@ import { parseOrderDate } from "../util/date.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { BIZ_HOURS } from "../shell.js";
 import {
-  DATA_NOW, usageFor, USAGE_CATEGORIES, CLIENT_CHANNELS, channelOf,
+  DATA_NOW, USAGE_CATEGORIES, CLIENT_CHANNELS, channelOf,
 } from "../data/admin-mock.js";
-/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(정산회계 화면과 같은 소스). */
-import { settlementsFor } from "../util/settlement.js";
+/* 이용 내역·정산 행은 B2B 주문(배송일시의 달)에서 파생한다 — 정산회계 화면·리포트와 같은 소스(util/settlement.js). */
+import { settlementsFor, usageFor, inSettlementFlow } from "../util/settlement.js";
 import { periodLabel, periodOf } from "../data/settlement-rules.js";
 import { b2cList } from "../data/b2c-mock.js";
 import { b2bList } from "../data/b2b-mock.js";
@@ -407,7 +407,7 @@ export function mount(root, { nav }) {
     let billed = 0, unpaid = 0;
     cs.forEach((c) => {
       const r = settlementsFor(c)[1];
-      if (!r) return;
+      if (!inSettlementFlow(r)) return; // 0원 달·거래 없는 달은 동의·계산서 단계가 없다 — 진행률에 세지 않는다(리포트와 같은 판정)
       const amt = Number(String(r.정산금액).replace(/[^0-9]/g, "")) || 0;
       billed += amt;
       if (r.issued) st.명세서 += 1; // 발행일이 아직 안 온 달은 명세서 단계에도 세지 않는다

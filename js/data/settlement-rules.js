@@ -166,7 +166,7 @@ export const fmtKoShortTime = (d) => `${fmtKoShort(d)} ${pad(d.getHours())}:${pa
  * @returns {{ period, invoiceDay, group:"early"|"late", issueDate, deadline, dueDate,
  *            issued, open, mode: null|"manual"|"auto", at: Date|null, docDate: Date|null }}
  */
-export function agreementState({ period, invoiceDay, manualAt = null, termsAt, now }) {
+export function agreementState({ period, invoiceDay, manualAt = null, termsAt, hold = null, now }) {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new Error("agreementState: now(Date) is required");
   const day = invoiceDayOf({ invoiceDay });
   const issue = issueDate(period, day);
@@ -175,15 +175,54 @@ export function agreementState({ period, invoiceDay, manualAt = null, termsAt, n
   const manual = manualAt instanceof Date ? manualAt : parseAt(manualAt);
   const terms = termsAt === undefined ? undefined : termsAt instanceof Date ? termsAt : parseAt(termsAt);
   const termsOk = terms === undefined || (!!terms && terms.getTime() <= deadline.getTime());
+  /* 잠정 보류(Q19 고지 미도달 · Q20 정지 중 마감)는 약관 보류처럼 **그 달의 자동 동의만** 막는다 — 수동 동의는 받는다.
+     약관 보류가 먼저다(의제 조항 자체가 없다). 모르는 값은 보류로 치지 않는다. */
+  const heldBy = HOLD_CODES.includes(hold) && hold !== "TERMS_NOT_AGREED" ? hold : null;
+  const past = now.getTime() > deadline.getTime();
   let mode = null, at = null;
   if (manual) { mode = "manual"; at = manual; }
-  else if (termsOk && now.getTime() > deadline.getTime()) { mode = "auto"; at = deadline; }
+  else if (termsOk && !heldBy && past) { mode = "auto"; at = deadline; }
+  const autoAgreeHold = manual || !past ? null : !termsOk ? "TERMS_NOT_AGREED" : heldBy;
   return {
     period, invoiceDay: day, group: day <= 10 ? "early" : "late",
     issueDate: issue, deadline, dueDate: dueDate(period),
     issued, open: issued && mode === null, mode, at,
     /* 마감이 지났는데 약관 동의 전이라 자동 동의하지 않은 달 — 화면이 이유를 말할 수 있게 */
-    termsHold: !manual && !termsOk && now.getTime() > deadline.getTime(),
+    termsHold: !manual && !termsOk && past,
+    /* 마감이 지났는데 자동 동의하지 않은 이유(명세 6.6 `autoAgreeHold`) — 보류 3종 중 하나, 아니면 null */
+    autoAgreeHold,
     docDate: mode ? docDate(period, day, at) : (day <= 10 ? periodEnd(period) : null),
   };
 }
+
+/* ── 수정 마감 · 기한 초과 (2026-10-15 결정 — 정정 체계 폐지 · 명세 3.4 '마감 전 수정' · 6.6) ──────── */
+/** 수정 마감 — 동의 마감 **날짜의 전날 10:00**(= T4 마감 안내 발송 시각). 1~10 그룹은 발급월 9일 10:00,
+ *  11~28 그룹은 27일 10:00. 이 시각부터(정각 포함) 동의 전이어도 그 달 금액을 바꾸는 수정이 잠긴다. */
+export function editLockAt(period, day) {
+  const d = agreeDeadline(period, day);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, ISSUE_HOUR, 0, 0, 0);
+}
+/** 기한 초과 시각 — 정산기한(발행월 말일) **다음 날 10:00**(T8 과 같은 시각 · M44). 이 시각부터(정각 포함) 미입금은 OVERDUE. */
+export function overdueAt(period) {
+  const d = dueDate(period);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, ISSUE_HOUR, 0, 0, 0);
+}
+/** 지금 수정 마감이 지났는가(정각 포함 — 10:00:00 부터 잠긴다). */
+export const isEditLocked = (period, day, now) => now.getTime() >= editLockAt(period, day).getTime();
+/** 지금 기한 초과 시각이 지났는가(정각 포함). */
+export const isPastOverdue = (period, now) => now.getTime() >= overdueAt(period).getTime();
+
+/** 잠긴 이유 — 명세 6.4 '정산 잠금' 의 정본 문구 3종(2026-10-15 결정 — 귀속월 배송일 기준). 화면이 지어내지 않는다.
+ *  editLock: 수정 마감 뒤 · 동의 전 / agreed: 동의된 달(AGREED·ISSUED·PAID·OVERDUE) / zero: 0원으로 계산서 없이 닫는(닫힌) 달 */
+export const LOCK_REASON = {
+  editLock: "배송일이 지난 달 · 마감 안내가 나갔습니다 — 금액 조정은 동의 뒤 수정계산서로",
+  agreed: "배송일이 지난 달 · 동의를 마쳤습니다 — 금액 조정은 수정계산서로",
+  zero: "배송일이 지난 달 · 0원이라 계산서 없이 닫는 달입니다 — 금액을 바꿀 수 없습니다",
+};
+/** 자동 동의 보류 3종(명세 6.6 `autoAgreeHold`) → 관리자 정산 표 낱말. 잠정 둘(Q19·Q20)은 외부 답에 따라 빠질 수 있다. */
+export const HOLD_LABEL = {
+  TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",
+  NOTICE_UNDELIVERED: "고지 미도달 · 자동 동의 보류",
+  CLIENT_SUSPENDED: "정지 중 마감 · 자동 동의 보류",
+};
+export const HOLD_CODES = Object.keys(HOLD_LABEL);

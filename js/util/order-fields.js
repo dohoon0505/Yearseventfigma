@@ -58,6 +58,8 @@ export const dash = (v) => (v != null && String(v).trim() ? v : "-");
    ⚠️ 저장 포맷은 건드리지 말 것 — util/date.js 의 parseOrderDate 는
       슬래시로만 쪼갠다. 바꾸면 기간 필터가 통째로 NaN 이 된다. */
 export const fmtFull = (s) => (s ? String(s).replace(/\//g, "-").replace("T", " ") : "-");
+/** 배송일시가 **날짜와 시각 모두** 있는지(명세 4.3 · M32 — 등록·수정·포털 공통 필수). 등록 모달 두 곳의 필수 판정이 쓴다. */
+export const DELIVER_AT_OK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 /* 위 세 포맷을 전부 받는 파서 (없거나 깨지면 null) */
 export function parseFlexDate(s) {
