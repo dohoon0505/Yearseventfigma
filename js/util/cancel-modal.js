@@ -20,6 +20,7 @@
    ============================================================ */
 import { html, on, qs } from "../dom.js";
 import { openDialog, dlgRule, dlgRow, dlgPick, dlgActions, bindPick } from "./dialog.js";
+import { readWonInput } from "./order-fields.js";
 
 export const CANCEL_REASONS = [
   "고객 단순 변심",
@@ -31,7 +32,11 @@ export const CANCEL_REASONS = [
 ];
 
 const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
-const numOnly = (v) => String(v).replace(/[^0-9]/g, "");
+/* ⚠️ 수수료는 숫자 외 글자를 **지우지 않고 거부한다**(주문금액 칸과 같은 규칙 — order-fields.js parseWon).
+   예전엔 숫자만 남기는 정형(`replace(/[^0-9]/g, "")`)이라 `12,345.67` 이 1,234,567원(100배)이 되어
+   그대로 그 달 정산에 가산됐다(2026-10-15 실측). 칸 옆에 '원' 이 따로 있어 칸 안에는 단위 없이 쓴다
+   — 그래서 `settleWonInput`(칸에 'N원' 을 쓴다) 대신 아래 focusout 처리가 feeText 로 되돌린다. */
+const feeText = (n) => (n ? Number(n).toLocaleString("ko-KR") : "");
 
 /* 푸터 좌측 기본 힌트(시안) — 막는 조건이 생기면 이 자리가 '왜 못 누르는지'를 말한다.
    버튼만 흐려 두면 사용자는 이유를 찾아 화면을 헤맨다. */
@@ -44,7 +49,9 @@ const HINT_BASE = "제작 착수 전이면 수수료 0원";
  * @returns 다이얼로그 인스턴스({ panel, close, setHint }) — 호출부가 닫기 책임을 진다
  */
 export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) {
-  const form = { reason: CANCEL_REASONS[0], etc: "", fee: "" };
+  /* fee 는 마지막으로 받아들인 값(숫자). feeBad 는 지금 칸의 글자가 거부된 상태인지 — 그동안은 취소를 막는다
+     (되돌릴 수 없는 동작이라 칸에 보이는 값과 청구될 값이 다를 수 있는 순간에 누르게 두지 않는다). */
+  const form = { reason: CANCEL_REASONS[0], etc: "", fee: 0, feeBad: false };
   const isEtc = () => form.reason === "기타";
 
   /* '기타' 칸은 골랐을 때만 보인다.
@@ -120,6 +127,9 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) 
     } else if (isEtc() && !form.etc.trim()) {
       goBtn.disabled = true;
       d.setHint("'기타' 사유를 적어야 취소할 수 있습니다", true);
+    } else if (form.feeBad) {
+      goBtn.disabled = true;
+      d.setHint("수수료는 숫자와 쉼표로만 적어 주세요", true);
     } else {
       goBtn.disabled = false;
       d.setHint(HINT_BASE);
@@ -137,18 +147,36 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) 
 
   on(panel, "input", "[data-cx]", (e, t) => {
     if (t.dataset.cx === "fee") {
-      const n = numOnly(t.value);
-      t.value = n ? Number(n).toLocaleString("ko-KR") : "";
-      form.fee = n;
+      /* 빈칸은 0원이다(수수료는 선택). 그 밖에는 공용 규칙 — 받으면 값을 쓰고, 거부하면 칸을 빨갛게 두고 값은 그대로. */
+      if (!t.value.trim()) {
+        t.classList.remove("is-bad");
+        t.setAttribute("aria-invalid", "false");
+        form.fee = 0;
+        form.feeBad = false;
+      } else {
+        const n = readWonInput(t);
+        form.feeBad = n === null;
+        if (n !== null) form.fee = n;
+      }
     } else {
       form.etc = t.value;
     }
     sync();
   });
 
+  /* 칸을 떠나면 받아들인 값으로 다시 쓴다 — 거부된 원문이 남아 청구될 값과 갈리지 않게(blur 는 버블링하지 않아 focusout) */
+  on(panel, "focusout", "[data-cx='fee']", (e, t) => {
+    t.value = feeText(form.fee);
+    t.classList.remove("is-bad");
+    t.setAttribute("aria-invalid", "false");
+    form.feeBad = false;
+    sync();
+  });
+
   on(panel, "click", "[data-action='ok']", () => {
     const reason = isEtc() ? form.etc.trim() : form.reason;
     if (!reason) return;
+    if (form.feeBad) return;
     onConfirm({ reason, fee: Number(form.fee) || 0 });
     d.close();
   });

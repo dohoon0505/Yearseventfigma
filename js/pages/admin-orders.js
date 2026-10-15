@@ -376,6 +376,31 @@ export function mount(root, { nav }) {
   /* 고정문구는 2026-09-17 부터 **저장 시점 필수**라 새 프로필은 늘 값이 있다. 이 폴백은 그 이전에
      저장된 레코드(빈 고정문구)가 빈 이름으로 찍히는 것만 막는다 — 자동조립을 되살린 것이 아니다. */
   const profileText = (p) => (p ? (p.greeting && p.greeting.trim()) || `${p.role} ${p.name}` : "");
+  /* 배송완료 알림 명단 — 등록 레일이 보여 주는 줄이자 **저장하는 줄**이다(notifySnapshot 이 이걸 그대로 쓴다).
+     한 곳에서 만들어야 화면에 보인 명단과 저장된 명단이 갈리지 않는다(예전엔 둘이 따로 만들어 끈 줄이 저장에서 빠졌다).
+     `locked` = 보낼 번호가 없어 켤 수 없는 줄. */
+  const notifyRows = () => {
+    const rows = [];
+    if (String(cDraft.recipientName || "").trim()) {
+      rows.push({ key: "recipient", name: cDraft.recipientName, sub: cDraft.recipientPhone || "연락처 미입력 · 발송 불가",
+                  phone: cDraft.recipientPhone, locked: !String(cDraft.recipientPhone || "").trim(), kind: "받는분" });
+    }
+    const pf = cProfile();
+    if (pf) rows.push({ key: "sender", name: profileText(pf), sub: pf.phone, phone: pf.phone,
+                        profileId: pf.id, profileName: pf.name, locked: !String(pf.phone || "").trim(), kind: "보내는분" });
+    /* 직접 입력한 요청자는 담당자 저장공간에 없어 아래 자동 편입에 걸리지 않는다.
+       주문을 요청한 사람이야말로 배송완료를 가장 먼저 알아야 한다 — 따로 싣는다. */
+    if (!cDraft.requesterId && String(cDraft.requesterName || "").trim()) {
+      rows.push({ key: "requester", name: cDraft.requesterName,
+                  sub: cDraft.requesterPhone || "연락처 미입력 · 발송 불가", phone: cDraft.requesterPhone,
+                  locked: !String(cDraft.requesterPhone || "").trim(), kind: "주문 요청자" });
+    }
+    receivingContacts(cContacts()).forEach((ct) => {
+      rows.push({ key: `ct:${ct.id}`, name: ct.name, sub: ct.phone || "연락처 미등록", phone: ct.phone, contactId: ct.id,
+                  locked: !String(ct.phone || "").trim(), kind: "주문 요청자·담당자", auto: true });
+    });
+    return rows;
+  };
 
   /* 거래처 변경 시 초기화 대상 — 계약단가·거래 조건·담당자가 전부 거래처에 매인다.
      ⚠️ 배송지·받는분·리본문구는 **유지**한다. 거래처 하나 잘못 골랐다고 다 지우면
@@ -644,27 +669,6 @@ export function mount(root, { nav }) {
                  body: renderFields(CREATE_DELIVER, cDraft) })}`;
 
     /* ── 레일 ── */
-    const notifyRows = () => {
-      const rows = [];
-      if (String(cDraft.recipientName || "").trim()) {
-        rows.push({ key: "recipient", name: cDraft.recipientName, sub: cDraft.recipientPhone || "연락처 미입력 · 발송 불가",
-                    locked: !String(cDraft.recipientPhone || "").trim(), kind: "받는분" });
-      }
-      const pf = cProfile();
-      if (pf) rows.push({ key: "sender", name: profileText(pf), sub: pf.phone, locked: false, kind: "보내는분" });
-      /* 직접 입력한 요청자는 담당자 저장공간에 없어 아래 자동 편입에 걸리지 않는다.
-         주문을 요청한 사람이야말로 배송완료를 가장 먼저 알아야 한다 — 따로 싣는다. */
-      if (!cDraft.requesterId && String(cDraft.requesterName || "").trim()) {
-        rows.push({ key: "requester", name: cDraft.requesterName,
-                    sub: cDraft.requesterPhone || "연락처 미입력 · 발송 불가",
-                    locked: !String(cDraft.requesterPhone || "").trim(), kind: "주문 요청자" });
-      }
-      receivingContacts(cContacts()).forEach((ct) => {
-        rows.push({ key: `ct:${ct.id}`, name: ct.name, sub: ct.phone || "연락처 미등록",
-                    locked: !String(ct.phone || "").trim(), kind: "주문 요청자·담당자", auto: true });
-      });
-      return rows;
-    };
     /* ⚠️ 레일에서 계약단가·계산서 발행·이번 발주 **카드는 뺐다**(사용자 지시, 2026-09-16).
        세 값 모두 이미 다른 곳에서 말한다 — 계약단가는 '상품 · 단가' 카드 머리글과
        '단가 기준' 줄(cBasis)이, 이번 발주 금액은 step2 hint() 푸터가, 명세서 발행일은
@@ -943,25 +947,23 @@ export function mount(root, { nav }) {
     ensureVisible(rec);
   }
 
+  /* 등록할 때 남기는 알림 명단 — 레일에 보인 **그 줄 그대로**(notifyRows) 저장한다(명세 5.3 · M48 · M50).
+     ⚠️ 예전엔 번호 없는 줄과 이 주문에서 끈 줄을 빼고 저장해, '받는분에게는 왜 문자가 안 갔나' 를 확인할 길이 없었다
+        — 끈 것인지 처음부터 없던 것인지 구분되지 않는다(2026-10-15 실측: 받는분을 끄고 등록한 B2B-0045 에 그 줄이 없었다).
+        이제 끈 줄은 `on: false`, 번호 없는 줄은 `phone: null` 로 남는다.
+     ⚠️ 번호 없는 줄의 `on` 은 **사람의 의사 그대로**다(명세 5.3 'T2 발송 규칙' 2) — 레일 스위치가 잠겨 꺼져 보여도 `false` 로
+        굳히지 않는다. 받는분 번호는 상세 모달에서 나중에 채울 수 있고, 서버는 발송 때 그 줄을 지금 번호로 다시 맞춰(규칙 1)
+        켜져 있으면 보낸다. 잠긴 줄을 `on: false` 로 저장하면 번호를 채워도 영영 안 간다. 보낼지 말지는 번호가 정한다(규칙 2).
+     보내는분 줄의 name 은 프로필의 **성함**이다(리본 문구가 아니다 — 명세 5.3 · M65). */
   function notifySnapshot() {
-    const out = [];
-    if (String(cDraft.recipientName || "").trim() && String(cDraft.recipientPhone || "").trim()
-        && !cDraft.notifyOff.includes("recipient")) {
-      out.push({ kind: "recipient", name: cDraft.recipientName, phone: cDraft.recipientPhone, on: true });
-    }
-    const pf = cProfile();
-    if (pf && !cDraft.notifyOff.includes("sender")) {
-      out.push({ kind: "sender", profileId: pf.id, name: profileText(pf), phone: pf.phone, on: true });
-    }
-    if (!cDraft.requesterId && String(cDraft.requesterName || "").trim()
-        && String(cDraft.requesterPhone || "").trim() && !cDraft.notifyOff.includes("requester")) {
-      out.push({ kind: "contact", name: cDraft.requesterName, phone: cDraft.requesterPhone, on: true });
-    }
-    receivingContacts(cContacts()).forEach((ct) => {
-      if (!String(ct.phone || "").trim() || cDraft.notifyOff.includes(`ct:${ct.id}`)) return;
-      out.push({ kind: "contact", contactId: ct.id, name: ct.name, phone: ct.phone, on: true });
+    return notifyRows().map((r) => {
+      const on = !cDraft.notifyOff.includes(r.key);
+      const phone = String(r.phone || "").trim() || null;
+      if (r.key === "recipient") return { kind: "recipient", name: r.name, phone, on };
+      if (r.key === "sender") return { kind: "sender", profileId: r.profileId, name: r.profileName, phone, on };
+      if (r.key === "requester") return { kind: "contact", name: r.name, phone, on };
+      return { kind: "contact", contactId: r.contactId, name: r.name, phone, on };
     });
-    return out;
   }
 
   /* 목록이 현재 탭·기간을 그대로 적용하므로 방금 등록한 주문이 안 보일 수 있다. */

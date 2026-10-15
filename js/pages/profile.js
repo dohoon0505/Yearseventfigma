@@ -345,23 +345,21 @@ export function mount(root) {
 
   render();
 
-  /* 다른 화면이 구역을 지목하고 왔다 — 그 카드를 화면에 올리고 잠깐 표시한다.
-     담당자 카드는 발송인 프로필 카드 아래라, 그냥 이동하면 프로필이 많은 거래처에서는 첫 화면에 안 보인다. */
-  let flashTimer = null;
-  let flashRaf = 0;
+  /* 다른 화면이 구역을 지목하고 왔다 — 그 카드를 화면에 올리고 제목에 포커스를 둔다.
+     담당자 카드는 발송인 프로필 카드 아래라, 그냥 이동하면 프로필이 많은 거래처에서는 첫 화면에 안 보인다.
+     (도착 표시 테두리는 2026-10-15 사용자 결정으로 뺐다 — 시안에 없는 모양이다.) */
+  let focusRaf = 0;
   const focusSec = takeFocusSection("profile");
   const target = focusSec ? qs(root, `[data-sec='${focusSec}']`) : null;
   if (target) {
     /* ⚠️ 다음 프레임에 스크롤한다 — 라우터가 mount() 가 끝나자마자 `target.scrollTop = 0` 으로 되돌린다
        (router.js). 여기서 바로 scrollIntoView 하면 그 한 줄에 지워져 카드가 첫 화면 아래에 남는다(1366x768 실측). */
-    flashRaf = requestAnimationFrame(() => {
-      flashRaf = 0;
+    focusRaf = requestAnimationFrame(() => {
+      focusRaf = 0;
       target.scrollIntoView({ block: "start" });
       const h = qs(target, "h2");
       if (h) h.focus({ preventScroll: true });
     });
-    target.classList.add("is-flash");
-    flashTimer = setTimeout(() => { flashTimer = null; target.classList.remove("is-flash"); }, 1600);
   }
 
   const off = on(root, "click", "[data-action]", (e, t) => {
@@ -387,7 +385,6 @@ export function mount(root) {
     off();
     closeDlg();
     toast.destroy();
-    if (flashTimer) clearTimeout(flashTimer);
-    if (flashRaf) cancelAnimationFrame(flashRaf);
+    if (focusRaf) cancelAnimationFrame(focusRaf);
   };
 }

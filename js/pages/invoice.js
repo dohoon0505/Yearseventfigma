@@ -26,7 +26,7 @@ import { pageHead } from "../ui.js";
 import { openDialog, dlgActions } from "../util/dialog.js";
 import { makeToast } from "../toast.js";
 import { sheetToXlsx } from "../util/xlsx.js";
-import { INVOICE_YM_KEY } from "../util/settlement.js";
+import { INVOICE_YM_KEY, settlementsFor } from "../util/settlement.js";
 
 const DOC_W = 794; /* A4 폭(px) — invoice-doc.js 의 .invoice-page 와 같은 값 */
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
@@ -71,16 +71,22 @@ const xCenter = (z) => ({ size: 10.5, color: XA.text2, align: "center", valign: 
 const xLeft   = (z) => ({ size: 10.5, color: XA.ink, align: "left", valign: "center", wrap: true, border: true, ...(z ? { fill: XA.zebra } : {}) });
 const xMoney  = (z) => ({ size: 10.5, color: XA.ink, align: "right", valign: "center", border: true, numFmt: MONEY_FMT, ...(z ? { fill: XA.zebra } : {}) });
 
-/** 정산회계 조회에서 넘겨 준 귀속월이 있으면 그 달로, 없으면 거래가 있는 가장 최근 달로 연다.
- *  ⚠️ 읽고 **바로 지운다** — 남겨 두면 나중에 사이드바로 그냥 들어왔을 때도 옛 달이 열린다. */
+/** 넘겨받은 귀속월이 있으면 그 달로, 없으면 거래가 있는 가장 최근 달로 연다.
+ *  넘겨주는 곳은 둘이다 — 정산회계 조회의 '…명세서' 버튼과 알림 링크(`?period=`, main.js · 명세 6.6 M20).
+ *  ⚠️ 읽고 **바로 지운다** — 남겨 두면 나중에 사이드바로 그냥 들어왔을 때도 옛 달이 열린다.
+ *  ⚠️ **그 거래처의 달**일 때만 연다(명세 6.6 — 형식이 틀리거나 그 거래처에 없는 달이면 기본 달). '그 거래처의 달' =
+ *     정산 행이 있는 달(최근 6개월 — 거래가 없어도 '청구 전' 행이 있다) 또는 명세서 내역이 있는 달.
+ *     정산회계 조회의 버튼은 언제나 정산 행의 달이라 이 검사에 걸리지 않는다. */
 function initialKey() {
+  const client = currentClient();
   let handoff = null;
   try {
     handoff = sessionStorage.getItem(INVOICE_YM_KEY);
     sessionStorage.removeItem(INVOICE_YM_KEY);
   } catch { /* storage 비활성 — 기본 달로 */ }
-  if (handoff && /^\d{4}-\d{2}$/.test(handoff)) return handoff;
-  return latestInvoiceKey(currentClient());
+  if (handoff && /^\d{4}-(0[1-9]|1[0-2])$/.test(handoff) && client
+      && (!invoiceMonth(client, handoff).empty || settlementsFor(client).some((r) => r.ym === handoff))) return handoff;
+  return latestInvoiceKey(client);
 }
 
 export function mount(root) {

@@ -300,7 +300,9 @@ export function mount(root, { nav }) {
     product: null, ribbon: "", sender: "",
     addr: "", toName: "", toPhone: "", side: "", // side: 측근(신랑측/신부측) — 청첩 전용 필수
     deliv: "sched", date: "", hour: "09", min: "00",
-    manager: 0,
+    /* 주문 담당자 — **Contact.id** 로 기억한다(명세 M01). 예전엔 목록 순번(0·1·2)이라, 주문을 쓰는 사이에
+       담당자를 지우거나 순서가 바뀌면 같은 번호에 다른 사람이 앉았다. null 이면 첫 담당자. */
+    manager: null,
     notify: { recipient: true, sender: true },
     /* 담당자는 담당자 저장공간(store.contacts)의 수신 설정에서 자동 편입된다.
        이 주문에서만 끈 담당자의 번호(no)를 여기 담는다 — 저장공간 설정은 건드리지 않는다. */
@@ -348,7 +350,7 @@ export function mount(root, { nav }) {
     });
     /* 4단계 진입마다 알림 명단을 다시 그린다 — 받는분·보내는분·담당자 값이
        앞 단계에서 바뀌었을 수 있고, 명단에 실제 번호가 보여야 의미가 있다. */
-    if (n === 4) { renderConfirm(); renderNotifyList(); }
+    if (n === 4) { renderConfirm(); renderNotifyList(); ddMgr.renderTrigger(); }
     scrollTop();
   }
   function refreshCtas() {
@@ -470,12 +472,18 @@ export function mount(root, { nav }) {
     get: () => state.date, set: (v) => { state.date = v; refreshCtas(); },
     min: dpMin, max: dpMax,
   });
-  /* 주문 담당자 — 공용 커스텀 드롭다운(index→"이름 · 직위" label 매핑) */
+  /* 주문 담당자 — 공용 커스텀 드롭다운(id → "이름 · 직위" label 매핑).
+     고른 사람이 목록에서 사라졌으면 첫 담당자로 돌아간다 — 4단계에 들어올 때마다 트리거를 다시 그려(go) 접수 전에
+     누가 담당자인지 화면에 보이게 한다(조용히 바뀐 채 접수되지 않게). */
+  const managerOf = () => {
+    const list = store.contactsOf();
+    return list.find((c) => c.id === state.manager) || list[0] || null;
+  };
   const ddMgr = makeDropdown($("[data-dd-mgr]"), {
-    options: () => store.contactsOf().map((_, i) => String(i)),
-    get: () => String(state.manager),
-    set: (v) => { state.manager = +v; },
-    label: (v) => { const c = store.contactsOf()[+v]; return c ? `${c.name} · ${c.role}` : "담당자 없음"; },
+    options: () => store.contactsOf().map((c) => c.id),
+    get: () => (managerOf() || {}).id || "",
+    set: (v) => { state.manager = v; },
+    label: (v) => { const c = store.contactsOf().find((x) => x.id === v); return c ? `${c.name} · ${c.role}` : "담당자 없음"; },
   });
   /* 측근(신랑측/신부측) — 청첩 전용 필수선택(빈 값이면 "측근 선택" placeholder) */
   const SIDES = ["신랑측", "신부측"];
@@ -797,12 +805,15 @@ export function mount(root, { nav }) {
     const max = $("[data-nte-max]"); if (max) max.toggleAttribute("hidden", !full);
   }
 
-  /* 배송완료 알림 수신자 요약 — 접수 확인·완료 화면이 공유한다. */
+  /* 배송완료 알림 수신자 요약 — 접수 확인·완료 화면이 공유한다.
+     ⚠️ **보낼 번호가 있는 사람만 센다.** 예전엔 스위치만 봐서, 받는분 번호를 비우고(선택 칸) 보내는분을 직접 적으면
+        아무도 받을 수 없는 두 줄까지 세어 '4명에게 발송' 이라고 했다(실제로는 담당자 2명 — 2026-10-15 실측).
+        추가 수신자(extra)는 처음부터 이 규칙이었다. */
   function notifyParts() {
     const base = [];
-    if (state.notify.recipient) base.push("받는분");
-    if (state.notify.sender) base.push("보내는분");
-    const mgrs = autoManagers().filter((c) => !state.managerOff.has(c.id));
+    if (state.notify.recipient && phoneOk(state.toPhone)) base.push("받는분");
+    if (state.notify.sender && phoneOk(senderPhone())) base.push("보내는분");
+    const mgrs = autoManagers().filter((c) => !state.managerOff.has(c.id) && phoneOk(c.phone));
     const extra = state.notifyExtra.filter((r) => r.on && r.name.trim() && phoneOk(r.phone));
     return { base, mgrs, extra };
   }
@@ -872,13 +883,12 @@ export function mount(root, { nav }) {
     `);
   }
   function submit() {
-    const contacts = store.contactsOf();
-    const c = contacts[state.manager] || contacts[0];
+    const c = managerOf();
     setHTML($("[data-done-box]"), html`
       <div class="cf-row"><span class="cl">상품</span><span class="cv">${state.product.product}</span></div>
       <div class="cf-row"><span class="cl">리본 문구</span><span class="cv">${state.ribbon}</span></div>
       <div class="cf-row"><span class="cl">배송</span><span class="cv">${dateLabel()}<small>${state.addr}</small></span></div>
-      <div class="cf-row"><span class="cl">담당자</span><span class="cv">${c.name} (${c.phone})</span></div>
+      <div class="cf-row"><span class="cl">담당자</span><span class="cv">${c ? `${c.name} (${c.phone})` : "담당자 없음"}</span></div>
       <div class="cf-row"><span class="cl">배송완료 알림</span><span class="cv">${notifyLabel()}${notifyExtraDetail() ? html`<small>${notifyExtraDetail()}</small>` : ""}</span></div>
       <div class="cf-row"><span class="cl">결제 금액</span><span class="cv num done-amount">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</span></div>
     `);
@@ -893,7 +903,7 @@ export function mount(root, { nav }) {
     cancelRedirect();
     Object.assign(state, {
       step: 1, maxStep: 1, occ: null, viaUrl: false, product: null, ribbon: "", sender: "",
-      addr: "", toName: "", toPhone: "", side: "", deliv: "sched", hour: "09", min: "00", manager: 0,
+      addr: "", toName: "", toPhone: "", side: "", deliv: "sched", hour: "09", min: "00", manager: null,
       notify: { recipient: true, sender: true },
       managerOff: new Set(),
       notifyExtra: [],
