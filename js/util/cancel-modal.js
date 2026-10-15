@@ -9,7 +9,8 @@
    사유는 코드값으로 받는다 — 자유 텍스트로 두면 통계도 정산 근거도 안 된다.
    '기타'만 직접 입력을 연다.
 
-   수수료는 B2B 에서 그 달 정산에 가산되므로 금액이 걸린 입력이다.
+   수수료는 B2B 에서 취소한 달의 정산에 가산되므로 금액이 걸린 입력이다(2026-10-15 — 주문의 귀속월은 배송한 달이라
+   예약 주문을 미리 취소하면 두 달이 다르다. 명세 3.4 '마감 전 수정' 6).
    되돌릴 수 없는 동작이라 한 번 더 확인받는다(주문 접수 확인과 같은 패턴).
 
    ⚠️ 셸은 `openDialog`(js/util/dialog.js) 하나다 — 예전에는 `simpleModal` +
@@ -43,9 +44,10 @@ const feeText = (n) => (n ? Number(n).toLocaleString("ko-KR") : "");
 const HINT_BASE = "제작 착수 전이면 수수료 0원";
 
 /**
- * @param {{orderNo:string, amount:number, settle?:boolean,
+ * @param {{orderNo:string, amount:number, settle?:string|false,
  *          onConfirm:(r:{reason:string, fee:number}) => void}} opts
- *   settle=true 면 "그 달 정산에 가산된다"는 안내를 띄운다(B2B).
+ *   settle 에 달 이름('2026년 10월' — 취소한 달)을 넘기면 "그 달 정산에 가산된다"는 안내를 띄운다(B2B).
+ *   달을 이름으로 말하는 이유: 수수료가 붙는 달(취소한 달)과 주문의 귀속월(배송한 달)이 다를 수 있다.
  * @returns 다이얼로그 인스턴스({ panel, close, setHint }) — 호출부가 닫기 책임을 진다
  */
 export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) {
@@ -93,7 +95,7 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) 
         })}
       </div>
       ${settle
-        ? html`<p class="dlg-hintline">입력한 금액은 해당 거래처의 그 달 정산에 가산됩니다.</p>`
+        ? html`<p class="dlg-hintline">입력한 금액은 해당 거래처의 ${settle} 정산(취소한 달)에 가산됩니다.</p>`
         : ""}
     </div>
   `;

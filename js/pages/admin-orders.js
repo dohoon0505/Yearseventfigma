@@ -11,11 +11,11 @@
      ⚠️ 거래조건 `!` 배지는 **없다** — 모달이 전문을 띄우므로 중복이라 뺐다(되살리지 말 것)
    - 날짜 기준 세그가 '접수일'이 아니라 **'주문일'**(B2B 필드는 date)
    - 주문정보 존에 **정산 귀속월·적용 단가** 2행이 더 있다. 거래처 후불 정산의
-     근거라 **잠가 둔다**(모달은 모드 없는 상시 편집이라 '편집 모드'라는 것이 없다)
-     — 여기서 바뀌면 정산 드릴다운이 어긋난다
+     근거라 **직접 고치는 칸이 아니다**(모달은 모드 없는 상시 편집이라 '편집 모드'라는 것이 없다)
+     — 귀속월은 배송일시의 달에서 나오고(2026-10-15) 배송일시를 고치면 함께 바뀐다
    - clientNote(거래 조건)는 최상단 배너가 아니라 **요약 레일 맨 아래 카드**다.
      메모가 아니라 거래 조건이고((주)홈박스: "무조건 특대상품 발송") 빠지면 주문마다 사고가 난다
-   - 주문취소는 settle:true — 수수료가 그 달 정산에 가산된다는 안내
+   - 주문취소는 settle 에 달 이름을 넘긴다 — 수수료가 취소한 달 정산에 가산된다는 안내(귀속월은 배송한 달)
    - 주문서 삭제에 확인 모달. 정산 근거가 사라지는 일이라 B2C 처럼
      바로 지우지 않는다
 
@@ -34,7 +34,7 @@ import { applyOrderText } from "../data/order-text.js";
 import { pushHistory } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
-import { invoiceDayOf } from "../data/settlement-rules.js";
+import { invoiceDayOf, periodOf, periodLabel } from "../data/settlement-rules.js";
 import { readWonInput, settleWonInput } from "../util/order-fields.js";
 import { staffOptions } from "../data/staff-mock.js";
 import {
@@ -56,7 +56,9 @@ const PRODUCTS = ALL_PRODUCTS.map((p) => ({ name: p.product, key: productKey(p),
 /* 적용 단가는 `store.appliedPrice` 단일 소스에 맡긴다 — 여기에 규칙을 복제하면
    포털과 관리자 화면이 갈린다(실제로 갈렸던 전력이 있다). */
 const priceFor = (clientId, name) => store.appliedPrice(clientId, name);
-/* 정산 귀속월 — **주문일시 문자열**에서 파생("2026/09/15 09:10" → "2026년 09월").
+/* 정산 귀속월 — **배송일시 문자열**에서 파생("2026-09-15T14:00" → "2026년 09월").
+   2026-10-15 결정으로 귀속월은 배송한 달이다(명세 4.3 · 5.3 — 주문일시가 아니다). 지난달에 받아 이번 달에
+   배송하는 예약 주문은 배송하는 달 명세서에 든다. 호출부는 `editing.deliverAt` 을 넘긴다.
    ⚠️ `settlement-rules.periodLabel` 은 기간("2026-09")을 받는 다른 함수다 — 이름을 갈라 둔다.
       같은 이름으로 두면 나중에 규칙 모듈을 import 하는 순간 조용히 섀도잉된다. */
 function orderPeriodLabel(dateStr) {
@@ -262,7 +264,7 @@ export function mount(root, { nav }) {
   const summaryRows = () => [
     { k: "상품", v: dash(editing.product) },
     { k: "거래처", v: clientName(editing) },
-    { k: "정산 귀속", v: orderPeriodLabel(editing.date) },
+    { k: "정산 귀속", v: orderPeriodLabel(editing.deliverAt) },
     { k: "담당자", v: editing.manager || "미지정", empty: !editing.manager, action: "pick-manager" },
   ];
 
@@ -1096,10 +1098,13 @@ export function mount(root, { nav }) {
     /* 삭제 — B2B 주문은 그 달 청구의 근거다. 귀속월과 금액을 고지한다. */
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false;
+      /* 저장된 값으로 말한다 — 삭제하면 저장 안 한 수정은 버려지므로, 화면에서 배송일시·금액을 고쳐 둔 채 지우면
+         청구에서 빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달, 2026-10-15). */
+      const saved = baseline || editing;
       openDeleteConfirm({
         orderNo: editing.orderNo,
-        note: html`이 주문은 <b>${orderPeriodLabel(editing.date)} 정산</b>의 청구 근거입니다.
-          삭제하면 그 달 청구 금액에서 <b>${won(editing.amount)}</b>이 빠집니다.`,
+        note: html`이 주문은 <b>${orderPeriodLabel(saved.deliverAt)} 정산</b>의 청구 근거입니다.
+          삭제하면 그 달 청구 금액에서 <b>${won(saved.amount)}</b>이 빠집니다.`,
         onConfirm: () => {
           const name = editing.orderNo;
           b2bRemove(editing.id);
@@ -1115,7 +1120,9 @@ export function mount(root, { nav }) {
       openCancelModal({
         orderNo: editing.orderNo,
         amount: editing.amount,
-        settle: true, // 수수료가 그 달 정산에 가산된다 — B2C 와 다른 안내문
+        /* 수수료는 **취소한 날이 속한 달**의 정산에 붙는다(2026-10-15 기본값 — 명세 3.4 '마감 전 수정' 6).
+           주문의 귀속월(배송한 달)이 아니다 — 그래서 달 이름을 넘겨 안내문이 그 달을 말하게 한다. B2C 는 정산이 없다. */
+        settle: periodLabel(periodOf(new Date())),
         onConfirm: ({ reason, fee }) => {
           editing.status = "취소";
           editing.cancelReason = reason;
