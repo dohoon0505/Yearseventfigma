@@ -19,6 +19,7 @@ import { RIBBON_GROUPS } from "../data/ribbon-phrases.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
 import { CS_PHONE } from "../data/contact.js";
 import { b2bUpsert, b2bNewId, b2bNextOrderNo } from "../data/b2b-mock.js";
+import { intakeBlockOf } from "../util/settlement.js";
 import { histEntry } from "../data/order-history.js";
 
 /* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
@@ -659,6 +660,11 @@ export function mount(root, { nav }) {
         return;
       }
     }
+    /* 그 배송일의 달로 주문을 받을 수 없으면(명세서 발행이 지난 거래 없는 달 · 잠긴 달 — 2026-10-16 사용자 답 3) 접수하지 않고
+       배송 단계로 돌려보낸다. 판정·문구는 util/settlement `intakeBlockOf`(이유는 규칙 모듈 상수)다. 이 화면은 오늘~30일 뒤만
+       고르게 하므로 평소엔 걸리지 않는다 — 날짜 제한이 바뀌어도 이 문이 지킨다. */
+    const blk = intakeBlockOf(currentClient(), deliverAtOf(), new Date());
+    if (blk) { go(2); showToast(blk.reason); return; }
     /* 접수하면 리본 문구·보내는분을 고칠 수 없다 — 그래서 확인 창이 그 둘을 **다시 보여 준다**(2026-09-26,
        공용 다이얼로그로 옮기며). 예전엔 상품·금액 한 줄만 보여 줘 마지막 확인이 이름뿐이었다. */
     const val = (v, cls = "") => html`<span class="dlg-val ${cls}">${v || "-"}</span>`;
@@ -901,6 +907,8 @@ export function mount(root, { nav }) {
   /* 접수 = **실제 B2B 주문을 만든다**(2026-10-16 운영자 결정 — 포털 접수가 관리자 주문관리·실시간 주문내역·
      정산에 모두 나타난다). 금액은 화면에 보인 결제 금액(적용 단가 + 추가 배송비) 그대로다.
      담당자(우리 직원)는 미지정으로 둔다 — 관리자가 열면 지정 다이얼로그가 자동으로 뜬다(자동 배정 금지). */
+  /** 주문의 배송일시 문자열("YYYY-MM-DDTHH:mm") — 접수 레코드와 접수 막기(intakeBlockOf)가 같은 값을 본다. */
+  function deliverAtOf() { return `${state.date}T${state.hour}:${state.min}`; }
   function createOrder(contact) {
     const cl = currentClient();
     const now = new Date();
@@ -909,7 +917,7 @@ export function mount(root, { nav }) {
       date: `${now.getFullYear()}/${pad2(now.getMonth() + 1)}/${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
       ordererName: contact ? contact.name : "",
       requesterId: contact ? contact.id : "", requesterName: contact ? contact.name : "", requesterPhone: contact ? contact.phone || "" : "",
-      address: state.addr, deliverAt: `${state.date}T${state.hour}:${state.min}`,
+      address: state.addr, deliverAt: deliverAtOf(),
       recipientName: state.toName, recipientPhone: state.toPhone,
       ribbonPhrase: state.ribbon, ribbonSender: state.sender,
       image: "", notified: false,
@@ -926,6 +934,9 @@ export function mount(root, { nav }) {
     return b2bUpsert(rec) ? rec : null;
   }
   function submit() {
+    /* 확인 창을 띄워 둔 사이 막혔을 수 있다 — 접수하는 순간 한 번 더 본다(서버 409 의 데모 대역). */
+    const blk = intakeBlockOf(currentClient(), deliverAtOf(), new Date());
+    if (blk) { go(2); showToast(blk.reason); return; }
     const c = managerOf();
     const rec = createOrder(c);
     if (!rec) { showToast("주문을 접수하지 못했습니다 · 브라우저 저장 공간이 부족합니다"); return; }

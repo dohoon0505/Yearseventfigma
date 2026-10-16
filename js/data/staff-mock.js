@@ -35,6 +35,14 @@ export const STAFF = [
 
 let idSeq = STAFF.length;
 
+/** 직원 레코드 → 기록의 '누가'(정산 금액 변경 기록 · 계산서 다시 시도·직접 입력 · 입금 확인의 `by`).
+ *  모양은 `{ type: "staff", id, name, dept }` — util/actor.js `currentActor()` 와 같은 꼴이다. */
+export const staffActor = (s) => (s ? { type: "staff", id: s.id, name: s.name, dept: s.dept || "" } : null);
+/** 시드 기록의 처리자 — 운영 계정 메이플라워(운영). 이름을 손으로 적지 않게 여기서 파생한다(store 시드 입금 ·
+ *  b2b-mock 시드 변경 기록이 같이 쓴다). 모듈 평가 시점의 값으로 굳힌다 — 담당자 설정 화면에서 이 계정을 고쳐도
+ *  지난 기록의 처리자는 바뀌지 않는다(기록은 그때의 사실이다). */
+export const SEED_ACTOR = Object.freeze(staffActor(STAFF.find((s) => s.id === "s3")));
+
 export function staffList() { return STAFF; }
 /* B2C 담당자 피커 등에서 쓰는 라이브 이름 목록 — 디렉터리 편집이 즉시 반영된다.
    운영 계정(system)은 사람이 아니므로 배정 대상에서 뺀다. */

@@ -13,8 +13,11 @@
    - 주문정보 카드가 시안 S-06(2026-10-16) 배치다 — 거래처 | 귀속월 · 주문 요청자 | 연락처 · 주문상품 | 알림 수신 ·
      주문금액(한 줄 — 칸 + '원' + 잠긴 이유). 귀속월은 배송일시의 달에서 나오고(2026-10-15) 배송일시를 고치면 함께 바뀐다
    - **정산 잠금**(명세 3.4 '마감 전 수정' · 6.4 `409 SETTLEMENT_PERIOD_LOCKED`) — 저장된 배송일시의 달 정산이 고칠 수 없는
-     상태(`settlementOf(...).editable === false`)면 주문금액·주문상품을 잠그고 이유(`lockReason` — 명세 6.4 정본 문구)를
-     금액 칸 옆에 둔다. 저장·삭제·주문취소는 그 순간 다시 판정한다(서버 409 의 데모 대역 — 아래 `lockHit`)
+     상태(`settlementOf(...).editable === false`)면 주문금액·주문상품을 잠그고 이유(짧은 말 `lockShort` + 정본 `lockReason` 은
+     title·보조기술용 글)를 금액 칸 옆에 둔다. 명세서가 나갔는데 아직 고칠 수 있는 달이면 칸이 호박색이 되고 수정 마감 시각을
+     말한다(2차 시안 S-06 ①). 저장·삭제·주문취소·배송일 이동·등록의 판정은 **`settlementImpactOf` 하나**다(util/settlement —
+     옛 lockHit·removeHit·cancelHit 를 대신한다). 명세서가 나간 달의 금액이 실제로 바뀌는 저장·등록은 '저장 전 금액 변경 확인'
+     창(util/order-settle-dialog.js · 사유(선택) → b2b 쓰기 ctx.note → 정산 금액 변경 기록)을 지난다(⑦)
    - clientNote(거래 조건)는 최상단 배너가 아니라 **요약 레일 맨 아래 카드**다.
      메모가 아니라 거래 조건이고((주)홈박스: "무조건 특대상품 발송") 빠지면 주문마다 사고가 난다
    - 주문취소는 settle 에 달 이름을 넘긴다 — 수수료가 취소한 달 정산에 가산된다는 안내(귀속월은 배송한 달)
@@ -36,9 +39,10 @@ import { applyOrderText } from "../data/order-text.js";
 import { histEntry } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
-import { invoiceDayOf, periodOf, periodLabel } from "../data/settlement-rules.js";
-import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
-import { settlementOf } from "../util/settlement.js";
+import { invoiceDayOf, periodOf, periodLabel, fmtKoShortTime, fmtAt } from "../data/settlement-rules.js";
+import { readWonInput, settleWonInput, DELIVER_AT_OK, dtpMarkup } from "../util/order-fields.js";
+import { settlementOf, settlementImpactOf, intakeBlockOf } from "../util/settlement.js";
+import { openSettleConfirm, sdlgMonths, sdlgNote, sdlgErr } from "../util/order-settle-dialog.js";
 import { setFocusClient, setFocusSection, takeFocusClient, takeFocusSection } from "../session.js";
 import { staffOptions } from "../data/staff-mock.js";
 import {
@@ -282,32 +286,68 @@ export function mount(root, { nav }) {
   const metaLine = () => `${clientName(editing)} · 주문 ${fmtFull(editing.date)} · ${fmtFull(editing.deliverAt)} 배송 예정`;
 
   /* ── 정산 잠금 (시안 S-06 · 명세 3.4 '마감 전 수정' · 6.4 '정산 잠금') ─────────────────────
-     판정은 `settlementOf(거래처, 달).editable` 하나다 — 화면이 날짜로 짐작하지 않는다(명세 6.6). 그 달 = **저장된**
+     칸 모양의 판정은 `settlementOf(거래처, 달).editable` 하나다 — 화면이 날짜로 짐작하지 않는다(명세 6.6). 그 달 = **저장된**
      배송일시의 달(명세 6.4 '주문 상세의 정산 요약' — `settlement` 은 저장된 배송일시의 달 정산). 고치는 중인 배송일시가
-     아니다: 다른 달로 옮기는 저장은 옛 달·새 달을 **둘 다** 저장 순간에 따로 검사한다(lockHit).
+     아니다: 저장·삭제·취소의 판정은 `settlementImpactOf(저장본, 작업본)` 이 옛 달·새 달을 **둘 다** 본다(이동은 옛 달 먼저).
      ⚠️ 잠기는 칸은 주문금액·주문상품 둘이다. 금액에 영향이 없는 칸(리본 문구·요청사항·같은 달 안의 배송일시 등)은
         그대로 고친다(명세 6.4). 배송지는 이 화면이 금액을 다시 채우지 않으므로(N15 는 아직) 잠그지 않는다. */
   let amtLock = null;   // 잠겼으면 그 달의 settlementOf 결과, 열려 있으면 null
   let prodDd = null;    // 주문상품 드롭다운 — 잠글 때 이것만 걷어낸다(배송일시 피커는 그대로)
+  /* 저장된 배송일시의 달 정산 — 요약 'M월 정산' 줄·금액 칸 안내·배송일시 안내가 모두 이 달을 말한다(2차 시안 S-06 — 라벨은
+     저장된 달이고, 다른 달로 옮기는 중이면 두 달 금액을 함께 쓴다). 열 때와 저장·취소 뒤에 다시 읽는다. */
+  let s0 = null;
+  /* 저장 순간 잠긴 것이 드러나 금액·상품을 되돌렸을 때 **적은 값**의 메모(2026-10-16 사용자 답 2) — 저장 줄(푸터 힌트 자리)에
+     남고 다음 저장·창 닫기 때 사라진다. 칸은 저장돼 있던 값으로 잠근다(그 값은 그 달에 저장될 수 없다). */
+  let unsaved = "";
+  let unsavedTip = "";
+  /* 마지막 syncDirty 의 판정 — 요약 줄이 같은 값을 읽는다(입력마다 두 번 계산하지 않게). */
+  let lastImp = null;
   const settleOf = (o, ym = ymOf(o?.deliverAt), now = new Date()) => {
     const c = clientOf(o);
     return c && ym ? settlementOf(c, ym, now) : null;
   };
   const lockOf = (o, now = new Date()) => { const s = settleOf(o, undefined, now); return s && !s.editable ? s : null; };
-  /** 이 저장(stored → next)이 정산 금액을 바꾸는 달 중 **잠긴 달**이 있으면 `{ ym, s, moved, isOld }`, 없으면 null.
-   *  금액·상품이 바뀌면 그 달, 배송일시가 다른 달로 옮겨 가면 옛 달·새 달 **둘 다**(명세 6.4 — 둘 다 잠겼으면 옛 달을 말한다). */
-  function lockHit(stored, next, now = new Date()) {
-    const c = clientOf(stored);
-    if (!c) return null;
-    const oldYm = ymOf(stored.deliverAt), newYm = ymOf(next.deliverAt);
-    const moved = oldYm !== newYm;
-    const money = Number(stored.amount || 0) !== Number(next.amount || 0) || String(stored.product || "") !== String(next.product || "");
-    const yms = moved ? [oldYm, newYm].filter(Boolean) : money && oldYm ? [oldYm] : [];
-    for (const ym of yms) {
-      const s = settlementOf(c, ym, now);
-      if (!s.editable) return { ym, s, moved, isOld: ym === oldYm };
-    }
-    return null;
+  const monthNo = (ym) => Number(String(ym || "").slice(5, 7));
+  /** 정산이 '명세서' 인 달인가(발행 뒤 · 거래 없는 달 제외) — 낱말이 '9월 명세서' / '10월 정산' 으로 갈린다(시안). */
+  const isSheet = (s) => !!s && s.issued && s.status !== "NONE";
+  const monthWord = (m) => `${monthNo(m.ym)}월 ${isSheet(m.s) ? "명세서" : "정산"}`;
+  const num = (n) => Number(n || 0).toLocaleString("ko-KR");
+  /** 'M월 D일 HH:mm' — 확인 창의 배송일시 전후(시안 '9월 29일 15:00 → 10월 3일 14:00'). */
+  const koDT = (s) => { const d = parseFlexDate(s); return d ? fmtKoShortTime(d) : dash(s); };
+  /** 지금 작업본을 저장하면 들어갈 레코드(이력 제외 — 판정용). */
+  const mergedNow = () => { const { history: _h, ...rec } = editing; return { ...rec, amount: Number(editing.amount) || 0 }; };
+  /** 지금 작업본을 저장하면 정산에 주는 영향(서버 409 의 데모 대역 · 저장 전 확인 창의 근거) — 저장된 레코드가 없으면 null. */
+  const impactNow = (now = new Date()) => {
+    const st = editing && findOrder(editing.id);
+    return st ? settlementImpactOf(st, mergedNow(), now) : null;
+  };
+  /** 누르기 전부터 막는 잠김 — 배송일시를 옮기는 저장(옛 달이 잠김)과 잠긴 달·발행이 지난 거래 없는 달로 들어가는 저장(시안 —
+   *  저장 줄이 어느 달 때문인지 말하고 저장 버튼이 잠긴다). 같은 달 안에서 금액·상품만 바꾸다 잠긴 경우(창을 열어 둔 사이 수정 마감)는
+   *  여기 넣지 않는다 — 저장을 누르면 그 두 칸만 되돌리고 메모를 남긴다(사용자 답 2 · 결정 F: 다른 칸 저장까지 막히면 안 된다). */
+  const preBlockOf = (imp) => (imp && imp.lock && (imp.moved || !imp.lock.isOld) ? imp.lock : null);
+  /** LOCK_REASON 의 꼬리('금액 조정은 동의 뒤 수정계산서로') — 상태별 꼬리를 그대로 쓴다(정본 낱말을 짓지 않는다). */
+  const tailOf = (r) => { const t = String(r || ""); const i = t.indexOf(" — "); return i >= 0 ? t.slice(i + 3) : t; };
+  /** 막힌 달 문장 — '9월은 수정 마감이 지난 달이라 이 주문을 다른 달로 옮길 수 없습니다 — 금액 조정은 동의 뒤 수정계산서로'.
+   *  발행이 지난 거래 없는 달은 규칙 모듈의 이유 그대로(issuedEmptyReason — 사용자 답 3). `verb` 는 '다른 달로 옮길' 등. */
+  function lockSentence(lock, verb) {
+    if (lock.s.status === "NONE" && !lock.isOld) return lock.reason;
+    const kind = lock.s.zero || lock.s.zeroEdited ? "0원으로 닫는 달"
+      : lock.s.status === "AWAITING_AGREEMENT" ? "수정 마감이 지난 달" : "동의를 마친 달";
+    return `${monthNo(lock.ym)}월은 ${kind}이라 이 주문을 ${verb} 수 없습니다 — ${tailOf(lock.s.lockReason)}`;
+  }
+  /** 저장 순간 막혔을 때의 제목 — 확인 창 안의 빨간 안내 · 토스트. */
+  function lockTitle(lock) {
+    if (lock.s.status === "NONE" && !lock.isOld) return `저장하지 못했습니다 — ${lock.reason}`;
+    if (lock.s.status === "AWAITING_AGREEMENT") return `저장하지 못했습니다 — 그사이 수정 마감(${fmtKoShortTime(lock.s.editLockAt)})이 지났습니다`;
+    if (lock.s.zero || lock.s.zeroEdited) return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월이 0원으로 닫혔습니다`;
+    return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월 정산의 동의가 끝났습니다`;
+  }
+  /** 금액·상품 중 저장되지 않을 값('3단화환(고급형) 130,000원') — 바꾸지 않았으면 "". */
+  function unsavedVals(stored) {
+    if (!stored || !editing) return "";
+    const prod = String(editing.product || "") !== String(stored.product || "") ? editing.product : "";
+    const amt = Number(editing.amount || 0) !== Number(stored.amount || 0) ? won(editing.amount) : "";
+    return [prod, amt].filter(Boolean).join(" ");
   }
 
   /* ── 알림 수신 — 배송완료 알림(T2)이 실제로 닿을 사람(명세 5.3 'T2 발송 규칙'의 화면 대역) ──────────
@@ -371,26 +411,99 @@ export function mount(root, { nav }) {
   /* 발주정보 — 등록 모달과 같은 키(DELIVER_FIELDS)를 쓰되 시안대로 두 가지만 다르다:
      ① 배송지는 한 줄 칸(길면 말줄임 — 칸을 눌러 고친다) ② 요청사항은 **열 때 비어 있으면 줄째 감춘다**
      (거래처가 남기는 칸이라 관리자가 새로 적을 일이 드물다 — 1280x720 에서 스크롤 없이 한 주문을 끝내려는 시안의 선택). */
+  /* ⚠️ 배송일시는 여기서 빼고 발주정보 첫 줄을 직접 그린다(`delivRow` — 같은 줄에 안내가 붙는다 · 시안 S-06).
+     공유하는 renderFields/fieldCell(order-fields.js)은 건드리지 않는다(등록 모달이 같이 바뀐다). */
   const detailDeliverFields = (o) => DELIVER_FIELDS
+    .filter((d) => d.k !== "deliverAt")
     .filter((d) => d.k !== "request" || String(o.request || "").trim())
     .map((d) => (d.k === "address" ? { ...d, type: "text" } : d));
 
   const AMT_ID = "ord-amt-in";
   const AMT_WHY = "ord-amt-why";
+  const AMT_WHY_FULL = "ord-amt-why-full";
+  const DELIV_ID = "ord-deliv-in";
+  const DELIV_WHY = "ord-deliv-why";
   const periodText = () => { const ym = ymOf(editing.deliverAt); return ym ? `${periodLabel(ym)} 귀속` : "-"; };
-  /* 주문금액 칸 — 열려 있으면 입력(거부형 readWonInput), 잠겼으면 시안의 잠김 모양(자물쇠 + 금액, 읽기 전용)과
-     같은 줄의 이유. 이유 문구는 명세 6.4 정본(`lockReason`)이라 길다 — 시안대로 한 줄로 자르고 전문은 title·aria 로 읽힌다. */
+  /** 명세서가 나갔는데 아직 고칠 수 있는 달(시안 '발급 후 · 동의 전 · 수정 마감 전') — 금액 칸이 호박색이 되고 수정 마감을 말한다.
+   *  취소한 주문은 그 달에 금액을 보태지 않으므로(수수료만 취소한 달에) 말하지 않는다. */
+  const amtOpenOf = () => (!amtLock && isSheet(s0) && s0.editable && editing && editing.status !== "취소" ? s0 : null);
+  /* 주문금액 칸 — 열려 있으면 입력(거부형 readWonInput), 잠겼으면 시안의 잠김 모양(자물쇠 + 금액, 읽기 전용)과 같은 줄의 이유.
+     잠긴 이유는 시안의 **짧은 말**(`lockShort` — settlement-rules LOCK_SHORT)을 줄에 두고, 정본(`lockReason` — 명세 6.4)은
+     title(마우스)과 보조기술이 읽는 숨은 글(aria-describedby)로 살린다. 0원 달은 짧은 말이 없어 정본 전체를 줄에 둔다(말줄임). */
   function amtBox() {
     if (amtLock) {
+      const short = amtLock.lockShort || amtLock.lockReason;
       return html`
         <span class="ord-amtf__lock" id="${AMT_ID}" role="textbox" aria-readonly="true" aria-label="주문금액"
-          aria-describedby="${AMT_WHY}" tabindex="0">${icon("lock", { size: 14 })}<span>${wonNum(editing.amount)}</span></span>
+          aria-describedby="${AMT_WHY_FULL}" tabindex="0">${icon("lock", { size: 14 })}<span>${wonNum(editing.amount)}</span></span>
         <span class="ord-amtf__unit">원</span>
-        <span class="ord-amtf__why" id="${AMT_WHY}" title="${amtLock.lockReason}">${amtLock.lockReason}</span>`;
+        <span class="ord-amtf__why" id="${AMT_WHY}" title="${amtLock.lockReason}" aria-hidden="true">${short}</span>
+        <span class="sr-only" id="${AMT_WHY_FULL}">${amtLock.lockReason}</span>`;
+    }
+    const op = amtOpenOf();
+    if (op) {
+      const m = monthNo(op.period);
+      const at = fmtKoShortTime(op.editLockAt);
+      return html`
+        <input class="ord-in ord-amtf__in is-issued" id="${AMT_ID}" data-f="amount" value="${wonNum(editing.amount)}" inputmode="numeric"
+          aria-describedby="${AMT_WHY}" />
+        <span class="ord-amtf__unit">원</span>
+        <span class="ord-amtf__why ord-amtf__why--open" id="${AMT_WHY}"
+          title="${m}월 명세서가 이미 나간 주문입니다 — 고치면 거래처가 보는 명세서 금액이 바로 바뀝니다(${at}까지)">${m}월 명세서 나감 · 수정 마감 ${at}</span>`;
     }
     return html`
       <input class="ord-in ord-amtf__in" id="${AMT_ID}" data-f="amount" value="${wonNum(editing.amount)}" inputmode="numeric" />
       <span class="ord-amtf__unit">원</span>`;
+  }
+  /* 금액 칸의 모양(잠김 · 명세서 나감 · 보통)이 바뀌었을 때만 다시 그린다 — 저장·취소 뒤(배송일시를 옮겨 저장된 달이 바뀌었거나
+     취소로 그 달에 금액을 보태지 않게 됐다). ⚠️ 입력 중에는 부르지 않는다(커서). */
+  let amtSig = "";
+  const amtSigOf = () => (amtLock ? `L${amtLock.period}` : amtOpenOf() ? `O${s0.period}${+s0.editLockAt}` : "P");
+  function refreshAmtBox() {
+    const sig = amtSigOf();
+    if (sig === amtSig) return;
+    amtSig = sig;
+    const ab = panelOf() && qs(panelOf(), "[data-slot='amtbox']");
+    if (ab) setHTML(ab, amtBox());
+  }
+  /* 발주정보 첫 줄 — 배송일시 피커(190px) + 같은 줄 안내(시안 S-06). 안내 글자·색은 syncDeliv 가 정한다(다시 그리지 않는다). */
+  const delivRow = () => html`
+    <div class="ord-row ord-row--full">
+      <label class="ord-k" for="${DELIV_ID}">배송일시</label>
+      <div class="ord-delivf" data-slot="delivf">
+        ${dtpMarkup()}
+        <span class="ord-delivf__why" id="${DELIV_WHY}" data-slot="delivwhy"></span>
+      </div>
+    </div>`;
+  /** 배송일시 줄 안내 — 저장된 달이 명세서가 나간 달이면 '다른 달로 옮기면 두 달 정산이 함께 바뀜'(고칠 수 있음) /
+   *  '같은 달 안에서만 · 다른 달로 못 옮김'(잠김). 다른 달로 옮기는 중이면 칸에 호박색, 막히면 빨간색(시안). */
+  function syncDeliv(imp) {
+    const p = panelOf(); if (!p || !editing) return;
+    const box = qs(p, "[data-slot='delivf']");
+    const why = qs(p, "[data-slot='delivwhy']");
+    if (!box || !why) return;
+    const st = findOrder(editing.id);
+    const moved = !!st && editing.status !== "취소" && ymOf(st.deliverAt) !== ymOf(editing.deliverAt);
+    const lock = preBlockOf(imp);
+    let text = "", tip = "귀속월은 배송일시의 달입니다", tone = "";
+    if (isSheet(s0) && editing.status !== "취소") {
+      if (!s0.editable) {
+        text = "같은 달 안에서만 · 다른 달로 못 옮김";
+        tip = `${s0.lockReason} · 같은 달 안의 날짜·시각 변경은 금액 영향이 없어 저장됩니다`;
+        tone = "is-lock";
+      } else {
+        text = "다른 달로 옮기면 두 달 정산이 함께 바뀜";
+        tip = `배송일을 다른 달로 옮기면 이 주문 금액이 ${monthNo(s0.period)}월 명세서에서 빠지고 새 달 정산에 듭니다. 두 달 모두 고칠 수 있어야 저장됩니다`;
+        tone = "is-open";
+      }
+    }
+    /* 들어가는 달이 막혔으면(잠긴 달 · 발행이 지난 거래 없는 달) 그 달의 짧은 말을 쓴다 — 옛 달 안내가 거기서는 틀린 말이다. */
+    if (lock && !lock.isOld) { text = `${monthNo(lock.ym)}월 · ${lock.short}`; tip = lock.reason; }
+    box.classList.toggle("is-moved", moved && !lock);
+    box.classList.toggle("is-blocked", !!lock);
+    why.textContent = text;
+    why.title = tip;
+    why.className = `ord-delivf__why ${lock ? "is-block" : tone}`;
   }
   function prodCell() {
     if (amtLock) return html`<span class="ord-val ord-val--lock" title="${dash(editing.product)}">${dash(editing.product)}</span>`;
@@ -412,7 +525,7 @@ export function mount(root, { nav }) {
     return html`
       <div class="ord-row">
         <span class="ord-k">거래처</span><span class="ord-val" title="${name}">${name}</span>
-        <span class="ord-k">귀속월</span><span class="ord-val ord-val--num" data-slot="period">${periodText()}</span>
+        <span class="ord-k">귀속월</span><span class="ord-val ord-val--num" data-slot="period" title="귀속월은 배송일시의 달입니다">${periodText()}</span>
       </div>
       <div class="ord-row">
         <label class="ord-k" for="ord-orderer">주문 요청자</label>
@@ -429,28 +542,65 @@ export function mount(root, { nav }) {
       </div>`;
   }
 
-  /* 요약 — 상품 · 담당자 · (명세서가 나간 달이면) 'M월 정산' 줄. 거래처·귀속월은 시안대로 주문정보 카드로 옮겼다.
-     정산 줄은 **고치는 중인 배송일시의 달**을 보인다(귀속월 칸과 같은 달 — 다른 달로 옮기는 중이면 옮겨 갈 달의 상태가
-     먼저 보인다). 발행 전(SCHEDULED)이면 시안대로 줄을 감춘다. 낱말은 관리자 정산회계(S-01)와 같은 말이다. */
+  /* 요약 — 상품 · 담당자 · 'M월 정산' 줄. 거래처·귀속월은 시안대로 주문정보 카드로 옮겼다.
+     정산 줄은 2차 시안(S-06)대로 **언제나 보이고 저장된 배송일시의 달**을 말한다(s0) — 발행 전이면 회색 칩 '발급 전'.
+     칩 옆에 그 달 지금 금액을 두고, 이 수정으로 바뀌면 그 자리에서 '955,000 → 1,025,000원', 다른 달로 옮기는 중이면
+     '9월 895,000 · 10월 580,000' 이다. 막힌 저장이면 저장되지 않을 '뒤' 금액 대신 지금 금액만 보인다(오해 방지).
+     낱말은 관리자 정산회계(S-01)와 같은 말이다. 동의대기·동의 보류에는 '· 고칠 수 있음' / '· 금액 고정' 을 붙인다. */
   const SETTLE_CHIP = {
-    AWAITING_AGREEMENT: ["동의대기", "warn"],
     AGREED: ["동의완료 · 발급 전", "warn"],
     ISSUED: ["동의완료 · 발급완료", "ok"],
     OVERDUE: ["기한 초과", "danger"],
     PAID: ["입금완료", "ok"],
     NONE: ["거래 없음", "gray"],
   };
+  /** 칩 [낱말, 색, title] — 저장된 달 s0 기준(고치는 동안 바뀌지 않는다). */
+  function chipOf(s) {
+    if (s.status === "SCHEDULED") return ["발급 전", "gray", `명세서 발행 전 · ${fmtKoShortTime(s.issueAt)} 발행`];
+    if (s.status === "NONE") return SETTLE_CHIP.NONE.concat("");
+    if (s.zero || s.zeroEdited) return ["0원 · 계산서 없음", "gray", ""];
+    if (s.status === "AWAITING_AGREEMENT") {
+      /* 잠정 보류 둘(Q19·Q20)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다). */
+      const held = s.autoAgreeHold === "NOTICE_UNDELIVERED" || s.autoAgreeHold === "CLIENT_SUSPENDED";
+      return [`${held ? "동의 보류" : "동의대기"} · ${s.editable ? "고칠 수 있음" : "금액 고정"}`, "warn", s.editable ? "" : s.lockReason];
+    }
+    const [l, t] = SETTLE_CHIP[s.status] || [s.status, "gray"];
+    return [l, t, ""];
+  }
+  /** 칩 옆 금액 { text, changed } — 판정(imp)이 막히지 않았고 그 달 금액이 바뀌면 전 → 후. */
+  function liveOf(imp) {
+    const ch = imp && !imp.lock ? imp.months.filter((m) => m.delta !== 0) : [];
+    if (imp && imp.moved && ch.length >= 2) {
+      return { text: ch.map((m) => `${monthNo(m.ym)}월 ${num(m.after)}`).join(" · "), changed: true };
+    }
+    const mine = ch.find((m) => s0 && m.ym === s0.period && m.clientId === editing.clientId);
+    if (mine) return { text: `${num(mine.before)} → ${num(mine.after)}원`, changed: true };
+    return { text: won(s0 ? s0.amount : 0), changed: false };
+  }
   function settleRow() {
-    const ym = ymOf(editing.deliverAt);
-    const s = settleOf(editing, ym);
-    if (!s || !s.issued || s.status === "SCHEDULED") return null;
-    /* 잠정 보류 둘(Q19·Q20)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다). */
-    const held = s.status === "AWAITING_AGREEMENT" && (s.autoAgreeHold === "NOTICE_UNDELIVERED" || s.autoAgreeHold === "CLIENT_SUSPENDED");
-    const [label, tone] = s.zero ? ["0원 · 계산서 없음", "gray"] : held ? ["동의 보류", "warn"] : SETTLE_CHIP[s.status] || [s.status, "gray"];
+    const s = s0;
+    if (!s) return null;
+    const [chip, tone, chipTip] = chipOf(s);
+    const lv = liveOf(lastImp);
+    const m = monthNo(s.period);
     return {
-      k: `${Number(ym.slice(5))}월 정산`, action: "go-settle", cls: "ord-sum__row--settle",
-      v: html`<span class="ord-schip ord-schip--${tone}">${label}</span>`,
+      k: `${m}월 정산`, action: "go-settle", cls: `ord-sum__row--settle ${lv.changed ? "is-changed" : ""}`,
+      aria: `거래처 정산회계에서 ${m}월 열기 · ${chip} · ${lv.text}`, arrowIn: true,
+      v: html`<span class="ord-schip ord-schip--${tone}" title="${chipTip}">${chip}</span><span class="ord-sum__amtw"><b class="ord-sum__amt" data-slot="settleamt" aria-live="polite">${lv.text}</b> ›</span>`,
     };
+  }
+  /** 입력마다 정산 줄의 금액만 제자리에서 바꾼다 — 줄을 다시 그리면 aria-live 가 읽히지 않는다. */
+  function syncSettleRow(imp) {
+    const p = panelOf(); if (!p || !s0) return;
+    const amt = qs(p, "[data-slot='settleamt']");
+    if (!amt) return;
+    const lv = liveOf(imp);
+    if (amt.textContent !== lv.text) amt.textContent = lv.text;
+    const row = amt.closest(".ord-sum__row--settle");
+    if (row) {
+      row.classList.toggle("is-changed", lv.changed);
+      row.setAttribute("aria-label", `거래처 정산회계에서 ${monthNo(s0.period)}월 열기 · ${chipOf(s0)[0]} · ${lv.text}`);
+    }
   }
   const summaryRows = () => [
     { k: "상품", v: dash(editing.product) },
@@ -462,7 +612,7 @@ export function mount(root, { nav }) {
     const c = clientOf(editing);
     return html`
       <div class="hm__head ord-hd" data-slot="hd">
-        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen })}
+        ${ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen, delLock: delLockNow() })}
       </div>
       <div class="ord-grid">
         ${railV2({ order: editing, imgInner: imgBox.inner() })}
@@ -471,7 +621,7 @@ export function mount(root, { nav }) {
             <div class="ord-cols">
               <div class="ord-colL">
                 ${card({ title: "주문정보", cap: "거래처 접수 내용", body: orderInfoBody() })}
-                ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(detailDeliverFields(editing), editing) })}
+                ${card({ title: "발주정보", cap: "화원 전달 내용", body: html`${delivRow()}${renderFields(detailDeliverFields(editing), editing)}` })}
               </div>
               <div class="ord-colR">
                 <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
@@ -496,10 +646,21 @@ export function mount(root, { nav }) {
 
   /* ── 부분 갱신 — 본문(입력)은 절대 다시 그리지 않는다 ────── */
   const panelOf = () => activeModal && activeModal.panel;
+  /** 지울 수 없는 이유(메뉴의 '주문서 삭제' 를 잠근다 · 시안 S-06) — 메뉴가 열릴 때만 판정한다. 저장된 레코드 기준이다(지우면
+   *  저장 안 한 수정은 버려진다). 귀속월이 잠겼으면 정본 이유 그대로, 수수료가 붙은 취소 주문의 **취소한 달**이 잠겼으면
+   *  어느 달인지를 앞에 붙인다(명세 6.4 — 둘 다 보고 앞선 달). 판정은 settlementImpactOf(saved, null). */
+  function delLockNow() {
+    if (!menuOpen || !editing) return null;
+    const saved = findOrder(editing.id);
+    if (!saved) return null;
+    const l = settlementImpactOf(saved, null, new Date()).lock;
+    if (!l) return null;
+    return l.ym !== ymOf(saved.deliverAt) ? `${periodLabel(l.ym)} 정산이 잠겨 지울 수 없습니다 · ${l.reason}` : l.reason;
+  }
   function renderHd() {
     const p = panelOf(); if (!p) return;
     setHTML(qs(p, "[data-slot='hd']"),
-      ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen }));
+      ordHeader({ order: editing, meta: metaLine(), statuses: B2B_STATUSES, canComplete: canComplete(), menuOpen, delLock: delLockNow() }));
   }
   function renderSum() {
     const p = panelOf(); if (!p) return;
@@ -516,16 +677,35 @@ export function mount(root, { nav }) {
       histScrollEnd(el);
     }
   }
+  /** 바뀌는 달들 한 줄 — '9월 명세서 955,000 → 1,025,000원 · 10월 정산 520,000 → 580,000원'. */
+  const monthsLine = (imp) => imp.months.filter((m) => m.delta !== 0)
+    .map((m) => `${monthWord(m)} ${num(m.before)} → ${num(m.after)}원`).join(" · ");
+  /* 저장 줄(푸터 왼쪽 — '왜 못 누르는지' 장치) — '수정한 항목 N개'(CLAUDE.md 규약)는 남기고, 정산이 걸린 세 경우만 시안대로
+     바꾼다(2차 시안 S-06 · 자동 결정): ① 막힘(빨강 · 저장 잠김 — 옮기는 달·들어가는 달이 잠김) ② '저장 전에 확인합니다 · …'
+     (확인 창이 뜰 저장 — 버튼 '변경사항 저장…') ③ 저장 순간 잠겨 되돌린 값의 메모(빨강 · 사용자 답 2 — 버튼은 다른 칸이 있으면 열림).
+     입력마다 돈다 — 판정은 settlementImpactOf 한 번이고 DOM 은 글자·클래스만 바꾼다(getComputedStyle 금지). */
   function syncDirty() {
     const p = panelOf(); if (!p) return;
     const n = dirtyCount();
+    const imp = n ? impactNow() : null;
+    lastImp = imp;
+    const pre = preBlockOf(imp);
+    let text, cls, tip = "", ask = false;
+    if (pre) { text = lockSentence(pre, pre.isOld ? "다른 달로 옮길" : "그 달로 옮길"); cls = "is-block"; tip = pre.reason; }
+    else if (unsaved) { text = n ? `수정한 항목 ${n}개 · ${unsaved}` : unsaved; cls = "is-block"; tip = unsavedTip; }
+    else if (!n) { text = savedAt ? `저장됨 · ${savedAt}` : "변경 없음"; cls = savedAt ? "is-saved" : ""; }
+    else if (imp && !imp.lock && imp.confirm.length) { text = `저장 전에 확인합니다 · ${monthsLine(imp)}`; cls = "is-dirty"; ask = true; }
+    else { text = `수정한 항목 ${n}개`; cls = "is-dirty"; }
     const stat = qs(p, "[data-slot='dirty']");
     if (stat) {
-      stat.textContent = n ? `수정한 항목 ${n}개` : savedAt ? `저장됨 · ${savedAt}` : "변경 없음";
-      stat.className = `ord-ft__stat ${n ? "is-dirty" : savedAt ? "is-saved" : ""}`;
+      stat.textContent = text;
+      stat.className = `ord-ft__stat ${cls}`;
+      if (tip) stat.title = tip; else stat.removeAttribute("title");
     }
     const btn = qs(p, "[data-action='save']");
-    if (btn) { btn.disabled = !n; btn.textContent = n ? "변경사항 저장" : "저장"; }
+    if (btn) { btn.disabled = !n || !!pre; btn.textContent = !n ? "저장" : ask ? "변경사항 저장…" : "변경사항 저장"; }
+    syncDeliv(imp);
+    syncSettleRow(imp);
   }
   /* 주문정보 카드의 파생 칸 두 개 — 입력의 형제라 textContent·title 만 바꾼다(커서 보호). */
   function syncPeriod() {
@@ -552,12 +732,25 @@ export function mount(root, { nav }) {
    *  영영 남아 다른 칸까지 저장하지 못하게 된다(다른 칸의 입력은 그대로 둔다). */
   function applyLock(s, stored) {
     amtLock = s;
+    if (s0 && s.period === s0.period) s0 = s; // 요약 칩('금액 고정')·배송일시 안내가 같은 판정을 말하게
     if (stored) { editing.amount = stored.amount; editing.product = stored.product; }
     const p = panelOf(); if (!p) return;
     if (prodDd) { prodDd.destroy(); const i = dds.indexOf(prodDd); if (i >= 0) dds.splice(i, 1); prodDd = null; }
     const pc = qs(p, "[data-slot='prodcell']"); if (pc) setHTML(pc, prodCell());
+    amtSig = amtSigOf();
     const ab = qs(p, "[data-slot='amtbox']"); if (ab) setHTML(ab, amtBox());
-    renderSum(); syncDirty();
+    syncDirty(); renderSum();
+  }
+  /** 저장 순간 잠긴 것이 드러났을 때(서버 409 의 데모 대역) — 사용자 답 2: 옛 달이 잠겼으면 금액·상품을 저장돼 있던 값으로
+   *  되돌려 잠그고, 적은 값은 저장 줄에 메모로 남긴다(다음 저장·창 닫기 때 사라짐). 다른 칸은 그대로 두어 다시 저장할 수 있다.
+   *  옮겨 들어가는 달이 막혔으면 칸은 그대로고 저장 줄이 막힌 이유를 말한다(syncDirty). */
+  function rejectLocked(lock, stored) {
+    if (!editing) return;
+    if (lock.isOld && stored) {
+      const vals = unsavedVals(stored);
+      if (vals) { unsaved = `저장되지 않은 값 ${vals} · ${lock.short}`; unsavedTip = lock.reason; }
+      applyLock(lock.s, stored);
+    } else syncDirty();
   }
 
 
@@ -960,7 +1153,7 @@ export function mount(root, { nav }) {
           render: step1Body, bind: () => [], required: missing1,
           hint: () => { const c = cClient(); return c ? `${c.companyName} · 매월 ${invoiceDayOf(c)}일 거래명세서 발급 → 동의 후 계산서` : ""; } },
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
-          render: step2Body, bind: bindCreateControls, required: missing2,
+          render: step2Body, bind: bindCreateControls, required: missing2, block: createBlock,
           hint: () => { // 전 품목 면세 — 금액 뒤에 VAT 표기를 두지 않는다(2026-09-17 사용자 확인)
             const cur = Number(cDraft.amount) || 0;
             const on = notifyRows().filter((r) => !r.locked && !cDraft.notifyOff.includes(r.key)).length;
@@ -1152,7 +1345,48 @@ export function mount(root, { nav }) {
     return cDds.slice();
   }
 
+  /** 그 배송일시의 달로 등록을 받을 수 없는 이유(사용자 답 3 · 명세 6.4) — 발행 시각이 지난 거래 없는 달은 규칙 모듈의 이유
+   *  그대로('9월은 명세서 발행이 지난 달입니다 — 배송일을 확인해 주세요'), 잠긴 달(동의된 달 · 수정 마감 지난 달)은
+   *  '9월은 동의를 마친 달이라 이 주문을 그 달로 넣을 수 없습니다 — …'. 발행 전 달(이번 달·다음 달)은 "" (받는다).
+   *  등록 위저드 푸터가 '왜 못 누르는지' 자리에 이 말을 쓰고 등록 버튼을 잠근다(order-create.js `block`). */
+  function createBlock() {
+    if (!cDraft || !cDraft.clientId || !DELIVER_AT_OK.test(String(cDraft.deliverAt || ""))) return "";
+    const l = intakeBlockOf(cDraft.clientId, cDraft.deliverAt, new Date());
+    return l ? lockSentence(l, "그 달로 넣을") : "";
+  }
+  /* 등록 — 막힘(createBlock)은 누르는 순간 한 번 더 본다. 명세서가 나간 달(고칠 수 있음)로 드는 늦은 등록이면 저장 전 금액 변경
+     확인 창을 지난다(명세 3.4 '마감 전 수정' 8 '들어오면' · 사유 → b2bUpsert ctx.note). 채번은 쓰는 순간에만(확인 창에서 취소하면
+     번호가 소모되지 않는다). */
   function submitCreate() {
+    const blk = createBlock();
+    if (blk) { toast(blk, "warn"); createModal && createModal.syncFooter(); return; }
+    const probe = { ...cDraft, id: "", orderNo: "", amount: Number(cDraft.amount) || 0 };
+    const imp = settlementImpactOf(null, probe, new Date());
+    if (imp.lock) { toast(lockSentence(imp.lock, "그 달로 넣을"), "warn"); return; }
+    if (!imp.confirm.length) { doCreate(""); return; }
+    let lockSeen = false;
+    const cl = cClient();
+    openSettleConfirm({
+      eyebrow: `${cl ? displayName(cl, sharedBizKeys(clients())) : ""} · 등록 전 확인`,
+      title: "명세서 금액이 바뀝니다. 등록할까요?",
+      months: monthRows(imp),
+      what: whatOf(imp, null, probe),
+      notes: [confirmNote(imp, "등록하는")],
+      okLabel: "등록하고 명세서에 반영",
+      hint: "등록하면 바로 반영됩니다 · 되돌리려면 주문을 지우거나 고쳐 저장합니다",
+      recheck: () => {
+        if (!cDraft) return null;
+        const l = intakeBlockOf(cDraft.clientId, cDraft.deliverAt, new Date());
+        if (!l) return null;
+        lockSeen = true;
+        const e = lockErr(l, null, { what: "등록" });
+        return { ...e, hint: "창을 닫으면 등록 창 아래에 막힌 이유가 남습니다" };
+      },
+      onConfirm: (note) => (cDraft ? doCreate(note) : true),
+      onLockedClose: () => { if (lockSeen && createModal) createModal.syncFooter(); },
+    });
+  }
+  function doCreate(note) {
     const req = cRequester();
     const pf = cProfile();
     const rec = {
@@ -1171,9 +1405,10 @@ export function mount(root, { nav }) {
     delete rec.notifyOff;
     /* 첫 이력은 레코드와 **한 번에** 저장한다 — 저장 뒤 레코드에 직접 push 하면 영속되지 않는다. */
     rec.history = [histEntry("created", `주문 접수 · ${(cClient() || {}).companyName || ""}`.trim())];
-    if (!b2bUpsert(rec)) { toast(SAVE_FAIL, "warn"); return; } // 등록 창을 닫지 않는다 — 적은 내용을 잃지 않게
+    if (!b2bUpsert(rec, { note })) { toast(SAVE_FAIL, "warn"); return false; } // 등록 창을 닫지 않는다 — 적은 내용을 잃지 않게
     createModal && createModal.close();
     ensureVisible(rec);
+    return true;
   }
 
   /* 등록할 때 남기는 알림 명단 — 레일에 보인 **그 줄 그대로**(notifyRows) 저장한다(명세 5.3 · M48 · M50).
@@ -1235,18 +1470,89 @@ export function mount(root, { nav }) {
     const dtp = qs(panel, "[data-dtp]");
     if (dtp) dds.push(makeDateTimePicker(dtp, {
       get: () => editing.deliverAt,
-      /* 귀속월 칸·정산 줄이 함께 바뀐다. 다른 달로 옮겨도 여기서 막지 않는다 — 날짜·시·분을 고르는 동안 여러 번
-         불리므로, 옛 달·새 달 잠금은 저장하는 순간 한 번 판정한다(lockHit). */
+      /* 귀속월 칸·정산 줄·배송일시 안내·저장 줄이 함께 바뀐다(2차 시안 — 다른 달로 옮기는 중이면 칸이 호박색, 옛 달·새 달이
+         막혔으면 빨간색이고 저장 줄이 어느 달 때문인지 말하며 저장 버튼이 누르기 전부터 잠긴다). 고르는 동안에는 토스트 없이
+         글자만 바뀐다 — 날짜·시·분마다 불리므로 판정은 syncDirty 의 settlementImpactOf 한 번이다. 저장 순간 한 번 더 판정한다. */
       set: (v) => { editing.deliverAt = v; renderHd(); renderSum(); syncPeriod(); syncDirty(); },
       min: DP_MIN, max: DP_MAX,
     }));
+    /* 라벨·안내를 피커 트리거에 묶는다(마크업은 공용 dtpMarkup 이라 id 가 없다). */
+    const trg = dtp && qs(dtp, ".ord-dtp__trigger");
+    if (trg) { trg.id = DELIV_ID; trg.setAttribute("aria-describedby", DELIV_WHY); }
     qsa(panel, "textarea.ord-in").forEach(autosize);
   }
 
-  /* 잠긴 달 때문에 막힌 저장·삭제·취소가 하는 말. 이유는 명세 6.4 정본(lockReason)이고, 어느 달 때문인지를 앞에 붙인다. */
+  /* 잠긴 달 때문에 막힌 삭제·취소가 하는 말(토스트). 이유는 settlementImpactOf 의 lock.reason — 명세 6.4 정본(lockReason) 또는
+     발행이 지난 거래 없는 달의 이유(issuedEmptyReason · 사용자 답 3)다. 어느 달 때문인지를 앞에 붙인다. */
   const lockMsg = (hit, what) => (hit.moved
-    ? `배송일시를 ${periodLabel(hit.ym)}${hit.isOld ? "에서" : "로"} 옮길 수 없습니다 · ${hit.s.lockReason}`
-    : `${periodLabel(hit.ym)} 정산이 잠겨 ${what} 수 없습니다 · ${hit.s.lockReason}`);
+    ? `배송일시를 ${periodLabel(hit.ym)}${hit.isOld ? "에서" : "로"} 옮길 수 없습니다 · ${hit.reason}`
+    : `${periodLabel(hit.ym)} 정산이 잠겨 ${what} 수 없습니다 · ${hit.reason}`);
+
+  /* ── 정산 결과 한 줄 · 확인 창 조각 (2차 시안 S-06 ⑦) ─────────────────────────────── */
+  /** 저장·삭제 뒤 토스트 꼬리 — 명세서가 나간 달이 바뀌었으면 '9월 명세서가 1,025,000원, 10월 정산이 580,000원으로 바뀌었습니다',
+   *  발행 전 달만이면 '10월 정산(발급 전)이 590,000원으로 다시 계산되었습니다', 정산과 무관하면 '정산 금액은 그대로입니다'.
+   *  금액은 쓴 뒤 다시 읽는다(settlementOf — 화면이 더하기를 하지 않는다). 조사는 '원으로'(시안 '원로' 는 오자). */
+  function settleAfter(imp) {
+    const ch = imp ? imp.months.filter((m) => m.delta !== 0) : [];
+    if (!ch.length) return "정산 금액은 그대로입니다";
+    const now = new Date();
+    const rows = ch.map((m) => {
+      const c = clients().find((x) => x.id === m.clientId);
+      const s = c ? settlementOf(c, m.ym, now) : m.s;
+      return { label: monthWord({ ym: m.ym, s }), amt: s.amount, sheet: isSheet(s) };
+    });
+    const josa = (l) => (l.endsWith("서") ? "가" : "이");
+    if (rows.some((r) => r.sheet)) return `${rows.map((r) => `${r.label}${josa(r.label)} ${won(r.amt)}`).join(", ")}으로 바뀌었습니다`;
+    return `${rows.map((r) => `${r.label}(발급 전)이 ${won(r.amt)}`).join(", ")}으로 다시 계산되었습니다`;
+  }
+  /** 확인 창의 달 한 줄 보조 — '10월 1일 10:00 발급 · 동의대기 · 수정 마감 10월 9일 10:00' / '발급 전 · 11월 1일 10:00 발행'. */
+  const monthSub = (s) => (isSheet(s)
+    ? `${fmtKoShortTime(s.issueAt)} 발급 · ${chipOf(s)[0].split(" · ")[0]} · 수정 마감 ${fmtKoShortTime(s.editLockAt)}`
+    : `발급 전 · ${fmtKoShortTime(s.issueAt)} 발행`);
+  const monthRows = (imp) => imp.months.filter((m) => m.delta !== 0)
+    .map((m) => ({ label: monthWord(m), sub: monthSub(m.s), before: m.before, after: m.after }));
+  /** '바뀌는 것' — 원인별(자동 결정): 직접 고침 / 상품을 바꿔 적용 단가로 다시 채워짐 / 배송일시를 다른 달로(금액도 바뀌면 둘 다). */
+  function whatOf(imp, stored, next) {
+    const a = Number(stored ? stored.amount : 0) || 0;
+    const b = Number(next ? next.amount : 0) || 0;
+    if (!stored) return `새 주문 ${won(b)}이 ${imp.months[0] ? monthWord(imp.months[0]) : "그 달 정산"}에 듭니다 · ${dash(next.product)}`;
+    if (imp.cause === "move") {
+      const o = imp.months.find((m) => m.isOld), n = imp.months.find((m) => !m.isOld);
+      const ol = o ? monthWord(o) : "옛 달 정산", nl = n ? monthWord(n) : "새 달 정산";
+      const tail = a === b ? `주문금액 ${won(a)}이 ${ol}에서 빠지고 ${nl}에 듭니다`
+        : `주문금액 ${won(a)}이 ${ol}에서 빠지고 ${won(b)}이 ${nl}에 듭니다`;
+      return `배송일시 ${koDT(stored.deliverAt)} → ${koDT(next.deliverAt)} · ${tail}`;
+    }
+    if (imp.cause === "product") {
+      return b === priceFor(next.clientId, next.product)
+        ? `주문상품 ${dash(stored.product)} → ${dash(next.product)} · 적용 단가로 다시 채워짐(${won(a)} → ${won(b)})`
+        : `주문상품 ${dash(stored.product)} → ${dash(next.product)} · 주문금액 ${won(a)} → ${won(b)} · 직접 고침`;
+    }
+    return `주문금액 ${won(a)} → ${won(b)} · 직접 고침`;
+  }
+  /** 회색 안내 — '저장하는 순간 거래처가 보는 9월 명세서가 바뀝니다'. 마감 하루 전 안내(T4)는 알림이 닿을 때만 말한다(자동 결정 —
+   *  정산 담당 연락처가 없으면 거짓이 된다). */
+  function confirmNote(imp, verb = "저장하는") {
+    const iss = imp.confirm;
+    const s = iss[0].s;
+    const at = fmtKoShortTime(s.editLockAt);
+    return {
+      title: `${verb} 순간 거래처가 보는 ${iss.map((m) => `${monthNo(m.ym)}월`).join("·")} 명세서가 바뀝니다`,
+      body: s.noRecipient ? `수정 마감 ${at} 뒤에는 금액을 바꿀 수 없습니다.`
+        : `수정 마감 ${at}에 마감 하루 전 안내가 최종 금액으로 나갑니다. 그 뒤에는 금액을 바꿀 수 없습니다.`,
+    };
+  }
+  /** 확인 창 안 빨간 안내(서버 409 대역) — 제목 + [고정된 금액 · 적은 값이 어디 남는지, 정본 이유]. */
+  function lockErr(lock, stored, { what = "저장" } = {}) {
+    const vals = lock.isOld ? unsavedVals(stored) : "";
+    const fixed = isSheet(lock.s) ? `${monthNo(lock.ym)}월 명세서 금액은 ${won(lock.s.amount)}으로 고정되었습니다.` : "";
+    const keep = vals ? ` 적은 값 ${vals}은 창을 닫으면 저장 줄에 남습니다.` : "";
+    return {
+      title: what === "저장" ? lockTitle(lock) : lockTitle(lock).replace("저장하지", `${what}하지`),
+      body: [`${fixed}${keep}`.trim(), lock.reason].filter(Boolean),
+      hint: vals ? "창을 닫으면 주문금액 칸이 잠긴 모습으로 바뀝니다" : "창을 닫으면 막힌 이유가 저장 줄에 남습니다",
+    };
+  }
 
   /* 배송완료 알림(T2)·접수 확인(T1) 이력 줄 — 누구에게 갔는지 이름을 함께 남긴다(시안 S-06 '이력에 받는 사람').
      데모라 실제 발송은 없고, 명세 5.3 규칙으로 '보낼 사람' 을 정해 적는다. 받을 사람이 없으면 그렇다고 적는다(M58 '못 보냄'). */
@@ -1258,21 +1564,53 @@ export function mount(root, { nav }) {
     ];
   };
 
+  /* 저장 — **판정 → (확인 창) → 쓰기** 세 단계(2차 시안 S-06 ⑦).
+     판정은 settlementImpactOf 하나다(서버 409 SETTLEMENT_PERIOD_LOCKED 의 데모 대역 — 누르는 순간 다시 판정한다. 창을 열어 둔 사이
+     수정 마감이 지났거나 거래처가 동의했을 수 있다). 막히면 쓰지 않는다 — 옛 달이 잠겼으면 금액·상품을 되돌리고 적은 값은
+     저장 줄 메모로(사용자 답 2), 들어가는 달이 막혔으면 저장 줄이 이유를 말한다. 명세서가 나간 달의 금액이 실제로 바뀌면
+     확인 창을 지나고(사유 → b2bUpsert ctx.note → 정산 금액 변경 기록), 그 밖에는 바로 쓴다(리본 문구·발행 전 달). */
   function saveOrder() {
     if (!editing) return;
     if (!editing.clientId || !editing.product) { toast("거래처와 주문상품은 필수입니다", "warn"); return; }
-    const n = dirtyCount();
-    const merged = { ...editing, amount: Number(editing.amount) || 0 }; // 칸은 readWonInput 이 받은 숫자만 쓴다
-    /* 정산 잠금 — 서버 409 SETTLEMENT_PERIOD_LOCKED 의 데모 대역. **저장하는 순간 다시 판정한다**(창을 열어 둔 사이
-       수정 마감이 지났거나 거래처가 동의했을 수 있다). 막히면 저장하지 않고 이유를 말한다. 다른 칸의 입력은 그대로 둔다.
-       저장된 달 자체가 잠겼으면 금액·상품 칸을 잠긴 모양으로 바꾸고 저장된 값으로 되돌린다(그 값은 이 달에 저장될 수 없다). */
     const stored = findOrder(editing.id);
-    const hit = stored ? lockHit(stored, merged) : null;
-    if (hit) {
-      if (hit.isOld) applyLock(hit.s, stored);
-      toast(lockMsg(hit, "저장할"), "warn");
+    const imp = stored ? settlementImpactOf(stored, mergedNow(), new Date()) : null;
+    if (imp && imp.lock) {
+      rejectLocked(imp.lock, stored);
+      toast(lockTitle(imp.lock), "warn");
       return;
     }
+    if (imp && imp.confirm.length) { openSaveConfirm(imp, stored); return; }
+    commitSave(imp, "");
+  }
+  /** 저장 전 금액 변경 확인 창 — 상세 창 위에 스택된다(핸들을 activeModal 에 담지 않는다). */
+  function openSaveConfirm(imp, stored) {
+    let pending = imp;
+    let lockSeen = null;
+    openSettleConfirm({
+      eyebrow: `${editing.orderNo} · ${clientName(stored)} · 저장 전 확인`,
+      title: "명세서 금액이 바뀝니다. 저장할까요?",
+      months: monthRows(imp),
+      what: whatOf(imp, stored, mergedNow()),
+      notes: [confirmNote(imp)],
+      okLabel: "저장하고 명세서에 반영",
+      hint: "저장하면 바로 반영됩니다 · 되돌리려면 다시 고쳐 저장합니다",
+      recheck: () => {
+        if (!editing) return null;
+        const st = findOrder(editing.id) || stored;
+        const imp2 = settlementImpactOf(st, mergedNow(), new Date());
+        if (!imp2.lock) { pending = imp2; return null; }
+        lockSeen = imp2.lock;
+        return lockErr(imp2.lock, st);
+      },
+      onConfirm: (note) => (editing ? commitSave(pending, note) : true),
+      onLockedClose: () => { if (editing && lockSeen) rejectLocked(lockSeen, findOrder(editing.id) || stored); },
+    });
+  }
+  /** 쓰기 — 실패하면(저장 공간 한도) false 를 돌려 확인 창을 닫지 않는다(적은 사유를 잃지 않게). */
+  function commitSave(imp, note) {
+    const n = dirtyCount();
+    const stored = findOrder(editing.id);
+    const merged = { ...editing, amount: Number(editing.amount) || 0 }; // 칸은 readWonInput 이 받은 숫자만 쓴다
     let autoDone = false;
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
       merged.status = "배송완료";
@@ -1284,20 +1622,26 @@ export function mount(root, { nav }) {
     if (n) hist.push(histEntry("edit", `주문 정보 수정 ${n}건`));
     if (autoDone) hist.push(...deliveredEntries(merged));
     merged.history = hist;
-    /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다. */
-    if (!b2bUpsert(merged)) { toast(SAVE_FAIL, "warn"); return; }
+    /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다.
+       사유(note)는 명세서가 나간 달의 금액이 바뀌면 b2b-mock 이 정산 금액 변경 기록에 함께 남긴다(처리자는 currentActor). */
+    if (!b2bUpsert(merged, { note })) { toast(SAVE_FAIL, "warn"); return false; }
     const saved = findOrder(merged.id);
     delete merged.history; // 작업본(editing)에는 저장된 레코드의 이력을 따로 붙인다(참조 공유 방지)
     refreshList();
     editing = { ...merged, history: saved ? saved.history : [] };
     baseline = { ...editing };
+    unsaved = ""; unsavedTip = ""; // 저장 줄 메모는 다음 저장 때 사라진다(사용자 답 2)
+    if (saved) s0 = settleOf(saved); // 다른 달로 옮겨 저장했으면 요약·안내가 새 달을 말한다
     const d = new Date();
     savedAt = `${d.getHours() < 12 ? "오전" : "오후"} ${d.getHours() % 12 || 12}:${pad2(d.getMinutes())}`;
-    renderHd(); renderSum(); renderHist(); syncDirty();
     /* 금액에 영향이 없는 저장은 잠긴 달에서도 받는다 — 그 사이 그 달이 잠겼으면(열어 둔 동안 수정 마감·동의) 칸을 지금 잠근다. */
     if (!amtLock && saved) { const nl = lockOf(saved); if (nl) applyLock(nl, null); }
-    toast(!autoDone ? "주문 정보를 저장했습니다"
-      : merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다");
+    refreshAmtBox();
+    syncDirty(); renderHd(); renderSum(); renderHist();
+    toast(autoDone
+      ? (merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다")
+      : `저장했습니다 · ${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`);
+    return true;
   }
 
   function openManagerModal() {
@@ -1374,41 +1718,100 @@ export function mount(root, { nav }) {
     baseline = { ...editing };
     savedAt = "";
     menuOpen = false;
-    amtLock = lockOf(order); // 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다
+    unsaved = ""; unsavedTip = ""; lastImp = null; // 저장 줄 메모는 창을 닫으면 사라진다(사용자 답 2)
+    s0 = settleOf(order); // 저장된 배송일시의 달 — 요약 줄·금액 칸 안내·배송일시 안내의 기준
+    amtLock = s0 && !s0.editable ? s0 : null; // 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
-      onClose: () => { destroyDds(); activeModal = null; editing = null; baseline = null; },
+      onClose: () => { destroyDds(); activeModal = null; editing = null; baseline = null; s0 = null; lastImp = null; },
     });
+    amtSig = amtSigOf();
     const panel = activeModal.panel;
     bindControls(panel);
+    syncDirty(); // 배송일시 줄 안내를 채운다(입력이 없으면 '변경 없음' 그대로)
     histScrollEnd(panel); // 최신 이력이 맨 아래라 처음부터 끝을 보여 준다
 
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => saveOrder());
     on(panel, "click", "[data-action='step']", (e, t) => stepTo(t.dataset.v));
-    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
-    /* 삭제 — B2B 주문은 그 달 청구의 근거다. 귀속월과 금액을 고지한다. */
-    /* 지우면 정산 금액이 바뀌는 달 — 저장된 배송일시의 달, 그리고 수수료가 붙은 취소 주문이면 **취소한 달**도
-       (명세 6.4 '정산 잠금' — 배송 전에 미리 취소한 주문은 수수료 달이 귀속월보다 앞설 수 있다). 하나라도 잠겼으면 막는다. */
-    const removeHit = (o, now = new Date()) => {
-      const yms = [ymOf(o.deliverAt)];
-      if (o.status === "취소" && Number(o.cancelFee) > 0) yms.push(ymOf(o.canceledAt));
-      /* 앞선 달부터 본다 — 둘 다 잠겼으면 **앞선 달**을 말한다(명세 6.4 `detail.settlementId`). 배송 전에 미리 취소한
-         주문은 수수료 달이 귀속월보다 앞서므로, 넣은 순서(귀속월 먼저)대로 보면 뒤 달을 말하게 된다. */
-      for (const ym of [...new Set(yms.filter(Boolean))].sort()) {
-        const s = settleOf(o, ym, now);
-        if (s && !s.editable) return { ym, s, moved: false, isOld: true };
-      }
-      return null;
-    };
+    /* 머리를 다시 그리면 눌린 ··· 버튼이 갈려 포커스가 사라진다 — 새 버튼에 되돌려 Tab 한 번에 메뉴 항목(잠긴 '주문서 삭제' 와
+       그 이유 포함)에 닿게 한다. */
+    on(panel, "click", "[data-action='menu']", () => {
+      menuOpen = !menuOpen; renderHd();
+      const mb = qs(panel, "[data-action='menu']"); if (mb) mb.focus();
+    });
+    /* 잠긴 '주문서 삭제'(aria-disabled) — 아무것도 하지 않는다. 이유는 바로 아래 줄에 적혀 있고 aria-describedby 가 읽는다. */
+    on(panel, "click", "[data-action='delete-locked']", () => {});
+    /* 삭제 — B2B 주문은 그 달 청구의 근거다. 판정은 settlementImpactOf(저장본, null) 하나다(명세 6.4 — 귀속월과, 수수료가
+       붙은 취소 주문이면 **취소한 달**도 · 둘 다 잠겼으면 앞선 달 · 수수료 0원이어도 취소 주문의 귀속월이 잠겼으면 막는다).
+       ⚠️ 저장된 값으로 말한다 — 삭제하면 저장 안 한 수정은 버려지므로, 화면에서 배송일시·금액을 고쳐 둔 채 지우면 청구에서
+       빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달). */
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false;
-      /* 저장된 값으로 말한다 — 삭제하면 저장 안 한 수정은 버려지므로, 화면에서 배송일시·금액을 고쳐 둔 채 지우면
-         청구에서 빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달, 2026-10-15). */
       const saved = findOrder(editing.id) || baseline || editing;
-      const hit = removeHit(saved);
-      if (hit) { renderHd(); toast(lockMsg(hit, "지울"), "warn"); return; }
+      const imp = settlementImpactOf(saved, null, new Date());
+      if (imp.lock) { menuOpen = true; renderHd(); toast(lockMsg(imp.lock, "지울"), "warn"); return; }
+      renderHd();
+      const name = editing.orderNo;
+      const doRemove = (imp2) => {
+        if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
+        closeModal();
+        refreshList();
+        const tail = settleAfter(imp2);
+        toast(`${name} 주문을 삭제했습니다${imp2.months.some((m) => m.delta !== 0) ? ` · ${tail}` : ""}`, "warn");
+      };
+      /* 명세서가 나간 달(고칠 수 있음)의 금액이 빠지면 시안의 삭제 확인 — 바뀌는 정산 금액 한 줄 + '바뀌는 것'(규격은 공용
+         openDeleteConfirm 그대로: 빨간 '주문서 삭제' + 휴지통 · '돌아가기'). 발행 전 달이면 예전 문단('… 정산의 청구 근거입니다'). */
+      if (imp.confirm.length) {
+        let imp2 = imp;
+        const fee = Number(saved.cancelFee) || 0;
+        const cancelled = saved.status === "취소";
+        const lbl = monthWord(imp.confirm[0]);
+        openDeleteConfirm({
+          orderNo: name,
+          eyebrow: `${name} · ${clientName(saved)}`,
+          width: 560,
+          body: html`
+            <div class="sdlg-del">
+              <div data-slot="alert" hidden></div>
+              ${sdlgMonths({
+                months: monthRows(imp),
+                what: cancelled
+                  ? `이 주문의 취소 수수료 ${won(fee)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`
+                  : `이 주문 금액 ${won(saved.amount)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`,
+              })}
+              ${sdlgNote({
+                title: "삭제는 되돌릴 수 없습니다",
+                body: cancelled ? "목록과 정산 근거에서 함께 사라집니다."
+                  : "목록과 정산 근거에서 함께 사라집니다. 기록을 남겨야 한다면 삭제 대신 주문취소를 사용하세요.",
+              })}
+            </div>`,
+          checkLabel: "명세서에서 빠지는 것과 되돌릴 수 없음을 확인했습니다",
+          hintOn: `삭제하면 ${imp.confirm.map((m) => `${monthNo(m.ym)}월`).join("·")} 명세서가 바로 다시 계산됩니다`,
+          /* 지우는 순간 한 번 더 판정한다(서버 409 대역) — 막히면 창 안에 빨간 안내를 띄우고 버튼을 잠근다(저장 409 와 같은 모양). */
+          guard: (d) => {
+            const st = findOrder(editing.id) || saved;
+            const again = settlementImpactOf(st, null, new Date());
+            if (!again.lock) { imp2 = again; return true; }
+            const p = d.panel;
+            const al = qs(p, "[data-slot='alert']");
+            const e = lockErr(again.lock, null, { what: "삭제" });
+            if (al) { setHTML(al, sdlgErr(e)); al.hidden = false; }
+            const ok = qs(p, "[data-action='ok']"); if (ok) ok.disabled = true;
+            const ck = qs(p, "[data-action='ack']"); if (ck) ck.disabled = true;
+            const cancelBtn = qs(p, ".dlg-ft [data-action='close']");
+            if (cancelBtn) { cancelBtn.textContent = "닫기"; cancelBtn.focus(); }
+            d.setHint("이 주문은 지울 수 없습니다 · 창을 닫으면 메뉴에 이유가 남습니다", true);
+            /* 힌트가 말한 대로 — 창 뒤의 ··· 메뉴를 열어 둔다(잠긴 '주문서 삭제' + 이유 · 440 창 경로와 같은 결과).
+               예전엔 메뉴가 닫힌 채라 창을 닫으면 이유가 어디에도 없었다(2026-10-16 검토 실측). */
+            menuOpen = true; renderHd();
+            return false;
+          },
+          onConfirm: () => doRemove(imp2),
+        });
+        return;
+      }
       /* 취소한 주문의 금액은 이미 정산에 없다 — 남은 것은 수수료(취소한 달)뿐이다. 예전엔 취소 주문에도 '그 달 청구 금액에서
          주문금액이 빠집니다' 라고 말해 사실과 달랐다. */
       const fee = Number(saved.cancelFee) || 0;
@@ -1419,34 +1822,31 @@ export function mount(root, { nav }) {
           ? html`이 주문의 취소 수수료는 <b>${orderPeriodLabel(saved.canceledAt)} 정산</b>의 청구 근거입니다.
               삭제하면 그 달 청구 금액에서 <b>${won(fee)}</b>이 빠집니다.`
           : null;
+      let impB = imp;
       openDeleteConfirm({
-        orderNo: editing.orderNo,
+        orderNo: name,
         note,
-        onConfirm: () => {
-          /* 확인 창을 띄워 둔 사이 잠겼을 수 있다 — 지우는 순간 한 번 더 판정한다(서버 409 대역). */
-          const h2 = removeHit(findOrder(editing.id) || saved);
-          if (h2) { toast(lockMsg(h2, "지울"), "warn"); return; }
-          const name = editing.orderNo;
-          if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
-          closeModal();
-          refreshList();
-          toast(`${name} 주문을 삭제했습니다`, "warn");
+        /* 확인 창을 띄워 둔 사이 잠겼을 수 있다 — 지우는 순간 한 번 더 판정한다(서버 409 대역). 이 창은 예전 규격(440)이라
+           창을 닫고 토스트로 말한다. 그사이 명세서가 나갔으면(발행 시각이 지남) 바뀐 금액을 같은 판정으로 다시 센다. */
+        guard: (d) => {
+          const again = settlementImpactOf(findOrder(editing.id) || saved, null, new Date());
+          if (!again.lock) { impB = again; return true; }
+          d.close(); menuOpen = true; renderHd(); toast(lockMsg(again.lock, "지울"), "warn");
+          return false;
         },
+        onConfirm: () => doRemove(impB),
       });
     });
-    /* 주문취소 — 그 달 정산이 잠겼으면 취소할 수 없다(명세 3.4 '마감 전 수정' 6 · 6.4 — 그런 달의 주문은 배송일이 모두
-       지났다). 취소는 작성 중인 수정도 함께 저장하므로 그 수정의 잠금(lockHit)도 같이 본다. */
-    const cancelHit = (now = new Date()) => {
+    /* 주문취소 — 그 달 정산이 잠겼으면 취소할 수 없다(명세 3.4 '마감 전 수정' 6 · 6.4 — 그런 달의 주문은 배송일이 모두 지났다).
+       취소는 작성 중인 수정도 함께 저장하므로(쓰기 둘: 작업본 → 취소) 두 쓰기 모두 settlementImpactOf 로 본다. 확인 창은 두지 않는다
+       (주문취소 창 문구는 요청서 O-6 몫 — 시안 미도착). */
+    const cancelHit = (fee = 0, now = new Date()) => {
       const st = findOrder(editing.id);
       if (!st) return null;
-      const { history: _x, ...rec } = editing;
-      const h = lockHit(st, rec, now);
-      if (h) return h;
-      for (const ym of [...new Set([ymOf(st.deliverAt), ymOf(rec.deliverAt)].filter(Boolean))]) {
-        const s = settleOf(st, ym, now);
-        if (s && !s.editable) return { ym, s, moved: false, isOld: ym === ymOf(st.deliverAt) };
-      }
-      return null;
+      const rec = mergedNow();
+      const a = settlementImpactOf(st, rec, now);
+      if (a.lock) return a.lock;
+      return settlementImpactOf(rec, { ...rec, status: "취소", cancelFee: Number(fee) || 0, canceledAt: fmtAt(now) }, now).lock;
     };
     on(panel, "click", "[data-action='order-cancel']", () => {
       menuOpen = false; renderHd();
@@ -1460,8 +1860,8 @@ export function mount(root, { nav }) {
            주문의 귀속월(배송한 달)이 아니다 — 그래서 달 이름을 넘겨 안내문이 그 달을 말하게 한다. B2C 는 정산이 없다. */
         settle: periodLabel(periodOf(new Date())),
         onConfirm: ({ reason, fee }) => {
-          /* 사유를 적는 사이 잠겼을 수 있다 — 취소하는 순간 한 번 더 판정한다(서버 409 대역). */
-          const h2 = cancelHit();
+          /* 사유를 적는 사이 잠겼을 수 있다 — 취소하는 순간 한 번 더 판정한다(서버 409 대역 · 적은 수수료로). */
+          const h2 = cancelHit(fee);
           if (h2) { toast(lockMsg(h2, "취소할"), "warn"); return; }
           /* 작성 중인 수정은 지금 상태 그대로 먼저 저장하고, 취소는 b2bCancel 이 한 번에 남긴다(사유·수수료·
              취소 시각 canceledAt·이력). ⚠️ 예전엔 상태를 '취소'로 바꾼 레코드를 먼저 upsert 해서 뒤의
@@ -1476,8 +1876,11 @@ export function mount(root, { nav }) {
             });
           }
           baseline = { ...editing }; // 작성 중이던 수정도 방금 함께 저장됐다
+          unsaved = ""; unsavedTip = "";
+          if (stored) s0 = settleOf(stored); // 그 달 금액에서 이 주문이 빠졌다 · 금액 칸의 '명세서 나감' 안내도 걷힌다
           refreshList();
-          renderHd(); renderHist(); syncDirty();
+          refreshAmtBox();
+          syncDirty(); renderHd(); renderSum(); renderHist();
           toast("주문을 취소 처리했습니다", "warn");
         },
       });
@@ -1490,7 +1893,7 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='go-settle']", () => {
       if (!editing) return;
       if (dirtyCount()) { toast("저장하지 않은 수정이 있습니다 · 저장한 뒤 정산회계로 이동하세요", "warn"); return; }
-      const ym = ymOf(editing.deliverAt);
+      const ym = s0 ? s0.period : ymOf(editing.deliverAt); // 저장된 달로 보낸다(줄의 라벨과 같은 달)
       if (!ym || !editing.clientId) return;
       setFocusClient("admin-settlement", editing.clientId);
       setFocusSection("admin-settlement", `period:${ym}`);
@@ -1503,7 +1906,7 @@ export function mount(root, { nav }) {
         const n = readWonInput(t);
         if (n === null) return; /* 거부 — 잘못 읽힌 수가 저장되는 것보다 낫다 */
         editing.amount = n;
-        renderSum();
+        /* 요약 'M월 정산' 줄의 금액은 아래 syncDirty → syncSettleRow 가 제자리에서 바꾼다(줄을 다시 그리면 aria-live 가 안 읽힌다). */
       } else editing[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
       if (k === "receiver" || k === "image") renderHd();

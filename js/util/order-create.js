@@ -22,7 +22,9 @@ import { openModal } from "../ui.js";
  *  - title, subtitle       헤더 문구
  *  - autofill              true 면 헤더에 '자동작성' pill (호출부가 [data-action=autofill] 을 받는다)
  *  - steps[2]              { key, title, cap, render() → Html, bind(stepEl) → disposers[],
- *                            required() → string[] , hint() → string }
+ *                            required() → string[] , hint() → string, block?() → string }
+ *                          block(선택 · B2B 2단계만) — 필수는 다 찼는데도 넘어갈 수 없는 이유(발행이 지난 거래 없는 달 ·
+ *                          잠긴 달로 드는 등록 — 사용자 답 3). 비어 있지 않으면 푸터가 그 말을 빨간 글자로 하고 버튼을 잠근다.
  *  - rail(stepIdx)         288px 레일 본문(마크업만)
  *  - submitLabel           마지막 버튼 문구
  *  - onSubmit()            등록. 채번·upsert·이력·목록 갱신은 호출부 책임
@@ -38,6 +40,8 @@ export function openOrderCreate(spec) {
 
   const stepEl = (i) => qs(modal.panel, `[data-step="${i}"]`);
   const missing = () => (steps[step].required ? steps[step].required() : []);
+  /* 필수가 다 찼을 때만 묻는다 — 빈 칸이 남아 있으면 그것이 먼저 할 일이다. */
+  const blocked = () => (!missing().length && steps[step].block ? steps[step].block() || "" : "");
   const isLast = () => step === steps.length - 1;
 
   /* ── 헤더 ── */
@@ -68,14 +72,15 @@ export function openOrderCreate(spec) {
   /* ── 푸터: 색이 상태를 말한다 ── */
   const ftBody = () => {
     const m = missing();
+    const b = blocked();
     const stat = m.length
       ? `필수 ${m.length}건 — ${m.join(" · ")}`
-      : (steps[step].hint ? steps[step].hint() : "");
+      : b || (steps[step].hint ? steps[step].hint() : "");
     return html`
-      <span class="ord-ft__stat ${m.length ? "is-dirty" : "is-saved"}" data-slot="ftstat">${stat}</span>
+      <span class="ord-ft__stat ${m.length ? "is-dirty" : b ? "is-block" : "is-saved"}" data-slot="ftstat">${stat}</span>
       <button class="hm-btn hm-btn--secondary" data-action="${step === 0 ? "close" : "back"}">
         ${step === 0 ? "취소" : "이전"}</button>
-      <button class="hm-btn hm-btn--primary" data-action="${isLast() ? "submit" : "next"}" ${m.length ? "disabled" : ""}>
+      <button class="hm-btn hm-btn--primary" data-action="${isLast() ? "submit" : "next"}" ${m.length || b ? "disabled" : ""}>
         ${isLast() ? (spec.submitLabel || "주문 등록") : "다음"}</button>`;
   };
 
@@ -166,7 +171,7 @@ export function openOrderCreate(spec) {
 
   function goStep(next) {
     if (next === step || next < 0 || next >= steps.length) return;
-    if (next > step && missing().length) return; /* 게이트 */
+    if (next > step && (missing().length || blocked())) return; /* 게이트 */
     const prev = step;
     step = next;
     stepEl(prev).hidden = true;
@@ -202,7 +207,8 @@ export function openOrderCreate(spec) {
     if (a === "back") return goStep(step - 1);
     if (a === "close") return modal.close();
     if (a === "submit") {
-      if (missing().length) return;
+      /* 막힘은 시각에 따라 생길 수 있다(창을 열어 둔 사이 발행 시각이 지남) — 누른 순간 막혔으면 푸터를 다시 그려 이유를 보인다. */
+      if (missing().length || blocked()) { syncFooter(); return; }
       spec.onSubmit && spec.onSubmit();
     }
   });

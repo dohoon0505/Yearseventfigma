@@ -12,6 +12,7 @@ import {
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
   INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel, DEADLINE_HOUR,
   editLockAt, overdueAt, isEditLocked, isPastOverdue, LOCK_REASON, HOLD_LABEL, HOLD_CODES,
+  editLockDayOf,
 } from "../js/data/settlement-rules.js";
 import { TERMS } from "../js/data/terms.js";
 
@@ -197,6 +198,10 @@ eq("수정 마감: 9월분 7일 그룹 → 10-09 10:00", editLockAt("2026-09", "
 eq("수정 마감: 9월분 15일 그룹 → 10-27 10:00", editLockAt("2026-09", "15"), D(2026, 10, 27, 10));
 eq("수정 마감: 12월분 1일 그룹 → 다음 해 01-09 10:00", editLockAt("2026-12", "1"), D(2027, 1, 9, 10));
 eq("수정 마감: 1월분 15일 그룹 → 02-27 10:00", editLockAt("2027-01", "15"), D(2027, 2, 27, 10));
+/* 수정 마감의 날(포털 정산 절차 2번 카드 '수정 마감 N일 10:00') — editLockAt 과 같은 규칙이어야 한다 */
+eq("수정 마감 날: 1일 그룹 → 9", editLockDayOf("1"), 9);
+eq("수정 마감 날: 15일 그룹 → 27", editLockDayOf("15"), 27);
+for (const d of INVOICE_DAYS) eq(`수정 마감 날 = editLockAt 의 날: ${d}일`, editLockDayOf(d), editLockAt("2026-09", d).getDate());
 eq("수정 마감 정각 1ms 전은 열림", isEditLocked("2026-09", "1", D(2026, 10, 9, 9, 59, 999)), false);
 eq("수정 마감 정각부터 잠김", isEditLocked("2026-09", "1", D(2026, 10, 9, 10)), true);
 eq("기한 초과: 9월분 → 11-01 10:00", overdueAt("2026-09"), D(2026, 11, 1, 10));

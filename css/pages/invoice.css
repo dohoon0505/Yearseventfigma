@@ -9,6 +9,10 @@
    색은 tokens.css 토큰만 — 시안 hex 의 대응: 회색 알약 #f0f0f2/#4a4a4f → --c-fill-1/--c-text-2 ·
    주황 알약 #fff1ec/#b23a00 → --c-orange-soft/--c-orange-ink-strong · 초록 #e7f4ea/#22702a → --c-success-bg/-ink ·
    마감 임박 #b3261e → --c-danger-ink · 보조 글자 #6e6e73 → --c-text-4 · 옅은 선 #f0f0f0 → --c-fill-1.
+   2차 시안(추가 요청 ②④⑤⑩): '발급 때 → 지금' 줄 #b23a00 → --c-orange-ink-strong · 동의 전 띠 #fff3d6/#6b4300 →
+   --c-warn-bg/--c-amber-ink · 거부 상자 #fdecea/#b3261e → --c-danger-bg/--c-danger-ink · 거부 본문 #5a1712 →
+   --c-danger-ink-strong(가장 가까운 것) · 요약 상자 테두리 #e3b5b0 → --c-danger-border · 지운 글씨 #6e6e73 → --c-text-4.
+   새 토큰은 만들지 않았다.
    ============================================================ */
 .page-invoice {
   /* 시안은 페이지가 통째로 스크롤되지 않는다 — 미리보기와 월 목록만 자체 스크롤한다.
@@ -66,9 +70,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  /* 넘칠 때만 레일이 스크롤한다 — 가장 긴 갈래(보류 · 399px) + 월 목록 최소 250px 가 남는 높이를 넘는 경우.
-     실측: 1440x900 에서 알림 도착 줄(62px)이 함께 있으면 49px 모자랐다. 이게 없으면 카드가 레일 밖으로 삐져나와
-     페이지 아래 여백 위에 겹친다(`.iv-cols` 의 min-height 를 auto 로 두면 월 12줄 전체가 최소 높이가 되어 더 나쁘다). */
+  /* 넘칠 때만 레일이 스크롤한다(안전장치) — 가장 긴 갈래 + 월 목록 최소 높이가 남는 높이를 넘는 경우.
+     예전(최소 250px)엔 1440x900 에서 알림 도착 줄(62px)이 함께 있으면 49px 모자라 고객센터 줄이 잘렸다 — 2차 시안 ⑩ 이
+     최소 높이를 160px 로 낮춰 풀었다. 우리 pageHead 가 시안 머리보다 높아(약 52px) 조합에 따라 넘칠 수 있어 남겨 둔다 —
+     실측(1440x900): 금액이 바뀐 달 카드(가장 긴 갈래)는 알림 도착 줄이 없어도 13px, 있으면 73px 넘쳐 레일이 스크롤한다.
+     이게 없으면 카드가 레일 밖으로 삐져나와 페이지 아래 여백 위에 겹친다(`.iv-cols` 의 min-height 를 auto 로 두면
+     월 12줄 전체가 최소 높이가 되어 더 나쁘다). */
   overflow-y: auto;
 }
 .page-invoice .iv-card {
@@ -95,8 +102,9 @@
 .page-invoice .iv-tag--green { background: var(--c-success-bg); color: var(--c-success-ink); }
 
 /* ── 연도 스테퍼 + 12개월 목록 ───────────────────────────── */
-/* 높이 860 이상 — 목록이 남는 높이를 받는다(최소 250px). 동의 카드는 내용 높이. */
-.page-invoice .iv-listcard { order: 1; flex: 1 1 0; min-height: 250px; display: flex; flex-direction: column; }
+/* 높이 860 이상 — 목록이 남는 높이를 받는다(최소 160px — 2차 시안 ⑩: 긴 갈래에서도 고객센터 줄까지 보이게 목록이 줄어든다).
+   동의 카드는 내용 높이. */
+.page-invoice .iv-listcard { order: 1; flex: 1 1 0; min-height: 160px; display: flex; flex-direction: column; }
 .page-invoice .iv-year {
   flex: 0 0 auto;
   display: flex;
@@ -175,12 +183,12 @@
 
 /* ── 요약(귀속 · 건수 · 발행일 | 금액) ───────────────────── */
 .page-invoice .iv-sum { order: 2; flex: 0 0 auto; }
-.page-invoice .iv-sum__top {
+.page-invoice .iv-sum__top { padding: var(--sp-5) var(--sp-6); }
+.page-invoice .iv-sum__row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--sp-4);
-  padding: var(--sp-5) var(--sp-6);
 }
 .page-invoice .iv-sum__l { min-width: 0; }
 .page-invoice .iv-sum__k { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-4); }
@@ -193,6 +201,17 @@
   line-height: 1.1;
   color: var(--c-text-strong);
   font-variant-numeric: tabular-nums;
+}
+/* 금액이 바뀐 달 — '발급 때 X원 → 지금 Y원 (M월 D일 수정)'(2차 시안 ② · 동의·발급 뒤에도 남는다). 13px 굵게라
+   --c-orange-ink-strong(흰 면 5:1 이상). */
+.page-invoice .iv-sum__chg {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  line-height: 1.45;
+  color: var(--c-orange-ink-strong);
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
 }
 
 /* ── 계산서 발급 동의(살아 있는 영역) ─────────────────────── */
@@ -308,7 +327,8 @@
 .page-invoice .iv-dbtn--link:hover:not(:disabled) { border-color: var(--c-border-strong); background: var(--c-surface-2); }
 .page-invoice .iv-dbtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* 상태 띠 — 거래 없음 · 발행 전에만. 감싼 칸(role=status)은 늘 있고 안쪽만 바뀐다(살아 있는 영역). */
+/* 상태 띠 — 거래 없음 · 발행 전(회색, 네 버튼이 잠긴 이유) · 동의 전 문서 표기가 찍히는 달(노랑 — docStamp).
+   감싼 칸(role=status)은 늘 있고 안쪽만 바뀐다(살아 있는 영역). */
 .page-invoice .iv-strip-slot { flex: 0 0 auto; }
 .page-invoice .iv-strip {
   padding: 9px 22px;
@@ -318,6 +338,8 @@
   font-weight: var(--fw-semibold);
   border-bottom: 1px solid var(--c-border);
 }
+/* 동의 전 — 시안 #fff3d6/#6b4300. --c-amber-ink 는 옅은 노랑 면에서도 7:1 남짓(13px 굵게). */
+.page-invoice .iv-strip--draft { background: var(--c-warn-bg); color: var(--c-amber-ink); }
 
 /* 회색 면 위에 그림자를 깔아 '이건 인쇄물'이라는 걸 눈으로 알린다 */
 .page-invoice .iv-doc__view {
@@ -350,10 +372,17 @@
 /* ── 동의 다이얼로그 본문 ────────────────────────────────
    ⚠️ 다이얼로그는 document.body 에 붙어 `.page-invoice` 스코프가 닿지 않는다.
    본문 조각 사이 간격은 한 곳(gap 14px — 시안)에서만 준다: 공용 `.dlg-check` 의 margin-top 을 여기서 지운다. */
+/* 패널 높이 상한 — 시안 창은 오버레이(안쪽 여백 24px) 높이를 다 쓴다(max-height:100%). 공용 `.modal-panel` 의 88vh 를 그대로 두면
+   1280x720 에서 거부 창(경고 상자 + '동의하려던 금액' 줄)이 59px 넘쳐, 다시 체크할 칸을 보이게 내리는 순간 경고 상자 윗줄이
+   스크롤 밖으로 올라갔다(실측 21px). 이 창만 넓힌다 — 평소 창(581px)은 어느 높이에서도 상한에 닿지 않는다.
+   ⚠️ 공용 다이얼로그 규칙(components.css)은 건드리지 않는다 — 다른 창의 높이가 같이 바뀐다. */
+.modal-panel--dlg.modal-panel--ivagree { max-height: calc(100vh - 48px); }
 .modal-panel--dlg .iv-agdlg { display: flex; flex-direction: column; gap: 14px; }
 .modal-panel--dlg .iv-agdlg .dlg-check { margin-top: 0; }
 .modal-panel--dlg .iv-recap {
   padding: 14px var(--sp-5);
+  /* 시안은 늘 1px 테두리(평소 투명) — 거부 뒤 붉은 테두리로 바뀔 때 상자가 1px 움찔하지 않게 자리를 미리 둔다. */
+  border: 1px solid transparent;
   border-radius: var(--r-xl);
   background: var(--c-surface-2);
 }
@@ -374,6 +403,16 @@
   color: var(--c-text-2);
 }
 .modal-panel--dlg .iv-line b { display: block; margin-bottom: 2px; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-4); }
+/* 금액이 바뀐 달 · 거부 뒤 — '발급 때 금액' / '동의하려던 금액' 은 지운 글씨(시안 d-changed · d-reject). */
+.modal-panel--dlg .iv-recap__was b { color: var(--c-text-4); text-decoration: line-through; }
+/* 서버 거부(금액이 바뀜) — 창을 닫지 않고 맨 위에 경고 상자(시안 d-reject · role=alert). */
+/* 모서리 12px 는 시안 값 그대로(--r-xl 10px · --r-2xl 18px 사이라 토큰이 없다 — 색이 아니라 토큰 규칙 밖). */
+.modal-panel--dlg .iv-agerr { padding: 14px var(--sp-5); border-radius: 12px; background: var(--c-danger-bg); }
+.modal-panel--dlg .iv-agerr__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.45; color: var(--c-danger-ink); }
+.modal-panel--dlg .iv-agerr__p { margin-top: var(--sp-2); font-size: var(--fs-14); line-height: 1.55; color: var(--c-danger-ink-strong); font-variant-numeric: tabular-nums; }
+.modal-panel--dlg .iv-recap.is-err { border-color: var(--c-danger-border); }
+/* 다시 체크하기 전까지 체크 칸을 붉은 면으로(시안 — 체크하면 보통 면으로 돌아간다). */
+.modal-panel--dlg .iv-agdlg .dlg-check.is-err:not(.is-on) { background: var(--c-danger-bg); }
 
 /* ── 짧은 화면(높이 860 미만) — 화면 고정을 포기하고 페이지 전체 스크롤로 ──────
    시안 규칙: 금액·동의 카드를 월 목록 **위로** 올려 첫 화면에 보이게 하고, 월 목록은 420px 로 고정한다.

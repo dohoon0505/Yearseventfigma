@@ -16,7 +16,7 @@
 
    짝이 되는 스타일은 css/components.css 의 `.ord-*` 블록(파일 끝).
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, raw, escapeHtml, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { makeDatepicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
@@ -319,14 +319,24 @@ export function stepper({ status, statuses, canComplete }) {
   </div>`;
 }
 
-export const ordMenu = () => html`
-  <div class="ord-menu" role="menu">
+/* `delLock`(선택 · B2B 만 넘긴다) — 지울 수 없는 이유(명세 6.4 정본 문구). 있으면 '주문서 삭제' 가 자물쇠와 함께 잠기고
+   그 아래에 이유를 적는다(시안 S-06 '잠긴 달의 삭제 시도'). ⚠️ 잠긴 항목도 **포커스가 가는 버튼**이다(`aria-disabled` +
+   `aria-describedby`) — 시안처럼 div 로 두면 키보드 사용자가 이유를 읽을 수 없다. 누르면 호출부가 아무것도 하지 않는다
+   (`data-action="delete-locked"`). B2C 는 넘기지 않아 예전 그대로다. */
+export const ordMenu = ({ delLock } = {}) => html`
+  <div class="ord-menu ${delLock ? "ord-menu--wide" : ""}" role="menu">
     <button class="ord-menu__item" role="menuitem" data-action="order-cancel">주문취소</button>
-    <button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">주문서 삭제</button>
+    ${delLock
+      ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" aria-disabled="true"
+          aria-describedby="ord-del-why" data-action="delete-locked">
+          <span class="ord-menu__row"><span>주문서 삭제</span>${icon("lock", { size: 14 })}</span>
+          <span class="ord-menu__why" id="ord-del-why">${delLock}</span>
+        </button>`
+      : html`<button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">주문서 삭제</button>`}
   </div>`;
 
 /* 헤더 전체 — 주문번호·상태·메타 / 스테퍼·담당자·더보기·닫기 */
-export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew }) {
+export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew, delLock }) {
   if (isNew) {
     return html`
       <div class="ord-hd__l">
@@ -353,7 +363,7 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew 
       <div class="ord-more">
         <button class="ord-iconbtn ${menuOpen ? "is-on" : ""}" data-action="menu" aria-haspopup="menu"
           aria-expanded="${menuOpen ? "true" : "false"}" aria-label="더보기">⋯</button>
-        ${menuOpen ? ordMenu() : ""}
+        ${menuOpen ? ordMenu({ delLock }) : ""}
       </div>
       <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
     </div>`;
@@ -408,8 +418,10 @@ export function remainOf(deliverAt) {
   return { label: `${spanOf(t)} 남음`, cls: t < 86400000 ? "is-soon" : "" };
 }
 
-/* 행 서술자: { k, v, empty, action, cls }. action 이 있으면 누르는 줄(button)이고 `v` 에 Html 을 넣어도 된다
+/* 행 서술자: { k, v, empty, action, cls, aria }. action 이 있으면 누르는 줄(button)이고 `v` 에 Html 을 넣어도 된다
    (B2B 의 정산 줄이 상태 칩을 싣는다). action 이 없는 줄의 `v` 는 **문자열만** — title 로도 찍히기 때문이다.
+   `aria`(선택 · B2B 정산 줄만) — 누르는 줄의 접근명('거래처 정산회계에서 9월 열기 · 칩 · 금액'). 안 넘기면 속성 자체가 없다.
+   `arrowIn`(선택 · B2B 정산 줄만) — `v` 가 '›' 를 스스로 싣는다(줄바꿈할 때 '›' 가 금액과 떨어져 혼자 다음 줄로 가지 않게).
    배송완료된 주문은 '남은시간' 대신 '배송 완료' 라고 말한다(시안 S-06) — '3일 경과' 는 끝난 주문에 아무 뜻이 없다. */
 export function summaryBodyV2({ order, rows }) {
   const r = order.status === "배송완료" ? { label: "배송 완료", cls: "" } : remainOf(order.deliverAt);
@@ -419,9 +431,10 @@ export function summaryBodyV2({ order, rows }) {
       <p class="ord-sum__big ${r.cls}">${r.label}</p>
     </div>
     ${rows.map((x) => (x.action
-      ? html`<button type="button" class="ord-sum__row ${x.cls || ""}" data-action="${x.action}">
+      ? html`<button type="button" class="ord-sum__row ${x.cls || ""}" data-action="${x.action}"
+          ${x.aria ? raw(`aria-label="${escapeHtml(x.aria)}"`) : ""}>
           <span class="ord-sum__k">${x.k}</span>
-          <span class="ord-sum__v ${x.empty ? "is-empty" : ""}">${x.v} ›</span></button>`
+          <span class="ord-sum__v ${x.empty ? "is-empty" : ""}">${x.v}${x.arrowIn ? "" : " ›"}</span></button>`
       : html`<div class="ord-sum__row">
           <span class="ord-sum__k">${x.k}</span>
           <span class="ord-sum__v" title="${x.v}">${x.v}</span></div>`))}`;

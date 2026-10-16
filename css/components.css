@@ -1598,6 +1598,88 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+/* ── 2차 시안 S-06(2026-10-16 오후) — 명세서가 나간 달의 주문금액 · 배송일시 줄 · 저장 줄 · 정산 줄 · 메뉴 잠금 ──
+   시안 색 → 토큰(새 토큰 없음): #fff8ef → --c-warn-soft-bg · #f0dcc0 → --c-amber-line · #7a4c00 → --c-amber-ink ·
+   #fdecea/#b3261e → --c-danger-bg/--c-danger-ink · #e3b5b0 → --c-danger-border · #b23a00 → --c-orange-ink-strong ·
+   #22702a → --c-success-ink. 전부 상세 스코프(.modal-panel--ord)이거나 이 화면만 쓰는 새 이름이다. */
+/* 금액 칸 — 명세서가 나갔는데 아직 고칠 수 있는 달(호박 면 + 같은 줄 '9월 명세서 나감 · 수정 마감 …'). 포커스·거부는 평소 모양이 이긴다. */
+.modal-panel--ord .ord-amtf__in.is-issued { background: var(--c-warn-soft-bg); border-color: var(--c-amber-line); }
+.modal-panel--ord .ord-amtf__in.is-issued:focus { background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.modal-panel--ord .ord-amtf__in.is-issued.is-bad,
+.modal-panel--ord .ord-amtf__in.is-issued.is-bad:focus { border-color: var(--c-danger); box-shadow: var(--ring-error); }
+.ord-amtf__why--open { color: var(--c-amber-ink); }
+/* 배송일시 줄 — 피커 190px + 같은 줄 안내. 다른 달로 옮기는 중이면 칸이 호박색, 막히면 빨간색(안내 글자도). 열린 피커는 평소 모양. */
+.ord-delivf { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.modal-panel--ord .ord-delivf .ord-dtp { flex: 0 0 190px; width: 190px; }
+.ord-delivf__why {
+  min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-semibold); line-height: 1.4;
+  color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ord-delivf__why:empty { display: none; }
+.ord-delivf__why.is-open { color: var(--c-amber-ink); }
+.ord-delivf__why.is-block { color: var(--c-danger-ink); }
+.modal-panel--ord .ord-delivf.is-moved .ord-dtp__trigger { background: var(--c-warn-soft-bg); border-color: var(--c-amber-line); }
+.modal-panel--ord .ord-delivf.is-blocked .ord-dtp__trigger { background: var(--c-danger-bg); border-color: var(--c-danger-border); }
+.modal-panel--ord .ord-delivf .ord-dtp.is-open .ord-dtp__trigger {
+  background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
+}
+/* 저장 줄 — 두 줄까지 접히고(버튼은 줄지 않는다 · .ord-ft .hm-btn flex 0 0 auto) 막힘·메모는 빨강(흰 면 5.9:1). */
+.modal-panel--ord .ord-ft__stat { min-width: 0; line-height: 1.4; text-wrap: pretty; }
+.ord-ft__stat.is-block { color: var(--c-danger-ink); }
+/* 'M월 정산' 줄 — 칩 + 그 달 금액(고치는 대로 다시 계산 · aria-live). 288px 칸에 넘치면 금액이 칩 아래 줄로 내려간다(줄바꿈 허용 —
+   새 모양이 아니다 · 자동 결정). 이 수정으로 금액이 바뀌면 줄이 호박 면, 금액이 진주황. 줄 자체(.ord-sum__v)의 규칙은 아래
+   '요약' 구역의 한 벌이다 — 같은 선택자를 둘로 나눠 두면 뒤쪽의 `gap` 이 앞쪽의 `row-gap` 을 조용히 덮는다(실제로 그랬다). */
+.ord-sum__amtw { white-space: nowrap; } /* 금액 + '›' 는 함께 줄바꿈한다 */
+.ord-sum__amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.modal-panel--ord .ord-sum__row--settle.is-changed { background: var(--c-warn-soft-bg); }
+.modal-panel--ord .ord-sum__row--settle.is-changed:hover { background: var(--c-warn-soft-bg); filter: brightness(0.98); }
+.modal-panel--ord .ord-sum__row--settle.is-changed .ord-sum__amt { color: var(--c-orange-ink-strong); }
+/* ··· 메뉴 — 잠긴 '주문서 삭제'(자물쇠 + 아래 정본 이유 13px 빨강). 포커스가 가는 버튼이라 링을 직접 그린다. */
+.ord-menu--wide { width: 344px; }
+.ord-menu__item--off { cursor: not-allowed; background: var(--c-surface-hover); color: var(--c-text-muted); }
+.ord-menu__item--off:hover { background: var(--c-surface-hover); }
+.ord-menu__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ord-menu__row .icon { flex: 0 0 auto; color: var(--c-text-muted); }
+.ord-menu__why {
+  display: block; margin-top: 3px; font-size: var(--fs-13); font-weight: var(--fw-normal); line-height: 1.5;
+  color: var(--c-danger-ink); text-wrap: pretty;
+}
+.modal-panel--ord .ord-menu__item:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+
+/* 저장 전 금액 변경 확인 창(js/util/order-settle-dialog.js · 560px) · 삭제 확인 창의 '바뀌는 정산 금액' 구역.
+   셸은 공용 openDialog(.dlg-*) — 여기는 달 줄 · '바뀌는 것' · 사유 칸만. 오류 상자는 공용 .dlg-box--err, 안내 면은 .dlg-note. */
+.sdlg-ms { display: flex; flex-direction: column; }
+.sdlg-m {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--c-fill-1);
+}
+.sdlg-m__l { min-width: 0; }
+.sdlg-m__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.sdlg-m__sub { display: block; margin-top: 1px; font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+.sdlg-m__v { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sdlg-m__before { font-size: var(--fs-15); color: var(--c-text-4); }
+.sdlg-m__arrow { color: var(--c-text-muted); }
+.sdlg-m__after { font-size: 19px; font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--c-text-strong); }
+.sdlg-m__delta { font-size: var(--fs-13); font-weight: var(--fw-semibold); }
+.sdlg-m__delta.is-up { color: var(--c-success-ink); }
+.sdlg-m__delta.is-down { color: var(--c-danger-ink); }
+.sdlg-m__delta.is-zero { color: var(--c-text-4); }
+.sdlg-what { margin-top: 10px; font-size: var(--fs-14); line-height: 1.55; color: var(--c-text-2); }
+.sdlg-what b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.sdlg-opt { font-weight: var(--fw-normal); color: var(--c-text-4); }
+.sdlg-reason {
+  display: block; width: 100%; margin-top: 12px; padding: 11px 13px;
+  font-family: inherit; font-size: var(--fs-15); line-height: 1.55; color: var(--c-text-strong);
+  background: var(--c-surface-2); border: 1px solid transparent; border-radius: var(--r-xl); resize: vertical;
+}
+.sdlg-reason::placeholder { color: var(--c-text-muted); }
+.sdlg-reason:focus { outline: none; background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.sdlg-notes { display: flex; flex-direction: column; gap: 10px; }
+.sdlg-notes[hidden] { display: none; }
+.modal-panel--sdlg6 .dlg-ft__hint { word-break: keep-all; } /* '…바뀝니\n다' 처럼 낱말 가운데서 끊기지 않게 */
+.sdlg-del { display: flex; flex-direction: column; gap: 18px; }
+.sdlg-del > [hidden] { display: none; }
+
 /* 요약 · 처리 이력 · 거래 조건 */
 .modal-panel--ord .ord-sum__head { padding: 12px 18px; }
 .modal-panel--ord .ord-sum__lbl { font-size: var(--fs-13); }
@@ -1605,7 +1687,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-sum__row { padding: 9px 18px; }
 .modal-panel--ord button.ord-sum__row:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
 /* 'M월 정산' 줄 — 상태 칩 + › . 칩 낱말은 관리자 정산회계와 같다(admin-orders.js SETTLE_CHIP). */
-.modal-panel--ord .ord-sum__row--settle .ord-sum__v { display: inline-flex; align-items: center; gap: 8px; }
+.modal-panel--ord .ord-sum__row--settle .ord-sum__v {
+  display: inline-flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; white-space: normal; overflow: visible;
+}
 .ord-schip {
   display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
   font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap;
@@ -2003,6 +2088,18 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   padding: 22px 28px 20px; min-width: 0; min-height: 0;
   display: flex; flex-direction: column; gap: 16px; overflow-y: auto;
 }
+/* 레일도 **혼자** 스크롤한다(S-04 2차 시안 ⑪ — 레일과 원장이 따로 굴러간다, 머리·푸터는 고정).
+   컨테이너(`.cli-grid`)는 여전히 hidden 이다 — 컨테이너를 굴리면 다크 레일이 원장과 같이 밀려 흰 띠가 드러난다
+   (주문 상세 `.ord-grid` 줄). 레일 높이는 `minmax(0,1fr)` 행에 묶여 있고 그 안에서만 넘침을 받는다.
+   ⚠️ **`--cli` 스코프 필수.** `.ord-side` 기본 규칙은 주문 상세(B2B·B2C 공용 셸)·주문서 등록 레일과 같이 쓴다 —
+      주문 상세 레일은 '평소 스크롤 0'(사진이 양보) 규칙이고, 등록 레일은 `.ordnew-railbody` 가 넘침을 받는다.
+   1280x720 실측: 레일 494px(시안에 없는 푸터 66px·'담당자 관리' 51px 를 지킨 값) — 이력 3건과 맨 아래 안내는 레일을 굴려야 보인다. */
+.modal-panel--cli .ord-side { overflow-y: auto; overscroll-behavior: contain; }
+/* 맨 아래 안내 — 레일이 넘쳐 `margin-top:auto` 가 0 이 되면 gap 만 남는다 — 시안은 8px 를 더 띄운다(짧은 화면에서는
+   아래 `@media (max-height:820px)` 가 뺀다 — 이유는 거기). 낱말은 가운데서 끊지 않는다(keep-all) — 레일에 스크롤바가
+   서면(실제 크롬 15px) 폭이 줄어 '전달합니 / 다.' 로 갈렸다(실측).
+   ⚠️ `.ord-side__note` 는 주문서 등록 레일(admin-b2c·admin-orders)도 쓴다 — 스코프를 지킬 것. */
+.modal-panel--cli .ord-side__note { padding-top: 8px; word-break: keep-all; }
 /* ⚠️ 원장의 직계 자식은 **줄어들지 않는다**. .cli-pane 이 flex column 이라 기본값
    (flex-shrink:1)이면 거래 조건 카드가 제목 줄만 남기고 눌린다(실제로 그랬다). */
 .cli-pane > * { flex: 0 0 auto; }
@@ -2098,9 +2195,13 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .rail-card .hm-input + .hm-input { margin-top: 6px; } /* 신규 등록의 정산담당자 이름·연락처 두 칸 */
 
-/* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 목록만 잘라 안에서 스크롤한다. */
+/* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 최근 3건만 그린다(S-04 2차 시안 ⑪ — admin-clients.js `railBody`).
+   ⚠️ **줄어들지 않는다**(`flex: 0 0 auto`). 예전엔 목록이 336px 안에서 자체 스크롤(overflow)이라 flex 항목의 최소 높이가
+   0 이 되어, 1280x720 에서 레일 높이가 모자라자 목록이 **높이 0** 으로 눌려 제목만 남았다(실측 494px 레일 · 이력 3~5건).
+   이제 넘침은 레일 하나(`.modal-panel--cli .ord-side`)가 받는다 — 안쪽에 두 번째 스크롤러를 두지 않는다
+   (`.rail-card__note` 와 같은 이유 — 스크롤 컨테이너는 포커스를 받지 못해 키보드로 닿지 않는다). */
 .cli-hist {
-  max-height: 336px; overflow-y: auto; overscroll-behavior: contain;
+  flex: 0 0 auto;
   display: flex; flex-direction: column; gap: 2px;
 }
 .cli-hist__row { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: var(--r-lg); }
@@ -2306,6 +2407,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   .cli-rows { gap: 12px; }
   .modal-panel--cli .ord-row { padding: 6px 20px; }
   .cli-note__body textarea { min-height: 96px; }
+  /* 맨 아래 안내의 시안 8px 를 짧은 화면에서는 뺀다 — 레일 gap(9px)이 이미 이력과 떼어 놓는다(레일 여백 19→14·gap 13→9 와
+     같은 '여백만 깎기'). 그대로 두면 1280x720 에서 **창을 열자마자**(이력 0건 — 이 창의 기본 상태) 레일이 5px 넘쳐, 실제 크롬
+     (클래식 스크롤바 15px)에서는 다크 레일에 밝은 스크롤바가 서고 안내 둘째 줄이 잘렸다(실측 넘침 28px · 빼면 0). */
+  .modal-panel--cli .ord-side__note { padding-top: 0; }
 }
 
 /* ── 주문서 등록 모달 (order-create) ──────────────────────
@@ -2629,6 +2734,18 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .settle-mark--gray { --settle-mark-c: var(--c-text-faint); }
 /* S-03 — tone "green"(settle-mark.js 에 추가). done 은 기존 초록 ✓ 그대로이고, live 점도 같은 초록으로 칠한다. */
 .settle-mark--green { --settle-mark-c: var(--c-success-ink); }
+
+/* ── 정산 작은 칩(.settle-chip) — 관리자 정산회계(S-01) 이름 옆 · 청구금액 옆, 포털 정산회계(S-03) 정산금액 옆 **공용** ──
+   18px 알약 · 12px/600(2차 시안). `--chg` = 명세서 발급 때 금액과 지금 금액이 다른 달('바뀜' — settlementOf.changed ·
+   동의·발급·입금 뒤에도 남는다). 옅은 주황 면 위 글자는 AA 안전한 ink-strong(시안 #fff1ec/#b23a00 자리 — 새 토큰 없음).
+   칩은 aria-hidden 이고 문장(util/settlement `amountChangeLine`)은 title + .sr-only 가 말한다.
+   (관리자 이름 칩 변형 --amber·--red 는 settlement.css 관리자 블록에 있다 — 그쪽은 관리자 전용이다.) */
+.settle-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+  border-radius: var(--r-pill); background: var(--c-fill-1); color: var(--c-text-2);
+  font-size: var(--fs-12); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.settle-chip--chg { background: var(--c-orange-soft); color: var(--c-orange-ink-strong); }
 
 /* 옛 머리글(pageTitle) 옆 한 줄 설명 — `pageTitle({ desc })`(S-01). 22px 제목 규격은 그대로 두고 설명만 붙인다. */
 .page-title__main { min-width: 0; }

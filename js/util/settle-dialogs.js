@@ -7,6 +7,7 @@
 
    쓰기는 util/settlement.js 의 `issueEinvoiceFor`·`confirmPaymentFor` 만 지난다(상태를 settlementOf 로 한 번 더 거른다).
    ⚠️ 서버 거부(409 이미 발급·이미 입금 / 400 승인번호 형식 · 시각)는 **창 안에서** 말하고 입력값을 버리지 않는다(명세 6.6).
+      409 문구는 처리자가 기록된 경우 누가 했는지 말한다(2차 시안 · util/actor `actorLabel` — 자동 발급 파생은 처리자가 없다).
    ⚠️ 입력 중에는 본문을 다시 그리지 않는다 — 슬롯(data-slot)과 푸터 힌트만 갈아 끼운다(커서가 날아간다).
 
    데모 한정 —
@@ -20,6 +21,7 @@ import { icon } from "../icons.js";
 import { store, EINVOICE_NO_RE } from "../store.js";
 import { openDialog, dlgRule, dlgRow, dlgPick, bindPick } from "./dialog.js";
 import { settlementOf, issueEinvoiceFor, confirmPaymentFor } from "./settlement.js";
+import { actorLabel } from "./actor.js";
 import { sharedBizKeys, normalizeBiz } from "./biz.js";
 import {
   periodLabel, splitPeriod, invoiceDayFor, fmtKoShort, fmtKoShortTime, parseAt,
@@ -29,6 +31,9 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 const pad = (n) => String(n).padStart(2, "0");
 const DAY = 864e5;
 const RETRY_MS = 1200;
+/* 저장 공간 부족(store 가 { error: "STORAGE_FULL" } 을 돌려준다 — 기록이 남지 않았다). 주문 화면과 같은 말 · 창과 입력은 그대로 둔다. */
+const SAVE_FAIL = "저장하지 못했습니다 · 브라우저 저장 공간이 부족합니다";
+const storageFull = (r) => !!r && r.error === "STORAGE_FULL";
 /* 데모: 자동 발급이 실패해 있던 달의 첫 다시 시도는 실패한다(위 머리 주석). 키 = "거래처|귀속월". */
 const RETRIED = new Set();
 let seq = 0;
@@ -194,9 +199,11 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
   function alreadyErr() {
     const s = settlementOf(client, ym, new Date());
     if (s.einvoice) {
+      /* 처리자가 기록된 발급(다시 시도·직접 입력)이면 누가 했는지 말한다(시안 j — 자동 발급 파생은 by 가 없다) */
+      const who = s.einvoice.mode !== "auto" ? actorLabel(s.einvoice.by) : "";
       return {
         title: "이미 발급된 달입니다",
-        body: [`${fmtKoShortTime(s.einvoice.at)}에 발급 처리됐습니다 · 승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}.${st.mode === "manual" ? " 적은 값은 그대로 두었습니다." : ""}`],
+        body: [`${fmtKoShortTime(s.einvoice.at)}에 ${who ? `${who} 님이 발급 처리했습니다` : "발급 처리됐습니다"} · 승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}.${st.mode === "manual" ? " 적은 값은 그대로 두었습니다." : ""}`],
       };
     }
     return { title: "지금은 계산서를 발급 처리할 수 없는 달입니다", body: ["표에서 이 달의 상태를 다시 확인하세요."] };
@@ -335,6 +342,13 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
         return;
       }
       const r = issueEinvoiceFor(client, ym, { mode: "retry" }, new Date());
+      if (storageFull(r)) {
+        st.step = "idle";
+        sync();
+        toast && toast(SAVE_FAIL, "warn");
+        okBtn.focus();
+        return;
+      }
       if (!r || r.error) {
         st.step = "idle";
         st.err = alreadyErr();
@@ -362,6 +376,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       onDone && onDone({ type: "issue" });
       return;
     }
+    if (storageFull(r)) { toast && toast(SAVE_FAIL, "warn"); return; } // 적은 값은 그대로 둔다
     if (r.error === "EINVOICE_NO_INVALID") { st.noServerBad = true; sync(); inNo.focus(); return; }
     if (r.error === "EINVOICE_AT_INVALID") { st.timeServerBad = true; sync(); inDate.focus(); return; }
     /* 성공 — 줄을 먼저 다시 그리고(호출부) 창을 닫는다. 닫힐 때 포커스는 onClose 가 그 줄로 되돌린다. */
@@ -477,11 +492,13 @@ export function openPaymentDialog({ client, ym, onDone, toast, onClose } = {}) {
   on(p, "click", "[data-action='ok']", () => {
     if (okBtn.disabled) return;
     const r = confirmPaymentFor(client, ym, undefined, new Date());
+    if (storageFull(r)) { toast && toast(SAVE_FAIL, "warn"); return; } // 입금 확인이 기록되지 않았다 — 창은 그대로
     if (!r) {
       /* 409 — 창을 연 사이 다른 곳에서 입금 확인됐다(또는 상태가 바뀌었다). 줄도 다시 읽는다. */
       const s = settlementOf(client, ym, new Date());
+      const who = actorLabel(s.paidBy);
       st.err = s.status === "PAID" && s.paidAt
-        ? { title: "이미 입금 확인된 달입니다", body: [`${fmtKoShortTime(s.paidAt)}에 확인됐습니다. 표의 이 줄도 입금완료로 바꿔 두었습니다.`] }
+        ? { title: "이미 입금 확인된 달입니다", body: [`${fmtKoShortTime(s.paidAt)}에 ${who ? `${who} 님이 확인했습니다` : "확인됐습니다"}. 표의 이 줄도 입금완료로 바꿔 두었습니다.`] }
         : { title: "지금은 입금을 확인할 수 없는 달입니다", body: ["표에서 이 달의 상태를 다시 확인하세요."] };
       sync();
       onDone && onDone({ type: "pay" });

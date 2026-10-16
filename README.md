@@ -57,6 +57,7 @@ js/
   pages/*.js            # 페이지 모듈 (mount(root, { nav }) → cleanup)
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
   data/invoice-mock.js  # 거래명세서 시드 INVOICE_DB 만 (b2b-mock 이 배송완료 주문으로 옮긴다)
+  data/billing-entries.js  # 주문 한 건이 어느 달에 얼마를 보태는지 — 정산·변경 기록의 단일 기여 규칙 (import 0)
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
   data/contact.js       # 고객센터 번호 단일 소스 — 1668-1840 (로그인 안내·계정 차단 문구·주문 안내)
@@ -65,7 +66,7 @@ assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이�
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
-tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 171케이스
+tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 195케이스 · 정산 금액 변경 기록 139케이스
 serve.mjs               # 개발용 정적 서버
 ```
 
@@ -83,6 +84,9 @@ serve.mjs               # 개발용 정적 서버
 | `client.js` | 로그인 거래처 결정 **단일 소스** |
 | `settlement.js` | 정산 단일 파생 — B2B 주문(배송일의 달)에서 명세서 행·청구금액, `settlementOf`/`settlementsFor` 상태, `isUnpaid`·`needsAction`·`termsWatchOf` |
 | `settle-mark.js` · `settle-dialogs.js` | 정산 단계 한 줄 셀(✓/●/-, 관리자·포털 공용) · 계산서 발급 처리·입금 확인 작은 창 |
+| `invoice-data.js` | 거래명세서 문서 빌더 **하나** — 관리자 PDF · 포털 미리보기/PDF/EXCEL · 공개 링크가 같은 문서 |
+| `order-settle-dialog.js` | 명세서가 나간 달의 주문 금액을 바꿀 때 '저장 전 금액 변경 확인' 창(사유 선택) |
+| `actor.js` | 지금 처리하는 사람(`currentActor`) — 정산 금액 변경·계산서·입금 기록의 '누가' |
 | `terms-dialog.js` | 이용약관 열람·동의 게이트 다이얼로그 (`openTermsDialog`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |

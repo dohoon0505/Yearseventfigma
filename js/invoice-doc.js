@@ -12,9 +12,17 @@
 
    invoiceDoc(d, assetBase) — d is the invoice data object:
      { title, period, buyer:{address,company,bizNumber,ceo,summary,issueDate,invoiceNote},
-       supplier:{company,bizNumber,ceo,email,fax}, items:[{date,sender,address,product,amount}],
-       account, total }
+       supplier:{company,bizNumber,ceo,email,fax}, items:[{date,sender,address,product,amount,kind?}],
+       account, total, stamp? }
    assetBase: prefix for the logo image ("./assets/" in-app, "../assets/" under /invoice/).
+
+   ── 2026-10-16 S-02 시안 — 문서 서식의 예외 세 가지만(요청서 v5 S-2 카드가 연 범위) ──
+   ① '계산서 발행' 칸 낱말 — 데이터(buyer.invoiceNote · INVOICE_NOTE 한 벌)가 정한다. 이 파일은 그대로 찍는다.
+   ② 동의 전 표기 — `d.stamp = { text, printedAt }` 이 있으면 머리 오른쪽(귀속 표기 아래)에 태그
+      '{text} · {printedAt} 출력', 모든 장 왼쪽 아래에 '{printedAt} 출력 · {text}'.
+   ③ 취소 수수료 줄 — `items[i].kind === "fee"` 인 줄은 회색 바탕(#f3f3f3) · 글자 #555 · 주문상품 칸 굵게(600).
+   두 필드는 **선택**이다 — 넘기지 않으면 예전과 한 글자도 다르지 않게 그린다(옛 공개 토큰 본문 · 리포트 인쇄 공용
+   printInvoiceDoc 영향 없음). 문서 데이터는 util/invoice-data.js `invoiceDocData` 한 곳에서 만든다.
    ============================================================ */
 import { html, escapeHtml } from "./dom.js";
 
@@ -64,8 +72,26 @@ function infoTable(title, rows) {
   `;
 }
 
+/* 동의 전 표기(선택 — d.stamp). 머리 태그와 장마다 왼쪽 아래 줄. */
+const stampTag = (st) => `${st.text} · ${st.printedAt} 출력`;
+const stampFoot = (st) => `${st.printedAt} 출력 · ${st.text}`;
+
 /* 문서 상단 브랜드 헤더 (모든 페이지 공통) */
 function headerBlock(d, assetBase) {
+  if (d.stamp) {
+    return html`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="${assetBase}invoice-logo.png" alt="" style="width:28px;height:28px;object-fit:cover" />
+        <span style="font-size:18px;font-weight:700;color:#222">${d.title}</span>
+      </div>
+      <div style="text-align:right">
+        <span style="display:block;font-size:12px;font-weight:600;color:#666">${d.period}</span>
+        <span style="display:inline-block;margin-top:5px;padding:3px 8px;border:1px solid #d94000;border-radius:4px;font-size:11px;font-weight:700;color:#d94000;white-space:nowrap">${stampTag(d.stamp)}</span>
+      </div>
+    </div>
+  `;
+  }
   return html`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -96,15 +122,26 @@ function txTable(rows, continued) {
           </tr>
         </thead>
         <tbody>
-          ${rows.map(
-            (it) => html`<tr>
+          ${rows.map((it) => {
+            /* 취소 수수료 줄(선택 — it.kind === "fee") — 셀마다 색을 덧붙인다(S.td 가 셀 단위로 color 를 정하므로 tr 에 걸면 안 먹는다). */
+            if (it.kind === "fee") {
+              const F = "background:#f3f3f3;color:#555;";
+              return html`<tr>
+              <td style="${S.td}${F}">${it.date}</td>
+              <td style="${S.td}text-align:center;${F}">${it.sender}</td>
+              <td style="${S.address}${F}">${it.address}</td>
+              <td style="${S.td}${F}font-weight:600;">${it.product}</td>
+              <td style="${S.td}text-align:center;${F}">${it.amount}</td>
+            </tr>`;
+            }
+            return html`<tr>
               <td style="${S.td}">${it.date}</td>
               <td style="${S.td}text-align:center;">${it.sender}</td>
               <td style="${S.address}">${it.address}</td>
               <td style="${S.td}">${it.product}</td>
               <td style="${S.td}text-align:center;">${it.amount}</td>
-            </tr>`
-          )}
+            </tr>`;
+          })}
         </tbody>
       </table>
     </div>
@@ -180,7 +217,7 @@ function pageBlock(d, assetBase, rows, pageIdx, pageCount) {
         : ""}
       ${txTable(rows, !isFirst)}
       ${isLast ? footerBlock(d) : ""}
-      ${pageCount > 1
+      ${d.stamp ? html`<div style="position:absolute;left:44px;bottom:12px;font-size:10px;color:#999;">${stampFoot(d.stamp)}</div>` : ""}${pageCount > 1
         ? html`<div style="position:absolute;right:44px;bottom:12px;font-size:10px;color:#999;letter-spacing:0.02em;">${pageIdx + 1} / ${pageCount} 페이지</div>`
         : ""}
     </div>

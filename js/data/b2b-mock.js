@@ -6,12 +6,22 @@
    가 모두 여기를 읽고 쓴다. 예전엔 포털이 자체 목데이터 16건을 들고 있어 두 화면이 서로 다른 주문을 보였다.
 
    시드는 세 갈래다 — 아래 '시드 조립' 참조.
-     (a) 손으로 쓴 44건(t1~t44, B2B-0001~0044) — DATA_NOW 상대 날짜.
+     (a) 손으로 쓴 45건(t1~t45, B2B-0001~0045) — DATA_NOW 상대 날짜.
      (b) 거래명세서 실데이터(invoice-mock.js INVOICE_DB)의 행 → 배송완료 주문(절대 날짜).
      (c) 생성 주문 — 거래처마다 최근 6개월(이번 달 포함), (거래처 번호, 절대 년·월) 씨앗으로 결정적.
    그 위에 사용자의 변경분만(store.orderOps) 덧입힌다 — 새로고침해도 수정·취소·삭제·포털 접수가 남는다.
 
-   ⚠️ 손으로 쓴 44건의 날짜는 DATA_NOW 기준 상대 생성(util/date.js mockDates). 절대값으로 박으면
+   ── 정산 금액 변경 기록 (2026-10-16 DATA.md 1.1~1.7 · 명세 8.4) ──
+   명세서가 나간 달(발행 시각 ≤ 지금)의 금액에 대한 주문 한 건의 기여가 바뀌면, 쓰기 함수가 그 (거래처, 귀속월)에 한 줄을
+   **주문 변경분과 같은 저장 한 번**으로 남긴다(store.setOrderOps 의 extra.amountLines — 실패하면 둘 다 되돌린다).
+   기여 규칙은 data/billing-entries.js 하나다(util/settlement 의 정산 금액과 같은 규칙). 쓰기 함수는 선택 인자
+   `ctx = { note, actor, now }` 를 받는다 — note 는 저장 전 확인 창의 '사유(선택)'(줄의 reason · 앞뒤 공백 제거 · 200자),
+   actor 를 안 주면 util/actor `currentActor()`. 발행 전 달의 변경은 기록하지 않는다(늘 바뀌는 달이라 소음이다).
+   ⚠️ 기록 지점은 잠금을 판정하지 않는다 — 잠긴 달은 화면이 util/settlement `settlementImpactOf` 로 먼저 막는다(서버 409 의
+      데모 대역). 잠긴 달의 변경이 그래도 들어오면 기록은 사실대로 남기고 개발 중 console.warn 으로 알린다.
+   시드 예시 줄(A~E)은 저장하지 않고 매번 만든다(b2bSeedAmountChanges) — 아래 '시드 예시' 참조.
+
+   ⚠️ 손으로 쓴 45건의 날짜는 DATA_NOW 기준 상대 생성(util/date.js mockDates). 절대값으로 박으면
       기본 필터('이번 달')에 걸리는 행이 사라져 표가 영구히 빈 화면이 된다.
    ⚠️ 상품·금액은 거래처의 clientNote(구 '거래처 참고사항') 조건을 따랐다.
       예: (주)홈박스은 특대 75,000 고정, (주)코어테크는 기본 80,000.
@@ -28,9 +38,13 @@
 import { DATA_NOW, INITIAL_CLIENTS, SEED_BILLING } from "./admin-mock.js";
 import { INVOICE_DB } from "./invoice-mock.js";
 import { store, ALL_PRODUCTS, priceNum } from "../store.js";
-import { periodOf, fmtAt } from "./settlement-rules.js";
+import { periodOf, fmtAt, issueDate, invoiceDayFor, editLockAt } from "./settlement-rules.js";
 import { seedHistory, pushHistory, histAt } from "./order-history.js";
 import { formatDateLabel, mockDates } from "../util/date.js";
+/* 정산 기여 규칙(import 0) — util/settlement 의 색인과 같은 함수다. 처리자는 util/actor(→ store · session · staff-mock). */
+import { contributionDiff, causeOf, normAt, entriesOfOrder } from "./billing-entries.js";
+import { SEED_ACTOR } from "./staff-mock.js";
+import { currentActor } from "../util/actor.js";
 
 const D = mockDates(DATA_NOW);
 /* 배송 희망일시 — datetime-local 포맷("YYYY-MM-DDTHH:mm").
@@ -40,7 +54,10 @@ const dlv = (d, t) => `${formatDateLabel(d)}T${t}`;
 /* 워크플로는 B2C 와 동일 — 접수대기 → 주문접수 → 배송완료 + 취소. */
 export const B2B_STATUSES = ["접수대기", "주문접수", "배송완료", "취소"];
 
-/* (a) 손으로 쓴 44건. 내보내지 않는다 — 화면은 b2bList() 만 읽는다(시드 + 변경분). */
+/* (a) 손으로 쓴 45건. 내보내지 않는다 — 화면은 b2bList() 만 읽는다(시드 + 변경분).
+   t45(시드 예시 G — DATA.md 1.7): **다른 달 배송분을 이 달에 취소한 수수료** — 지난달 25일 주문 · 이번 달 3일 배송 예정 ·
+   지난달 26일 취소 · 수수료 10,000원. 수수료는 취소한 달(지난달) 명세서 맨 아래 줄에 든다(S-02 p-fee · S-01 수수료 줄).
+   생성 주문의 우연한 1건(절대 년·월 난수)은 달이 바뀌면 사라져서 DATA_NOW 상대인 이 한 건을 둔다. */
 const HAND_ORDERS = [
   { id: "t1", orderNo: "B2B-0001", clientId: "C001", date: D.at(D.dayOff(0), "09:10"), ordererName: "한지훈", address: "서울 종로구 대학로 101 서울대학교병원 장례식장 3호실", deliverAt: dlv(D.dayOff(0), "13:30"), recipientName: "故 김태수", recipientPhone: "010-3200-4100", ribbonPhrase: "삼가 고인의 명복을 빕니다", ribbonSender: "한빛과학(주) 임직원 일동", image: "", notified: false, product: "3단화환(고급형)", amount: 60000, status: "접수대기", receiver: "", manager: "", request: "", memo: "", cancelFee: 0, cancelReason: "" },
   { id: "t2", orderNo: "B2B-0002", clientId: "C008", date: D.at(D.dayOff(0), "10:40"), ordererName: "정민수 변호사실", address: "광주 동구 필문대로 365 조선대학교병원 장례식장 1호실", deliverAt: dlv(D.dayOff(0), "14:30"), recipientName: "故 정만호", recipientPhone: "010-3207-4113", ribbonPhrase: "근조(謹弔)", ribbonSender: "법무법인 한결 임직원 일동", image: "", notified: false, product: "3단화환(기본형)", amount: 50000, status: "주문접수", receiver: "", manager: "박사원", request: "", memo: "", cancelFee: 0, cancelReason: "" },
@@ -86,6 +103,7 @@ const HAND_ORDERS = [
   { id: "t42", orderNo: "B2B-0042", clientId: "C018", date: D.at(D.lastMonth(6), "15:35"), ordererName: "전하율", address: "부산 영락공원 장례식장 2분향실", deliverAt: dlv(D.lastMonth(6), "18:30"), recipientName: "故 하동수", recipientPhone: "010-3228-4152", ribbonPhrase: "조의를 표합니다", ribbonSender: "(주)코어테크 임직원 일동", image: "", notified: true, product: "3단화환(기본형)", amount: 80000, status: "배송완료", receiver: "상주 박현우", manager: "박사원", request: "", memo: "", cancelFee: 0, cancelReason: "" },
   { id: "t43", orderNo: "B2B-0043", clientId: "C007", date: D.at(D.lastMonth(4), "10:05"), ordererName: "관리부", address: "강원 춘천시 백령로 156 강원대학교병원 장례식장 특실", deliverAt: dlv(D.lastMonth(4), "14:30"), recipientName: "故 남기석", recipientPhone: "010-3235-4165", ribbonPhrase: "삼가 고인의 명복을 빕니다", ribbonSender: "고이메모리얼 임직원 일동", image: "", notified: true, product: "근조바구니", amount: 50000, status: "배송완료", receiver: "혼주 이영호", manager: "이대리", request: "", memo: "", cancelFee: 0, cancelReason: "" },
   { id: "t44", orderNo: "B2B-0044", clientId: "C014", date: D.at(D.lastMonth(2), "13:15"), ordererName: "황보라", address: "충남 천안시 동남구 망향로 201 순천향대 천안병원 장례식장 3호실", deliverAt: dlv(D.lastMonth(2), "17:30"), recipientName: "故 김복순", recipientPhone: "010-3242-4178", ribbonPhrase: "근조(謹弔)", ribbonSender: "(주)파란코드 임직원 일동", image: "", notified: true, product: "쌀화환(10kg)", amount: 75000, status: "배송완료", receiver: "비서 김지원", manager: "최과장", request: "", memo: "", cancelFee: 0, cancelReason: "" },
+  { id: "t45", orderNo: "B2B-0045", clientId: "C001", date: D.at(D.lastMonth(25), "10:20"), ordererName: "한지훈", address: "서울 강남구 테헤란로 406 아펠가모 삼성 4층 그랜드홀", deliverAt: dlv(D.thisMonth(3), "14:00"), recipientName: "혼주 한도윤", recipientPhone: "010-0000-0145", ribbonPhrase: "축 결혼(祝 結婚)", ribbonSender: "한빛과학(주) 임직원 일동", image: "", notified: false, product: "3단화환(고급형)", amount: 60000, status: "취소", receiver: "", manager: "박사원", request: "", memo: "", cancelFee: 10000, cancelReason: "행사 일정 변경", canceledAt: `${formatDateLabel(D.lastMonth(26))} 11:30` },
 ];
 
 
@@ -228,6 +246,10 @@ function finishSeed(o) {
   if (o.status === "취소" && !o.canceledAt) {
     const h = (o.history || []).find((x) => x.type === "cancel");
     o.canceledAt = h ? h.at : histAt(o.date, 90);
+  } else if (o.status === "취소") {
+    /* 취소 시각을 시드가 정해 둔 주문(t45 — 주문 다음 날 취소)은 이력의 취소 줄을 그 시각에 맞춘다(레코드와 이력이 같은 말을 하게). */
+    const h = (o.history || []).find((x) => x.type === "cancel");
+    if (h) h.at = normAt(o.canceledAt) || h.at;
   }
   return o;
 }
@@ -336,6 +358,118 @@ function zeroMonth(clientId, ym) {
   });
 }
 
+/* ── 시드 예시 — 정산 금액 변경 기록 (2026-10-16 DATA.md 1.7) ──────────────────
+   원칙: 시드 주문은 **'고친 뒤'의 지금 상태**로 만들고, 시드 줄은 그 주문이 어떻게 그렇게 됐는지의 기록이다. 둘 다 매번
+   결정적으로 만들고 저장하지 않는다(store.orderOps 와 같은 철학 — 사용자가 그 주문을 다시 고치면 사용자 줄이 이어 붙는다).
+   · 달은 DATA_NOW 상대(monthsAgo) · 주문은 **생성 주문(g-…)만** 고른다(손으로 쓴 45건은 달이 움직인다).
+   · 줄 시각 = 그 달 명세서 발행일 + days일 의 time. **그 시각이 지금보다 뒤면 줄도 내지 않고 주문도 고치기 전 값으로 둔다**
+     (그 시각에 고친 것이다 — 발행 ≤ 지금 < 줄 시각 구간에 고친 값을 두면 발급 때 금액이 줄 시각에 바뀌고 0원 예시가
+     PAID → 동의대기로 되돌아갔다). 늘 수정 마감 전이다(1~7일 그룹 +5일 = 6일 · 11~25일 그룹 발행 당일).
+   · 사유는 '[예시]' 로 시작한다(가상 — seedEinvoiceFail 과 같은 규칙). 처리자는 staff-mock SEED_ACTOR(메이플라워(운영)).
+   · 고친 주문의 처리 이력에 edit 한 줄을 같은 시각으로(그 시각이 지금보다 뒤면 넣지 않는다).
+   ⚠️ 고르는 규칙만 고정한다('그 달 생성 주문을 배송일 순으로 · 조건에 맞는 첫 줄') — 금액은 시드 난수가 정한다.
+      조건에 맞는 주문이 없는 달이면 그 예시는 조용히 빠진다.
+   예시(보이는 상태는 10-16 기준 — 날짜가 달라지면 갈래가 달라지는 것이 정상):
+     A  (주)온누리헬스 C011(15일 그룹) 지난달 — 4단화환(표준형) → 3단화환(기본형) 50,000 · 동의 전 바뀐 달
+     B  한빛과학(주) C001(1일 그룹) 지난달 — ① 3단화환(고급형) → 근조바구니 50,000(사유 없음) ② 80,000원 이상 첫 주문 → 0원
+     C  새봄푸드(주) C002 2개월 전 — 4단화환(표준형) → 3단화환(기본형) 50,000 · 동의·발급·입금 뒤에도 남는 기록
+     D  주식회사 하늘빛 C019 지난달 — 주문 1건짜리 달 · 3단화환(고급형) 60,000 → 0원 · 고쳐서 0원(1~7일 그룹 — 마감에 닫힘)
+     E  한빛과학(주) 연구소 계정 C027(11일 그룹 · 약관 전) 지난달 — 주문 1건짜리 달 · 50,000 → 0원 · 고쳐서 0원(마감 전)
+     F  (주)새솔테크 C020(약관 전) 지난달(첫 달) — 처음부터 0원 1건(가입 혜택) · 줄 없음 → 첫 달이 0원으로 닫힌 거래처
+     G  한빛과학(주) C001 — 손으로 쓴 t45(다른 달 배송분을 이 달에 취소한 수수료) · 줄 없음(수수료는 이번 달이 아니라 취소한 달)
+   ⚠️ D·E·F 는 그 달 생성 주문을 1건짜리로 **바꾼다**(난수 생성기 대신) — 그 달 금액·건수·주문번호(뒤 거래처의 같은 달 번호)가
+      예전 시드와 달라진다. C019 는 손으로 쓴 주문이 없는 유일한 기존 거래처라 그 달이 1건으로 깨끗하다. */
+const SINGLE_MONTHS = [
+  { clientId: "C019", monthsAgo: 1, product: "3단화환(고급형)", amount: 0, was: 60000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 첫 화환 무료 적용 누락" },
+  { clientId: "C027", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, was: 50000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 가입 혜택 1회 무료 적용 누락" },
+  { clientId: "C020", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, memo: "가입 혜택 '1회 무료' — 0원 처리" },
+];
+const SEED_EDITS = [
+  { clientId: "C011", monthsAgo: 1, match: (o) => o.product === "4단화환(표준형)", to: { product: "3단화환(기본형)", amount: 50000 }, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 4단이 아니라 3단으로 배송됨" },
+  { clientId: "C001", monthsAgo: 1, match: (o) => o.product === "3단화환(고급형)", to: { product: "근조바구니", amount: 50000 }, days: 0, time: "14:20", reason: "" },
+  { clientId: "C001", monthsAgo: 1, match: (o) => Number(o.amount) >= 80000, to: { amount: 0 }, days: 0, time: "15:40", reason: "[예시] 고객센터 접수 — 리본 문구 오기로 재배송, 첫 건은 0원 처리" },
+  { clientId: "C002", monthsAgo: 2, match: (o) => o.product === "4단화환(표준형)", to: { product: "3단화환(기본형)", amount: 50000 }, days: 5, time: "14:20", reason: "[예시] 협의 금액 반영 누락" },
+];
+/** (거래처, 절대 년·월) 하나를 **주문 1건짜리 달**로(배송완료 · 그 달 9일 13:30). zeroMonth 의 일반화 — 가입일(9월 2~6일)
+ *  뒤이고 발행일보다 앞서도록 9일을 쓴다. */
+function singleMonth(clientId, ym, spec) {
+  const [y, mo] = ym.split("-").map(Number);
+  const rnd = mulberry32(5303 + idNum(clientId) * 131 + (y * 12 + mo) * 17);
+  const r = Array.from({ length: 8 }, rnd);
+  const dd = new Date(y, mo - 1, 9, 13, 30);
+  const od = new Date(y, mo - 1, 8, 10, 20);
+  const occ = occasionOf(spec.product, r[0]);
+  return [{
+    id: `g-${clientId}-${ym.replace("-", "")}-01`, orderNo: "", clientId,
+    date: atStr(od), ordererName: ordererOf(clientId, r[1]),
+    address: pick(occ === "obit" ? OBIT_VENUES : CELEB_VENUES, r[2]), deliverAt: dlvStr(dd),
+    recipientName: recipientOf(occ, r[3], r[4]), recipientPhone: fakePhone(r[5]),
+    ribbonPhrase: pick(RIBBON[occ], r[6]), ribbonSender: `${companyOf(clientId)} 임직원 일동`,
+    image: "", notified: true, product: spec.product, amount: spec.amount, status: "배송완료",
+    receiver: pick(RECEIVERS[occ === "obit" ? "obit" : "celeb"], r[7]), manager: pick(STAFF, r[1]),
+    request: "", memo: spec.memo || "", cancelFee: 0, cancelReason: "",
+  }];
+}
+const wonText = (n) => `${Number(n).toLocaleString("ko-KR")}원`;
+/** 시드 줄 시각 — 그 달 명세서 발행일(시드 거래처의 그 달 발급일) + days 일의 time. */
+function seedLineAt(clientId, ym, days, time) {
+  const iss = issueDate(ym, invoiceDayFor(SEED_CLIENTS.get(clientId), ym));
+  const [h, m] = time.split(":").map(Number);
+  return new Date(iss.getFullYear(), iss.getMonth(), iss.getDate() + days, h, m);
+}
+/** 시드 예시를 주문에 입히고(고친 뒤 상태 — SINGLE_MONTHS 는 seedGenerated 가 이미 1건짜리로 만들었다) 그 기록 줄을 돌려준다.
+ *  반환: { [clientId]: { "YYYY-MM": Line[] } } — 시간순. 지금(now)보다 뒤인 줄은 내지 않는다. */
+function seedAmountEdits(orders, now) {
+  const out = {};
+  const used = new Set();
+  const put = (o, ym, line) => {
+    const m = (out[o.clientId] = out[o.clientId] || {});
+    (m[ym] = m[ym] || []).push(line);
+  };
+  const note = (o, ym, { before, after, cause, at, reason, n }) => {
+    if (at.getTime() > now.getTime()) return;
+    const atText = fmtAt(at);
+    put(o, ym, {
+      id: `ac-seed-${o.id}-${n}`, at: atText, by: { ...SEED_ACTOR }, orderId: o.id, orderNo: o.orderNo,
+      cause, before, after, reason,
+    });
+    pushHistory(o, "edit", `명세서 발행 뒤 금액 수정 · ${wonText(before)} → ${wonText(after)}`, atText);
+  };
+  const ymAgo = (k) => periodOf(new Date(now.getFullYear(), now.getMonth() - k, 1));
+  /* ⚠️ 줄 시각이 아직 오지 않았으면 **주문도 고치기 전 값**으로 둔다. 줄 시각은 발행일 당일·며칠 뒤라 '발행 ≤ 지금 < 줄 시각'
+     구간이 있다 — 그때 고친 값을 그대로 두면 그 달이 고친 금액으로 발행된 것처럼 보였다가(issuedAmount = 고친 금액) 줄 시각에
+     발급 때 금액이 바뀌고, 고쳐서 0원 예시(D·E)는 '처음부터 0원 · 발행과 함께 닫힘(PAID)' 이었다가 동의대기로 **되돌아갔다**
+     (2026-10-16 검증 — 10-01 10:00~14:20 C019 9월). 고르는 규칙(used)은 시각과 무관하게 같게 둔다. */
+  SINGLE_MONTHS.forEach((sp) => {
+    if (sp.was == null) return; // 처음부터 0원(F) — 줄 없음
+    const ym = ymAgo(sp.monthsAgo);
+    const o = orders.find((x) => x.id === `g-${sp.clientId}-${ym.replace("-", "")}-01` && x.amount === sp.amount);
+    if (!o) return;
+    used.add(o.id);
+    const at = seedLineAt(sp.clientId, ym, sp.days, sp.time);
+    if (at.getTime() > now.getTime()) { o.amount = sp.was; return; }
+    note(o, ym, { before: sp.was, after: sp.amount, cause: "amount", at, reason: sp.reason, n: 1 });
+  });
+  SEED_EDITS.forEach((ed, i) => {
+    const ym = ymAgo(ed.monthsAgo);
+    const prefix = `g-${ed.clientId}-${ym.replace("-", "")}-`;
+    const o = orders
+      .filter((x) => x.id.startsWith(prefix) && x.status !== "취소" && !used.has(x.id) && String(x.deliverAt).slice(0, 7) === ym)
+      .sort((a, b) => a.deliverAt.localeCompare(b.deliverAt))
+      .find(ed.match);
+    if (!o) return;
+    used.add(o.id);
+    const at = seedLineAt(ed.clientId, ym, ed.days, ed.time);
+    if (at.getTime() > now.getTime()) return; // 아직 고치기 전(위 SINGLE_MONTHS 주석)
+    const before = Number(o.amount) || 0;
+    const cause = ed.to.product && ed.to.product !== o.product ? "product" : "amount";
+    Object.assign(o, ed.to);
+    note(o, ym, { before, after: Number(o.amount) || 0, cause, at, reason: ed.reason, n: i + 2 });
+  });
+  Object.values(out).forEach((m) => Object.values(m).forEach((list) => list.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))));
+  return out;
+}
+
 /** (b)+(c) 조립. 주문번호는 **배송 달별 일련번호** `B2B-YYMMNNN`(7자리) — 그 달 안에서 거래처 번호 순 → 배송일 순.
  *  ⚠️ 거래처 번호 순이라 번호가 큰 거래처가 늘어도 기존 번호는 밀리지 않는다(뒤에 붙는다).
  *     손으로 쓴 44건(0001~0044)과 대역이 겹치지 않는다. 가입일이 든 달보다 앞선 달은 만들지 않는다.
@@ -349,6 +483,8 @@ function seedGenerated(now) {
   const zeroYm = periodOf(new Date(now.getFullYear(), now.getMonth() - ZERO_MONTH.monthsAgo, 1));
   const curYm = periodOf(now);
   const suspended = new Set(INITIAL_CLIENTS.filter((c) => c.status === "정지").map((c) => c.id));
+  /* 주문 1건짜리 달(시드 예시 D·E·F) — "거래처|YYYY-MM" → spec */
+  const single = new Map(SINGLE_MONTHS.map((sp) => [`${sp.clientId}|${periodOf(new Date(now.getFullYear(), now.getMonth() - sp.monthsAgo, 1))}`, sp]));
   clientIds.forEach((cid) => {
     if (NO_ORDER_CLIENTS.has(cid)) return;
     const real = INVOICE_DB[cid] || {};
@@ -360,6 +496,7 @@ function seedGenerated(now) {
       let recs = null;
       if (rows && rows.length) recs = fromInvoiceRows(cid, ym, rows);          // 실데이터가 이긴다
       else if (cid === ZERO_MONTH.clientId && ym === zeroYm) recs = zeroMonth(cid, ym);
+      else if (single.has(`${cid}|${ym}`) && SEED_CLIENTS.has(cid) && (!joined || ym >= joined)) recs = singleMonth(cid, ym, single.get(`${cid}|${ym}`));
       /* 정지된 거래처(시드 상태 '정지' — C023 다솜물산)는 **이번 달 주문을 만들지 않는다** — 정지는 이번 달 1일부터로 본다.
          예전엔 정지된 계정에도 이번 달 미래 배송분(접수대기)이 생겨 대쉬보드 액션 큐에 떴다. 지금 시각(now)으로 자르지 않는
          이유: 날이 지나며 미래 주문이 하나씩 '배송완료' 로 나타나게 된다 — 달 경계는 DATA_NOW 상대라 늘 같은 모양이다. */
@@ -381,7 +518,9 @@ function seedGenerated(now) {
     const yymm = ym.slice(2, 4) + ym.slice(5, 7);
     byMonth.get(ym).forEach((o, i) => { o.orderNo = `B2B-${yymm}${String(i + 1).padStart(3, "0")}`; out.push(finishSeed(o)); });
   });
-  return out;
+  /* 시드 예시(정산 금액 변경 기록) — 주문번호·이력이 정해진 뒤에 입힌다(줄이 주문번호를 싣는다). */
+  const lines = seedAmountEdits(out, now);
+  return { orders: out, lines };
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -401,7 +540,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const orderNum = (no) => { const m = /^B2B-(\d+)$/.exec(String(no || "")); return m ? Number(m[1]) : 0; };
 const toTime = (s) => { const t = new Date(String(s || "").replace(/\//g, "-").replace(" ", "T")).getTime(); return Number.isFinite(t) ? t : 0; };
 
-/* 새 주문번호 대역 — `B2B-YYMM9NNN`(8자리, 만든 달 기준). 시드는 4자리(손으로 쓴 44건)·7자리(달별 일련번호)라
+/* 새 주문번호 대역 — `B2B-YYMM9NNN`(8자리, 만든 달 기준). 시드는 4자리(손으로 쓴 45건)·7자리(달별 일련번호)라
    자릿수부터 달라 겹칠 수 없다. 한 달 999건까지(데모). */
 const newBandBase = (d) => ((d.getFullYear() % 100) * 100 + d.getMonth() + 1) * 10000 + 9000; // 2026-10 → 26109000
 const isNewBandNo = (n) => n >= 1e7 && n % 10000 > 9000;
@@ -416,9 +555,31 @@ function nextNewNo(arr, now) {
   return max + 1;
 }
 
+/* 시드 예시의 정산 금액 변경 기록 — build() 가 시드와 함께 만든다(저장하지 않는다). { [cid]: { ym: Line[] } } */
+let seedLines = {};
+/** 시드 줄은 그 주문의 **지금 기여**와 맞을 때만 둔다 — 지금 기여 = 시드 줄의 after + 그 주문의 사용자 줄 순변동.
+ *  사용자가 그 주문을 줄 시각 **전에** 고쳐 저장했으면(patched 는 고치기 전 값에서 시작했다) 또는 지웠으면 시드 줄과 주문이
+ *  어긋나 '발급 때 금액' 이 틀어지고 거짓 '바뀜' 이 생긴다 — 그런 시드 줄은 버린다(그 달의 이야기는 사용자 줄이 한다). */
+function consistentSeedLines(lines, byId) {
+  const log = store.get().amountLog || {};
+  const out = {};
+  Object.keys(lines).forEach((cid) => Object.keys(lines[cid]).forEach((ym) => {
+    const keep = lines[cid][ym].filter((l) => {
+      const cur = entriesOfOrder(byId.get(l.orderId) || null)
+        .filter((e) => e.clientId === cid && e.ym === ym).reduce((a, e) => a + e.amount, 0);
+      const user = ((log[cid] || {})[ym] || []).filter((u) => u.orderId === l.orderId)
+        .reduce((a, u) => a + (Number(u.after) - Number(u.before)), 0);
+      return cur === l.after + user;
+    });
+    if (keep.length) (out[cid] = out[cid] || {})[ym] = keep;
+  }));
+  return out;
+}
+
 function build() {
   const hand = HAND_ORDERS.map((o) => finishSeed({ ...o }));
-  const seeds = [...hand, ...seedGenerated(DATA_NOW)];
+  const gen = seedGenerated(DATA_NOW);
+  const seeds = [...hand, ...gen.orders];
   seedIds = new Set(seeds.map((o) => o.id));
   const ops = store.orderOps();
   const removed = new Set(ops.removed || []);
@@ -437,25 +598,67 @@ function build() {
   });
   /* 최신순(주문일) — 화면은 색 순서로 **안정** 정렬하므로 같은 색 안에서는 이 순서가 남는다. */
   cache = [...created, ...kept].sort((a, b) => toTime(b.date) - toTime(a.date));
-  renumbered.forEach(record);
+  seedLines = consistentSeedLines(gen.lines, new Map(cache.map((o) => [o.id, o])));
+  renumbered.forEach((o) => record(o)); // 번호만 다시 매긴 것 — 정산 금액은 그대로라 기록 줄이 없다
   version++;
   return cache;
 }
 const list = () => cache || build();
 
+/* ── 정산 금액 변경 기록 — 쓰는 지점 (DATA.md 1.6) ───────────────────────────── */
+const lineId = () => "ac-" + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36).padStart(3, "0");
+/**
+ * 이 저장(before → after)이 남길 정산 금액 변경 기록 줄 `[{ clientId, ym, ...Line }]` — 명세서가 나간 달 가운데
+ * 그 주문의 기여가 바뀐 달만, 달마다 한 줄(같은 사유). 발행 전 달·기여가 그대로인 달(리본 문구 · 같은 달 안 날짜 이동 ·
+ * 0원 주문 이동)은 줄이 없다. 잠금은 판정하지 않는다(화면 몫) — 잠긴 달이 바뀌면 사실대로 남기고 console.warn.
+ */
+function ledgerLinesFor(before, after, ctx = {}, now = new Date()) {
+  const diff = contributionDiff(before, after);
+  const changed = diff.filter((d) => d.delta !== 0);
+  if (!changed.length) return [];
+  const issued = changed.filter((d) => store.agreementOf(d.clientId, d.ym, now).issued);
+  if (!issued.length) return [];
+  const o = after || before;
+  const cause = causeOf(before, after) || "amount";
+  const by = ctx.actor || currentActor();
+  const reason = String(ctx.note || "").trim().slice(0, 200);
+  const at = fmtAt(now);
+  const move = cause === "move" && before && after ? { from: String(before.deliverAt || ""), to: String(after.deliverAt || "") } : null;
+  return issued.map((d) => {
+    const st = store.agreementOf(d.clientId, d.ym, now);
+    const client = store.get().clients.find((c) => c.id === d.clientId);
+    if (st.mode || now.getTime() >= editLockAt(d.ym, invoiceDayFor(client, d.ym)).getTime()) {
+      console.warn(`[정산 금액 변경 기록] 잠긴 달(${d.clientId} ${d.ym})의 금액이 바뀌었습니다 — 화면이 settlementImpactOf 로 먼저 막아야 합니다`);
+    }
+    const other = changed.find((x) => x !== d);
+    const line = {
+      clientId: d.clientId, ym: d.ym,
+      id: lineId(), at, by: { ...by }, orderId: o.id || "", orderNo: o.orderNo || "",
+      cause, before: d.before, after: d.after, reason,
+    };
+    if (other) line.pair = other.ym;
+    if (move) line.move = move;
+    return line;
+  });
+}
+
 /** 캐시의 레코드 하나를 변경분으로 기록·저장한다(사본을 남긴다 — 캐시 객체를 store 와 공유하지 않게).
- *  저장에 성공하면 true(실패하면 store 가 변경분을 되돌린다). */
-function record(o) {
+ *  `lines` 는 같은 저장이 남길 정산 금액 변경 기록 줄 — 주문 변경분과 **한 번에** 쓴다.
+ *  저장에 성공하면 true(실패하면 store 가 변경분과 기록을 함께 되돌린다). */
+function record(o, lines = []) {
   const snap = clone(o);
   const no = orderNum(o.orderNo);
   return store.setOrderOps((ops) => (seedIds.has(o.id)
     ? { ...ops, patched: { ...ops.patched, [o.id]: snap } }
-    : { ...ops, created: { ...ops.created, [o.id]: snap }, lastNo: isNewBandNo(no) ? Math.max(Number(ops.lastNo) || 0, no) : ops.lastNo }));
+    : { ...ops, created: { ...ops.created, [o.id]: snap }, lastNo: isNewBandNo(no) ? Math.max(Number(ops.lastNo) || 0, no) : ops.lastNo }),
+  { amountLines: lines });
 }
 /** 캐시에서 고친 `o` 를 기록한다. 저장에 실패하면 캐시를 `before`(바꾸기 전 사본 · 새 주문이면 null = 빼기)로
- *  되돌리고 false — 화면이 새로고침 뒤에 사라질 값을 '저장됨' 으로 들고 있지 않게. */
-function commit(o, before) {
-  if (record(o)) { version++; return true; }
+ *  되돌리고 false — 화면이 새로고침 뒤에 사라질 값을 '저장됨' 으로 들고 있지 않게.
+ *  `ctx = { note, actor, now }`(선택) — 정산 금액 변경 기록의 사유·처리자·시각. */
+function commit(o, before, ctx = {}) {
+  const lines = ledgerLinesFor(before, o, ctx, ctx.now || new Date());
+  if (record(o, lines)) { version++; return true; }
   const arr = list();
   const i = arr.findIndex((x) => x.id === o.id);
   if (i >= 0) { if (before) arr[i] = before; else arr.splice(i, 1); }
@@ -471,23 +674,28 @@ export function b2bVersion() { list(); return version; }
 export function b2bNewId() { return "n" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, "0"); }
 /** 새 주문번호 — `B2B-YYMM9NNN`(만든 달의 새 주문 대역, 시드와 겹치지 않는다). */
 export function b2bNextOrderNo(now = new Date()) { return `B2B-${nextNewNo(list(), now)}`; }
-/** 저장한 레코드를 돌려준다. **저장에 실패하면 null**(캐시는 바꾸기 전 그대로). */
-export function b2bUpsert(rec) {
+/** 시드 예시의 정산 금액 변경 기록 — `{ [clientId]: { "YYYY-MM": Line[] } }`(사본 · 시간순). 저장하지 않고 매번 만든다.
+ *  ⚠️ 화면은 이걸 직접 읽지 말 것 — 사용자 줄(store.amountLog)과 합치는 것은 util/settlement `amountChangesOf` 다. */
+export function b2bSeedAmountChanges() { list(); return clone(seedLines); }
+/** 저장한 레코드를 돌려준다. **저장에 실패하면 null**(캐시는 바꾸기 전 그대로 · 정산 금액 변경 기록도 남지 않는다).
+ *  `ctx = { note, actor, now }`(선택) — 명세서가 나간 달의 금액이 바뀌면 남는 기록의 사유(저장 전 확인 창 '사유(선택)')·처리자·시각. */
+export function b2bUpsert(rec, ctx = {}) {
   const arr = list();
   const i = arr.findIndex((o) => o.id === rec.id);
   if (i < 0) { // 신규는 최상단
     const o = { ...rec, history: rec.history || [] };
     arr.unshift(o);
-    return commit(o, null) ? o : null;
+    return commit(o, null, ctx) ? o : null;
   }
   /* ⚠️ 모달 draft 는 history 를 싣지 않는다(얕은 복사로 배열 참조가 공유되면
      편집 취소가 이력을 되돌린다). rec 에 없으면 기존 것을 지킨다. */
   const before = arr[i];
   arr[i] = { ...rec, history: rec.history || before.history || [] };
-  return commit(arr[i], before) ? arr[i] : null;
+  return commit(arr[i], before, ctx) ? arr[i] : null;
 }
 /** 지금 레코드를 그대로 다시 기록한다(필드를 직접 고친 드문 경우의 탈출구). 실패하면 false — 되돌릴 사본이 없으니
- *  호출부가 고치기 전 값을 들고 있어야 한다. */
+ *  호출부가 고치기 전 값을 들고 있어야 한다. ⚠️ 바꾸기 전 값을 모르므로 **정산 금액 변경 기록을 남기지 못한다** —
+ *  금액·상품·배송일시·상태를 바꾸는 저장은 b2bUpsert 를 쓸 것. */
 export function b2bSave(id) {
   const o = b2bFind(id);
   if (!o) return false;
@@ -496,17 +704,20 @@ export function b2bSave(id) {
   return true;
 }
 /** 처리 이력 한 줄 — 페이지가 레코드에 pushHistory 를 직접 걸면 새로고침에 사라진다. 실패하면 false. */
-export function b2bPushHistory(id, type, label, at) {
+export function b2bPushHistory(id, type, label, at, ctx = {}) {
   const o = b2bFind(id);
   if (!o) return false;
   const before = clone(o);
   pushHistory(o, type, label, at);
-  return commit(o, before);
+  return commit(o, before, ctx);
 }
-export function b2bRemove(id) {
+/** 주문 삭제. 명세서가 나간 달의 금액이 빠지면(귀속월 · 수수료 붙은 취소 주문이면 취소한 달) 기록이 남는다(remove · feeRemove).
+ *  `ctx = { note, actor, now }`(선택). 저장에 실패하면 false(주문·기록 모두 그대로). */
+export function b2bRemove(id, ctx = {}) {
   const arr = list();
   const i = arr.findIndex((o) => o.id === id);
   if (i < 0) return false;
+  const lines = ledgerLinesFor(arr[i], null, ctx, ctx.now || new Date());
   const ok = store.setOrderOps((ops) => {
     if (seedIds.has(id)) {
       const patched = { ...ops.patched };
@@ -516,14 +727,16 @@ export function b2bRemove(id) {
     const created = { ...ops.created };
     delete created[id];
     return { ...ops, created };
-  });
+  }, { amountLines: lines });
   if (!ok) return false;
   arr.splice(i, 1);
   version++;
   return true;
 }
-/** 주문취소 — 사유·수수료와 **취소한 시각**(canceledAt)을 함께 남긴다. 수수료는 취소한 날의 달 정산에 붙는다. */
-export function b2bCancel(id, { reason = "", fee = 0 } = {}, now = new Date()) {
+/** 주문취소 — 사유·수수료와 **취소한 시각**(canceledAt)을 함께 남긴다. 수수료는 취소한 날의 달 정산에 붙는다.
+ *  `note`·`actor`(선택) — 정산 금액 변경 기록(명세서가 나간 달의 금액이 빠질 때)의 사유·처리자. 취소 사유(`reason`)와는
+ *  따로 받는다(명세 6.4 — cancelReason 과 settlementNote 는 다른 칸이다). */
+export function b2bCancel(id, { reason = "", fee = 0, note = "", actor = null } = {}, now = new Date()) {
   const o = b2bFind(id);
   if (!o) return false;
   if (o.status === "취소") return true; // 이미 취소 — 할 일 없음(실패가 아니다)
@@ -534,10 +747,10 @@ export function b2bCancel(id, { reason = "", fee = 0 } = {}, now = new Date()) {
   o.canceledAt = fmtAt(now);
   const why = reason ? ` · ${reason}` : "";
   const f = o.cancelFee ? ` · 수수료 ${o.cancelFee.toLocaleString("ko-KR")}원` : "";
-  pushHistory(o, "cancel", `주문취소${why}${f}`);
-  return commit(o, before);
+  pushHistory(o, "cancel", `주문취소${why}${f}`, fmtAt(now));
+  return commit(o, before, { note, actor, now });
 }
-export function b2bSetStatus(id, status) {
+export function b2bSetStatus(id, status, ctx = {}) {
   const o = b2bFind(id);
   if (!o) return false;
   if (o.status === status) return true; // 값이 그대로면 no-op — 이력이 중복으로 쌓이지 않게
@@ -547,19 +760,19 @@ export function b2bSetStatus(id, status) {
     o.notified = true; // 배송완료 → 알림톡 자동 발송(API)
     pushHistory(o, "delivered", "배송완료 · 알림톡 발송");
   } else if (status === "취소") {
-    o.canceledAt = fmtAt(new Date()); // 사유·수수료가 있으면 b2bCancel 을 쓸 것
+    o.canceledAt = fmtAt(ctx.now || new Date()); // 사유·수수료가 있으면 b2bCancel 을 쓸 것
     pushHistory(o, "cancel", "주문취소");
   } else {
     pushHistory(o, "status", `${status}로 변경`);
   }
-  return commit(o, before);
+  return commit(o, before, ctx);
 }
-export function b2bSetManager(id, name) {
+export function b2bSetManager(id, name, ctx = {}) {
   const o = b2bFind(id);
   if (!o) return false;
   if (o.manager === name) return true;
   const before = clone(o);
   o.manager = name; // 담당자 배정(별도 모달에서 선택·입력)
   pushHistory(o, "manager", `담당자 ${name} 지정`);
-  return commit(o, before);
+  return commit(o, before, ctx);
 }

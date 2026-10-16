@@ -9,17 +9,21 @@
      ② 액션 큐(좌) — 접수대기 · 미완료처리 탭. **남은시간 오름차순**이라
         급한 건이 항상 위에 온다. 도착희망까지 6시간 미만은 위험색.
      ③ 통합매출 추이(좌) — 최근 6개월 정산 매출 + 연속 증가 문장.
-     ⓪ 약관 동의 전 · 첫 명세서 임박(우 맨 위, 건이 있을 때만 — 시안 'S-05 대쉬보드 약관 경고')
+     ⓪ 약관 동의 전 · 명세서 마감 임박(우 맨 위, 건이 있을 때만 — 시안 'S-05 대쉬보드 약관 경고' 2차) — 거래처 한 항목 +
+        경고할 달 줄 여러 개(마감 지난 달 위 · 곧 나갈 달 아래).
      ④ 가입 승인 대기(우, 대기 건이 있을 때만)
      ⑤ 상품별 이용 비중(우) — 도넛 + 순위 막대. 전체/채널 전환.
      ⑥ 거래처 계약 통계(우) — joinDate 누적. 월별/년별 전환.
-     ⑦ 정산 진행(우) — 지난 달 귀속 4단계 + '연락 필요'(지난달) · '기한 초과'(최근 6개월 · 누르면 가장 오래된 달) 칩(needsAction).
+     ⑦ 정산 진행(우) — 지난 달 귀속 4단계 + 칩 줄 넷: '연락 필요'(지난달) · '기한 초과'(최근 6개월 · 누르면 가장 오래된 달 —
+        needsAction) · '금액 바뀜'·'0원'(지난달 · 누를 수 없는 표시 — 조치 필요가 아니다).
      ①의 '미수금' 과 ⑦의 '미입금' 은 util/settlement `isUnpaid` 한 판정(명세서가 나간 달 전부 — 발행 전·0원·거래 없음 제외).
 
    ⚠️ 모든 수치는 목록 화면과 **같은 소스에서 파생**한다(b2cList·b2bList·
       usageFor·settlementsFor·termsWatchOf·store.clients). 대쉬보드 전용 집계를 두면
       화면 간 숫자가 어긋나 아무도 믿지 않는 화면이 된다. ⓪은 거래처 목록의 '약관 동의 전' 표시와,
-      ⑦의 칩은 정산회계 '조치 필요' 탭과 같은 판정(util/settlement.js)이다.
+      ⑦의 '연락 필요'·'기한 초과' 는 정산회계 '조치 필요' 탭과 같은 판정이고, '금액 바뀜'·'0원' 은 정산회계 지난달과 같은
+      settlementOf 값(changed · zero · zeroEdited)에서 센다 — 단 **숫자는 다르다**: 정산회계 '바뀜' 칩은 changed 인 달 모두,
+      여기 '금액 바뀜' 은 그중 0원이 아닌 달이고 고쳐서 0원이 된 달은 '0원' 에서 센다(정산회계 '바뀜' = 금액 바뀜 + zeroEdited).
 
    ⚠️ B2B 레코드에도 deliverAt 은 있지만 **이 큐는 쓰지 않는다** — 도착 기준은
       shell.js 의 당일배송 마감(BIZ_HOURS.closeMin)을 주문일에 적용해 잡는다.
@@ -284,22 +288,32 @@ export function mount(root, { nav }) {
   /* ── ④ 가입 승인 대기 ────────────────────────────────── */
   const pendingClients = () => clients().filter((c) => c.status === "승인대기");
 
-  /* ── ⓪ 약관 동의 전 · 첫 명세서 임박 (시안 'S-05 대쉬보드 약관 경고' · N18 ①·ⓐ·ⓕ) ──────────
+  /* ── ⓪ 약관 동의 전 · 명세서 마감 임박 (시안 'S-05 대쉬보드 약관 경고' 2차 ⑧⑨ · N18 ①·ⓐ·ⓕ) ──────────
      약관에 동의하지 않은 거래처는 마감이 지나도 그 달이 자동 동의되지 않는다(명세 3.4 · termsHold). 발급일이 7일·25일이면
-     발급에서 마감까지 사흘 남짓뿐이라, 직원이 연락하고 임시비밀번호를 다시 만들어 주고 로그인을 기다리려면 **첫 명세서
+     발급에서 마감까지 사흘 남짓뿐이라, 직원이 연락하고 임시비밀번호를 다시 만들어 주고 로그인을 기다리려면 **명세서
      7일 전부터** 챙겨야 한다 — 그래서 매일 보는 첫 화면에, 급할 때만 나타난다('가입 승인 대기' 와 같은 문법).
+     첫 명세서만이 아니다 — 첫 달이 0원으로 닫힌 거래처(가입 혜택 '1회 무료')는 '다음 명세서' 가 첫 경고라서 제목이
+     '첫 명세서 임박' 에서 '명세서 마감 임박' 으로 넓어졌다(2차 ⑧).
      · 판정은 거래처 목록의 '약관 동의 전' 표시와 **같은 함수**다 — util/settlement.js `termsWatchOf`(termsPending + settlementOf
        파생 · hot = 발급 7일 이내 · 발급 뒤 마감 전 · 마감이 지났어도 약관 동의 전이면 남는다). 경고용 데이터를 따로 두지 않는다
-       (명세 4.8). 거래처마다 한 줄 — 마감이 지난 달(held — 가장 오래된 것)이 있으면 그 달, 없으면 다음 달(next).
-       ⚠️ 예전엔 첫 달만 보는 firstStatementOf 를 써서, 첫 달이 0원으로 닫힌 거래처(가입 혜택 '1회 무료')의 다음 유료 명세서를
-          놓쳤다 — 목록은 'D-4' 로 경고하는데 이 카드는 비었다(2026-10-16 통합 점검 실측). 그 달은 목록과 같은 말로
-          '다음 명세서'(발급 전) · 'M월분 명세서'(발급 뒤)라고 한다. 첫 달이면 시안대로 '첫 명세서'.
+       (명세 4.8). 같은 판정·같은 달이고, 낱말은 각 시안을 따른다(목록은 S-04 · 이 카드는 S-05).
+       ⚠️ 첫 달만 보는 firstStatementOf 를 되살리지 말 것 — 첫 달이 0원으로 닫힌 거래처의 다음 유료 명세서를 놓쳤다
+          (목록은 'D-4' 로 경고하는데 이 카드는 비었다 — 2026-10-16 통합 점검 실측).
+     · **거래처 한 항목 + 달 줄 여러 개**(2차 ⑨): 마감이 지난 달(held) 전부 + 다음 달(next — 발급 뒤 마감 전이거나 발급 7일
+       이내일 때만). 달 줄 머리는 늘 '(첫|다음) 명세서 · M월분'. 줄 왼쪽 2px 막대가 단계를 가르지만 장식이다 — 글자가
+       단계를 말한다('발급 완료' · '오늘 발급' · '발급 예정 (D-n)' · '… 지남').
+     · 칩과 항목끼리의 순서는 **가장 급한 달**(months[0])로 정한다. 급한 순: 마감 지남 → 발급 뒤 마감 전 → 발급 전.
+       같은 단계에서는 마감(발급 전은 발급)이 가까운 것이 위 — 항목 안의 달 줄도 같은 순서다(마감 지난 달은 오래된 것 먼저).
      · **활성 거래처만**(2026-10-16 운영자 결정) — 정지한 거래처는 로그인 자체가 막혀 연락해도 동의를 받을 수 없다.
-     · 0원으로 닫힌 달은 동의를 받지 않는다 — termsWatchOf 가 건너뛴다(발행 전 달은 아직 주문이 들어올 수 있어 남긴다).
-     · 순서(급한 순): 마감 지남 → 발급 뒤 마감 전 → 발급 전. 같은 단계에서는 마감(발급 전은 발급)이 가까운 것이 위.
+     · 0원 달(발급 때부터 · 고쳐서 0원)은 동의를 받지 않는다 — termsWatchOf 가 held·next 에 넣지 않는다(발행 전 달은 아직
+       주문이 들어올 수 있어 남긴다). 첫 달이 0원으로 **실제로 닫힌 뒤에만**(PAID — termsWatchOf.firstZero) 다음 명세서 줄에
+       '첫 달(M월분)은 0원이라 계산서 없이 닫혔습니다' 를 붙인다 — 고쳐서 0원이 된 달은 마감 때 닫히므로 그 전에 '닫혔다' 고
+       말하면 사실보다 앞선다.
+     · 낱말 '마감 지남 · 자동 동의 안 함' 은 그대로다(시안의 '자동 동의 보류' 는 쓰지 않는다 — '보류' 는 Q19·Q20 전용).
      · 발송·계산서 실패 경고와는 다른 것이다 — 그쪽 대쉬보드 경고는 두지 않는다(M59). 섞지 말 것. */
   const PHASE_RANK = { closed: 0, open: 1, before: 2 };
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const monthNo = (ym) => Number(String(ym).slice(5));
   /** 연락할 사람 — 정산·회계 담당자(가입 2단계 · 관리자 등록 레일). 번호가 비면 '연락처 미등록' 을 그대로 말한다. */
   function contactLine(clientId) {
     const b = store.getBillingContactOf(clientId);
@@ -307,6 +321,27 @@ export function mount(root, { nav }) {
     const phone = String(b.phone || "").trim();
     return phone ? `${b.name} ${phone}` : `${b.name} · 연락처 미등록`;
   }
+  /** 경고할 달 하나(held 또는 next)의 한 블록 — 머리(tag) · 발급 줄(line1) · 마감 줄(line2) · 단계(phase → 막대 색). */
+  function termsMonth(f, note) {
+    const dl = fmtKoShortTime(f.deadline);
+    const issued = f.phase !== "before";
+    return {
+      phase: f.phase,
+      tag: `${f.first ? "첫" : "다음"} 명세서 · ${monthNo(f.ym)}월분`,
+      line1: `${fmtKoShortTime(f.issueAt)} ${issued ? "발급 완료" : f.dDay <= 0 ? "오늘 발급" : `발급 예정 (D-${f.dDay})`}`,
+      line2: f.phase === "closed"
+        ? `동의 마감 ${dl} 지남 · 약관에 동의하면 직접 동의할 수 있습니다`
+        : `동의 마감 ${dl}${note ? ` · ${note}` : ""}`,
+      late: f.phase === "closed",
+      rank: PHASE_RANK[f.phase],
+      key: (f.phase === "before" ? f.issueAt : f.deadline).getTime(),
+      issue: f.issueAt.getTime(),
+      deadline: f.deadline,
+      dDay: f.dDay,
+      issueAt: f.issueAt,
+    };
+  }
+  const byUrgency = (a, b) => a.rank - b.rank || a.key - b.key || a.issue - b.issue;
   function termsWatch(now) {
     const cs = clients();
     const shared = sharedBizKeys(cs);
@@ -315,7 +350,17 @@ export function mount(root, { nav }) {
       .map((c) => ({ c, w: termsWatchOf(c, now) }))
       .filter(({ w }) => w && w.hot)
       .map(({ c, w }) => {
-        const f = w.held.length ? { ...w.held[0], phase: "closed" } : w.next;
+        /* 보이는 달 — 마감 지난 달(held) 전부 + 다음 달(next)은 발급 뒤 마감 전이거나 발급 7일 이내일 때만(termsWatchOf.hot 과 같은 문턱). */
+        const showNext = !!w.next && (w.next.phase === "open" || w.next.dDay <= 7);
+        /* 첫 달이 0원으로 닫힌 거래처(firstZero — PAID 뒤에만 온다) — 다음 명세서가 첫 경고일 때 그 줄에 까닭을 붙인다. */
+        const zeroNote = showNext && !w.next.first && w.firstZero && !w.held.length
+          ? `첫 달(${monthNo(w.firstZero.ym)}월분)은 0원이라 계산서 없이 닫혔습니다`
+          : "";
+        const months = [
+          ...w.held.map((h) => termsMonth({ ...h, phase: "closed" }, "")),
+          ...(showNext ? [termsMonth(w.next, zeroNote)] : []),
+        ].sort(byUrgency);
+        const f = months[0];
         /* 'open' 은 마감 정각까지다(settlementOf — 정각까지 AWAITING) — 반올림하면 마지막 30초·정각에 0분이 되어 leftLabel 이
            '기한 지남' 을 돌려줘 칩이 '마감까지 기한 지남' 이라고 말한다. 올림 + 최소 1분으로 둔다. */
         const min = Math.max(1, Math.ceil((f.deadline - now) / 60000));
@@ -324,22 +369,17 @@ export function mount(root, { nav }) {
           : f.phase === "open"
           ? { text: `${sameDay(f.issueAt, now) ? "오늘 발급" : "발급 완료"} · 마감까지 ${leftLabel(min)}`, tone: "danger" }
           : { text: f.dDay <= 0 ? "오늘 발급" : `D-${f.dDay}`, tone: "warn" };
-        const dl = fmtKoShortTime(f.deadline);
-        /* 어느 명세서인지 — 거래처 목록(admin-clients termsLineParts)과 같은 말: 첫 달 '첫' · 발급 전 '다음' · 발급 뒤 'M월분' */
-        const which = f.first ? "첫 명세서" : f.phase === "before" ? "다음 명세서" : `${Number(f.ym.slice(5))}월분 명세서`;
         return {
           id: c.id,
           name: displayName(c, shared),
           chip,
-          line1: `${which} ${fmtKoShortTime(f.issueAt)} ${f.phase === "before" ? "발급 예정" : "발급 완료"}`,
-          line2: f.phase === "closed" ? `동의 마감 ${dl}이 지났습니다. 약관에 동의하면 직접 동의할 수 있습니다` : `동의 마감 ${dl}`,
+          months,
           contact: contactLine(c.id),
-          rank: PHASE_RANK[f.phase],
-          key: (f.phase === "before" ? f.issueAt : f.deadline).getTime(),
-          issue: f.issueAt.getTime(),
+          rank: f.rank, key: f.key, issue: f.issue,
         };
       })
-      .sort((a, b) => a.rank - b.rank || a.key - b.key || a.issue - b.issue || a.name.localeCompare(b.name, "ko"));
+      .filter((t) => t.months.length)
+      .sort((a, b) => byUrgency(a, b) || a.name.localeCompare(b.name, "ko"));
   }
   function termsCard(items) {
     if (!items.length) return "";
@@ -347,12 +387,12 @@ export function mount(root, { nav }) {
       <section class="dsh-card is-warn" aria-labelledby="dsh-tw-title">
         <div class="dsh-card__h">
           <span class="dsh-tw__hl">
-            <b id="dsh-tw-title">약관 동의 전 · 첫 명세서 임박</b>
+            <b id="dsh-tw-title">약관 동의 전 · 명세서 마감 임박</b>
             <span class="dsh-badge dsh-badge--warn">${items.length}건</span>
           </span>
           <span class="dsh-tw__sort">급한 순</span>
         </div>
-        <p class="dsh-tw__desc">마감까지 약관 동의가 없으면 이 달은 자동 동의되지 않습니다. 직접 연락해 로그인과 약관 동의를 부탁하세요.</p>
+        <p class="dsh-tw__desc">첫 명세서든 다음 명세서든 마감까지 약관 동의가 없으면 그 달은 자동 동의되지 않습니다. 직접 연락해 로그인과 약관 동의를 부탁하세요.</p>
         <ul class="dsh-tw__list">
           ${items.map((t) => html`
             <li class="dsh-tw">
@@ -360,8 +400,11 @@ export function mount(root, { nav }) {
                 <b class="dsh-tw__n" title="${t.name}">${t.name}</b>
                 <span class="dsh-pill dsh-pill--${t.chip.tone}">${t.chip.text}</span>
               </div>
-              <p class="dsh-tw__line">${t.line1}</p>
-              <p class="dsh-tw__line dsh-tw__line--2">${t.line2}</p>
+              ${t.months.map((m) => html`
+                <div class="dsh-tw__m dsh-tw__m--${m.phase}">
+                  <p class="dsh-tw__line"><b class="dsh-tw__tag">${m.tag}</b> · ${m.line1}</p>
+                  <p class="dsh-tw__line dsh-tw__line--2 ${m.late ? "dsh-tw__line--late" : ""}">${m.line2}</p>
+                </div>`)}
               <div class="dsh-tw__foot">
                 <span class="dsh-tw__ct">연락 <b>${t.contact}</b></span>
                 <button type="button" class="dsh-tw__open" data-open-client="${t.id}" aria-label="${t.name} 거래처 정보 열기">거래처 정보 열기 <span aria-hidden="true">›</span></button>
@@ -519,14 +562,30 @@ export function mount(root, { nav }) {
    *    total = 정산회계 지난달 '조치 필요' 탭 건수.
    *  · '기한 초과' — **최근 6개월 전체**의 OVERDUE 줄. 지난달은 정산기한이 이번 달 말일이라 기한 초과가 될 수 없어, 지난달만
    *    세던 시절엔 이 칩이 늘 0이라 보이지 않았다. 숫자 = 정산회계에서 그 달들로 옮겨 '조치 필요' 탭의 기한 초과 줄을 합한 것.
-   *    overdueYm = 기한 초과가 있는 가장 오래된 달(칩을 누르면 그 달의 '조치 필요' 탭이 열린다). */
+   *    overdueYm = 기한 초과가 있는 가장 오래된 달(칩을 누르면 그 달의 '조치 필요' 탭이 열린다).
+   *  · '금액 바뀜' · '0원' (2차 시안) — 이 카드와 같은 지난달 귀속에서 settlementOf 값만 센다. **조치 필요가 아니다** —
+   *    정산회계 '조치 필요' 탭(위 판정)에 그 줄이 없어서, 누를 수 없는 표시로 둔다(그 탭으로 보내면 빈 목록이 뜬다).
+   *    changed = 명세서 발급 때 금액 ≠ 지금 금액(동의·발급·입금 뒤에도 남는다 — 정산회계 '바뀜' 칩과 같은 값) · 단 0원이 된 달은
+   *    '0원' 쪽으로 센다(amount > 0). zero = 0원 주문만 있는 달 · 고쳐서 0원이 된 달(zero || zeroEdited — 줄이 다 빠진 달 포함).
+   *    0원 달은 '정산 진행 N개사' 와 4단계에서 이미 빠져 있다(inSettlementFlow). */
   function actionCounts() {
     const cs = clients();
-    const last = cs.map((c) => settlementsFor(c)[1]).filter(needsAction);
+    const lastRows = cs.map((c) => ({ c, r: settlementsFor(c)[1] })).filter(({ r }) => r);
+    const last = lastRows.map(({ r }) => r).filter(needsAction);
     const lastOverdue = last.filter((r) => r.status === "OVERDUE").length;
     const overdueRows = cs.flatMap((c) => settlementsFor(c).filter((r) => r.status === "OVERDUE"));
     const overdueYm = overdueRows.reduce((a, r) => (!a || r.ym < a ? r.ym : a), "");
-    return { total: last.length, contact: last.length - lastOverdue, overdue: overdueRows.length, overdueYm };
+    const shared = sharedBizKeys(cs);
+    const names = (pick) => lastRows.filter(({ r }) => pick(r)).map(({ c }) => displayName(c, shared));
+    const changed = names((r) => r.changed && r.amount > 0);
+    const zero = names((r) => r.zero || r.zeroEdited);
+    /* 발급 뒤 고쳐서 0원이 된 곳 — 금액이 바뀐 달이지만 '0원' 쪽에서 센다. 정산회계는 이 달에도 '바뀜' 칩을 달아
+       (정산회계 '바뀜' 수 = 금액 바뀜 + 이 수) 두 title 이 그 사실을 말한다 — 안 그러면 '금액이 다른 곳' 목록이 거짓으로 짧다. */
+    const edited0 = names((r) => r.zeroEdited);
+    return {
+      total: last.length, contact: last.length - lastOverdue, overdue: overdueRows.length, overdueYm,
+      changed, zero, edited0, lastYm: lastRows.length ? lastRows[0].r.ym : "",
+    };
   }
   function settleBody() {
     const s = settleStages();
@@ -544,7 +603,8 @@ export function mount(root, { nav }) {
         <span>청구 합계 <b>${won(s.billed)}</b></span>
         <span>미입금 <b class="is-danger">${won(s.unpaid)}</b></span>
       </div>
-      ${a.contact || a.overdue
+      ${/* 칩 줄 순서: 연락 필요(빨강) · 기한 초과(빨강 · 버튼) · 금액 바뀜(주황) · 0원(회색). 0건 칩은 숨기고, 넷 다 0이면 줄째 없다. */ ""}
+      ${a.contact || a.overdue || a.changed.length || a.zero.length
         ? html`<div class="dsh-acts">
             ${a.contact ? html`<span class="dsh-pill dsh-pill--danger">연락 필요 ${a.contact}</span>` : ""}
             ${/* 기한 초과 칩은 누를 수 있다 — 모양은 알약 그대로(버튼 기본값만 지운다 · admin-dashboard.css button.dsh-pill).
@@ -553,6 +613,13 @@ export function mount(root, { nav }) {
               ? html`<button type="button" class="dsh-pill dsh-pill--danger" data-settle-go="action:${a.overdueYm}"
                   aria-label="기한 초과 ${a.overdue} — 최근 6개월 · ${periodLabel(a.overdueYm)} 귀속 조치 필요 열기"
                   title="최근 6개월 중 기한 초과 ${a.overdue}건 · 가장 오래된 ${periodLabel(a.overdueYm)} 귀속부터 엽니다">기한 초과 ${a.overdue}</button>`
+              : ""}
+            ${/* 금액 바뀜 · 0원 — 누를 수 없는 표시(span). 어느 거래처인지는 title 이 말한다(정산회계에서 그 달을 펼쳐 본다). */ ""}
+            ${a.changed.length
+              ? html`<span class="dsh-pill dsh-pill--orange" title="${periodLabel(a.lastYm)} 귀속 · 명세서 발급 때 금액과 지금 금액이 다른 곳 — ${a.changed.join(", ")}${a.edited0.length ? ` · 발급 뒤 고쳐서 0원이 된 곳(${a.edited0.join(", ")})은 '0원' 에서 셉니다` : ""}">금액 바뀜 ${a.changed.length}</span>`
+              : ""}
+            ${a.zero.length
+              ? html`<span class="dsh-pill dsh-pill--gray" title="${periodLabel(a.lastYm)} 귀속 · 금액이 0원이라 계산서가 없는 곳 — ${a.zero.join(", ")}${a.edited0.length ? ` · 그중 발급 뒤 고쳐서 0원이 된 곳: ${a.edited0.join(", ")}` : ""}">0원 ${a.zero.length}</span>`
               : ""}
           </div>`
         : ""}

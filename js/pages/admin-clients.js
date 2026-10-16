@@ -483,7 +483,7 @@ export function mount(root, { nav }) {
        가입 화면(register.js)은 2단계 담당자를 정산담당으로 만든다. 관리자 등록도 같은 불변식을 지켜야
        자동 동의의 알림(T3·T4)이 닿을 사람이 늘 있다. 레코드 키가 아니라 담당자 저장공간으로 가므로 form 밖에 둔다. */
     const bill = { name: "", phone: "" };
-    const log = []; // 변경 이력 — 데모는 세션 한정. 서버에서는 감사 로그의 거래처 영역(명세 8.4)이 이 자리를 채운다(2026-09-17 결정)
+    const log = []; // 변경 이력 — 데모는 세션 한정. 서버에서는 감사 로그의 거래처 영역(명세 8.4)이 이 자리를 채운다(2026-09-17 결정). 레일은 최근 3건만 그린다(histBlock)
 
     /* 사업자번호 중복은 "같은 법인의 계정 분리"라는 정상 시나리오다 — 저장을 막지 않는다.
        대신 계정 구분을 비우면 목록에서 두 레코드를 구분할 수 없으므로 그때만 필수로 올린다. */
@@ -508,8 +508,9 @@ export function mount(root, { nav }) {
     /** 이 창에서 발급한 임시비밀번호가 언제까지 유효한가 — "10월 17일 09:00" (발급 + 24시간 · 명세 8.1) */
     const pwUntil = () => (pwAt ? fmtKoShortTime(new Date(pwAt.getTime() + TEMP_PW_TTL)) : "");
     /** 레일 접속 아이디 카드의 발급 결과 한 줄. 등록 전이면 아직 레코드가 없어 등록할 때 함께 저장된다. */
-    /* ⚠️ 두 줄을 넘기지 말 것 — 레일은 고정 높이라 이 줄이 자라면 변경 이력이 그만큼 눌린다(1366x768 에서 이력 줄이 반쯤
-       잘리고 1280x720 에서 레일 맨 아래 안내가 8px 잘렸다 — 실측). '거래처 담당자에게만 전달' 은 레일 맨 아래 안내와 같은 말이라 뺐다. */
+    /* ⚠️ 두 줄을 넘기지 말 것 — 길어지는 만큼 짧은 화면에서 레일을 더 굴려야 이력·맨 아래 안내가 보인다(S-04 2차부터 레일이
+       혼자 스크롤하고 이력은 눌리지 않는다 — 예전엔 레일이 고정 높이라 이 줄이 자라면 이력이 그만큼 눌렸다).
+       '거래처 담당자에게만 전달' 은 레일 맨 아래 안내와 같은 말이라 뺐다. */
     const pwOutText = () => (isEdit
       ? `임시비밀번호 ${pwShown} · ${pwUntil()}까지 유효 · 창을 닫으면 다시 볼 수 없습니다.`
       : `임시비밀번호 ${pwShown} · 등록하면 적용됩니다(${pwUntil()}까지 유효). 창을 닫으면 다시 볼 수 없습니다.`);
@@ -600,6 +601,28 @@ export function mount(root, { nav }) {
         <p class="rail-card__out">거래명세서 발급·동의 마감 알림을 받는 사람입니다.</p>
       </div>`;
 
+    /* 변경 이력 — **최근 3건만** 그린다(S-04 2차 시안 ⑪). 시간순이라 최신이 아래이고 그 줄에만 면을 칠한다.
+       예전엔 전부 그려 336px 안에서 굴렸는데, 그 안쪽 스크롤러 때문에 목록이 줄어들 수 있어 1280x720 에서 높이 0 이 됐다.
+       이제 묶음은 줄어들지 않고(.cli-hist flex 0 0 auto) 넘침은 레일이 받는다. 4건째부터의 옛 줄은 레일에 보이지 않지만
+       'N건' 에는 센다 — 서버에서는 감사 로그 거래처 영역이 정본이다(명세 8.4 · '최근 3건 + 전체 건수'를 읽는다).
+       캡션의 ' · 최근 3건' 은 **3건이 넘을 때만** 붙인다 — 1건뿐인데 '최근 3건' 이라 하면 화면이 사실과 다른 말을 한다
+       (시안 등록 직후 프레임의 '1건 · 최근 3건' 은 따르지 않는다). */
+    const HIST_SHOWN = 3;
+    const histBlock = () => {
+      const shown = log.slice(-HIST_SHOWN);
+      const cap = log.length > HIST_SHOWN ? `${log.length}건 · 최근 ${HIST_SHOWN}건` : `${log.length}건`;
+      return html`
+        <div class="ord-side__h"><b class="ord-side__t">변경 이력</b><span class="ord-side__cap">${cap}</span></div>
+        <div class="cli-hist">
+          ${shown.length
+            ? shown.map((h, i) => html`<div class="cli-hist__row ${i === shown.length - 1 ? "is-latest" : ""}">
+                <span class="cli-hist__dot cli-hist__dot--${h.tone || "info"}"></span>
+                <span class="cli-hist__lbl" title="${h.label}">${h.label}</span>
+                <span class="cli-hist__at">${h.at}</span></div>`)
+            : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 창을 닫으면 사라집니다 — 영속 이력은 아직 없습니다.</p>`}
+        </div>`;
+    };
+
     /* ── 레일 ── */
     const railBody = () => html`
       <div class="ord-side__h"><b class="ord-side__t">계정</b><span class="ord-side__cap">${isEdit ? "아이디 변경 불가" : "새 계정"}</span></div>
@@ -614,16 +637,7 @@ export function mount(root, { nav }) {
         ${pwShown ? html`<p class="rail-card__out">${pwOutText()}</p>` : ""}
       </div>
       ${isEdit ? billingCard() : newBillingCard()}
-      ${isEdit ? html`
-        <div class="ord-side__h"><b class="ord-side__t">변경 이력</b><span class="ord-side__cap">${log.length}건</span></div>
-        <div class="cli-hist">
-          ${log.length
-            ? log.map((h, i) => html`<div class="cli-hist__row ${i === log.length - 1 ? "is-latest" : ""}">
-                <span class="cli-hist__dot cli-hist__dot--${h.tone || "info"}"></span>
-                <span class="cli-hist__lbl" title="${h.label}">${h.label}</span>
-                <span class="cli-hist__at">${h.at}</span></div>`)
-            : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 창을 닫으면 사라집니다 — 영속 이력은 아직 없습니다.</p>`}
-        </div>` : ""}
+      ${isEdit ? histBlock() : ""}
       <p class="ord-side__note">아이디·비밀번호는 거래처 담당자에게만 전달합니다.</p>`;
 
     /* ── 푸터 ── */
@@ -639,7 +653,7 @@ export function mount(root, { nav }) {
         <span class="ord-ft__stat ${cls}" data-slot="stat">${stat}</span>
         <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
         <button class="hm-btn hm-btn--primary" data-action="save" ${m.length || taken ? "disabled" : ""}>
-          ${dirty() ? "변경사항 저장" : isEdit ? "저장" : "등록"}</button>`;
+          ${!isEdit ? "등록" : dirty() ? "변경사항 저장" : "저장"}</button>`;
     };
 
     /* ── 배너 ── */
@@ -769,13 +783,17 @@ export function mount(root, { nav }) {
     const panel = activeModal.panel;
     const slot = (n) => qs(panel, `[data-slot='${n}']`);
     const renderHd = () => { const e = slot("hd"); if (e) setHTML(e, hdBody()); };
-    /* 이력은 시간순(최신이 끝)이라 카드가 아래로 자란다 — 잘린 목록은 렌더 후 끝까지
-       내려야 방금 한 일이 보인다(order-screen.js `histScrollEnd` 와 같은 규칙). */
-    const histEnd = () => {
-      const h = qs(panel, ".cli-hist");
-      if (h) requestAnimationFrame(() => { h.scrollTop = h.scrollHeight; });
+    /* 레일 슬롯(aside)이 곧 레일의 스크롤러다(S-04 2차 — `.modal-panel--cli .ord-side`). 다시 그릴 때 **굴려 둔 자리를 지킨다** —
+       상태 pill·발급·첨부마다 레일이 맨 위로 튀면 이력을 보던 사람이 자리를 잃는다. 새 이력이 생겨도 저절로 굴리지 않는다
+       (시안: '안 보이는 부분은 레일만 굴립니다' — 사람에게 맡긴다 · 변경은 토스트가 이미 알린다).
+       예전의 `histEnd`(안쪽 336px 목록을 끝까지 내리기)는 안쪽 스크롤러가 없어져 지웠다. */
+    const renderRail = () => {
+      const e = slot("rail");
+      if (!e) return;
+      const top = e.scrollTop;
+      setHTML(e, railBody());
+      e.scrollTop = top;
     };
-    const renderRail = () => { const e = slot("rail"); if (e) { setHTML(e, railBody()); histEnd(); } };
     /* 첨부 칸만 부분 갱신 — 카드를 통째로 다시 그리면 옆 입력의 커서가 날아간다 */
     const renderAttach = () => {
       const cell = qs(panel, "[data-attach-cell]");

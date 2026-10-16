@@ -70,6 +70,8 @@ export function mockDates(base) {
     daysAgo: (n) => dayOff(-n),
     /** 지난 달 n일 — 말일 길이(28~31)와 무관하도록 28 이하만 쓸 것. */
     lastMonth: (day) => new Date(base.getFullYear(), base.getMonth() - 1, day),
+    /** 이번 달 n일 — 오늘보다 뒤일 수도 있다(월초에 보면 미래). 28 이하만 쓸 것. */
+    thisMonth: (day) => new Date(base.getFullYear(), base.getMonth(), day),
   };
 }
 

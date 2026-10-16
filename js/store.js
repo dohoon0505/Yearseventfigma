@@ -8,6 +8,8 @@ import { agreementState, fmtAt, parseAt, periodOf, invoiceDayOf, invoiceDayFor, 
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
 import { getClientId, isReservedAccountId } from "./session.js";
+/* 시드 기록(입금 확인)의 처리자 — staff-mock 은 import 0 이라 순환이 없다. */
+import { SEED_ACTOR } from "./data/staff-mock.js";
 
 /** @typedef {{category:string,product:string,price:string,description:string,icon:string}} Product */
 /** @typedef {{no:string,name:string,role:string,phone:string,greeting:string}} Profile */
@@ -128,11 +130,24 @@ let state = {
      payments     : 입금 확인 { at }. 0원 달은 입금 없이 닫히므로 여기 있어도 읽지 않는다(util 이 무시).
      holds        : 잠정 보류(10.4 Q19 고지 미도달 · Q20 정지 중 마감)의 데모 대역 — "NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED".
                     그 달은 마감에 자동 동의하지 않는다(agreementOf 가 존중). 약관 보류는 거래처 약관 시각에서 파생한다.
-     ⚠️ 저장값이 시드를 이긴다 — 시드는 저장소가 빈 브라우저(또는 이 칸이 없는 옛 저장본)에서만 보인다. */
+     ⚠️ 저장값이 시드를 이긴다 — 시드는 저장소가 빈 브라우저(또는 이 칸이 없는 옛 저장본)에서만 보인다.
+     `by`(einvoice · payments — 2026-10-16 DATA.md 1.4): 처리자 `{ type, id, name, dept }`(util/actor.js currentActor).
+                    없는 기록(옛 저장본)은 화면이 '처리자 기록 없음' 으로 둔다. 시드 입금은 staff-mock SEED_ACTOR. */
   einvoice: {},
   einvoiceFail: {},
   payments: {},
   holds: {},
+  /* 정산 금액 변경 기록(원장) — **명세서가 나간 달**의 금액에 대한 주문 한 건의 기여가 바뀔 때마다 한 줄
+     (2026-10-16 DATA.md 1.1~1.6 · 명세 8.4 '정산 금액 변경'). { [clientId]: { "YYYY-MM": Line[] } }, 시간순(오래된 것이 [0]).
+       Line = { id, at("YYYY-MM-DD HH:mm"), by{type,id,name,dept}, orderId, orderNo,
+                cause: "amount"|"product"|"cancel"|"remove"|"feeRemove"|"create"|"move",
+                before, after(그 주문이 그 달에 보태던 금액 전 → 후 — 그 달 합계가 아니다), reason(사유 0~200자 · "" = 사유 없음),
+                pair?("YYYY-MM" — 두 달이 함께 바뀐 저장의 상대 달), move?{ from, to }(배송일시 전후) }
+     ⚠️ **사용자 변경분만** 담는다. 시드 줄은 b2b-mock 이 매번 만든다(b2bSeedAmountChanges — 저장하지 않는다).
+     ⚠️ 그 달 금액(전 → 후)·발급 때 금액은 저장하지 않는다 — util/settlement 가 지금 금액에서 누적으로 파생한다
+        (손으로 쓴 시드 주문이 달마다 움직여서, 절대 금액을 저장하면 그 숫자와 지금 집계가 어긋난다).
+     쓰기는 b2b-mock 이 주문 변경분과 **한 번에**(setOrderOps 의 extra.amountLines) — 저장이 실패하면 둘 다 되돌린다. */
+  amountLog: {},
 };
 
 /* ── 정산 기록 시드 — DATA_NOW 상대(늘 같은 모양으로 보이게) ──────────────────
@@ -168,7 +183,7 @@ function seedPayments(clients, holds, fails, agreed) {
       const floor = new Date(st.at.getTime() + 2 * 3600e3);
       const at = cand > floor ? cand : floor;
       if (at > DATA_NOW) continue;
-      (out[c.id] = out[c.id] || {})[ym] = { at: fmtAt(at) };
+      (out[c.id] = out[c.id] || {})[ym] = { at: fmtAt(at), by: { ...SEED_ACTOR } };
     }
   });
   return out;
@@ -204,6 +219,40 @@ function hydrateByClient(v, okVal) {
 }
 const okAt = (x) => !!x && typeof x === "object" && !!parseAt(x.at);
 
+/* 정산 금액 변경 기록 — { [clientId]: { [ym]: Line[] } }. hydrateByClient 는 달 값 단위로 거르지만 여기는 **줄 단위**다:
+   깨진 줄 하나 때문에 그 달 기록 전체를 버리면 '발급 때 금액' 파생이 통째로 틀어진다. 칸이 없는 옛 저장본은 {} —
+   시드 줄은 저장하지 않으므로(b2b-mock 이 매번 만든다) 백필이 필요 없다. */
+const okLine = (l) => !!l && typeof l === "object" && !!parseAt(l.at)
+  && Number.isFinite(l.before) && Number.isFinite(l.after) && typeof l.orderNo === "string";
+function hydrateLines(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out = {};
+  Object.keys(v).forEach((cid) => {
+    const m = v[cid];
+    if (!m || typeof m !== "object" || Array.isArray(m)) return;
+    Object.keys(m).forEach((ym) => {
+      if (!/^\d{4}-\d{2}$/.test(ym) || !Array.isArray(m[ym])) return;
+      const lines = m[ym].filter(okLine);
+      if (lines.length) (out[cid] = out[cid] || {})[ym] = lines;
+    });
+  });
+  return out;
+}
+/* b2b-mock 이 넘긴 줄 [{ clientId, ym, ...Line }] 을 기록에 덧붙인 새 객체(원본은 건드리지 않는다 — 되돌릴 수 있게). */
+function appendLines(log, lines) {
+  if (!Array.isArray(lines) || !lines.length) return log;
+  const out = { ...log };
+  lines.forEach(({ clientId, ym, ...line }) => {
+    if (!clientId || !/^\d{4}-\d{2}$/.test(String(ym)) || !okLine(line)) return;
+    const m = { ...(out[clientId] || {}) };
+    m[ym] = [...(m[ym] || []), line];
+    out[clientId] = m;
+  });
+  return out;
+}
+/** 저장 공간 부족(localStorage 용량)으로 기록하지 못했을 때 쓰기 함수들이 돌려주는 값 — 저장된 척하지 않는다. */
+export const STORAGE_FULL = "STORAGE_FULL";
+
 /* 저장본의 orderOps 를 모양 그대로 받아들인다 — 깨진 조각은 빈 값으로(다른 상태까지 버리지 않게). */
 function hydrateOrderOps(v) {
   const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : {});
@@ -216,7 +265,9 @@ function hydrateOrderOps(v) {
   };
 }
 
-/* 저장에 성공했는지 돌려준다 — 실패를 아는 쪽은 `setOrderOps` 하나다(아래). 다른 쓰기는 예전처럼 메모리로 계속 돈다. */
+/* 저장에 성공했는지 돌려준다 — 실패를 아는 쪽은 `setOrderOps`(주문 + 정산 금액 변경 기록)와 정산 기록 세 쓰기
+   (`agreeInvoice` · `issueEinvoice` · `confirmPayment` — 2026-10-16, 되돌리고 { error: "STORAGE_FULL" })다.
+   다른 쓰기(담당자·거래처·단가 …)는 예전처럼 메모리로 계속 돈다. */
 function persist() {
   try {
     localStorage.setItem(
@@ -233,6 +284,7 @@ function persist() {
         einvoiceFail: state.einvoiceFail,
         payments: state.payments,
         holds: state.holds,
+        amountLog: state.amountLog,
       })
     );
     return true;
@@ -263,6 +315,7 @@ function hydrate() {
       einvoiceFail: hydrateByClient(data.einvoiceFail, (x) => !!x && typeof x === "object") || seedEinvoiceFail(),
       holds: hydrateByClient(data.holds, (x) => HOLD_CODES.includes(x)) || seedHolds(),
       payments: null,
+      amountLog: hydrateLines(data.amountLog),
     };
     state.payments = hydrateByClient(data.payments, okAt)
       || seedPayments(state.clients, state.holds, state.einvoiceFail, state.invoiceAgreed);
@@ -415,10 +468,15 @@ export const store = {
    *  발행 전이거나 마감이 지났으면(자동 동의) **기록하지 않고 null** — 화면과 같은 함수·같은
    *  시계로 판정하므로 버튼이 열려 있던 순간과 어긋날 수 없다.
    *
-   *  `opts`(선택) — `{ amount, currentAmount }`: 거래처 화면이 **보여 준 금액**과 지금 금액(명세 3.4 '마감 전 수정' 5 ·
-   *  6.6 agree). 둘 다 숫자이고 다르면 기록하지 않고 `{ error: "SETTLEMENT_AMOUNT_CHANGED", amount: 지금 금액 }`.
-   *  store 는 금액을 모른다(주문은 b2b-mock 이 store 를 import 한다) — 지금 금액은 호출부(util/settlement.js
-   *  `agreeSettlement`)가 같은 소스에서 계산해 넘긴다. 지금 금액이 0 이면 0원 달이라 동의를 받지 않는다(null).
+   *  `opts`(선택) — `{ amount, currentAmount, issuedAmount }`: 거래처 화면이 **보여 준 금액** · 지금 금액 · 발급 때 금액
+   *  (명세 3.4 '마감 전 수정' 5 · 6.6 agree). 보여 준 금액과 지금 금액이 둘 다 숫자이고 다르면 기록하지 않고
+   *  `{ error: "SETTLEMENT_AMOUNT_CHANGED", amount: 지금 금액, issuedAmount }`(명세 6.6 detail 그대로).
+   *  ⚠️ **금액 불일치를 먼저 본다**(2026-10-16 DATA.md 2.1) — 고쳐서 0원이 된 달에 옛 화면(60,000원을 보여 준)이 동의하면
+   *     예전엔 '지금 금액 0 → null' 이 먼저라 이유 없는 실패가 됐다. 이제 `{ error, amount: 0, issuedAmount: 60000 }` 이고,
+   *     null 은 보여 준 금액도 0인 요청(올바른 화면은 버튼이 없어 보낼 수 없다)뿐이다.
+   *  store 는 금액을 모른다(주문은 b2b-mock 이 store 를 import 한다) — 금액들은 호출부(util/settlement.js
+   *  `agreeSettlement`)가 같은 소스에서 계산해 넘긴다.
+   *  저장(localStorage)에 실패하면 기록을 되돌리고 `{ error: "STORAGE_FULL" }` — 동의한 척하지 않는다.
    *  옛 호출 모양 `agreeInvoice(clientId, ym, now)` 도 받는다. */
   agreeInvoice(clientId, ym, opts = {}, now = new Date()) {
     if (opts instanceof Date) { now = opts; opts = {}; }
@@ -426,14 +484,19 @@ export const store = {
     const cur = state.invoiceAgreed[k] || {};
     if (cur[ym]) return cur[ym];
     if (!this.agreementOf(clientId, ym, now).open) return null;
-    const { amount, currentAmount } = opts || {};
-    if (currentAmount === 0) return null;
+    const { amount, currentAmount, issuedAmount = null } = opts || {};
     if (Number.isFinite(amount) && Number.isFinite(currentAmount) && amount !== currentAmount) {
-      return { error: "SETTLEMENT_AMOUNT_CHANGED", amount: currentAmount };
+      return { error: "SETTLEMENT_AMOUNT_CHANGED", amount: currentAmount, issuedAmount };
     }
+    if (currentAmount === 0) return null;
     const at = fmtAt(now);
-    state = { ...state, invoiceAgreed: { ...state.invoiceAgreed, [k]: { ...cur, [ym]: at } } };
-    persist();
+    const prev = state.invoiceAgreed;
+    state = { ...state, invoiceAgreed: { ...prev, [k]: { ...cur, [ym]: at } } };
+    if (!persist()) {
+      state = { ...state, invoiceAgreed: prev };
+      persist();
+      return { error: STORAGE_FULL };
+    }
     emit();
     return at;
   },
@@ -449,8 +512,9 @@ export const store = {
    *  - `{ mode: "retry" }` — 데모에서는 늘 성공한다(승인번호는 결정적으로 만든다 — 실서비스는 바로빌 응답).
    *  - `{ mode: "manual", no, at }` — 승인번호(예시 꼴 `YYYYMMDD-8자리-8자리` · ⚠ 미확정 M62)와 발급 시각(미래 불가) 필수.
    *    형식이 틀리면 `{ error: "EINVOICE_NO_INVALID" }`, 시각이 틀리거나 미래면 `{ error: "EINVOICE_AT_INVALID" }`.
-   *  성공하면 `{ no, at, mode }`. */
-  issueEinvoice(clientId, ym, { mode, no, at } = {}, now = new Date()) {
+   *  - `by`(선택) — 처리자 `{ type, id, name, dept }`(util/settlement `issueEinvoiceFor` 가 currentActor 를 싣는다).
+   *  성공하면 `{ no, at, mode, by? }`. 저장(localStorage)에 실패하면 되돌리고 `{ error: "STORAGE_FULL" }`. */
+  issueEinvoice(clientId, ym, { mode, no, at, by } = {}, now = new Date()) {
     const k = scopeId(clientId);
     if (!this.agreementOf(k, ym, now).mode) return null;
     if (this.einvoiceOf(k, ym) || !this.einvoiceFailOf(k, ym)) return null;
@@ -464,14 +528,21 @@ export const store = {
       if (!d || d > now) return { error: "EINVOICE_AT_INVALID" };
       rec = { no: n, at: fmtAt(d), mode: "manual" };
     } else return null;
-    state = { ...state, einvoice: { ...state.einvoice, [k]: { ...(state.einvoice[k] || {}), [ym]: rec } } };
-    persist();
+    if (by && typeof by === "object") rec.by = { ...by };
+    const prev = state.einvoice;
+    state = { ...state, einvoice: { ...prev, [k]: { ...(prev[k] || {}), [ym]: rec } } };
+    if (!persist()) {
+      state = { ...state, einvoice: prev };
+      persist();
+      return { error: STORAGE_FULL };
+    }
     emit();
     return rec;
   },
   /** 입금 확인(명세 6.6 `POST …/payment` — 전액만). 계산서가 나간 달(ISSUED·OVERDUE)만 받는다 — 동의 전 · 발급 실패로
-   *  계산서가 없는 달 · 이미 입금된 달이면 null. `at` 생략 시 지금. 성공하면 `{ at }`. */
-  confirmPayment(clientId, ym, at, now = new Date()) {
+   *  계산서가 없는 달 · 이미 입금된 달이면 null. `at` 생략 시 지금. `by`(선택) — 처리자(util `confirmPaymentFor` 가 싣는다).
+   *  성공하면 `{ at, by? }`. 저장(localStorage)에 실패하면 되돌리고 `{ error: "STORAGE_FULL" }`. */
+  confirmPayment(clientId, ym, at, now = new Date(), by = null) {
     const k = scopeId(clientId);
     if (this.paymentOf(k, ym)) return null;
     if (!this.agreementOf(k, ym, now).mode) return null;
@@ -479,10 +550,21 @@ export const store = {
     const d = at instanceof Date ? at : at ? parseAt(at) : now;
     if (!d || d > now) return null;
     const rec = { at: fmtAt(d) };
-    state = { ...state, payments: { ...state.payments, [k]: { ...(state.payments[k] || {}), [ym]: rec } } };
-    persist();
+    if (by && typeof by === "object") rec.by = { ...by };
+    const prev = state.payments;
+    state = { ...state, payments: { ...prev, [k]: { ...(prev[k] || {}), [ym]: rec } } };
+    if (!persist()) {
+      state = { ...state, payments: prev };
+      persist();
+      return { error: STORAGE_FULL };
+    }
     emit();
     return rec;
+  },
+  /** 정산 금액 변경 기록 — 그 (거래처, 귀속월)의 **사용자 변경분** 줄(시간순 사본 · 없으면 []).
+   *  ⚠️ 화면은 이걸 직접 읽지 말 것 — 시드 줄과 합치고 그 달 금액 전후를 붙이는 것은 util/settlement `amountChangesOf` 다. */
+  amountLogOf(clientId, ym) {
+    return ((state.amountLog[scopeId(clientId)] || {})[ym] || []).map((l) => ({ ...l }));
   },
   /* ── B2B 주문 변경분 (b2b-mock 전용) ─────────────────────
      ⚠️ 페이지가 이걸 직접 부르지 말 것 — 주문 쓰기는 b2b-mock 의 저장 함수(b2bUpsert·b2bSetStatus·…)를
@@ -490,12 +572,20 @@ export const store = {
   orderOps() { return state.orderOps; },
   /** 저장에 성공하면 true. **실패하면 변경분을 되돌리고 false** — 용량을 넘긴 변경분이 메모리에 남아 있으면
    *  그 뒤의 **모든** 저장(다른 주문·담당자·거래처·동의 기록)이 같이 실패한다. 예전엔 빈 catch 가 삼켜
-   *  '저장했습니다' 토스트가 뜬 채 새로고침에 전부 사라졌다(2026-10-16 실측 — 원본 HEIC 사진 4MB). */
-  setOrderOps(next) {
+   *  '저장했습니다' 토스트가 뜬 채 새로고침에 전부 사라졌다(2026-10-16 실측 — 원본 HEIC 사진 4MB).
+   *  `extra.amountLines`(선택) — 같은 저장이 남기는 정산 금액 변경 기록 줄 `[{ clientId, ym, ...Line }]`. 주문 변경분과
+   *  **한 state 전이 · persist 한 번**으로 쓰고, 실패하면 둘 다 되돌린다(주문만 남고 기록이 빠지면 '발급 때 금액' 파생이
+   *  틀어지고, 기록만 남으면 없던 변경이 생긴다). */
+  setOrderOps(next, extra = {}) {
     const prev = state.orderOps;
-    state = { ...state, orderOps: hydrateOrderOps(resolve(next, prev)) };
+    const prevLog = state.amountLog;
+    state = {
+      ...state,
+      orderOps: hydrateOrderOps(resolve(next, prev)),
+      amountLog: appendLines(prevLog, extra && extra.amountLines),
+    };
     if (persist()) { emit(); return true; }
-    state = { ...state, orderOps: prev };
+    state = { ...state, orderOps: prev, amountLog: prevLog };
     persist(); // 되돌린 상태로 다시 — 실패해도 이전 저장본은 그대로다
     return false;
   },

@@ -157,30 +157,34 @@ export const dlgActions = ({ cancel = "취소", ok, okIcon, okClass = "hm-btn--p
  *    예전엔 제목이 `주문서를 삭제할까요?` 로 **하드코딩**돼 거래처를 지울 때도
  *    "주문서"라고 물었다(본문은 '주문취소를 사용하세요'까지 권했다).
  *    인자를 안 넘기면 주문 문구가 그대로 나오므로 기존 호출부는 무변화다.
+ * 선택 인자(2026-10-16 S-06 — 명세서가 나간 달의 B2B 주문 삭제만 쓴다 · 안 넘기면 예전과 같다):
+ *   body       체크 앞 본문 Html(desc·note 대신) · checkLabel 체크 문구 · width 패널 폭 · hintOn 체크 뒤 힌트
+ *   guard(d)   삭제 버튼을 누른 순간 한 번 더 판정 — false 를 돌려주면 창을 닫지 않고 onConfirm 도 부르지 않는다
+ *              (창 안에 이유를 그리는 것은 호출부 몫이다 — 서버 409 의 데모 대역).
  */
-export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm }) {
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm, body, checkLabel, width, hintOn, guard }) {
   let ack = false;
   /* 힌트 두 문장은 상수로 묶는다 — 초기 렌더와 토글이 각자 문자열을 적으면
      한쪽만 고쳐져 푸터가 버튼 상태와 다른 말을 하게 된다. */
   const HINT_OFF = "확인에 체크해야 삭제됩니다";
-  const HINT_ON = "삭제를 진행할 수 있습니다";
+  const HINT_ON = hintOn ?? "삭제를 진행할 수 있습니다";
   const d = openDialog({
     /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호(tabular-nums),
        거래처면 호출부가 넘긴 식별자(접속 아이디·회사명)라 숫자 정렬을 끈다. */
     eyebrow: eyebrow ?? orderNo,
     eyebrowNum: eyebrow == null,
     title: title ?? "주문서를 삭제할까요?",
-    width: 440,
+    width: width || 440,
     /* ⚠️ 섹션 간격(`--sections`)을 쓰지 않는다 — `.dlg-desc + .dlg-note`(12px)와
        `.dlg-check`(16px)가 이미 자기 여백을 갖고 있어 flex `gap:20px` 이 **더해진다**
        (경고가 붙는 B2B 경로에서 32/36px 로 벌어졌다). 간격은 한 곳에서만 준다. */
     body: html`
-      <p class="dlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
+      ${body ?? html`<p class="dlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
         기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
-      ${note ? html`<div class="dlg-note">${note}</div>` : ""}
+      ${note ? html`<div class="dlg-note">${note}</div>` : ""}`}
       <button class="dlg-check" data-action="ack" aria-pressed="false">
         <span class="dlg-check__box" aria-hidden="true"></span>
-        <span>되돌릴 수 없음을 확인했습니다</span>
+        <span>${checkLabel ?? "되돌릴 수 없음을 확인했습니다"}</span>
       </button>`,
     hint: HINT_OFF,
     hintBlock: true,
@@ -203,7 +207,11 @@ export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel
     /* 버튼만 흐려 두지 않는다 — 왜 못 누르는지 푸터가 그 자리에서 말한다. */
     d.setHint(ack ? HINT_ON : HINT_OFF, !ack);
   });
-  on(p, "click", "[data-action='ok']", () => { if (ack) { d.close(); onConfirm(); } });
+  on(p, "click", "[data-action='ok']", () => {
+    if (!ack) return;
+    if (guard && guard(d) === false) return;
+    d.close(); onConfirm();
+  });
   return d;
 }
 

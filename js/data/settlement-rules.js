@@ -207,6 +207,9 @@ export function overdueAt(period) {
   const d = dueDate(period);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, ISSUE_HOUR, 0, 0, 0);
 }
+/** 수정 마감의 **날(일)** — 동의 마감일의 전날(1~10 그룹 9일 · 11~28 그룹 27일). `editLockAt` 과 같은 규칙이다 —
+ *  화면이 '수정 마감 N일 10:00' 을 적을 때 날짜 산술을 페이지에 두지 않으려고 여기서 낸다(S-03 정산 절차 카드). */
+export const editLockDayOf = (day) => deadlineDayOf(invoiceDayOf({ invoiceDay: day })) - 1;
 /** 지금 수정 마감이 지났는가(정각 포함 — 10:00:00 부터 잠긴다). */
 export const isEditLocked = (period, day, now) => now.getTime() >= editLockAt(period, day).getTime();
 /** 지금 기한 초과 시각이 지났는가(정각 포함). */
@@ -219,6 +222,18 @@ export const LOCK_REASON = {
   agreed: "배송일이 지난 달 · 동의를 마쳤습니다 — 금액 조정은 수정계산서로",
   zero: "배송일이 지난 달 · 0원이라 계산서 없이 닫는 달입니다 — 금액을 바꿀 수 없습니다",
 };
+/** 잠긴 이유의 **짧은 말**(시안 S-06 — 금액 칸 옆 한 줄). 정본은 언제나 LOCK_REASON 이고 화면은 그것을 title·보조기술용
+ *  글로 함께 둔다. zero 는 시안에 짧은 말이 없어 두지 않는다(settlementOf 의 lockShort 가 null → 정본 전체를 쓴다). */
+export const LOCK_SHORT = {
+  editLock: "수정 마감 지남 · 동의 뒤 수정계산서로",
+  agreed: "동의된 달 · 수정계산서로",
+};
+/** 발행 시각이 지났는데 거래가 없던 달(NONE)로는 등록·배송일 이동을 받지 않는다(2026-10-16 사용자 답 3) — 그 이유.
+ *  그 달로 주문이 들어오면 명세서·발급 안내(T3) 없이 '발급 때 0원 → 지금 X원' 이 되고, 마감이 지났으면 주문이 생기기 전
+ *  시각에 자동 동의된 꼴이 된다. 발행 전 달(이번 달·다음 달)은 그대로 받는다. 판정은 util/settlement `settlementImpactOf`. */
+export const issuedEmptyReason = (period) => `${splitPeriod(period).m1}월은 명세서 발행이 지난 달입니다 — 배송일을 확인해 주세요`;
+/** 위 이유의 짧은 말(칸 옆 한 줄용). 정본은 issuedEmptyReason. */
+export const ISSUED_EMPTY_SHORT = "명세서 발행이 지난 달";
 /** 자동 동의 보류 3종(명세 6.6 `autoAgreeHold`) → 관리자 정산 표 낱말. 잠정 둘(Q19·Q20)은 외부 답에 따라 빠질 수 있다. */
 export const HOLD_LABEL = {
   TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",

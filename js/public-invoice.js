@@ -7,11 +7,18 @@
    기존의 사업자번호 입력 게이트는 사업자번호가 비밀이 아니라 실질 방어력이 없었고,
    같은 법인의 다른 부서 링크를 입수하면 그대로 통과해 부서 간 격리도 못 했다.
    실서비스 전환 시에는 서버측 토큰 만료·접근로그가 이 자리를 대신해야 한다.
+
+   ── 열 때의 지금 값 (2026-10-16 DATA.md 3.2 · 명세 3.5) ──
+   토큰 레코드에 귀속월(`ym`)이 있으면 문서를 **열 때** util/invoice-data `invoiceDocData` 로 만든다(store.hydrate 뒤 —
+   주문을 고친 금액 · 동의 뒤 '계산서 발행' 칸 · 동의 전 표기와 출력 시각이 지금 값이다). PDF 는 누르는 순간 다시 만든다.
+   거래처가 지워졌으면 '유효하지 않은 링크'. `ym` 이 없는 옛 레코드·시드 토큰은 저장된 본문(`doc`)으로 연다.
    ============================================================ */
 import { html, raw, setHTML, on, qs } from "./dom.js";
 import { icon } from "./icons.js";
 import { invoiceDoc, printInvoiceDoc } from "./invoice-doc.js";
 import { resolveLink } from "./data/invoice-links.js";
+import { store } from "./store.js";
+import { invoiceDocData } from "./util/invoice-data.js";
 
 // 흰색 PDF 아이콘(SVG Repo, CC0). 문서 본체+접힌 모서리+'PDF' 글자를 단일 path로
 // 합치고 fill-rule:evenodd 로 글자를 도려내(knockout) — currentColor(흰색) 문서에
@@ -22,6 +29,17 @@ const ASSET_BASE = "../assets/"; // 공개 페이지는 /invoice/ 하위 → 루
 const root = document.getElementById("app");
 const token = new URLSearchParams(location.search).get("link");
 const record = resolveLink(token);
+store.hydrate(); // 주문·동의 기록·거래처는 그 브라우저의 저장소에 있다(데모 — 실서비스는 서버가 토큰으로 조회)
+/** 지금 시각의 문서 데이터. 귀속월이 있는 토큰은 열 때(누를 때) 만들고, 옛 토큰은 저장된 본문. 열 수 없으면 null. */
+function docOf(now = new Date()) {
+  if (!record) return null;
+  if (record.ym) {
+    const client = store.get().clients.find((c) => c.id === record.clientId);
+    if (!client) return null;
+    try { return invoiceDocData(client, record.ym, now); } catch { return null; }
+  }
+  return record.doc || null;
+}
 
 const headerBar = (withDownload = false) => html`
   <header class="pubinv__header">
@@ -49,21 +67,26 @@ function renderInvalid() {
   );
 }
 
-function renderDoc() {
+function renderDoc(d) {
   setHTML(
     root,
     html`
       <div class="pubinv pubinv--doc">
         ${headerBar(true)}
-        <div class="pubinv__docwrap">${invoiceDoc(record.doc, ASSET_BASE)}</div>
+        <div class="pubinv__docwrap">${invoiceDoc(d, ASSET_BASE)}</div>
       </div>
     `
   );
   on(root, "click", "[data-action='download']", () => {
-    const doc = qs(root, ".invoice-doc");
-    if (doc) printInvoiceDoc(doc, "거래명세서_" + record.doc.buyer.company + "_" + record.doc.period.replace(/\s/g, ""));
+    /* 누르는 순간의 값으로 다시 만든다 — 연 뒤에 출력 시각·금액이 달라졌을 수 있다(동의 전 표기의 출력 시각). */
+    const cur = docOf(new Date()) || d;
+    const holder = document.createElement("div");
+    setHTML(holder, invoiceDoc(cur, ASSET_BASE));
+    const doc = qs(holder, ".invoice-doc");
+    if (doc) printInvoiceDoc(doc, "거래명세서_" + cur.buyer.company + "_" + cur.period.replace(/\s/g, ""));
   });
 }
 
-if (!record) renderInvalid();
-else renderDoc();
+const first = docOf();
+if (!first) renderInvalid();
+else renderDoc(first);
