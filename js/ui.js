@@ -21,7 +21,8 @@ export const rowToneLegend = ({ cancel = true } = {}) => html`
   </span>`;
 
 /* ── PageTitle (ports PageTitle.tsx) ────────────────────── */
-export function pageTitle({ icon, imgSrc, title, action } = {}) {
+/* `desc`(선택) — 제목 옆 한 줄 설명(S-01 관리자 정산회계 시안). 없으면 예전 모습 그대로다. */
+export function pageTitle({ icon, imgSrc, title, desc, action } = {}) {
   return html`
     <div class="page-title">
       <div class="page-title__main">
@@ -31,6 +32,7 @@ export function pageTitle({ icon, imgSrc, title, action } = {}) {
           ? html`<span class="page-title__emoji">${icon}</span>`
           : ""}
         <h1>${title}</h1>
+        ${desc ? html`<span class="page-title__desc">${desc}</span>` : ""}
       </div>
       ${action ? html`<div>${action}</div>` : ""}
     </div>

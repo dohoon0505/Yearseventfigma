@@ -1,11 +1,15 @@
 /* ============================================================
    settlement.js — 정산회계 조회 (#/app/settlement)
    시안: claude.ai/design '정산회계 조회 - 리모델링.dc.html' (2026-10-07 이식)
+       → 'S-03 포털 정산회계 간편조회.dc.html' (2026-10-16 이식 — 상태 갈래 · 한 줄 회사정보 · 4단계 문안 · 8칸 표)
 
-   구조: 머리글(pageHead + '회사정보 수정') · 회사정보 카드 · 정산 절차 4단계 · 정산 내역 표.
-   예전의 노란 안내문(한 문단에 발급·동의·자동 동의·작성일자·정산기한)은 **4단계 카드**로 풀었다 —
-   단계마다 그 단계의 날짜가 붙고, 작성일자처럼 단계에 안 들어가는 규칙은 카드 아래 한 줄로 남겼다.
-   ⚠️ 날짜·마감·그룹은 전부 `data/settlement-rules.js` 가 계산한다. 이 파일에 날짜 산술을 두지 말 것.
+   구조: 머리글(pageHead + '회사정보 수정') · 회사정보 카드(한 줄 4칸 + 둘째 줄 주소·발급일 칩) ·
+   정산 절차 4단계 + 아래 한 줄(자동 동의 · 보류된 달은 직접 동의 · 기한 초과 · 발급일 변경 · 고객센터) · 정산 내역 표.
+   표 상태 칸은 관리자 정산회계(S-01)와 같은 한 줄 부품 `settleMark` 이고, 같은 정산 행(settlementOf)을 본다 —
+   두 화면이 같은 달에 다른 상태를 말하면 안 된다.
+   ⚠️ 날짜·마감·그룹은 전부 `data/settlement-rules.js` 가 계산한다. 이 파일에 날짜 산술을 두지 말 것
+      (기한 초과 경과일·마감 24시간 비교는 settlementOf 가 준 시각끼리의 뺄셈뿐이다).
+   ⚠️ 시안에 없는 표시(이 달을 지금 고칠 수 있는지 · 발급 때↔지금 금액 · 금액 변경 기록)는 넣지 않았다(운영자 결정 1).
 
    회사정보 수정(시안 '1a · 640px 2열') — 2026-10-07 사용자 결정 셋:
    · **발급일을 포털에서 바꾼다**(명세 6.3 개정). 선택지는 `INVOICE_DAYS`(1~7·11~25일) 22개뿐이고,
@@ -19,8 +23,9 @@
    담당자명·담당자연락처(managerName·contact) 입력칸은 시안대로 뺐다 — **키는 레코드에 남는다**
    (정산 명세서·주문 모달의 거래처 대표 연락처가 읽는다). 정산 담당은 담당자 저장공간이 정본이다.
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, won } from "../dom.js";
 import { pageHead, tableGrid, openLightbox } from "../ui.js";
+import { settleMark } from "../util/settle-mark.js";
 import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { dayPickerMarkup, makeDayPicker } from "../util/day-picker.js";
 import { store } from "../store.js";
@@ -29,7 +34,7 @@ import { settlementsFor, INVOICE_YM_KEY } from "../util/settlement.js";
 import {
   INVOICE_DAYS, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf,
   issueDate, agreeDeadline, shiftPeriod, periodLabel, ISSUE_HOUR, DEADLINE_HOUR,
-  fmtYmd, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime,
+  fmtDot, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime,
 } from "../data/settlement-rules.js";
 import { sharedBizKeys, displayName, onBizInput } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
@@ -75,54 +80,138 @@ function pendingOldIssue(client, now) {
   return d0 !== invoiceDayOf(client) && at > now ? { day: d0, at } : null;
 }
 
-/* ── 정산 표 셀 ─────────────────────────────────────────────
-   계산서 칸은 배지 + 보조줄이다 — 작성일자·수동/자동·마감이 세무 근거라 한 단어로 뭉개지 않는다(관리자 표와 같은 원칙).
-   ⚠️ 동의가 필요한 달만 주황(거래처가 할 일이 있는 유일한 상태), 발행 전은 회색(아직 순서가 아니다). */
-const badge = (kind, text) => html`<span class="settle-badge settle-badge--${kind}">${text}</span>`;
-const stack = (b, sub, warn = false) =>
-  html`<span class="settle-stack">${b}${sub ? html`<span class="settle-td__sub ${warn ? "settle-td__sub--warn" : ""}">${sub}</span>` : ""}</span>`;
-const invoiceCell = (r) => {
-  /* 발행 시각이 지났는데 거래가 없는 달 — 명세서도 계산서도 없다(0원 달과 다르다 — 거래명세서 조회도 '내역 없음'). */
-  if (r.계산서발급 === "거래없음") return stack(badge("gray", "거래 없음"), "");
-  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 명세 6.6 의 표 낱말 '0원 · 계산서 없음'. */
-  if (r.계산서발급 === "해당없음") return stack(badge("gray", "0원"), "계산서 없음");
-  if (r.계산서발급 === "발급완료")
-    return stack(badge("ok", "발급완료"), `작성 ${fmtMd(r.작성일자)}${r.동의구분 === "auto" ? " · 자동 동의" : ""}`);
-  if (!r.issued) return stack(badge("gray", "발급대기"), `명세서 ${fmtMdHm(r.발행일시)} 발급`);
-  /* 약관 동의 전에 마감된 달(2026-09-29 법무 답) — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다. 이유를 쓴다. */
-  /* 동의는 됐지만 계산서 발급이 아직인 달(AGREED — 발급 실패 뒤 다시 시도·수기 발급 대기). '동의 필요' 가 아니다. */
-  if (r.동의구분) return stack(badge("gray", "발급대기"), "동의 완료 · 계산서 발급 중");
-  /* 마감이 지났는데 자동 동의하지 않은 달 — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다.
-     ⚠️ HOLD_LABEL 은 **관리자 낱말**이다('고지 미도달'·'정지 중 마감' 은 내부 운영 사정). 거래처 화면에는 약관 보류만
-     예전 문구 그대로 두고, 나머지 둘은 사실(마감 지남 · 자동 동의 보류)만 말한다 — 포털 문구는 명세에 아직 없다(열린 질문 10).
-     거래명세서 조회의 동의 카드도 같은 말을 한다('자동 동의가 보류되었습니다'). */
-  if (r.약관보류) return stack(badge("need", "동의 필요"), "약관 동의 전 · 자동 동의 안 함", true);
-  if (r.보류) return stack(badge("need", "동의 필요"), "마감 지남 · 자동 동의 보류", true);
-  return stack(badge("need", "동의 필요"), `마감 ${fmtMdHm(r.마감)}`);
+/* ── 정산 표 셀 (시안 'S-03 포털 정산회계 간편조회' · 2026-10-16) ─────────────────────
+   계산서 발급 · 정산확인 두 칸은 **한 줄**이다 — 공용 `settleMark`(util/settle-mark.js · 관리자 정산회계 S-01 과 같은 부품):
+     끝난 단계 ✓ + 회색 낱말 · 지금 단계 ● + 진한 낱말 · 아직 안 온 단계 -.
+   지금 단계의 기한·사유는 '안내' 칸 한 곳에 적는다(지금 단계가 없으면 마지막으로 끝난 단계의 것). 끝난 단계의
+   작성일자 · 동의 방식은 마우스 올림(title)과 스크린리더(.sr-only)로만 — 세무 근거라 버리지 않는다.
+   ⚠️ 상태는 settlementOf 값(status · autoAgreeHold · zero …)만 읽는다. 날짜로 상태를 짐작하지 않는다(명세 6.6).
+   ⚠️ 빨간 안내는 동의 마감 24시간 전부터와 기한 초과 · 호박은 자동 동의가 보류된 달(시안).
+   반환: { kind, label, tone, meta(보이는 안내), title(안내·칸 마우스 올림), hot, amb, sr } */
+const DAY = 864e5;
+const howOf = (s) => (s.mode === "auto" ? "자동 동의" : "직접 동의");
+/* 보류 3종의 **포털** 낱말. 관리자 표(HOLD_LABEL — '고지 미도달'·'정지 중 마감')와 다르다: 안내 칸은 사실만
+   ('마감 지남 · 자동 동의 보류') 말하고, 이유는 마우스 올림에서 거래명세서 조회(S-02) 동의 카드와 같은 말로 한다. */
+const HOLD_NOTE = {
+  TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",
+  NOTICE_UNDELIVERED: "마감 지남 · 자동 동의 보류",
+  CLIENT_SUSPENDED: "마감 지남 · 자동 동의 보류",
 };
-/* 정산 칸 — 명세서가 아직 안 나간 달은 '정산 필요' 가 아니다(낼 청구서가 없다). */
-const payCell = (r) =>
-  r.입금완료 === "입금완료" ? badge("ok", "정산완료")
-  : r.입금완료 === "거래없음" ? badge("gray", "청구 없음")
-  : !r.issued ? badge("gray", "청구 전") : badge("danger", "정산 필요");
+const HOLD_WHY = {
+  TERMS_NOT_AGREED: "약관 동의 전에 마감이 지나 자동 동의되지 않았습니다",
+  NOTICE_UNDELIVERED: "마감 안내가 전달되지 않아 자동 동의를 보류했습니다",
+  CLIENT_SUSPENDED: "마감 때 이용이 정지되어 있어 자동 동의를 보류했습니다",
+};
+const NOT_YET = { kind: "none" };
+
+/** 계산서 발급 칸 — 발행 전 · 동의 필요(마감 / 보류 3종) · 동의 완료(발급 중) · 발급완료 · 0원 달 '계산서 없음' */
+function invStage(s, now) {
+  if (s.status === "NONE") return { kind: "none", sr: "거래 없음" };
+  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 회색 ✓ = 실제 처리 없이 닫힌 완료. */
+  if (s.zero && s.status === "PAID") return { kind: "done", label: "계산서 없음", tone: "gray", meta: "0원 주문만 있는 달", title: "동의가 필요 없습니다" };
+  if (s.status === "SCHEDULED") return { kind: "live", label: "발행 전", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발급`, title: "발급되면 내용을 확인하고 동의할 수 있습니다" };
+  if (s.status === "AWAITING_AGREEMENT") {
+    /* 마감이 지났는데 자동 동의하지 않은 달 — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다. 이유를 쓰고 지금 받는다. */
+    if (s.autoAgreeHold) {
+      return {
+        kind: "live", label: "동의 필요", tone: "orange", amb: true,
+        meta: HOLD_NOTE[s.autoAgreeHold] || "마감 지남 · 자동 동의 보류",
+        title: `${HOLD_WHY[s.autoAgreeHold] || "마감이 지났지만 자동 동의되지 않았습니다"} · 마감이 지났어도 동의할 수 있습니다`,
+      };
+    }
+    return {
+      kind: "live", label: "동의 필요", tone: "orange", hot: s.deadline.getTime() - now.getTime() <= DAY,
+      meta: `마감 ${fmtMdHm(s.deadline)}`, title: "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
+    };
+  }
+  /* AGREED — 동의는 됐지만 계산서가 아직(발급 실패 뒤 다시 시도·직접 입력 대기). '발급완료' 라고 말하지 않는다. */
+  if (s.status === "AGREED") {
+    return {
+      kind: "live", label: "동의 완료", tone: "gray",
+      meta: `발급 중 · ${fmtMd(s.agreedAt)} 동의`, title: `${fmtMdHm(s.agreedAt)} ${howOf(s)} · 계산서를 발급하고 있습니다`,
+    };
+  }
+  /* ISSUED · OVERDUE · PAID — 계산서가 나간 달 */
+  return {
+    kind: "done", label: "발급완료", tone: "green",
+    meta: `작성 ${s.docDate ? fmtMd(s.docDate) : "-"} · ${howOf(s)}`, title: s.agreedAt ? `${fmtMdHm(s.agreedAt)} 동의` : "",
+  };
+}
+/** 정산확인 칸 — 계산서가 나가기 전(발행 전 · 동의 전 · 발급 중)은 '-'(낼 청구서가 아직 없다) */
+function payStage(s, now) {
+  if (s.status === "NONE") return { kind: "none", sr: "거래 없음" };
+  if (s.zero && s.status === "PAID") {
+    return {
+      kind: "done", label: "정산완료", tone: "gray",
+      meta: s.count ? `0원 주문 ${s.count}건 · 입금 없음` : "0원 · 입금 없음", title: "실제 입금 없이 정산완료 처리된 달입니다",
+    };
+  }
+  if (s.status === "PAID") return { kind: "done", label: "정산완료", tone: "green", meta: s.paidAt ? `${fmtMd(s.paidAt)} 입금 확인` : "입금 확인" };
+  /* 기한 초과 = 정산기한 다음 날 10:00 부터(M44) — 그 시각은 settlementOf 의 overdueAt 이 말한다 */
+  if (s.status === "OVERDUE") {
+    const days = Math.max(1, Math.floor((now.getTime() - s.overdueAt.getTime()) / DAY));
+    return {
+      kind: "live", label: "기한 초과", tone: "red", hot: true,
+      meta: `${days}일 지남 · ${fmtMd(s.overdueAt)}부터`, title: `${fmtMdHm(s.overdueAt)}부터 기한 초과 · 정산기한 ${fmtMd(s.dueAt)}`,
+    };
+  }
+  if (s.status === "ISSUED") return { kind: "live", label: "정산필요", tone: "gray", meta: `기한 ${fmtMd(s.dueAt)}까지`, title: "" };
+  return NOT_YET;
+}
+/** 두 칸 + 안내(지금 단계 — 없으면 마지막으로 끝난 단계). 거래가 없는 달은 두 칸 모두 '-'. */
+function stagesOf(s, now) {
+  const cells = [invStage(s, now), payStage(s, now)];
+  const cur = cells.find((c) => c.kind === "live") || [...cells].reverse().find((c) => c.kind === "done") || null;
+  return { cells, cur };
+}
+/** 칸 하나 — 지금 단계(live)와 안내 칸이 보여 주는 단계는 meta 를 안내 칸이 이미 읽으므로 title 만 준다
+ *  (스크린리더가 같은 말을 두 번 읽지 않게). 그 밖의 끝난 단계는 근거를 title + .sr-only 로. */
+function markOf(st, cur) {
+  if (st.kind === "none") return settleMark({ kind: "none", sr: st.sr });
+  const tip = st.kind === "done" ? [st.meta, st.title].filter(Boolean).join(" · ") : st.title;
+  return settleMark(st === cur
+    ? { kind: st.kind, label: st.label, tone: st.tone, tip }
+    : { kind: st.kind, label: st.label, tone: st.tone, meta: st.meta, tip });
+}
+/** '처리할 달' — 동의 필요 + 정산필요 + 기한 초과(0원 달 제외 · 시안). 발급 중(AGREED)은 거래처가 할 일이 없다. */
+const isTodo = (s) => !s.zero && (s.status === "AWAITING_AGREEMENT" || s.status === "ISSUED" || s.status === "OVERDUE");
 
 /* 표 열 폭은 `--st-*` 로 넘긴다 — tableGrid 가 grid-template-columns 를 인라인 style 로 찍어
-   미디어쿼리가 못 이긴다(상품 규격 안내 `--pc-*` · 프로필 `--pf-*` 와 같은 이유). ⚠️ 폴백을 반드시 함께. */
+   미디어쿼리가 못 이긴다(상품 규격 안내 `--pc-*` · 프로필 `--pf-*` 와 같은 이유). ⚠️ 폴백을 반드시 함께.
+   시안 8칸: 귀속월(+문서 번호) · 발행일 · 정산 기한 · 정산금액 · 계산서 발급 · 정산확인 · 안내 · 거래명세서.
+   1280x720 에서도 가로 스크롤이 없다 — 고정 열 합 792px + 안내 최소 176px = 968px(표 폭 실측 1,010px · 스크롤바를 빼도 993px). */
 const COLUMNS = [
   {
-    label: "문서 번호", width: "var(--st-id, 130px)",
-    /* 같은 행의 '명세서 ›' 와 같은 곳으로 간다 — 탭 정거장이 행마다 둘이 되지 않게 이쪽은 마우스 전용 */
-    render: (r) => html`<button type="button" class="st-docno" data-action="invoice" data-ym="${r.ym}" tabindex="-1">${r.id}</button>`,
+    label: "귀속월", width: "var(--st-ym, 196px)",
+    /* 문서 번호는 같은 줄의 '명세서 보기' 와 같은 곳으로 간다 — 탭 정거장이 줄마다 둘이 되지 않게 이쪽은 마우스 전용 */
+    render: (r) => html`<span class="st-ym" title="문서 번호 ${r.id}">
+      <b>${r.청구년월}</b><button type="button" class="st-docno" data-action="invoice" data-ym="${r.ym}" tabindex="-1">${r.id}</button>
+    </span>`,
   },
-  { label: "청구 내역", width: "var(--st-desc, minmax(0, 1fr))", render: (r) => html`<span class="st-desc" title="${r.청구내역}">${r.청구내역}</span>` },
-  { label: "청구서 발행일", width: "var(--st-date, 116px)", render: (r) => html`<span class="st-num">${fmtYmd(r.발행일시)}</span>` },
-  { label: "정산 기한", width: "var(--st-date, 116px)", render: (r) => html`<span class="st-num">${fmtYmd(r.정산기한일)}</span>` },
-  { label: "정산금액", width: "var(--st-amt, 130px)", align: "right", render: (r) => html`<span class="st-amt">${r.정산금액}</span>` },
-  { label: "계산서", width: "var(--st-inv, 156px)", align: "center", render: invoiceCell },
-  { label: "정산", width: "var(--st-pay, 104px)", align: "center", render: payCell },
+  { label: "발행일", width: "var(--st-date, 94px)", render: (r) => html`<span class="st-num">${fmtDot(r.issueAt)}</span>` },
+  { label: "정산 기한", width: "var(--st-date, 94px)", render: (r) => html`<span class="st-num">${fmtDot(r.dueAt)}</span>` },
   {
-    label: "거래명세서", width: "var(--st-doc, 168px)", align: "right",
-    render: (r) => html`<button type="button" class="st-doclink" data-action="invoice" data-ym="${r.ym}">${r.청구년월} 명세서 <span aria-hidden="true">›</span></button>`,
+    label: "정산금액", width: "var(--st-amt, 104px)", align: "right",
+    /* 거래가 없는 달은 '-'(거래명세서 조회의 월 목록과 같은 말) — '0원' 이라 적으면 0원 주문만 있는 달과 구분되지 않는다 */
+    render: (r) => (r.empty
+      ? html`<span class="st-amt is-none">-</span>`
+      : html`<span class="st-amt" ${r.zero && r.status === "PAID" ? html`title="0원 주문 ${r.count}건"` : ""}>${won(r.amount)}</span>`),
+  },
+  { label: "계산서 발급", width: "var(--st-inv, 104px)", render: (r) => markOf(r.$st.cells[0], r.$st.cur) },
+  { label: "정산확인", width: "var(--st-pay, 92px)", render: (r) => markOf(r.$st.cells[1], r.$st.cur) },
+  {
+    label: "안내", width: "var(--st-note, minmax(176px, 1fr))",
+    render: (r) => {
+      const cur = r.$st.cur;
+      if (!cur) return html`<span class="st-note">거래 없음 · 명세서 없음</span>`;
+      return html`<span class="st-note ${cur.hot ? "is-hot" : cur.amb ? "is-amb" : ""}" ${cur.title ? html`title="${cur.title}"` : ""}>${cur.meta}</span>`;
+    },
+  },
+  {
+    label: "거래명세서", width: "var(--st-doc, 108px)", align: "right",
+    /* 줄마다 같은 글자라 이름에 그 달을 싣는다(스크린리더 목록에서 '명세서 보기' 여섯 개가 구분되지 않는다) */
+    render: (r) => html`<button type="button" class="st-doclink" data-action="invoice" data-ym="${r.ym}"
+      aria-label="${r.청구년월} 거래명세서 보기">명세서 보기 <span aria-hidden="true">›</span></button>`,
   },
 ];
 
@@ -145,30 +234,34 @@ export function mount(root, { nav }) {
       return;
     }
     const now = new Date();
-    const rows = settlementsFor(client, now);
+    const rows = settlementsFor(client, now).map((r) => ({ ...r, $st: stagesOf(r, now) }));
     const day = invoiceDayOf(client);
     const dl = deadlineDayOf(day);
+    const early = dl === 10;
     const pend = pendingOldIssue(client, now);
     const bill = store.getBillingContactOf(client.id);
     const name = displayName(client, sharedBizKeys(store.get().clients));
-    /* 미정산 = 명세서가 나갔는데 입금이 확인되지 않은 달. 발행 전 달은 낼 청구서가 없어 세지 않는다. */
-    const unpaid = rows.filter((r) => r.issued && r.입금완료 === "미입금").length;
+    const todo = rows.filter(isTodo).length;
 
-    const info = (k, v, { full = false, empty = false, warn = false } = {}) => html`
-      <div class="st-co__row ${full ? "is-full" : ""}">
-        <span class="st-co__k">${k}</span>
-        <span class="st-co__v ${empty ? "is-empty" : ""} ${warn ? "is-warn" : ""}">${v}</span>
+    /* 회사정보 카드 — 시안의 한 줄 4칸(사업자번호+회사명 · 대표자명 · 정산 담당 · 계산서 이메일).
+       '시안 + 기존'(운영자 결정 4): 사업장주소 · 정산 담당 연락처 · 발급일 칩 · '바꾸기 전 날짜' 칩은 같은 카드 둘째 줄에 남긴다. */
+    const info = (k, v, { empty = false, warn = false, cls = "" } = {}) => html`
+      <div class="st-co__cell ${cls}">
+        <p class="st-co__k">${k}</p>
+        <p class="st-co__v ${empty ? "is-empty" : ""} ${warn ? "is-warn" : ""}">${v}</p>
       </div>`;
     /* 연락처는 한 덩어리로 — 하이픈에서 줄이 갈리면(010- / 0000-0111) 번호를 잘못 읽는다(1280 실측) */
     const billLabel = bill
       ? html`${[bill.name, bill.role].filter(Boolean).join(" · ")}${bill.phone ? html` · <span class="st-nw">${bill.phone}</span>` : ""}`
       : "지정된 담당자 없음";
 
+    /* 정산 절차 4단계 — 시안 제목 틀 + 숫자는 settlement-rules(발급일 그룹으로 마감·작성일자가 갈린다).
+       정산기한(입금)은 발급일과 무관하게 '발행일이 속한 달의 말일'이다(dueDate). */
     const steps = [
-      ["명세서 발급", `매월 ${day}일 ${hm(ISSUE_HOUR)} 자동 발급`],
-      ["거래 내역 확인", html`거래명세서 조회에서 품목·금액 확인 · 이의는 고객센터 <span class="st-nw">${CS_PHONE}</span>`],
-      ["계산서 발급 동의", html`동의하면 바로 발급 · <span class="st-nw">${dl}일 ${hm(DEADLINE_HOUR)}</span>까지 동의가 없으면 자동 동의`],
-      ["정산 완료", "명세서가 발급된 달의 말일까지 입금 · 확인되면 완료"],
+      ["명세서 발급", `매월 ${day}일 ${hm(ISSUE_HOUR)}`],
+      ["내역 확인 · 동의", `마감 ${dl}일 ${hm(DEADLINE_HOUR)}`],
+      ["계산서(면세) 발급", `작성일자 ${early ? "귀속월 말일" : "동의한 날"}`],
+      ["입금 · 정산 완료", "기한 발급월 말일"],
     ];
 
     setHTML(
@@ -185,43 +278,47 @@ export function mount(root, { nav }) {
             })}
 
             <section class="st-card st-co" aria-label="회사정보">
-              <div class="st-co__hd">
-                <div class="st-co__hl">
-                  <p class="st-co__biz">${client.bizNumber || "사업자번호 미등록"}</p>
-                  <h2 class="st-co__name">${name}</h2>
-                </div>
-                <div class="st-co__chips">
-                  <span class="st-chip">매월 <b>${day}일</b> 명세서 발급</span>
-                  ${pend ? html`<span class="st-chip st-chip--note">이번 달은 ${fmtKoShortTime(pend.at)} · 바꾸기 전 날짜</span>` : ""}
-                </div>
+              <div class="st-co__cell st-co__id">
+                <p class="st-co__biz">${client.bizNumber || "사업자번호 미등록"}</p>
+                <h2 class="st-co__name">${name}</h2>
               </div>
-              <div class="st-co__grid">
-                ${info("대표자명", client.ceoName || "미등록", { empty: !client.ceoName })}
-                ${info("계산서 이메일", client.email || "미등록", { empty: !client.email })}
-                ${info("정산 담당", billLabel, { warn: !bill })}
-                ${info("사업장주소", client.address || "미등록", { full: true, empty: !client.address })}
+              ${info("대표자명", client.ceoName || "미등록", { empty: !client.ceoName })}
+              ${info("정산 담당", billLabel, { warn: !bill })}
+              ${/* 비면 '미등록' 만 — '정산 담당자에게 발송' 같은 폴백은 명세에 없다(담당자에게는 이메일 칸이 없다) */
+                info("계산서 이메일", client.email || "미등록", { empty: !client.email })}
+              ${info("사업장주소", client.address || "미등록", { empty: !client.address, cls: "st-co__addr" })}
+              <div class="st-co__chips">
+                <span class="st-chip">매월 <b>${day}일</b> 명세서 발급</span>
+                ${pend ? html`<span class="st-chip st-chip--note">이번 달은 ${fmtKoShortTime(pend.at)} · 바꾸기 전 날짜</span>` : ""}
               </div>
             </section>
 
-            <ol class="st-steps" aria-label="정산 절차">
-              ${steps.map(([t, d], i) => html`
-                <li class="st-step">
-                  <span class="st-step__n" aria-hidden="true">${i + 1}</span>
-                  <span class="st-step__b"><b>${t}</b><span>${d}</span></span>
-                </li>`)}
-            </ol>
-            <p class="st-steps__note">
-              계산서(면세) 작성일자는 ${day <= 10 ? "이용한 달의 말일" : `동의한 날(자동 동의면 ${dl}일)`}입니다.
-              발급일은 회사정보 수정에서 바꿀 수 있고, 바꾸면 다음 달 발급분부터 적용됩니다.
-            </p>
+            <div class="st-proc">
+              <ol class="st-steps" aria-label="정산 절차">
+                ${steps.map(([t, d], i) => html`
+                  <li class="st-step">
+                    <span class="st-step__n" aria-hidden="true">${i + 1}</span>
+                    <span class="st-step__b"><b>${t}</b><span>${d}</span></span>
+                  </li>`)}
+              </ol>
+              <p class="st-steps__note">
+                마감까지 동의가 없으면 그 시각에 자동 동의됩니다.
+                <b>단, 자동 동의가 보류된 달은 직접 동의해야 계산서가 발급됩니다.</b>
+                정산기한 다음 날 ${hm(ISSUE_HOUR)}부터는 기한 초과로 표시됩니다.
+                ${/* '시안 + 기존'(운영자 결정 4) — 시안 문안으로 바뀌며 빠졌던 기존 문장. 발급일을 어디서 바꾸고 언제부터
+                     적용되는지 말하는 곳이 이 화면에 있어야 한다(1번 카드의 '매월 N일' 이 앞으로의 값이라서). */ ""}
+                발급일은 회사정보 수정에서 바꿀 수 있고, 바꾸면 다음 달 발급분부터 적용됩니다.
+                <span class="st-steps__cs">문의 · 고객센터 <span class="st-nw">${CS_PHONE}</span></span>
+              </p>
+            </div>
 
             <section class="st-card st-tbl" aria-labelledby="st-tbl-t">
               <div class="st-tbl__hd">
                 <div>
-                  <h2 id="st-tbl-t">정산 내역 <span class="st-count">${rows.length}</span></h2>
-                  <p>최근 6개월 · 문서 번호를 누르면 해당 월 거래명세서가 열립니다.</p>
+                  <h2 id="st-tbl-t">정산 내역 <span class="st-count">최근 6개월</span></h2>
+                  <p>명세서 보기를 누르면 그 달의 거래명세서가 열립니다. 동의는 거기서 합니다.</p>
                 </div>
-                <span class="st-unpaid ${unpaid ? "" : "is-zero"}">미정산 <b>${unpaid}건</b></span>
+                <span class="st-todo ${todo ? "" : "is-zero"}">처리할 달 <b>${todo}건</b></span>
               </div>
               <div class="st-table">${tableGrid({ columns: COLUMNS, rows, rowKey: (r) => r.id })}</div>
             </section>

@@ -1,7 +1,9 @@
 /* ============================================================
    admin-clients.js — 거래처 정보관리
-   상단 필터(상태 탭 + 검색) · 가입 승인/거부 워크플로 · 상세/수정/생성/삭제.
+   상단 필터(상태 탭 + 검색 + '약관 동의 전만 보기' 칩) · 가입 승인/거부 워크플로 · 상세/수정/생성/삭제.
    store.clients(영속). 모달은 HModal 규격(hm-field/hm-btn) + 커스텀 드롭다운.
+   S-04(2026-10-16): 관리자가 등록해 아직 약관에 동의하지 않은 거래처를 목록(회사명 아래 배지 + 첫 명세서 일정)과
+   정보 창(머리 칩 + 배너 + 임시비밀번호 즉시 발급)에서 늘 보인다 — 아래 '약관 동의 전' 블록.
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
@@ -13,7 +15,9 @@ import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { autosize, openDeleteConfirm } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
-import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel } from "../data/settlement-rules.js";
+import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel, fmtMdHm, fmtKoShortTime } from "../data/settlement-rules.js";
+import { termsPending } from "../util/client.js";
+import { termsWatchOf } from "../util/settlement.js";
 import { normalizeBiz, sharedBizKeys, onBizInput } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -115,6 +119,57 @@ const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s
 /** 지금 시각 "오후 2:53" — 변경 이력·저장 표시에 쓴다(주문 모달과 같은 포맷). */
 const nowHM = () => new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
 
+/* ── 약관 동의 전 (S-04 · 명세 3.1 · N18) ─────────────────────────────
+   관리자가 등록한 거래처는 약관 기록 없이 '활성'으로 생기고, 첫 로그인 게이트에서 처음 동의한다. 첫 명세서 마감까지
+   동의가 없으면 그 달은 자동 동의되지 않는다(명세 3.4 예외표) — 직원이 미리 연락하도록 목록·정보 창에 늘 보인다.
+   판정은 util/client.js `termsPending`, 일정·상태는 util/settlement.js `termsWatchOf`(settlementOf 파생) 한 곳이다 —
+   화면이 날짜로 상태를 짐작하지 않는다. 약관 버전이 올라 재동의를 기다리는 계정은 '약관 동의 전'이 아니다. */
+/** 임시비밀번호 유효시간 — 명세 8.1 '유효기간 24시간'. ⚠️ 데모 로그인은 만료를 검사하지 않는다(HANDOFF). */
+const TEMP_PW_TTL = 24 * 60 * 60 * 1000;
+/** 귀속월 목록 → "9월분" · "8·9월분" */
+const monthsShort = (list) => `${list.map((h) => Number(h.ym.slice(5))).join("·")}월분`;
+/** "10-28 13:00" 을 **한 덩어리**로 — 1280 에서 회사명 칸이 ≈220px 라 줄이 접힌다. 날짜·시각 사이를 NBSP 로만 묶었더니
+ *  이번엔 하이픈 뒤에서 '마감 10- / 28 13:00' 으로 갈렸다(하이픈 뒤도 줄바꿈 자리다 — 실측). nowrap 조각으로 감싼다. */
+const mdHm = (d) => html`<span class="cli-tsched__dt">${fmtMdHm(d)}</span>`;
+/** 발급까지 남은 날 — 오늘이면 '오늘 발급'(대쉬보드 경고와 같은 낱말) */
+const ddayText = (n) => (n <= 0 ? "오늘 발급" : `D-${n}`);
+
+/**
+ * 목록 회사명 칸 아래 한 줄의 조각들 `[{ text, hot }]`. 약관에 동의한 거래처면 null.
+ * hot(빨강)은 7일 이내 발급 · 발급 뒤 마감 전 · **마감이 지나도 약관 동의 전이면 남는다**(운영자 결정 6) —
+ * 마감이 지난 달은 '9월분 마감 지남 · 자동 동의 안 함' 에 다음 명세서 일정을 잇는다.
+ */
+function termsLineParts(client, now) {
+  if (!termsPending(client)) return null;
+  const w = termsWatchOf(client, now);
+  if (!w) return [{ text: "아직 거래가 없어 첫 명세서 일정이 없습니다", hot: false }];
+  const out = [];
+  if (w.held.length) out.push({ text: `${monthsShort(w.held)} 마감 지남 · 자동 동의 안 함`, hot: true });
+  const n = w.next;
+  if (n) {
+    out.push(n.phase === "open"
+      ? { text: html`${n.first ? "" : monthsShort([n]) + " "}명세서 발급 완료 · 마감 ${mdHm(n.deadline)}`, hot: true }
+      : { text: html`${n.first ? "첫" : "다음"} 명세서 ${mdHm(n.issueAt)} · ${ddayText(n.dDay)}`, hot: n.dDay <= 7 });
+  }
+  return out;
+}
+/** 목록 회사명 칸의 '약관 동의 전' 배지 + 일정 한 줄. 약관에 동의한 거래처는 빈 문자열. */
+function termsLine(client, now) {
+  const parts = termsLineParts(client, now);
+  if (!parts) return "";
+  return html`<div class="cli-terms">
+    <span class="cli-tbadge">약관 동의 전</span>
+    ${parts.map((p) => html`<span class="cli-tsched ${p.hot ? "is-hot" : ""}">${p.text}</span>`)}
+  </div>`;
+}
+/** 임시비밀번호 무작위 10자(헷갈리는 글자 I·l·O·0·1 제외) */
+function makeTempPassword() {
+  const CH = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let pw = "";
+  for (let i = 0; i < 10; i++) pw += CH[Math.floor(Math.random() * CH.length)];
+  return pw;
+}
+
 function nextId(clients) {
   const max = clients.reduce((m, c) => Math.max(m, parseInt(String(c.id).replace(/\D/g, ""), 10) || 0), 0);
   return "C" + String(max + 1).padStart(3, "0");
@@ -123,7 +178,10 @@ function nextId(clients) {
 export function mount(root, { nav }) {
   // expanded: 펼쳐 둔 사업자번호(정규화) 집합. 재렌더로 DOM이 통째로 갈리므로
   // 접힘 상태는 반드시 state 에서 읽는다(클래스 토글 방식은 검색 한 글자에 초기화됨).
-  const state = { tab: "all", search: "", expanded: new Set() };
+  // termsOnly: '약관 동의 전만 보기' 칩(S-04). 상태 탭과 **다른 축**이다 — '활성 + 약관 동의 전'이 함께 성립한다.
+  const state = { tab: "all", search: "", expanded: new Set(), termsOnly: false };
+  /* 목록 한 번 그리는 동안 같은 시각으로 판정한다(줄마다 new Date() 면 경계 시각에 줄끼리 갈린다). */
+  let listNow = new Date();
   let activeModal = null;
   let saveTimer = null;
   const toast = makeToast();
@@ -142,6 +200,7 @@ export function mount(root, { nav }) {
     const q = state.search.trim();
     return store.get().clients.filter((c) => {
       if (state.tab !== "all" && c.status !== state.tab) return false;
+      if (state.termsOnly && !termsPending(c)) return false;
       if (q && !(matchesParent(c, q) || matchesChild(c, q))) return false;
       return true;
     });
@@ -167,11 +226,14 @@ export function mount(root, { nav }) {
       if (seen.has(key)) return;
       seen.add(key);
       const members = rows.filter((x) => normalizeBiz(x.bizNumber) === key);
-      const total = store.get().clients.filter((x) => normalizeBiz(x.bizNumber) === key).length;
+      const all = store.get().clients.filter((x) => normalizeBiz(x.bizNumber) === key);
+      const total = all.length;
       const autoOpen = !!q && members.some((m) => matchesChild(m, q));
       const open = state.expanded.has(key) || autoOpen;
       const pno = String(++no).padStart(2, "0");
-      out.push({ kind: "group", key, client: members[0], count: total, open, no: pno });
+      /* 접힌 묶음도 '약관 동의 전' 계정이 있다는 것은 보여야 한다(시안) — 필터와 무관하게 묶음 전체에서 센다. */
+      const pending = all.filter(termsPending).length;
+      out.push({ kind: "group", key, client: members[0], count: total, open, no: pno, pending });
       if (open) members.forEach((m, i) => out.push({ kind: "child", key: m.id, client: m, no: `${pno}-${i + 1}` }));
     });
     return out;
@@ -184,15 +246,21 @@ export function mount(root, { nav }) {
       label: "회사명", width: "1fr",
       render: (r) => {
         const c = r.client;
+        /* 약관 표시는 상태 칸이 아니라 **회사명 아래**에 붙는다(시안) — 상태(활성·정지…)와 다른 종류의 사실이다. */
         if (r.kind === "group") {
-          return html`<button type="button" class="cli-grp" data-action="grp" data-k="${r.key}" aria-expanded="${r.open ? "true" : "false"}">
-            <span class="cli-grp__chev"></span>
-            <b class="ellipsis">${c.companyName}</b>
-            <span class="cli-badge">부서 ${r.count}</span>
-          </button>`;
+          return html`<div class="cli-name">
+            <button type="button" class="cli-grp" data-action="grp" data-k="${r.key}" aria-expanded="${r.open ? "true" : "false"}">
+              <span class="cli-grp__chev"></span>
+              <b class="ellipsis">${c.companyName}</b>
+              <span class="cli-badge">부서 ${r.count}</span>
+            </button>
+            ${!r.open && r.pending ? html`<p class="cli-grpnote">${r.pending}곳 약관 동의 전</p>` : ""}
+          </div>`;
         }
-        if (r.kind === "child") return html`<div class="cli-child ellipsis">${c.department || "계정 구분 없음"}</div>`;
-        return html`<div class="ellipsis">${c.companyName}</div>`;
+        if (r.kind === "child") {
+          return html`<div class="cli-name"><div class="cli-child ellipsis">${c.department || "계정 구분 없음"}</div>${termsLine(c, listNow)}</div>`;
+        }
+        return html`<div class="cli-name"><div class="ellipsis">${c.companyName}</div>${termsLine(c, listNow)}</div>`;
       },
     },
     { label: "사업자번호", width: "128px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.bizNumber) },
@@ -229,6 +297,7 @@ export function mount(root, { nav }) {
   ];
 
   function tableBody() {
+    listNow = new Date();
     const rows = displayRows();
     if (rows.length === 0) return html`<div class="admin-empty">조건에 맞는 거래처가 없습니다.</div>`;
     return tableGrid({
@@ -249,6 +318,15 @@ export function mount(root, { nav }) {
       return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}">${t.label}<span class="bf-tab__cnt ${alert ? "bf-tab__cnt--alert" : ""}">${count}</span></button>`;
     });
   }
+  /* '약관 동의 전만 보기' — 상태 탭을 늘리지 않고 탭 줄 오른쪽에 칩으로 둔다(시안 · 공용 `.bf-chip`).
+     건수는 탭과 같이 **전체 목록**에서 센다. 0건이면 칩을 숨긴다(누를 이유가 없다). */
+  const termsCount = () => store.get().clients.filter(termsPending).length;
+  function termsChipBody() {
+    const n = termsCount();
+    if (!n) return "";
+    return html`<button type="button" class="bf-chip cli-termsonly ${state.termsOnly ? "is-on" : ""}" data-action="terms-only"
+      aria-pressed="${state.termsOnly ? "true" : "false"}">약관 동의 전만 보기<b class="cli-termsonly__n">${n}</b></button>`;
+  }
 
   function render() {
     setHTML(
@@ -264,6 +342,7 @@ export function mount(root, { nav }) {
             <div class="bf-card">
               <div class="bf-row bf-row--tabs">
                 <div class="bf-tabs" data-slot="tabs">${tabsBody()}</div>
+                <div class="cli-termsslot" data-slot="termschip">${termsChipBody()}</div>
               </div>
               <div class="bf-row bf-row--main">
                 <div class="bf-srch bf-srch--grow">
@@ -292,6 +371,10 @@ export function mount(root, { nav }) {
   const refreshList = () => {
     const tabs = qs(root, "[data-slot='tabs']");
     if (tabs) setHTML(tabs, tabsBody());
+    /* 마지막 '약관 동의 전' 거래처가 사라지면(삭제 등) 칩이 숨으므로 필터도 함께 푼다 — 안 그러면 빈 표만 남는다. */
+    if (state.termsOnly && !termsCount()) state.termsOnly = false;
+    const chip = qs(root, "[data-slot='termschip']");
+    if (chip) setHTML(chip, termsChipBody());
     refreshTableOnly();
   };
 
@@ -387,7 +470,13 @@ export function mount(root, { nav }) {
           salesRoute: "미지정", salesDate: "", salesMemo: "",
         };
     let menuOpen = false;
-    let pwOut = "";
+    /* 이 창에서 발급한 임시비밀번호와 그 시각 — 레일·약관 배너가 '…까지 유효'를 같은 값으로 말한다.
+       서버는 발급 API 가 한 번만 돌려준다(명세 6.3) — 그래서 창을 닫으면 다시 볼 수 없다(영속하지 않는다). */
+    let pwShown = "";
+    let pwAt = null;
+    /* 방금 등록한 창인가 — 등록 버튼을 누르면 이 창이 그 거래처의 수정 창으로 바뀌는데, 그 순간부터
+       '아이디·임시비밀번호를 전달하세요' 배너를 띄운다(S-04 시안). 창을 닫으면 끝난다. */
+    let justCreated = false;
     let savedAt = "";
     const touched = {};
     /* 신규 등록의 정산·회계 담당자 — **필수**다(2026-09-29 사용자 결정 · 법무 답 '정산담당자는 필수 요소').
@@ -416,6 +505,25 @@ export function mount(root, { nav }) {
     /* 이력 점 색 — 무슨 종류의 변경이었는지 색으로 먼저 읽힌다(주문 HIST_DOT 과 같은 취지).
        한 색으로 고정하면 목록이 길어질수록 "무엇이 중요한 줄인가"가 사라진다. */
     const push = (label, tone) => { log.push({ label, at: nowHM(), tone: tone || "info" }); };
+    /** 이 창에서 발급한 임시비밀번호가 언제까지 유효한가 — "10월 17일 09:00" (발급 + 24시간 · 명세 8.1) */
+    const pwUntil = () => (pwAt ? fmtKoShortTime(new Date(pwAt.getTime() + TEMP_PW_TTL)) : "");
+    /** 레일 접속 아이디 카드의 발급 결과 한 줄. 등록 전이면 아직 레코드가 없어 등록할 때 함께 저장된다. */
+    /* ⚠️ 두 줄을 넘기지 말 것 — 레일은 고정 높이라 이 줄이 자라면 변경 이력이 그만큼 눌린다(1366x768 에서 이력 줄이 반쯤
+       잘리고 1280x720 에서 레일 맨 아래 안내가 8px 잘렸다 — 실측). '거래처 담당자에게만 전달' 은 레일 맨 아래 안내와 같은 말이라 뺐다. */
+    const pwOutText = () => (isEdit
+      ? `임시비밀번호 ${pwShown} · ${pwUntil()}까지 유효 · 창을 닫으면 다시 볼 수 없습니다.`
+      : `임시비밀번호 ${pwShown} · 등록하면 적용됩니다(${pwUntil()}까지 유효). 창을 닫으면 다시 볼 수 없습니다.`);
+    /** 지금 저장소의 이 거래처 레코드 — 정산 일정·약관 판정은 저장된 값으로 한다(원장에서 고치는 중인 값이 아니라). */
+    const storedRec = () => store.get().clients.find((c) => c.id === form.id) || form;
+    /** 이 창에서 레코드를 쓰는 길(저장·상태 pill·승인·거부). form 은 창을 연 순간의 사본이라, 발급일을 바꿔 저장하면
+     *  저장소가 덧붙인 발급일 이력(`invoiceDayLog`)이 form 에는 없다 — 그 form 을 한 번 더 쓰면(두 번째 저장·상태 변경)
+     *  발급일이 그대로라 `withInvoiceDayLog` 가 form 을 그대로 받아 **이력이 통째로 지워졌다**(실측: 20일 → 5일 저장 뒤
+     *  한 번 더 저장하면 9월분이 5일 기준으로 다시 계산돼 '9월분 마감 지남 · 자동 동의 안 함' 으로 바뀌었다 — 작성일자가 걸린 값).
+     *  그래서 쓸 때마다 저장소의 지금 이력을 실어 보내고, 쓴 뒤 form 에 되받는다. */
+    const writeForm = () => {
+      store.updateClient({ ...form, invoiceDayLog: storedRec().invoiceDayLog });
+      form.invoiceDayLog = storedRec().invoiceDayLog;
+    };
 
     /* ── 헤더 ── */
     const hdBody = () => {
@@ -430,6 +538,8 @@ export function mount(root, { nav }) {
             <h3 class="ord-hd__no" id="modal-title">${form.companyName || (isEdit ? "거래처" : "신규 거래처 등록")}</h3>
             ${isEdit ? html`<span class="ord-hd__pill" style="background:var(--c-surface-2);color:var(--c-text-strong)">
               <span class="ord-hd__dot" style="background:${STATUS_DOT[form.status] || "var(--c-text-4)"}"></span>${form.status}</span>` : ""}
+            ${/* 상태 pill 옆 — 상태와 다른 종류의 사실이라 따로 단다(시안). 약관에 동의하면 사라진다. */ ""}
+            ${isEdit && termsPending(storedRec()) ? html`<span class="cli-termschip">약관 동의 전</span>` : ""}
             ${showDept ? html`<span class="cli-deptchip">${form.department}</span>` : ""}
           </div>
           <p class="ord-hd__meta ord-mono">${meta}</p>
@@ -501,7 +611,7 @@ export function mount(root, { nav }) {
         <button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
         ${/* 안내문은 **발급 후에만**(시안). 평소에도 띄워 두면 카드가 늘 3줄이라
              정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
-        ${pwOut ? html`<p class="rail-card__out">${pwOut}</p>` : ""}
+        ${pwShown ? html`<p class="rail-card__out">${pwOutText()}</p>` : ""}
       </div>
       ${isEdit ? billingCard() : newBillingCard()}
       ${isEdit ? html`
@@ -536,7 +646,72 @@ export function mount(root, { nav }) {
     /* 배너가 없을 때 슬롯을 **숨긴다** — `.cli-pane` 이 flex column + gap 이라
        높이 0 인 빈 자식도 gap 을 한 번 먹어 카드 위에 유령 간격이 남는다.
        `:empty` 로는 안 된다(템플릿이 공백 텍스트 노드를 남긴다). */
-    const hasBanner = () => isEdit && (form.status === "승인대기" || (form.status === "반려" && !!form.rejectReason));
+    const hasBanner = () => isEdit && (form.status === "승인대기" || (form.status === "반려" && !!form.rejectReason)
+      || justCreated || termsPending(storedRec()));
+
+    /* 약관 동의 전 배너(S-04 시안) — 사실(첫 로그인 때 동의해야 기록) · 일정(첫 명세서 발급·동의 마감) · 결과(마감까지
+       동의가 없으면 그 달은 자동 동의되지 않는다) · 연락처 · 그리고 할 일(임시비밀번호 발급)을 한 자리에 둔다.
+       ⚠️ 일정은 **저장된 레코드**로 계산한다(storedRec) — 원장에서 발급일을 고치는 중이어도 저장 전에는 바뀌지 않는다.
+       마감이 지난 달(held)은 거래처가 약관에 동의할 때까지 남긴다(운영자 결정 6). */
+    const termsBanner = () => {
+      const rec = storedRec();
+      if (!termsPending(rec)) return "";
+      const w = termsWatchOf(rec, new Date());
+      const b = store.getBillingContactOf(form.id);
+      const contact = b
+        ? html`<span>연락 <b>${b.name || "이름 없음"} ${b.phone || "· 연락처 미등록"}</b></span>`
+        : html`<span>연락 <b class="cli-tb__dday">정산 담당자 없음</b></span>`;
+      /* 정지 중인 거래처는 로그인 자체가 막혀 있다(util/client portalBlock) — 임시비밀번호를 새로 줘도 들어와 약관에 동의할 수
+         없으므로 '연락할 때 새로 발급하세요' 를 말하지 않는다. 대신 정지 중이라 로그인할 수 없고, 정지를 풀어야 약관 동의를 받을
+         수 있다는 사실만 말한다(2026-10-16 결정 E — 배너 모양은 그대로, 글자만). 대쉬보드 약관 경고가 정지 거래처를 빼는 것과
+         같은 이유다. 상태 pill 을 바꾸면 renderBanner 가 다시 그리므로 저장된 레코드(rec)의 상태를 본다. */
+      const suspended = rec.status === "정지";
+      const SUSP = "정지 중이라 거래처가 로그인할 수 없습니다. 정지를 풀어야 첫 로그인 때 약관 동의를 받을 수 있습니다.";
+      const pwCap = pwShown && isEdit ? `발급 완료 · ${pwUntil()}까지 유효`
+        : suspended ? "24시간 유효 · 정지 중 로그인 불가"
+        : "24시간 유효 · 연락할 때 새로 발급";
+      const pwTail = suspended ? SUSP : "임시비밀번호는 24시간만 유효하니 연락할 때 새로 발급하세요.";
+      let facts = "";
+      let foot;
+      if (!w) {
+        /* 귀속월 = 배송일의 달(2026-10-15 결정) — '첫 주문이 생기면 다음 달' 이 아니라 배송일 기준으로 말한다. */
+        foot = `아직 거래가 없어 첫 명세서 일정이 없습니다. 주문이 생기면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 첫 명세서가 발급되고, `
+          + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " + (suspended ? SUSP : "임시비밀번호는 24시간만 유효합니다.");
+      } else {
+        const n = w.next;
+        const heldOne = w.held.length === 1 ? w.held[0] : null;
+        facts = html`
+          ${/* 지난 달은 한 줄을 통째로 쓴다 — 다음 명세서의 '동의 마감'과 한 줄에 섞이면 어느 달의 마감인지 흐려진다. */ ""}
+          ${w.held.length ? html`<span class="cli-tb__held"><b>${monthsShort(w.held)}</b>${heldOne ? html` 동의 마감 <b>${fmtKoShortTime(heldOne.deadline)}</b>` : ""}
+            <b class="cli-tb__dday">마감 지남 · 자동 동의 안 함</b></span>` : ""}
+          ${n ? html`<span>${n.first ? "첫" : "다음"} 명세서 <b>${fmtKoShortTime(n.issueAt)}</b>${n.phase === "open"
+            ? html` <b class="cli-tb__dday">발급 완료</b>`
+            : html` 발급 <b class="cli-tb__dday">${/* '발급 오늘 발급' 이 되지 않게(목록의 ddayText 는 앞에 '발급' 이 없다) */ n.dDay <= 0 ? "오늘" : `D-${n.dDay}`}</b>`}</span>
+            <span>동의 마감 <b>${fmtKoShortTime(n.deadline)}</b></span>` : ""}
+          ${contact}`;
+        foot = w.held.length
+          ? `${monthsShort(w.held)}은 약관 동의 전에 마감이 지나 자동 동의되지 않았습니다 — 거래처가 약관에 동의한 뒤 거래명세서에서 직접 동의해야 계산서가 나갑니다. `
+            + (n ? "다음 명세서도 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " : "")
+            + pwTail
+          /* 동의를 기다리는 달이 하나도 없는 경우 — 거래가 0원 주문뿐이라 발행과 함께 닫혔다(가입 혜택 '1회 무료').
+             '이 달은' 이라고 하면 가리킬 달이 없다(실측) — 거래 없음 문구에서 '아직 거래가 없어'만 뺀 말로 잇는다. */
+          : !n ? `주문이 생기면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 명세서가 발급되고, `
+            + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " + pwTail
+          : "마감까지 약관 동의가 없으면 이 달은 자동 동의되지 않습니다. " + pwTail;
+      }
+      return html`
+        <div class="cli-banner cli-banner--terms">
+          <div class="cli-banner__msg">
+            <p class="cli-tb__lead"><b>약관 동의 전</b> · 거래처가 첫 로그인 때 이용약관에 동의하면 기록됩니다.</p>
+            ${facts ? html`<div class="cli-tb__facts">${facts}</div>` : ""}
+            <p class="cli-tb__foot">${foot}</p>
+          </div>
+          <div class="cli-tb__act">
+            <button type="button" class="cli-tb__btn" data-action="reset-pw">임시비밀번호 발급</button>
+            <p class="cli-tb__cap">${pwCap}</p>
+          </div>
+        </div>`;
+    };
     const banners = () => html`
       ${isEdit && form.status === "승인대기" ? html`
         <div class="cli-banner cli-banner--wait">
@@ -549,14 +724,19 @@ export function mount(root, { nav }) {
           </span>
         </div>` : ""}
       ${isEdit && form.status === "반려" && form.rejectReason ? html`
-        <div class="cli-banner cli-banner--rej"><span class="cli-banner__msg"><b>거부 사유</b> · ${form.rejectReason}</span></div>` : ""}`;
+        <div class="cli-banner cli-banner--rej"><span class="cli-banner__msg"><b>거부 사유</b> · ${form.rejectReason}</span></div>` : ""}
+      ${/* 등록 직후 → 약관 동의 전 순(S-04 시안). 가입 심사 배너가 먼저다 — 그 거래처의 지금 할 일이 승인이다. */ ""}
+      ${isEdit && justCreated ? html`
+        <div class="cli-banner cli-banner--new" role="status"><span class="cli-banner__msg"><b>방금 등록했습니다</b> · 아이디 <b>${form.accountId}</b>와
+          임시비밀번호를 거래처 담당자에게 전달하세요. 첫 로그인 때 이용약관에 동의합니다.</span></div>` : ""}
+      ${isEdit ? termsBanner() : ""}`;
 
     const body = () => html`
       <div class="hm__head ord-hd" data-slot="hd">${hdBody()}</div>
       <div class="cli-grid">
         <aside class="ord-side" data-slot="rail">${railBody()}</aside>
         <div class="cli-pane">
-          <div data-slot="banner" ${hasBanner() ? "" : "hidden"}>${banners()}</div>
+          <div class="cli-banners" data-slot="banner" ${hasBanner() ? "" : "hidden"}>${banners()}</div>
           ${/* 시안: 원장은 2열 2행이다. 위가 거래 조건과 회사 정보(주문에 실리는 것),
                아래가 계산서·정산과 증빙·영업(청구·심사에 쓰는 것). 전폭 카드를 세로로
                쌓으면 가로 공간이 남는데 세로로만 길어져 스크롤을 부른다. */ ""}
@@ -690,13 +870,13 @@ export function mount(root, { nav }) {
       if (v === form.status) return;
       if (v === "반려") return openReject(form, (reason) => {
         form.status = "반려"; form.rejectReason = reason;
-        store.updateClient({ ...form });
+        writeForm();
         push("가입 거부 · 사유 통보", "danger");
         renderHd(); renderBanner(); renderRail(); refreshList();
       });
       form.status = v;
       if (v !== "반려") form.rejectReason = "";
-      store.updateClient({ ...form });
+      writeForm();
       push(`상태 변경 · ${v}`, v === "활성" ? "ok" : v === "반려" ? "danger" : "warn");
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${v}(으)로 변경했습니다`);
@@ -710,35 +890,49 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='to-pricing']", () => { if (canLeave()) goPricing(form.id); });
     on(panel, "click", "[data-action='approve']", () => confirmApprove(form, () => {
       form.status = "활성"; form.rejectReason = "";
-      store.updateClient({ ...form });
+      writeForm();
       push("가입 승인 · 활성 전환", "ok");
       renderHd(); renderBanner(); renderRail(); refreshList();
       toast(`${form.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
     }, canLeave));
     on(panel, "click", "[data-action='reject']", () => openReject(form, (reason) => {
       form.status = "반려"; form.rejectReason = reason;
-      store.updateClient({ ...form });
+      writeForm();
       push("가입 거부 · 사유 통보", "danger");
       renderHd(); renderBanner(); renderRail(); refreshList();
     }));
 
     on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
-    on(panel, "click", "[data-action='reset-pw']", () => {
-      const CH = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-      let pw = "";
-      for (let i = 0; i < 10; i++) pw += CH[Math.floor(Math.random() * CH.length)];
-      form.password = pw;
-      touched.password = 1;
-      pwOut = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 창을 닫으면 다시 볼 수 없습니다.`;
-      menuOpen = false;
+    /* 임시비밀번호 발급 — **누르는 즉시 적용**한다(S-04). 저장 버튼에 태우면 배너의 '…까지 유효'가 거짓말이 되고,
+       관리자가 비밀번호만 알려 주고 창을 닫으면 그 비밀번호로는 들어갈 수 없었다.
+       ⚠️ 레코드에는 **password 만** 쓴다 — 저장소의 지금 레코드 위에 덮는다. `{ ...form }` 을 넘기면 원장에서
+          고치던(아직 저장하지 않은) 칸까지 같이 저장된다. 원장 편집은 form 에 그대로 남아 '수정한 항목'으로 센다.
+       신규 등록 창(isEdit=false)은 아직 레코드가 없어 form 에만 두고 등록할 때 함께 저장한다. */
+    const issueTempPassword = () => {
+      const pw = makeTempPassword();
+      pwShown = pw;
+      pwAt = new Date();
+      form.password = pw; // 나중에 원장을 저장해도 옛 비밀번호로 되돌아가지 않게
+      if (isEdit) store.updateClient({ ...storedRec(), password: pw });
+      else touched.password = 1;
       push("임시비밀번호 발급", "warn");
-      renderHd(); renderRail(); renderFt();
-      toast("임시비밀번호를 발급했습니다");
+    };
+    on(panel, "click", "[data-action='reset-pw']", (e, t) => {
+      /* 누른 자리를 기억한다 — 레일·배너·⋯ 메뉴가 다시 그려져도 키보드 포커스가 같은 자리로 돌아오게 */
+      const from = t.closest("[data-slot]");
+      const where = from ? from.dataset.slot : "";
+      issueTempPassword();
+      menuOpen = false;
+      renderHd(); renderRail(); renderBanner(); renderFt();
+      const back = where === "hd" ? qs(panel, "[data-action='menu']") : qs(panel, `[data-slot='${where}'] [data-action='reset-pw']`);
+      if (back) back.focus();
+      toast(isEdit ? `임시비밀번호를 발급했습니다 · ${pwUntil()}까지 유효합니다` : "임시비밀번호를 발급했습니다 · 등록하면 적용됩니다");
     });
     /* 담당자 관리 — 원장 **위에 스택**으로 연다. 화면을 옮기지 않으므로 작성 중인
        원장 편집이 살아 있다. ⚠️ 핸들을 `activeModal` 에 담지 말 것(→ contacts-modal.js). */
     on(panel, "click", "[data-action='go-contacts']", () => {
-      openContactsModal({ client: form, toast, onChange: () => { renderRail(); refreshList(); } });
+      /* 약관 배너의 '연락' 줄이 정산 담당자를 읽는다 — 담당자를 고치면 배너도 같이 다시 그린다. */
+      openContactsModal({ client: form, toast, onChange: () => { renderRail(); renderBanner(); refreshList(); } });
     });
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false; renderHd();
@@ -802,6 +996,10 @@ export function mount(root, { nav }) {
       const created = !isEdit;
       if (created) {
         form.accountId = String(form.accountId).trim(); // 로그인이 아이디를 trim 해 비교한다
+        /* 관리자 등록 거래처는 임시비밀번호로 처음 로그인한다(명세 3.1) — 발급하지 않고 등록하면 들어갈 길이 없는
+           계정이 생긴다(로그인은 언제나 비밀번호를 검사한다). 등록 직후 배너가 '임시비밀번호를 전달하세요'라고
+           말하므로 아직 없으면 여기서 발급한다(S-04 시안 — 등록 순간 레일에 비밀번호가 찍혀 있다). */
+        if (!pwShown) issueTempPassword();
         /* 대표 연락처 키(managerName·contact)는 정산 명세서·주문 모달이 읽는다 — 비어 있으면 정산담당으로 채운다(가입과 같은 규칙). */
         if (!String(form.managerName ?? "").trim()) form.managerName = bill.name.trim();
         if (!String(form.contact ?? "").trim()) form.contact = bill.phone;
@@ -811,11 +1009,14 @@ export function mount(root, { nav }) {
           message: MSG_RECEIVE, isBilling: true,
         }]);
         isEdit = true; // 이제 이 창은 방금 만든 거래처의 수정 창이다 — 헤더·레일·배너가 그 모습으로 바뀐다
-      } else store.updateClient({ ...form });
+        justCreated = true;
+      } else writeForm();
       savedAt = nowHM();
       Object.keys(touched).forEach((k) => delete touched[k]);
       push(created ? "거래처 등록" : "거래처 정보 저장", "ok");
-      if (created) { renderHd(); renderBanner(); }
+      if (created) renderHd();
+      /* 저장한 발급일이 약관 배너의 일정을 바꾼다(배너는 저장된 레코드로 계산한다) — 수정 저장 때도 다시 그린다. */
+      renderBanner();
       renderFt(); renderRail(); refreshList();
       toast(created ? `${form.companyName} 거래처를 등록했습니다` : "거래처 정보를 저장했습니다");
     });
@@ -937,6 +1138,24 @@ export function mount(root, { nav }) {
   const offClick = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
     if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
+    if (a === "terms-only") {
+      state.termsOnly = !state.termsOnly;
+      /* 켜면 '약관 동의 전' 계정이 든 묶음을 펼친다(시안) — 접힌 채면 걸러 낸 자식이 묶음 줄 뒤에 숨는다.
+         state.expanded 에 넣으므로 사용자가 다시 접을 수 있다(검색의 자동 펼침과 다르다). */
+      if (state.termsOnly) {
+        const clients = store.get().clients;
+        const shared = sharedBizKeys(clients);
+        clients.filter(termsPending).forEach((c) => {
+          const k = normalizeBiz(c.bizNumber);
+          if (shared.has(k)) state.expanded.add(k);
+        });
+      }
+      /* 칩은 다시 그리지 않고 상태만 바꾼다 — 다시 그리면 키보드 포커스가 칩에서 떨어진다. */
+      t.classList.toggle("is-on", state.termsOnly);
+      t.setAttribute("aria-pressed", state.termsOnly ? "true" : "false");
+      refreshTableOnly();
+      return;
+    }
     if (a === "new") return openClientModal(null);
     // 그룹 토글은 data-id 가 없으므로 findClient 앞에서 처리해야 한다(뒤면 조용히 무시됨).
     if (a === "grp") {

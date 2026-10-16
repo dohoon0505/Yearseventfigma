@@ -10,9 +10,11 @@
    - 표 1열이 주문경로가 아니라 **거래처**(사업자번호를 공유하면 부서 병기).
      ⚠️ 거래조건 `!` 배지는 **없다** — 모달이 전문을 띄우므로 중복이라 뺐다(되살리지 말 것)
    - 날짜 기준 세그가 '접수일'이 아니라 **'주문일'**(B2B 필드는 date)
-   - 주문정보 존에 **정산 귀속월·적용 단가** 2행이 더 있다. 거래처 후불 정산의
-     근거라 **직접 고치는 칸이 아니다**(모달은 모드 없는 상시 편집이라 '편집 모드'라는 것이 없다)
-     — 귀속월은 배송일시의 달에서 나오고(2026-10-15) 배송일시를 고치면 함께 바뀐다
+   - 주문정보 카드가 시안 S-06(2026-10-16) 배치다 — 거래처 | 귀속월 · 주문 요청자 | 연락처 · 주문상품 | 알림 수신 ·
+     주문금액(한 줄 — 칸 + '원' + 잠긴 이유). 귀속월은 배송일시의 달에서 나오고(2026-10-15) 배송일시를 고치면 함께 바뀐다
+   - **정산 잠금**(명세 3.4 '마감 전 수정' · 6.4 `409 SETTLEMENT_PERIOD_LOCKED`) — 저장된 배송일시의 달 정산이 고칠 수 없는
+     상태(`settlementOf(...).editable === false`)면 주문금액·주문상품을 잠그고 이유(`lockReason` — 명세 6.4 정본 문구)를
+     금액 칸 옆에 둔다. 저장·삭제·주문취소는 그 순간 다시 판정한다(서버 409 의 데모 대역 — 아래 `lockHit`)
    - clientNote(거래 조건)는 최상단 배너가 아니라 **요약 레일 맨 아래 카드**다.
      메모가 아니라 거래 조건이고((주)홈박스: "무조건 특대상품 발송") 빠지면 주문마다 사고가 난다
    - 주문취소는 settle 에 달 이름을 넘긴다 — 수수료가 취소한 달 정산에 가산된다는 안내(귀속월은 배송한 달)
@@ -36,6 +38,8 @@ import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
 import { invoiceDayOf, periodOf, periodLabel } from "../data/settlement-rules.js";
 import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
+import { settlementOf } from "../util/settlement.js";
+import { setFocusClient, setFocusSection, takeFocusClient, takeFocusSection } from "../session.js";
 import { staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
@@ -47,8 +51,8 @@ import {
 /* ⚠️ 주문 레코드는 **저장 함수로만** 고친다(b2bUpsert·b2bPushHistory·b2bCancel·…) — b2b-mock 이 변경분을
    store 에 영속한다. `findOrder()` 로 받은 레코드에 pushHistory·필드 대입을 직접 하면 새로고침에 사라진다. */
 import {
-  B2B_STATUSES, b2bList, b2bUpsert, b2bRemove, b2bPushHistory, b2bCancel,
-  b2bSetStatus, b2bSetManager, b2bNewId, b2bNextOrderNo,
+  B2B_STATUSES, b2bList, b2bUpsert, b2bRemove, b2bCancel,
+  b2bSetManager, b2bNewId, b2bNextOrderNo,
 } from "../data/b2b-mock.js";
 
 const TABS = tabDefs(B2B_STATUSES);
@@ -67,6 +71,11 @@ function orderPeriodLabel(dateStr) {
   const d = parseFlexDate(dateStr);
   return d ? `${d.getFullYear()}년 ${pad2(d.getMonth() + 1)}월` : "-";
 }
+/** 날짜 문자열(세 포맷 어느 것이든) → 귀속월 "YYYY-MM" 또는 ""(없거나 깨짐). 정산 판정의 열쇠다. */
+const ymOf = (dateStr) => { const d = parseFlexDate(dateStr); return d ? periodOf(d) : ""; };
+/** 숫자 → "60,000"(단위 없이) — 상세 모달의 주문금액 칸은 시안대로 칸 옆에 '원' 이 따로 있다. */
+const wonNum = (n) => Number(n || 0).toLocaleString("ko-KR");
+const digitsOf = (p) => String(p || "").replace(/\D/g, "");
 
 export function mount(root, { nav }) {
   const state = {
@@ -75,6 +84,10 @@ export function mount(root, { nav }) {
     detailOpen: true,
     dateBasis: "ordered", dateQuick: "전체", dateStart: "", dateEnd: "",
     qAddress: "", qClient: "", qRecipient: "", qOrderer: "", qOrderNo: "",
+    /* 거래처 **정확히** 하나로 거르기 — 다른 화면이 '이 거래처 · 이 달 주문' 을 넘겨줄 때만 켠다(아래 takeFocus).
+       qClient 는 글자 포함 검색이라 한빛과학(주)로 찾으면 같은 사업자번호의 '한빛과학(주) 연구소 계정' 까지 걸린다.
+       검색칸에는 그 거래처 이름을 그대로 보여 주고, 사람이 검색칸을 고치면 이 값은 풀린다(보이는 글자와 숨은 조건이 갈리지 않게). */
+    clientId: "",
   };
   const DP_MIN = new Date(2000, 0, 1);
   const DP_MAX = new Date(new Date().getFullYear() + 2, 11, 31);
@@ -101,6 +114,7 @@ export function mount(root, { nav }) {
     const e = state.dateEnd ? new Date(state.dateEnd + "T23:59:59") : null;
     const match = (field, q) => !has(q) || String(field || "").includes(q.trim());
     return b2bList().filter((o) => {
+      if (state.clientId && o.clientId !== state.clientId) return false;
       if (state.tab !== "all" && o.status !== state.tab) return false;
       if (state.photo.length && !state.photo.includes(o.image ? "has" : "no")) return false;
       if (state.noti.length && !state.noti.includes(o.notified ? "on" : "off")) return false;
@@ -145,7 +159,9 @@ export function mount(root, { nav }) {
         srch("qClient", "거래처", "회사명·부서"),
         srch("qRecipient", "받는분", "받는분 성함"),
         srch("qOrderer", "발송인", "발송인 성함·부서"),
-        srch("qOrderNo", "주문번호", "예) B2B-0008"),
+        /* 자리표시는 지금 번호 체계로 — 시드는 배송 달별 `B2B-YYMMNNN`, 새 주문은 `B2B-YYMM9NNN`(b2b-mock).
+           글자 포함 검색이라 앞부분('B2B-2609')만 넣어도 그 달 주문이 걸린다. */
+        srch("qOrderNo", "주문번호", "예) B2B-2609001"),
       ],
     });
   }
@@ -234,7 +250,9 @@ export function mount(root, { nav }) {
   let savedAt = "";
   let menuOpen = false;
 
-  /* 주문정보 — 4번째 칸이 주문금액. 상품을 고르면 거래처 계약 단가로 채워지고, **관리자가 고칠 수 있다**
+  /* 주문정보 — **등록 모달(2단계 '상품 · 단가')이 쓰는 서술자**다. 상세 모달은 시안 S-06 배치라 아래
+     `orderInfoBody()` 가 따로 그린다(서술자를 바꾸면 등록 모달이 같이 바뀐다 — 등록은 다른 모달이다).
+     4번째 칸이 주문금액. 상품을 고르면 거래처 계약 단가로 채워지고, **관리자가 고칠 수 있다**
      (2026-09-25 결정 — 가입 혜택 '1회 무료'를 0원 주문으로 처리한다. 예전엔 계약단가 보호로 잠가 뒀다).
      입력은 order-fields.js `readWonInput` — 숫자 외 문자를 지우지 않고 거부한다. 등록 모달의 '단가 기준' 줄이
      계약단가와 다르면 그렇다고 말한다.
@@ -263,14 +281,182 @@ export function mount(root, { nav }) {
 
   const metaLine = () => `${clientName(editing)} · 주문 ${fmtFull(editing.date)} · ${fmtFull(editing.deliverAt)} 배송 예정`;
 
-  /* 요약 레일 — 가운데 줄이 B2C 는 주문경로, B2B 는 거래처(확정).
-     정산 귀속은 B2B 에만 있는 한 줄이다. */
+  /* ── 정산 잠금 (시안 S-06 · 명세 3.4 '마감 전 수정' · 6.4 '정산 잠금') ─────────────────────
+     판정은 `settlementOf(거래처, 달).editable` 하나다 — 화면이 날짜로 짐작하지 않는다(명세 6.6). 그 달 = **저장된**
+     배송일시의 달(명세 6.4 '주문 상세의 정산 요약' — `settlement` 은 저장된 배송일시의 달 정산). 고치는 중인 배송일시가
+     아니다: 다른 달로 옮기는 저장은 옛 달·새 달을 **둘 다** 저장 순간에 따로 검사한다(lockHit).
+     ⚠️ 잠기는 칸은 주문금액·주문상품 둘이다. 금액에 영향이 없는 칸(리본 문구·요청사항·같은 달 안의 배송일시 등)은
+        그대로 고친다(명세 6.4). 배송지는 이 화면이 금액을 다시 채우지 않으므로(N15 는 아직) 잠그지 않는다. */
+  let amtLock = null;   // 잠겼으면 그 달의 settlementOf 결과, 열려 있으면 null
+  let prodDd = null;    // 주문상품 드롭다운 — 잠글 때 이것만 걷어낸다(배송일시 피커는 그대로)
+  const settleOf = (o, ym = ymOf(o?.deliverAt), now = new Date()) => {
+    const c = clientOf(o);
+    return c && ym ? settlementOf(c, ym, now) : null;
+  };
+  const lockOf = (o, now = new Date()) => { const s = settleOf(o, undefined, now); return s && !s.editable ? s : null; };
+  /** 이 저장(stored → next)이 정산 금액을 바꾸는 달 중 **잠긴 달**이 있으면 `{ ym, s, moved, isOld }`, 없으면 null.
+   *  금액·상품이 바뀌면 그 달, 배송일시가 다른 달로 옮겨 가면 옛 달·새 달 **둘 다**(명세 6.4 — 둘 다 잠겼으면 옛 달을 말한다). */
+  function lockHit(stored, next, now = new Date()) {
+    const c = clientOf(stored);
+    if (!c) return null;
+    const oldYm = ymOf(stored.deliverAt), newYm = ymOf(next.deliverAt);
+    const moved = oldYm !== newYm;
+    const money = Number(stored.amount || 0) !== Number(next.amount || 0) || String(stored.product || "") !== String(next.product || "");
+    const yms = moved ? [oldYm, newYm].filter(Boolean) : money && oldYm ? [oldYm] : [];
+    for (const ym of yms) {
+      const s = settlementOf(c, ym, now);
+      if (!s.editable) return { ym, s, moved, isOld: ym === oldYm };
+    }
+    return null;
+  }
+
+  /* ── 알림 수신 — 배송완료 알림(T2)이 실제로 닿을 사람(명세 5.3 'T2 발송 규칙'의 화면 대역) ──────────
+     명단(notifyList — 등록·포털 접수 때의 스냅샷)이 있으면 그것을, 없으면(시드 주문) 지금 규칙(받는분 + 수신 ON 담당자)을 쓴다.
+     ⚠️ 수신을 꺼 둔 담당자·이 주문에서 끈 줄·번호 없는 줄은 **받는 사람으로 세지 않는다**(규칙 2) — 화면이 '받음' 이라고
+        말하는데 실제로 안 가는 일을 만들지 않는다. 받는분 줄은 주문의 **지금** 받는분 이름·번호로 맞추고(규칙 1),
+        삭제된 담당자의 줄은 보내지 않으며(규칙 1), 같은 번호는 한 번만 센다(규칙 3).
+     순서는 담당자 → 추가 수신자 → 보내는분 → 받는분(관리자가 먼저 찾는 것은 거래처 쪽 사람이다). */
+  function notifyPeople(o) {
+    const cts = o && o.clientId ? store.contactsOf(o.clientId) : [];
+    const out = [];
+    const seen = new Set();
+    const add = (name, phone, role) => {
+      const d = digitsOf(phone);
+      if (!d || seen.has(d)) return;
+      seen.add(d);
+      out.push({ name: String(name || "").trim() || role, role });
+    };
+    if (Array.isArray(o.notifyList)) {
+      const rows = o.notifyList.filter((r) => r && r.on !== false);
+      rows.filter((r) => r.kind === "contact").forEach((r) => {
+        if (r.contactId && !cts.some((x) => x.id === r.contactId)) return;
+        add(r.name, r.phone, "담당자");
+      });
+      rows.filter((r) => r.kind === "extra").forEach((r) => add(r.name, r.phone, "추가 수신자"));
+      rows.filter((r) => r.kind === "sender").forEach((r) => add(r.name, r.phone, "보내는분"));
+      if (rows.some((r) => r.kind === "recipient")) add(o.recipientName, o.recipientPhone, "받는분");
+    } else {
+      receivingContacts(cts).forEach((ct) => add(ct.name, ct.phone, "담당자"));
+      add(o.recipientName, o.recipientPhone, "받는분");
+    }
+    return out;
+  }
+  /** "오임찬 외 2명" — 칸이 좁아(1280 에서 약 170px) 첫 사람과 인원만. 전부는 title 로. */
+  const peopleShort = (list) => (!list.length ? "" : list.length === 1 ? list[0].name : `${list[0].name} 외 ${list.length - 1}명`);
+  const peopleFull = (list) => list.map((p) => `${p.name}(${p.role})`).join(" · ");
+  /** 접수 확인(T1)을 받는 주문 요청자 — 요청자 기록(등록·포털 접수) → 같은 이름의 담당자 순, 없으면 null(스테퍼 이력 전용).
+   *  시드 주문에는 요청자 기록이 없다(주문 요청자 칸 = 발송인 이름). 화면의 '연락처' 칸은 아래 `reqPhoneCell` 이다. */
+  function requesterOf(o) {
+    if (o.requesterName && digitsOf(o.requesterPhone)) return { name: o.requesterName, phone: o.requesterPhone };
+    const nm = String(o.requesterName || o.ordererName || "").trim();
+    const ct = nm && o.clientId ? store.contactsOf(o.clientId).find((x) => x.name === nm && digitsOf(x.phone)) : null;
+    return ct ? { name: ct.name, phone: ct.phone } : null;
+  }
+  /** '주문 요청자' 칸(= ordererName) 옆 연락처 — **그 칸에 적힌 사람**의 번호만 쓴다. 요청자 기록의 이름이 칸과 같으면 그 번호
+   *  (포털 접수는 ordererName = 요청자), 아니면 같은 이름의 담당자, 둘 다 없으면 거래처 대표 연락처(title 이 어느 쪽인지 말한다).
+   *  ⚠️ `requesterOf`(T1 받는 사람)를 그대로 쓰면 안 된다 — 관리자 등록 주문은 요청자(목록에서 고름)와 이 칸(발송인)이 다를 수
+   *     있어, 이름 확인 없이 요청자 번호를 쓰면 **다른 사람의 번호가 이 이름 옆에 선다**(2026-10-16 검토 실측: 칸은 비었는데
+   *     연락처는 담당자 할다운의 번호). 칸을 고치면 따라 바뀐다(syncReqPhone). */
+  function reqPhoneCell(o) {
+    const nm = String(o.ordererName || "").trim();
+    let phone = "";
+    if (nm && String(o.requesterName || "").trim() === nm && digitsOf(o.requesterPhone)) phone = o.requesterPhone;
+    else if (nm && o.clientId) phone = (store.contactsOf(o.clientId).find((x) => x.name === nm && digitsOf(x.phone)) || {}).phone || "";
+    return phone
+      ? { text: phone, title: "주문 요청자 연락처" }
+      : { text: dash(clientOf(o)?.contact), title: "거래처 대표 연락처" };
+  }
+
+  /* ── 상세 모달 본문 — 시안 S-06 ─────────────────────────────────────────────── */
+  /* 발주정보 — 등록 모달과 같은 키(DELIVER_FIELDS)를 쓰되 시안대로 두 가지만 다르다:
+     ① 배송지는 한 줄 칸(길면 말줄임 — 칸을 눌러 고친다) ② 요청사항은 **열 때 비어 있으면 줄째 감춘다**
+     (거래처가 남기는 칸이라 관리자가 새로 적을 일이 드물다 — 1280x720 에서 스크롤 없이 한 주문을 끝내려는 시안의 선택). */
+  const detailDeliverFields = (o) => DELIVER_FIELDS
+    .filter((d) => d.k !== "request" || String(o.request || "").trim())
+    .map((d) => (d.k === "address" ? { ...d, type: "text" } : d));
+
+  const AMT_ID = "ord-amt-in";
+  const AMT_WHY = "ord-amt-why";
+  const periodText = () => { const ym = ymOf(editing.deliverAt); return ym ? `${periodLabel(ym)} 귀속` : "-"; };
+  /* 주문금액 칸 — 열려 있으면 입력(거부형 readWonInput), 잠겼으면 시안의 잠김 모양(자물쇠 + 금액, 읽기 전용)과
+     같은 줄의 이유. 이유 문구는 명세 6.4 정본(`lockReason`)이라 길다 — 시안대로 한 줄로 자르고 전문은 title·aria 로 읽힌다. */
+  function amtBox() {
+    if (amtLock) {
+      return html`
+        <span class="ord-amtf__lock" id="${AMT_ID}" role="textbox" aria-readonly="true" aria-label="주문금액"
+          aria-describedby="${AMT_WHY}" tabindex="0">${icon("lock", { size: 14 })}<span>${wonNum(editing.amount)}</span></span>
+        <span class="ord-amtf__unit">원</span>
+        <span class="ord-amtf__why" id="${AMT_WHY}" title="${amtLock.lockReason}">${amtLock.lockReason}</span>`;
+    }
+    return html`
+      <input class="ord-in ord-amtf__in" id="${AMT_ID}" data-f="amount" value="${wonNum(editing.amount)}" inputmode="numeric" />
+      <span class="ord-amtf__unit">원</span>`;
+  }
+  function prodCell() {
+    if (amtLock) return html`<span class="ord-val ord-val--lock" title="${dash(editing.product)}">${dash(editing.product)}</span>`;
+    return html`<div class="dd ord-fdd" data-dd-f="product">
+      <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+      <div class="dd-panel" role="listbox"></div>
+    </div>`;
+  }
+  function notifyCell() {
+    const list = notifyPeople(editing);
+    return list.length
+      ? { text: peopleShort(list), title: peopleFull(list), empty: false }
+      : { text: "받을 사람 없음", title: "번호가 있고 켜진 수신자가 없어 배송완료 알림이 나가지 않습니다", empty: true };
+  }
+  function orderInfoBody() {
+    const name = clientName(editing);
+    const rp = reqPhoneCell(editing);
+    const nt = notifyCell();
+    return html`
+      <div class="ord-row">
+        <span class="ord-k">거래처</span><span class="ord-val" title="${name}">${name}</span>
+        <span class="ord-k">귀속월</span><span class="ord-val ord-val--num" data-slot="period">${periodText()}</span>
+      </div>
+      <div class="ord-row">
+        <label class="ord-k" for="ord-orderer">주문 요청자</label>
+        <input class="ord-in" id="ord-orderer" data-f="ordererName" value="${editing.ordererName ?? ""}" placeholder="예) 총무팀 · 한지훈" />
+        <span class="ord-k">연락처</span><span class="ord-val ord-val--num" data-slot="reqphone" title="${rp.title}">${rp.text}</span>
+      </div>
+      <div class="ord-row">
+        <span class="ord-k">주문상품</span><div class="ord-prodcell" data-slot="prodcell">${prodCell()}</div>
+        <span class="ord-k">알림 수신</span><span class="ord-val ${nt.empty ? "is-empty" : ""}" data-slot="notify" title="${nt.title}">${nt.text}</span>
+      </div>
+      <div class="ord-row ord-row--full">
+        <label class="ord-k" for="${AMT_ID}">주문금액</label>
+        <div class="ord-amtf" data-slot="amtbox">${amtBox()}</div>
+      </div>`;
+  }
+
+  /* 요약 — 상품 · 담당자 · (명세서가 나간 달이면) 'M월 정산' 줄. 거래처·귀속월은 시안대로 주문정보 카드로 옮겼다.
+     정산 줄은 **고치는 중인 배송일시의 달**을 보인다(귀속월 칸과 같은 달 — 다른 달로 옮기는 중이면 옮겨 갈 달의 상태가
+     먼저 보인다). 발행 전(SCHEDULED)이면 시안대로 줄을 감춘다. 낱말은 관리자 정산회계(S-01)와 같은 말이다. */
+  const SETTLE_CHIP = {
+    AWAITING_AGREEMENT: ["동의대기", "warn"],
+    AGREED: ["동의완료 · 발급 전", "warn"],
+    ISSUED: ["동의완료 · 발급완료", "ok"],
+    OVERDUE: ["기한 초과", "danger"],
+    PAID: ["입금완료", "ok"],
+    NONE: ["거래 없음", "gray"],
+  };
+  function settleRow() {
+    const ym = ymOf(editing.deliverAt);
+    const s = settleOf(editing, ym);
+    if (!s || !s.issued || s.status === "SCHEDULED") return null;
+    /* 잠정 보류 둘(Q19·Q20)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다). */
+    const held = s.status === "AWAITING_AGREEMENT" && (s.autoAgreeHold === "NOTICE_UNDELIVERED" || s.autoAgreeHold === "CLIENT_SUSPENDED");
+    const [label, tone] = s.zero ? ["0원 · 계산서 없음", "gray"] : held ? ["동의 보류", "warn"] : SETTLE_CHIP[s.status] || [s.status, "gray"];
+    return {
+      k: `${Number(ym.slice(5))}월 정산`, action: "go-settle", cls: "ord-sum__row--settle",
+      v: html`<span class="ord-schip ord-schip--${tone}">${label}</span>`,
+    };
+  }
   const summaryRows = () => [
     { k: "상품", v: dash(editing.product) },
-    { k: "거래처", v: clientName(editing) },
-    { k: "정산 귀속", v: orderPeriodLabel(editing.deliverAt) },
     { k: "담당자", v: editing.manager || "미지정", empty: !editing.manager, action: "pick-manager" },
-  ];
+    settleRow(),
+  ].filter(Boolean);
 
   function modalBody() {
     const c = clientOf(editing);
@@ -280,30 +466,32 @@ export function mount(root, { nav }) {
       </div>
       <div class="ord-grid">
         ${railV2({ order: editing, imgInner: imgBox.inner() })}
-        <div class="ord-pane">
-          <div class="ord-cols">
-            <div class="ord-colL">
-              ${card({ title: "주문정보", cap: "거래처 접수 내용", body: renderFields(ORDER_FIELDS(), editing) })}
-              ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(DELIVER_FIELDS, editing) })}
-            </div>
-            <div class="ord-colR">
-              <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
-              ${card({
-                title: "처리 이력", cap: `${(editing.history || []).length}건`,
-                body: historyBody(editing), slot: "hist",
-              })}
-              ${/* 거래 조건은 메모가 아니라 거래 조건이다 — 요약 레일 맨 아래에 붙여
-                   담당자가 발주를 결정하기 직전에 한 번 더 보게 한다.
-                   껍데기는 요약·처리 이력과 **같은 .ord-card**, 본문 글자만 경고색. */ ""}
-              ${c && c.clientNote ? card({
-                title: "거래 조건", cap: c.companyName, cls: "ord-note",
-                body: html`<p class="ord-note__body">${c.clientNote}</p>`,
-              }) : ""}
+        <div class="ord-main">
+          <div class="ord-pane">
+            <div class="ord-cols">
+              <div class="ord-colL">
+                ${card({ title: "주문정보", cap: "거래처 접수 내용", body: orderInfoBody() })}
+                ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(detailDeliverFields(editing), editing) })}
+              </div>
+              <div class="ord-colR">
+                <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
+                ${card({
+                  title: "처리 이력", cap: `${(editing.history || []).length}건`, cls: "ord-histcard",
+                  body: historyBody(editing), slot: "hist",
+                })}
+                ${/* 거래 조건은 메모가 아니라 거래 조건이다 — 요약 레일 맨 아래에 붙여
+                     담당자가 발주를 결정하기 직전에 한 번 더 보게 한다.
+                     껍데기는 요약·처리 이력과 **같은 .ord-card**, 본문 글자만 경고색. */ ""}
+                ${c && c.clientNote ? card({
+                  title: "거래 조건", cap: c.companyName, cls: "ord-note",
+                  body: html`<p class="ord-note__body">${c.clientNote}</p>`,
+                }) : ""}
+              </div>
             </div>
           </div>
+          <div class="hm__foot ord-ft" data-slot="ft">${footerV2({ dirty: dirtyCount(), savedAt })}</div>
         </div>
-      </div>
-      <div class="hm__foot ord-ft" data-slot="ft">${footerV2({ dirty: dirtyCount(), savedAt })}</div>`;
+      </div>`;
   }
 
   /* ── 부분 갱신 — 본문(입력)은 절대 다시 그리지 않는다 ────── */
@@ -338,6 +526,38 @@ export function mount(root, { nav }) {
     }
     const btn = qs(p, "[data-action='save']");
     if (btn) { btn.disabled = !n; btn.textContent = n ? "변경사항 저장" : "저장"; }
+  }
+  /* 주문정보 카드의 파생 칸 두 개 — 입력의 형제라 textContent·title 만 바꾼다(커서 보호). */
+  function syncPeriod() {
+    const el = panelOf() && qs(panelOf(), "[data-slot='period']");
+    if (el) el.textContent = periodText();
+  }
+  function syncReqPhone() {
+    const el = panelOf() && qs(panelOf(), "[data-slot='reqphone']");
+    if (!el) return;
+    const rp = reqPhoneCell(editing);
+    el.textContent = rp.text;
+    el.title = rp.title;
+  }
+  function syncNotify() {
+    const el = panelOf() && qs(panelOf(), "[data-slot='notify']");
+    if (!el) return;
+    const nt = notifyCell();
+    el.textContent = nt.text;
+    el.title = nt.title;
+    el.classList.toggle("is-empty", nt.empty);
+  }
+  /** 금액·상품 칸을 잠근다(열 때 이미 잠긴 달 · 저장 순간 잠긴 것이 드러난 달). 다른 칸은 다시 그리지 않는다.
+   *  잠긴 칸에는 **저장된** 금액·상품을 보인다 — 고쳐 둔 값은 그 달에 저장될 수 없어서, 들고 있으면 '수정한 항목' 이
+   *  영영 남아 다른 칸까지 저장하지 못하게 된다(다른 칸의 입력은 그대로 둔다). */
+  function applyLock(s, stored) {
+    amtLock = s;
+    if (stored) { editing.amount = stored.amount; editing.product = stored.product; }
+    const p = panelOf(); if (!p) return;
+    if (prodDd) { prodDd.destroy(); const i = dds.indexOf(prodDd); if (i >= 0) dds.splice(i, 1); prodDd = null; }
+    const pc = qs(p, "[data-slot='prodcell']"); if (pc) setHTML(pc, prodCell());
+    const ab = qs(p, "[data-slot='amtbox']"); if (ab) setHTML(ab, amtBox());
+    renderSum(); syncDirty();
   }
 
 
@@ -980,15 +1200,20 @@ export function mount(root, { nav }) {
     refreshList();
     if (filtered().some((o) => o.id === rec.id)) { toast(`${rec.orderNo} 주문을 등록했습니다`, "ok"); return; }
     state.tab = "all"; state.dateQuick = "전체"; state.dateStart = ""; state.dateEnd = "";
-    render();
+    if (state.clientId && state.clientId !== rec.clientId) { state.clientId = ""; state.qClient = ""; }
+    dateRange.destroy(); render(); dateRange.bind(); // 기간 피커는 다시 그린 필터 카드에 다시 붙인다
+
     toast(`${rec.orderNo} 등록 · 보이도록 목록 필터를 초기화했습니다`, "ok");
   }
 
-  function destroyDds() { dds.forEach((d) => d.destroy()); dds.length = 0; }
+  function destroyDds() { dds.forEach((d) => d.destroy()); dds.length = 0; prodDd = null; }
+  /* 상세 모달의 주문금액 칸 — 단위('원')가 칸 밖에 따로 있어 칸에는 숫자만 쓴다(시안 S-06). 받는 규칙은 등록 모달과 같은
+     `readWonInput`(거부형)이고, 되돌릴 때만 단위 없이 쓴다(주문취소 수수료 칸과 같은 수법 — settleWonInput 은 'N원' 을 쓴다). */
+  const putAmt = (t, n) => { t.value = wonNum(n); t.classList.remove("is-bad"); t.setAttribute("aria-invalid", "false"); };
   function bindControls(panel) {
     destroyDds();
     const prod = qs(panel, "[data-dd-f='product']");
-    if (prod) dds.push(makeDropdown(prod, {
+    if (prod) dds.push(prodDd = makeDropdown(prod, {
       options: () => PRODUCTS.map((p) => p.name),
       /* 금액은 바로 옆 '주문금액/적용 단가' 칸에 이미 있다 — 상품명만 보여 준다 */
       label: (v) => v || "상품을 선택하세요",
@@ -1003,43 +1228,76 @@ export function mount(root, { nav }) {
         /* ⚠️ `[data-slot]` 이 아니라 `[data-f]` 다 — data-slot 은 잠긴 칸에만 붙는다(order-fields fieldCell).
            잠금을 풀 때 이걸 안 바꾸면 상품을 바꿔도 칸의 금액이 옛 값으로 남는다. */
         const amt = qs(panel, "[data-f='amount']");
-        if (amt) settleWonInput(amt, editing.amount);
+        if (amt) putAmt(amt, editing.amount);
         renderSum(); syncDirty();
       },
     }));
     const dtp = qs(panel, "[data-dtp]");
     if (dtp) dds.push(makeDateTimePicker(dtp, {
       get: () => editing.deliverAt,
-      set: (v) => { editing.deliverAt = v; renderHd(); renderSum(); syncDirty(); },
+      /* 귀속월 칸·정산 줄이 함께 바뀐다. 다른 달로 옮겨도 여기서 막지 않는다 — 날짜·시·분을 고르는 동안 여러 번
+         불리므로, 옛 달·새 달 잠금은 저장하는 순간 한 번 판정한다(lockHit). */
+      set: (v) => { editing.deliverAt = v; renderHd(); renderSum(); syncPeriod(); syncDirty(); },
       min: DP_MIN, max: DP_MAX,
     }));
     qsa(panel, "textarea.ord-in").forEach(autosize);
   }
+
+  /* 잠긴 달 때문에 막힌 저장·삭제·취소가 하는 말. 이유는 명세 6.4 정본(lockReason)이고, 어느 달 때문인지를 앞에 붙인다. */
+  const lockMsg = (hit, what) => (hit.moved
+    ? `배송일시를 ${periodLabel(hit.ym)}${hit.isOld ? "에서" : "로"} 옮길 수 없습니다 · ${hit.s.lockReason}`
+    : `${periodLabel(hit.ym)} 정산이 잠겨 ${what} 수 없습니다 · ${hit.s.lockReason}`);
+
+  /* 배송완료 알림(T2)·접수 확인(T1) 이력 줄 — 누구에게 갔는지 이름을 함께 남긴다(시안 S-06 '이력에 받는 사람').
+     데모라 실제 발송은 없고, 명세 5.3 규칙으로 '보낼 사람' 을 정해 적는다. 받을 사람이 없으면 그렇다고 적는다(M58 '못 보냄'). */
+  const deliveredEntries = (o) => {
+    const list = notifyPeople(o);
+    return [
+      histEntry("delivered", "배송완료로 변경"),
+      histEntry("delivered", list.length ? `배송완료 알림 · ${peopleShort(list)}` : "배송완료 알림 · 받을 사람 없음"),
+    ];
+  };
 
   function saveOrder() {
     if (!editing) return;
     if (!editing.clientId || !editing.product) { toast("거래처와 주문상품은 필수입니다", "warn"); return; }
     const n = dirtyCount();
     const merged = { ...editing, amount: Number(editing.amount) || 0 }; // 칸은 readWonInput 이 받은 숫자만 쓴다
+    /* 정산 잠금 — 서버 409 SETTLEMENT_PERIOD_LOCKED 의 데모 대역. **저장하는 순간 다시 판정한다**(창을 열어 둔 사이
+       수정 마감이 지났거나 거래처가 동의했을 수 있다). 막히면 저장하지 않고 이유를 말한다. 다른 칸의 입력은 그대로 둔다.
+       저장된 달 자체가 잠겼으면 금액·상품 칸을 잠긴 모양으로 바꾸고 저장된 값으로 되돌린다(그 값은 이 달에 저장될 수 없다). */
+    const stored = findOrder(editing.id);
+    const hit = stored ? lockHit(stored, merged) : null;
+    if (hit) {
+      if (hit.isOld) applyLock(hit.s, stored);
+      toast(lockMsg(hit, "저장할"), "warn");
+      return;
+    }
     let autoDone = false;
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
       merged.status = "배송완료";
-      merged.notified = true;
+      merged.notified = notifyPeople(merged).length > 0; // 받을 사람이 0명이면 보내지 않는다(M58 — 스테퍼와 같은 규칙)
       autoDone = true;
     }
-    delete merged.history; // draft 의 history 는 넘기지 않는다(참조 공유 방지)
+    /* 이력은 레코드와 **한 번에** 저장한다(쓰기 하나 — 둘로 나누면 둘째가 실패할 때 '수정했는데 이력 없음' 이 남는다). */
+    const hist = [...((stored && stored.history) || [])];
+    if (n) hist.push(histEntry("edit", `주문 정보 수정 ${n}건`));
+    if (autoDone) hist.push(...deliveredEntries(merged));
+    merged.history = hist;
     /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다. */
     if (!b2bUpsert(merged)) { toast(SAVE_FAIL, "warn"); return; }
-    if (n) b2bPushHistory(merged.id, "edit", `주문 정보 수정 ${n}건`);
-    if (autoDone) b2bPushHistory(merged.id, "delivered", "배송완료 · 알림톡 발송");
-    const stored = findOrder(merged.id);
+    const saved = findOrder(merged.id);
+    delete merged.history; // 작업본(editing)에는 저장된 레코드의 이력을 따로 붙인다(참조 공유 방지)
     refreshList();
-    editing = { ...merged, history: stored ? stored.history : [] };
+    editing = { ...merged, history: saved ? saved.history : [] };
     baseline = { ...editing };
     const d = new Date();
     savedAt = `${d.getHours() < 12 ? "오전" : "오후"} ${d.getHours() % 12 || 12}:${pad2(d.getMinutes())}`;
     renderHd(); renderSum(); renderHist(); syncDirty();
-    toast(autoDone ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "주문 정보를 저장했습니다");
+    /* 금액에 영향이 없는 저장은 잠긴 달에서도 받는다 — 그 사이 그 달이 잠겼으면(열어 둔 동안 수정 마감·동의) 칸을 지금 잠근다. */
+    if (!amtLock && saved) { const nl = lockOf(saved); if (nl) applyLock(nl, null); }
+    toast(!autoDone ? "주문 정보를 저장했습니다"
+      : merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다");
   }
 
   function openManagerModal() {
@@ -1074,22 +1332,37 @@ export function mount(root, { nav }) {
     /* 배송완료의 근거(사진·인수자)는 **상태와 함께 저장**한다. canComplete() 는 작성 중인 값(editing)을 보는데
        b2bSetStatus 는 저장된 레코드에만 상태를 쓴다 — 저장 안 한 사진·인수자로 스테퍼를 누르면 '배송완료 · 사진
        없음 · 인수자 없음' 레코드가 영속됐다(2026-10-16 검증). 다른 미저장 수정은 건드리지 않는다(저장 버튼 몫). */
+    /* 상태 · 근거 · 이력을 **쓰기 한 번**으로 남긴다. 이력에는 알림이 누구에게 갔는지를 함께 적는다(시안 S-06) —
+       배송완료면 배송완료 알림(T2) 받는 사람, 주문접수면 접수 확인(T1)을 받는 주문 요청자(명세 3.3 · 9.4).
+       그래서 b2bSetStatus('배송완료 · 알림톡 발송' 한 줄만 쓴다)를 지나지 않는다. 요청자 번호를 모르는 주문(시드)은
+       T1 줄을 쓰지 않는다 — 보낼 곳이 없는 알림을 보냈다고 적지 않는다. */
+    const st = findOrder(editing.id);
+    if (!st) return;
+    const rec = { ...st, status: next };
+    const add = [];
     if (next === "배송완료") {
-      const st = findOrder(editing.id);
-      if (st && (st.image !== editing.image || String(st.receiver || "") !== String(editing.receiver || ""))) {
-        if (!b2bUpsert({ ...st, image: editing.image, receiver: editing.receiver })) { toast(SAVE_FAIL, "warn"); return; }
-        if (baseline) { baseline.image = editing.image; baseline.receiver = editing.receiver; }
-      }
+      rec.image = editing.image; rec.receiver = editing.receiver;
+      /* 받을 사람이 0명이면 보내지 않고 notified=false 다(명세 5.3 'T2 발송 규칙' 4 · M58) — 이력('받을 사람 없음')·
+         목록 '알림' 칸·토스트가 같은 말을 하게 한다(예전엔 이력은 '받을 사람 없음' 인데 목록은 '알림 발송완료' 였다). */
+      rec.notified = notifyPeople(rec).length > 0;
+      add.push(...deliveredEntries(rec));
+    } else {
+      add.push(histEntry("status", `${next}로 변경`));
+      const rq = next === "주문접수" ? requesterOf(rec) : null;
+      if (rq) add.push(histEntry("status", `주문접수 알림 · ${rq.name}`));
     }
-    if (!b2bSetStatus(editing.id, next)) { toast(SAVE_FAIL, "warn"); syncDirty(); return; }
+    rec.history = [...(st.history || []), ...add];
+    if (!b2bUpsert(rec)) { toast(SAVE_FAIL, "warn"); syncDirty(); return; }
+    if (next === "배송완료" && baseline) { baseline.image = editing.image; baseline.receiver = editing.receiver; }
     editing.status = next;
-    if (next === "배송완료") editing.notified = true;
+    if (next === "배송완료") editing.notified = rec.notified;
     if (baseline) { baseline.status = next; baseline.notified = editing.notified; }
     const stored = findOrder(editing.id);
     if (stored) editing.history = stored.history;
     refreshList();
-    renderHd(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다
-    toast(next === "배송완료" ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : `${next}(으)로 변경했습니다`);
+    renderHd(); renderSum(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다 · 요약은 '배송 완료'
+    toast(next !== "배송완료" ? `${next}(으)로 변경했습니다`
+      : rec.notified ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : "배송완료로 전환 · 받을 사람이 없어 알림톡은 나가지 않습니다");
     const p = panelOf();
     if (p) qs(p, ".ord-step__btn.is-now")?.focus();
   }
@@ -1101,6 +1374,7 @@ export function mount(root, { nav }) {
     baseline = { ...editing };
     savedAt = "";
     menuOpen = false;
+    amtLock = lockOf(order); // 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
@@ -1115,16 +1389,43 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='step']", (e, t) => stepTo(t.dataset.v));
     on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
     /* 삭제 — B2B 주문은 그 달 청구의 근거다. 귀속월과 금액을 고지한다. */
+    /* 지우면 정산 금액이 바뀌는 달 — 저장된 배송일시의 달, 그리고 수수료가 붙은 취소 주문이면 **취소한 달**도
+       (명세 6.4 '정산 잠금' — 배송 전에 미리 취소한 주문은 수수료 달이 귀속월보다 앞설 수 있다). 하나라도 잠겼으면 막는다. */
+    const removeHit = (o, now = new Date()) => {
+      const yms = [ymOf(o.deliverAt)];
+      if (o.status === "취소" && Number(o.cancelFee) > 0) yms.push(ymOf(o.canceledAt));
+      /* 앞선 달부터 본다 — 둘 다 잠겼으면 **앞선 달**을 말한다(명세 6.4 `detail.settlementId`). 배송 전에 미리 취소한
+         주문은 수수료 달이 귀속월보다 앞서므로, 넣은 순서(귀속월 먼저)대로 보면 뒤 달을 말하게 된다. */
+      for (const ym of [...new Set(yms.filter(Boolean))].sort()) {
+        const s = settleOf(o, ym, now);
+        if (s && !s.editable) return { ym, s, moved: false, isOld: true };
+      }
+      return null;
+    };
     on(panel, "click", "[data-action='delete']", () => {
       menuOpen = false;
       /* 저장된 값으로 말한다 — 삭제하면 저장 안 한 수정은 버려지므로, 화면에서 배송일시·금액을 고쳐 둔 채 지우면
          청구에서 빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달, 2026-10-15). */
-      const saved = baseline || editing;
+      const saved = findOrder(editing.id) || baseline || editing;
+      const hit = removeHit(saved);
+      if (hit) { renderHd(); toast(lockMsg(hit, "지울"), "warn"); return; }
+      /* 취소한 주문의 금액은 이미 정산에 없다 — 남은 것은 수수료(취소한 달)뿐이다. 예전엔 취소 주문에도 '그 달 청구 금액에서
+         주문금액이 빠집니다' 라고 말해 사실과 달랐다. */
+      const fee = Number(saved.cancelFee) || 0;
+      const note = saved.status !== "취소"
+        ? html`이 주문은 <b>${orderPeriodLabel(saved.deliverAt)} 정산</b>의 청구 근거입니다.
+            삭제하면 그 달 청구 금액에서 <b>${won(saved.amount)}</b>이 빠집니다.`
+        : fee > 0
+          ? html`이 주문의 취소 수수료는 <b>${orderPeriodLabel(saved.canceledAt)} 정산</b>의 청구 근거입니다.
+              삭제하면 그 달 청구 금액에서 <b>${won(fee)}</b>이 빠집니다.`
+          : null;
       openDeleteConfirm({
         orderNo: editing.orderNo,
-        note: html`이 주문은 <b>${orderPeriodLabel(saved.deliverAt)} 정산</b>의 청구 근거입니다.
-          삭제하면 그 달 청구 금액에서 <b>${won(saved.amount)}</b>이 빠집니다.`,
+        note,
         onConfirm: () => {
+          /* 확인 창을 띄워 둔 사이 잠겼을 수 있다 — 지우는 순간 한 번 더 판정한다(서버 409 대역). */
+          const h2 = removeHit(findOrder(editing.id) || saved);
+          if (h2) { toast(lockMsg(h2, "지울"), "warn"); return; }
           const name = editing.orderNo;
           if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
           closeModal();
@@ -1133,9 +1434,25 @@ export function mount(root, { nav }) {
         },
       });
     });
+    /* 주문취소 — 그 달 정산이 잠겼으면 취소할 수 없다(명세 3.4 '마감 전 수정' 6 · 6.4 — 그런 달의 주문은 배송일이 모두
+       지났다). 취소는 작성 중인 수정도 함께 저장하므로 그 수정의 잠금(lockHit)도 같이 본다. */
+    const cancelHit = (now = new Date()) => {
+      const st = findOrder(editing.id);
+      if (!st) return null;
+      const { history: _x, ...rec } = editing;
+      const h = lockHit(st, rec, now);
+      if (h) return h;
+      for (const ym of [...new Set([ymOf(st.deliverAt), ymOf(rec.deliverAt)].filter(Boolean))]) {
+        const s = settleOf(st, ym, now);
+        if (s && !s.editable) return { ym, s, moved: false, isOld: ym === ymOf(st.deliverAt) };
+      }
+      return null;
+    };
     on(panel, "click", "[data-action='order-cancel']", () => {
       menuOpen = false; renderHd();
       if (!editing || editing.status === "취소") return;
+      const hit = cancelHit();
+      if (hit) { toast(lockMsg(hit, "취소할"), "warn"); return; }
       openCancelModal({
         orderNo: editing.orderNo,
         amount: editing.amount,
@@ -1143,6 +1460,9 @@ export function mount(root, { nav }) {
            주문의 귀속월(배송한 달)이 아니다 — 그래서 달 이름을 넘겨 안내문이 그 달을 말하게 한다. B2C 는 정산이 없다. */
         settle: periodLabel(periodOf(new Date())),
         onConfirm: ({ reason, fee }) => {
+          /* 사유를 적는 사이 잠겼을 수 있다 — 취소하는 순간 한 번 더 판정한다(서버 409 대역). */
+          const h2 = cancelHit();
+          if (h2) { toast(lockMsg(h2, "취소할"), "warn"); return; }
           /* 작성 중인 수정은 지금 상태 그대로 먼저 저장하고, 취소는 b2bCancel 이 한 번에 남긴다(사유·수수료·
              취소 시각 canceledAt·이력). ⚠️ 예전엔 상태를 '취소'로 바꾼 레코드를 먼저 upsert 해서 뒤의
              b2bSetStatus 가 '값이 그대로'로 건너뛰어 **취소 이력이 한 줄도 남지 않았다**. */
@@ -1164,6 +1484,18 @@ export function mount(root, { nav }) {
     });
     imgBox.bind(panel, () => { renderHd(); renderSum(); syncDirty(); });
     on(panel, "click", "[data-action='pick-manager']", () => openManagerModal());
+    /* 'M월 정산' 줄 → 관리자 정산회계의 그 거래처 · 그 달(1회 전달 — session.js). 받는 쪽(admin-settlement)이
+       그 달로 옮기고 그 거래처 줄을 펼친다. ⚠️ 저장 안 한 수정이 있으면 떠나지 않는다 — 화면을 옮기면 라우터가
+       창을 닫아(closeAllModals) 고친 내용이 사라진다(포털 회사정보 수정의 '정산 담당 › 변경' 과 같은 규칙). */
+    on(panel, "click", "[data-action='go-settle']", () => {
+      if (!editing) return;
+      if (dirtyCount()) { toast("저장하지 않은 수정이 있습니다 · 저장한 뒤 정산회계로 이동하세요", "warn"); return; }
+      const ym = ymOf(editing.deliverAt);
+      if (!ym || !editing.clientId) return;
+      setFocusClient("admin-settlement", editing.clientId);
+      setFocusSection("admin-settlement", `period:${ym}`);
+      nav("#/admin/settlement");
+    });
     on(panel, "input", "input[data-f], textarea[data-f]", (e, t) => {
       if (!editing) return;
       const k = t.dataset.f;
@@ -1175,9 +1507,12 @@ export function mount(root, { nav }) {
       } else editing[k] = k === "recipientPhone" ? onPhoneInput(t) : t.value;
       if (t.tagName === "TEXTAREA") autosize(t);
       if (k === "receiver" || k === "image") renderHd();
+      /* 받는분 줄은 지금 이름·번호로 보낸다(명세 5.3 규칙 1) — 알림 수신 칸이 그 자리에서 따라온다 */
+      if (k === "recipientName" || k === "recipientPhone") syncNotify();
+      if (k === "ordererName") syncReqPhone(); // 연락처는 이 칸에 적힌 사람의 번호다
       syncDirty();
     });
-    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) settleWonInput(t, editing.amount); });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) putAmt(t, editing.amount); });
     /* 담당자 미지정(포털 자동 유입) 주문은 열자마자 지정을 받는다 */
     if (!editing.manager) openManagerModal();
   }
@@ -1201,6 +1536,30 @@ export function mount(root, { nav }) {
       profileId: "", notifyOff: [],
     };
   }
+
+  /* ── 다른 화면이 넘겨준 '이 거래처 · 이 달 주문' (관리자 정산회계 줄 펼침의 '이 거래처 · M월 주문 보기') ──
+     session.js 의 1회 전달 두 개를 받는다 — takeFocusClient("orders") = 거래처 id,
+     takeFocusSection("orders") = "deliver:YYYY-MM". 거래처는 정확히 그 하나로(state.clientId — 검색칸에도 이름을 보인다),
+     날짜 기준은 **배송일**(정산 달 = 배송일의 달, 2026-10-15), 기간은 그 달 1일~말일. 상태 탭은 '전체'로 연다 —
+     정산 금액은 상태로 거르지 않는다(접수대기·주문접수·배송완료 모두 든다). 꺼내면 지워지므로 새로고침하면 평소 화면이다. */
+  (function takeFocus() {
+    const cid = takeFocusClient("orders");
+    const sec = takeFocusSection("orders");
+    const m = /^deliver:(\d{4})-(\d{2})$/.exec(sec || "");
+    const c = cid ? clients().find((x) => x.id === cid) : null;
+    if (c) {
+      state.clientId = c.id;
+      state.qClient = displayName(c, sharedBizKeys(clients()));
+      state.detailOpen = true; // 거래처 검색칸이 상세 필터 안에 있다 — 무엇으로 걸렀는지 보이게 편다
+    }
+    if (m) {
+      state.dateBasis = "deliver";
+      state.dateQuick = "custom";
+      state.dateStart = `${m[1]}-${m[2]}-01`;
+      state.dateEnd = formatDateLabel(new Date(Number(m[1]), Number(m[2]), 0));
+    }
+    if (c || m) state.tab = "all";
+  })();
 
   render();
   dateRange.bind();
@@ -1235,6 +1594,8 @@ export function mount(root, { nav }) {
   const offRow = onRowOpen(root, (id) => { const o = findOrder(id); if (o) openEditor(o, false); });
   const offSearch = on(root, "input", "[data-search]", (e, t) => {
     state[t.dataset.search] = t.value;
+    /* 넘겨받은 '정확히 이 거래처' 조건은 사람이 거래처 검색칸을 고치는 순간 푼다 — 그 뒤로는 보이는 글자가 조건이다. */
+    if (t.dataset.search === "qClient") state.clientId = "";
     refreshTableOnly();
   });
 

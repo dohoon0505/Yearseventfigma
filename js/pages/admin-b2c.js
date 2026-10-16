@@ -266,23 +266,27 @@ export function mount(root, { nav }) {
       </div>
       <div class="ord-grid">
         ${railV2({ order: editing, imgInner: imgBox.inner() })}
-        <div class="ord-pane">
-          <div class="ord-cols">
-            <div class="ord-colL">
-              ${card({ title: "주문정보", cap: "고객 접수 내용", body: renderFields(ORDER_FIELDS, editing) })}
-              ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(DELIVER_FIELDS, editing) })}
-            </div>
-            <div class="ord-colR">
-              <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
-              ${card({
-                title: "처리 이력", cap: `${(editing.history || []).length}건`,
-                body: historyBody(editing), slot: "hist",
-              })}
+        ${/* 시안 S-06(2026-10-16) 셸 — 푸터가 원장(.ord-main) 아래에만 있고 다크 레일은 바닥까지 내려간다.
+             B2B 상세와 같은 셸이다(필드 서술자만 다르다). */ ""}
+        <div class="ord-main">
+          <div class="ord-pane">
+            <div class="ord-cols">
+              <div class="ord-colL">
+                ${card({ title: "주문정보", cap: "고객 접수 내용", body: renderFields(ORDER_FIELDS, editing) })}
+                ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(DELIVER_FIELDS, editing) })}
+              </div>
+              <div class="ord-colR">
+                <section class="ord-card" data-slot="sum">${summaryBodyV2({ order: editing, rows: summaryRows() })}</section>
+                ${card({
+                  title: "처리 이력", cap: `${(editing.history || []).length}건`, cls: "ord-histcard",
+                  body: historyBody(editing), slot: "hist",
+                })}
+              </div>
             </div>
           </div>
+          <div class="hm__foot ord-ft" data-slot="ft">${footerV2({ dirty: dirtyCount(), savedAt })}</div>
         </div>
-      </div>
-      <div class="hm__foot ord-ft" data-slot="ft">${footerV2({ dirty: dirtyCount(), savedAt })}</div>`;
+      </div>`;
   }
 
   /* ── 부분 갱신 — 본문(입력)은 절대 다시 그리지 않는다 ────── */
@@ -662,7 +666,7 @@ export function mount(root, { nav }) {
     const stored = findOrder(editing.id);
     if (stored) editing.history = stored.history;
     refreshList();
-    renderHd(); renderHist();
+    renderHd(); renderSum(); renderHist(); // 요약 머리가 배송완료면 '배송 완료' 라고 말한다(order-screen summaryBodyV2)
     toast(next === "배송완료" ? "배송완료로 전환 · 고객 알림톡이 발송됩니다" : `${next}(으)로 변경했습니다`);
     const p = panelOf();
     if (p) qs(p, ".ord-step__btn.is-now")?.focus(); // 재렌더로 사라진 버튼의 포커스 복구

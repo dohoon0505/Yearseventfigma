@@ -139,7 +139,11 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
   const issued = recs.filter(({ rec }) => rec.계산서발급 === "발급완료").length;
   const paidRecs = recs.filter(({ rec }) => rec.입금완료 === "입금완료");
   const paidAmount = paidRecs.reduce((a, { rec }) => a + wonToNum(rec.정산금액), 0);
-  const unpaidRecs = recs.filter(({ rec }) => rec.입금완료 !== "입금완료");
+  /* 미입금 = 명세서가 나갔고 입금 전인 달(동의 전·계산서 발급 전 포함 · 0원·거래 없음·발행 전 제외 — 2026-10-16 사용자 결정 A).
+     판정은 util/settlement `isUnpaid` 한 곳이고, 정산 행의 `입금완료` 칸 '미입금' 이 그 결과다(data 층이라 import 하지 않고 칸을 읽는다).
+     ⚠️ `입금완료 !== "입금완료"` 로 세지 말 것 — 아직 발행 전인 달('청구전' — 이번 달은 늘 여기)까지 미입금으로 잡혀, 이번 달
+     '미입금액' 이 그 달 청구 전액이 되고 관리자 표 머리와 다른 금액을 말했다. 화면 KPI · 정산 진행 현황 · 리포트 PDF 가 이 값을 쓴다. */
+  const unpaidRecs = recs.filter(({ rec }) => rec.입금완료 === "미입금");
   const unpaidAmount = unpaidRecs.reduce((a, { rec }) => a + wonToNum(rec.정산금액), 0);
   const settle = {
     count: recs.length,

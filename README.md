@@ -56,7 +56,7 @@ js/
   public-invoice.js     # invoice/ 전용 — ES 모듈 (dom·icons·invoice-doc·invoice-links 재사용)
   pages/*.js            # 페이지 모듈 (mount(root, { nav }) → cleanup)
   data/*.js             # 목데이터·파생 규칙 (거래처·주문·지역규칙·이력·리본문구…)
-  data/invoice-mock.js  # 거래처별·월별 거래명세서 목데이터 + latestInvoiceKey/monthsOf
+  data/invoice-mock.js  # 거래명세서 시드 INVOICE_DB 만 (b2b-mock 이 배송완료 주문으로 옮긴다)
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
   data/contact.js       # 고객센터 번호 단일 소스 — 1668-1840 (로그인 안내·계정 차단 문구·주문 안내)
@@ -65,7 +65,7 @@ assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이�
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
-tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 114케이스
+tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 171케이스
 serve.mjs               # 개발용 정적 서버
 ```
 
@@ -81,7 +81,8 @@ serve.mjs               # 개발용 정적 서버
 | `contacts-modal.js` | 거래처 담당자 관리 다이얼로그 |
 | `cancel-modal.js` | 주문취소 사유·수수료 (B2C·B2B 공용) |
 | `client.js` | 로그인 거래처 결정 **단일 소스** |
-| `settlement.js` | 정산 행 조합층 — 날짜·금액(admin-mock) + store 의 동의 기록 오버레이(`settlementsFor`) |
+| `settlement.js` | 정산 단일 파생 — B2B 주문(배송일의 달)에서 명세서 행·청구금액, `settlementOf`/`settlementsFor` 상태, `isUnpaid`·`needsAction`·`termsWatchOf` |
+| `settle-mark.js` · `settle-dialogs.js` | 정산 단계 한 줄 셀(✓/●/-, 관리자·포털 공용) · 계산서 발급 처리·입금 확인 작은 창 |
 | `terms-dialog.js` | 이용약관 열람·동의 게이트 다이얼로그 (`openTermsDialog`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |

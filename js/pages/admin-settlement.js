@@ -1,37 +1,88 @@
 /* ============================================================
-   admin-settlement.js — 거래처 정산회계
-   ① 상단 필터: 년/월 + 정산 상태(전체/미완료/정산완료) + 거래처 검색.
-   ② 대시보드: KPI(증감 배지)·월간 인사이트(6개월 막대)·거래처 랭킹·항목 도넛·
-      정산 진행·월간 분석 리포트(A4 PDF). 분석은 data/report.js, 렌더는 report-doc.js.
-   ③ 정산액 요약카드 + 거래처별 정산 종합 테이블 (기존 유지, 읽기전용).
+   admin-settlement.js — 거래처 정산회계 (#/admin/settlement · 시안 'S-01 관리자 정산회계' · 2026-10-16)
+
+   위에서부터: 머리글 · 필터 카드(.bf-* — 상태 탭 5개 + 건수 · 귀속월 스테퍼 · 저번달/이번달 · 거래처 검색)
+   · 정산 표(머리 한 줄 요약 + 8칸 한 줄 표 + 줄 펼침) · '월간 분석' 접힘 줄(펼치면 예전 분석 블록 그대로).
+   예전엔 분석 블록과 요약 카드 3장이 표 위에 있어 1440x900 에서 표가 첫 화면에 안 보였다(1,501px 지점).
+
+   ── 규칙 ──
+   · 상태는 `settlementOf`(util/settlement.js) 값만 찍는다 — 화면이 날짜로 상태를 짐작하지 않는다(명세 6.6).
+   · 단계 셀은 공용 `settleMark`(util/settle-mark.js — ✓ 끝남 · ● 지금 · - 아직). 끝난 단계의 근거(동의 시각·수동/자동 ·
+     작성일자 · 승인번호)는 title + .sr-only 로 남긴다 — 세무 근거라 버리지 않는다. 지금 단계의 기한·사유는 '기한 · 비고' 칸.
+   · 빨간 글씨는 동의 마감 24시간 전부터 · 기한 초과 · 동의 뒤 30분 넘게 계산서가 안 나간 달(시안).
+   · 조치 필요 = `needsAction`(보류 3종 · 계산서 발급 전에 머문 달 · 기한 초과 · 알림 수신자 없음) — 대쉬보드
+     '정산 진행' 카드와 같은 판정이다. 그 카드의 '연락 필요' 칩·'조치 필요 열기' 는 지난달 한 달, '기한 초과' 칩만 최근
+     6개월 전체의 OVERDUE 줄을 센다(사용자 결정 B — 지난달은 정산기한이 이번 달 말일이라 기한 초과가 될 수 없다). 이 표는
+     언제나 한 달씩이다. 그 줄의 처리 버튼은 채운 주황.
+   · 처리 칸 버튼은 하나 — AGREED 면 '발급 처리', ISSUED·OVERDUE 면 '입금 확인'(작은 창 — util/settle-dialogs.js).
+     쓰기가 성공하면 **그 줄만** 다시 그린다(펼침 상태 보존 · 포커스는 그 줄의 펼침 버튼으로).
+   · 줄 아무 데나 누르면 펼친다(onRowOpen 과 같은 가드 — 안쪽 컨트롤·드래그 선택은 비켜 간다). 키보드는 줄 끝의
+     펼침 버튼이 맡는다 — 줄에 tabindex 를 달면 Tab 순서에 거래처 수만큼 끼어든다.
+   · 이의는 고객센터로 받고 직원이 그 달 주문을 바로 고친다(2026-10-15 운영자 결정) — 이 화면에 따로 절차·상태를 두지 않는다.
+   · 시안에 없는 새 표시(지금 고칠 수 있는지 · 발급 때↔지금 금액 · 금액 변경 기록)는 짓지 않는다(운영자 결정 1 — 디자이너 몫).
+
+   ── 화면 사이 넘겨주기(session.js — 꺼내면 지운다) ──
+   받기: takeFocusSection("admin-settlement") 가 "action" → '조치 필요' 탭으로 연다(대쉬보드 '조치 필요 열기').
+         "action:YYYY-MM" → 그 달 · '조치 필요' 탭(대쉬보드 '기한 초과 N' 칩 — 기한 초과가 있는 가장 오래된 달).
+         "period:YYYY-MM" + takeFocusClient("admin-settlement") → 그 달로 옮기고 그 줄을 펼쳐 화면에 보인다(주문 상세 '정산 귀속').
+         두 'YYYY-MM' 꼴 모두 6개월 창 밖의 달이면 스테퍼 범위를 그 달까지 넓힌다.
+   · 표 머리 '미입금' 은 util/settlement `isUnpaid`(명세서가 나간 달 전부 · 0원·거래 없음·발행 전 제외) — 월간 분석·대쉬보드와 같다.
+   보내기: '이 거래처 · M월 주문 보기' → setFocusClient("orders", id) + setFocusSection("orders", "deliver:YYYY-MM").
    ============================================================ */
-import { html, setHTML, on, qs, raw, won } from "../dom.js";
+import { html, setHTML, on, qs, qsa, raw, won } from "../dom.js";
 import { icon } from "../icons.js";
 import { store } from "../store.js";
 import { pageTitle } from "../ui.js";
-import { USAGE_CATEGORIES, SETTLEMENT_YEARS, DATA_NOW } from "../data/admin-mock.js";
-/* 정산 행은 날짜·금액(admin-mock) + store 의 동의 기록을 얹은 조합층에서 온다(포털 정산과 같은 소스). */
-/* 이용 내역·정산 행은 B2B 주문에서 파생한다(2026-10-16 — 주문과 정산 연결). 청구금액·드릴다운·리포트가 같은 소스. */
-import { settlementsFor, settlementsMap, usageFor, usageMap, invoiceNoteOf } from "../util/settlement.js";
-import { fmtMd, fmtMdHm, periodLabel } from "../data/settlement-rules.js";
-import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
+import { makeToast } from "../toast.js";
+import { USAGE_CATEGORIES, DATA_NOW } from "../data/admin-mock.js";
+/* 정산 상태·청구 근거는 B2B 주문(배송일의 달)에서 파생한다(2026-10-16 — 주문과 정산 연결). 청구금액·펼친 품목·리포트가 같은 소스. */
+import {
+  settlementOf, settlementsMap, usageMap, billingEntriesOf, needsAction, isUnpaid, invoiceDocNoteOf, invoiceMonth,
+} from "../util/settlement.js";
+import {
+  periodOf, periodLabel, shiftPeriod, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime, HOLD_LABEL,
+} from "../data/settlement-rules.js";
+import { sharedBizKeys, normalizeBiz, displayName } from "../util/biz.js";
+import { termsPending } from "../util/client.js";
 import { buildMonthlyReport } from "../data/report.js";
 import { issueLink, publicInvoiceUrl, SUPPLIER, ACCOUNT } from "../data/invoice-links.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { reportDoc } from "../report-doc.js";
+import { setFocusClient, setFocusSection, takeFocusClient, takeFocusSection } from "../session.js";
+import { settleMark } from "../util/settle-mark.js";
+import { openIssueDialog, openPaymentDialog } from "../util/settle-dialogs.js";
 
-const COL = "minmax(180px,1fr) 110px 110px 110px 110px 116px 128px";
-const HEADERS = ["거래처", "청구금액", "거래명세서", "계산서 발급", "거래대금", "공개 링크", "명세서 다운로드"];
-const STATUS_TABS = [
-  { value: "all", label: "전체" },
-  { value: "pending", label: "미완료" },
-  { value: "done", label: "정산완료" },
+const TABS = [
+  { v: "all", label: "전체" },
+  { v: "action", label: "조치 필요" },
+  { v: "agree", label: "동의 전" },
+  { v: "billing", label: "계산서 · 입금" },
+  { v: "done", label: "정산완료" },
+];
+const HEADERS = [
+  ["거래처", "name"], ["청구금액", "amt"], ["명세서 동의", ""], ["계산서", ""], ["거래대금", ""],
+  ["기한 · 비고", ""], ["처리", "act"], ["링크 · PDF", "docs"],
 ];
 /* 도넛/범례 9색 — 항목별(상품 9종) 비중이 겹치지 않도록 인접 대비 순으로 배치 */
 const DONUT_VARS = ["var(--c-orange)", "var(--c-blue)", "var(--c-success)", "var(--ch-purple)", "var(--c-warn)", "var(--ch-cyan)", "var(--ch-pink)", "var(--ch-lime)", "var(--ch-slate)"];
 const pad = (n) => String(n).padStart(2, "0");
-const wonToNum = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
 const man = (n) => Math.round(n / 10000); // 만원 단위
+const DAY = 864e5, MIN = 6e4;
+const YM_RE = /^\d{4}-\d{2}$/;
+const TOP_ITEMS = 4; // 품목을 다 펼치면 펼침이 표를 밀어낸다 — 나머지는 한 줄로 접는다
+const monthOf = (ym) => Number(ym.slice(5, 7));
+const modeWord = (m) => (m === "auto" ? "자동" : "수동");
+/** 남은 시간 — "2일 3시간" · "3시간 20분" · "15분" */
+function span(ms) {
+  const m = Math.max(0, Math.floor(ms / MIN));
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mi = m % 60;
+  return d ? `${d}일 ${h}시간` : h ? `${h}시간 ${mi}분` : `${mi}분`;
+}
+/** 지난 시간 — "2일" · "3시간" · "12분" */
+function ago(ms) {
+  const m = Math.max(0, Math.floor(ms / MIN));
+  return m >= 1440 ? `${Math.floor(m / 1440)}일` : m >= 60 ? `${Math.floor(m / 60)}시간` : `${m}분`;
+}
 
 /* KPI 전월 대비 증감 배지 (▲ 증가=레드워시 · ▼ 감소=블루워시 · 중립=그레이) */
 function deltaBadge(delta, suffix = "원") {
@@ -41,95 +92,234 @@ function deltaBadge(delta, suffix = "원") {
   return html`<span class="kpi__delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(delta).toLocaleString("ko-KR")}${suffix}</span>`;
 }
 
-const ok = (t) => html`<span class="settle-badge settle-badge--ok">${t}</span>`;
-const warn = (t) => html`<span class="settle-badge settle-badge--warn">${t}</span>`;
-const danger = (t) => html`<span class="settle-badge settle-badge--danger">${t}</span>`;
-const gray = (t) => html`<span class="settle-badge settle-badge--gray">${t}</span>`;
-/* 배지 + 보조줄(날짜·구분). 언제 동의했고 수동인지 자동인지, 작성일자가 며칠인지가 세무 근거라
-   배지 한 단어로 뭉개지 않는다(2026-09-17 사용자 결정). 발행 전 달은 경고가 아니라 회색 '발급예정'. */
-const stack = (badge, sub) => html`<span class="settle-stack">${badge}${sub ? html`<span class="settle-td__sub">${sub}</span>` : ""}</span>`;
-const agreeBadge = (r) => {
-  /* 발행 시각이 지났는데 거래가 없는 달(NONE) — 명세서도 청구서도 없다. 0원 달과 다른 달이다. */
-  if (r.거래명세서동의 === "거래없음") return stack(gray("거래 없음"), "명세서 없음");
-  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 명세 6.6 의 표 낱말 '0원 · 계산서 없음'. */
-  if (r.거래명세서동의 === "해당없음") return stack(gray("0원"), "계산서 없음");
-  if (r.거래명세서동의 === "동의완료") return stack(ok("동의완료"), `${fmtMd(r.동의시각)} ${r.동의구분 === "auto" ? "자동" : "수동"}`);
-  if (!r.issued) return stack(gray("발급예정"), fmtMdHm(r.발행일시));
-  /* 약관 동의 전에 마감된 달 — 마감을 찍으면 '곧 자동 동의된다'로 읽힌다. 자동 동의하지 않는 이유를 쓴다. */
-  /* 보류 3종(약관 동의 전 · 고지 미도달 · 정지 중 마감)의 낱말은 settlement-rules HOLD_LABEL 한 벌이다(명세 6.6). */
-  if (r.보류) return stack(warn("동의대기"), r.보류);
-  return stack(warn("동의대기"), `마감 ${fmtMdHm(r.마감)}`);
-};
-const issueBadge = (r) =>
-  r.계산서발급 === "해당없음" || r.계산서발급 === "거래없음" ? stack(gray("계산서 없음"), "")
-  : r.계산서발급 === "발급완료"
-    ? stack(ok("발급완료"), `작성 ${fmtMd(r.작성일자)}`)
-    : stack(r.issued ? warn("발급대기") : gray("발급대기"), r.issued ? "동의 후 발급" : "");
-const payBadge = (v) => (v === "입금완료" ? ok("입금완료") : v === "거래없음" ? gray("청구 없음") : danger("미입금"));
-/* 정산완료 = 닫힌 달(PAID — 0원으로 닫힌 달 포함). 거래 없는 달(NONE)은 완료도 미완료도 아니다 — 두 탭 어디에도 넣지 않는다. */
-const isDone = (r) => r.status === "PAID";
-const isPending = (r) => r.status !== "PAID" && r.status !== "NONE";
+/* ── 단계 셀 — settlementOf 값만 읽는다 ───────────────────────────────
+   반환: { kind, label, tone, meta(보이는 기한·사유 — 지금 단계면 '기한 · 비고' 칸에), tip, hot, amb } */
+const NONE = { kind: "none" };
+function agreeStage(client, s, now) {
+  if (s.status === "SCHEDULED") return { kind: "live", label: "발급예정", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발행`, tip: `${fmtKoShortTime(s.issueAt)}에 명세서가 발행됩니다` };
+  if (s.status === "AWAITING_AGREEMENT") {
+    const dl = fmtKoShortTime(s.deadline);
+    /* 자동 동의 보류 3종(명세 6.6 autoAgreeHold) — 낱말은 settlement-rules HOLD_LABEL 한 벌. '보류' 는 Q19·Q20 둘에만 쓴다
+       (약관 동의 전은 보류가 아니라 의제 조항이 없는 것이다 — 그래서 상태 낱말도 '동의대기' 다). */
+    if (s.autoAgreeHold) {
+      return {
+        kind: "live", label: s.autoAgreeHold === "TERMS_NOT_AGREED" ? "동의대기" : "동의 보류", tone: "amber",
+        meta: HOLD_LABEL[s.autoAgreeHold],
+        /* 1280 에서는 칸이 좁아 낱말이 잘린다 — 마우스 올림 설명은 낱말부터 다시 말한다 */
+        tip: `${HOLD_LABEL[s.autoAgreeHold]} — 마감 ${dl} 지남 · 거래처가 직접 동의할 수 있습니다`,
+      };
+    }
+    /* 약관 동의 전 거래처의 마감 전 달 — 마감이 와도 자동 동의되지 않는다는 것을 미리 말한다(시안). */
+    if (termsPending(client)) return { kind: "live", label: "동의대기", tone: "orange", meta: HOLD_LABEL.TERMS_NOT_AGREED, amb: true, tip: `${HOLD_LABEL.TERMS_NOT_AGREED} — 마감 ${dl} · 약관에 동의하기 전에는 마감에 자동 동의되지 않습니다` };
+    const left = s.deadline.getTime() - now.getTime();
+    if (left <= 0) return { kind: "live", label: "동의대기", tone: "orange", meta: `마감 ${fmtMdHm(s.deadline)} 지남`, hot: true, tip: `마감 ${dl}` };
+    const soon = left <= DAY;
+    return { kind: "live", label: "동의대기", tone: "orange", meta: soon ? `마감까지 ${span(left)}` : `마감 ${fmtMdHm(s.deadline)}`, hot: soon, tip: `마감 ${dl}` };
+  }
+  if (s.mode) return { kind: "done", label: "동의완료", meta: `${fmtMdHm(s.agreedAt)} · ${modeWord(s.mode)}` };
+  return NONE;
+}
+function invStage(s, now) {
+  if (s.status === "AGREED") {
+    const d = now.getTime() - s.agreedAt.getTime();
+    /* 정상이면 아주 짧게 지나간다. 30분을 넘겨 머물면 발급이 실패한 달(T15 로 알린다 — 표에 '실패' 표시는 두지 않는다 M59). */
+    return d < 30 * MIN
+      ? { kind: "live", label: "발급 중", tone: "gray", meta: `동의 후 ${ago(d)}` }
+      : { kind: "live", label: "발급 전", tone: "amber", meta: `동의 후 ${ago(d)}`, hot: true, tip: `${fmtKoShortTime(s.agreedAt)} ${modeWord(s.mode)} 동의 · 계산서가 발급되지 않았습니다` };
+  }
+  if (s.einvoice) {
+    const no = `승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}`;
+    return { kind: "done", label: "발급완료", meta: `작성 ${fmtMd(s.docDate)} · ${no}` , vis: `작성 ${fmtMd(s.docDate)}` };
+  }
+  return NONE;
+}
+function payStage(s, now) {
+  if (s.status === "PAID" && s.paidAt) return { kind: "done", label: "입금완료", meta: `${fmtMd(s.paidAt)} 입금 확인`, tip: `${fmtKoShortTime(s.paidAt)} 입금 확인` };
+  if (s.status === "OVERDUE") {
+    const days = Math.max(1, Math.floor((now.getTime() - s.overdueAt.getTime()) / DAY));
+    return { kind: "live", label: "기한 초과", tone: "red", meta: `${days}일 지남`, hot: true, tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(s.overdueAt)}부터 기한 초과` };
+  }
+  if (s.status === "ISSUED") return { kind: "live", label: "미입금", tone: "gray", meta: `기한 ${fmtMd(s.dueAt)}`, tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(s.overdueAt)}부터 기한 초과` };
+  return NONE;
+}
+/** 세 칸 + '기한 · 비고'(지금 단계의 기한·사유 — 없으면 마지막으로 끝난 단계). 0원 달·거래 없는 달은 세 칸을 한 칸으로. */
+function stagesOf(client, s, now) {
+  if (s.status === "NONE") return { merged: { none: true, text: "거래 없음 · 명세서 없음" }, cur: null };
+  if (s.zero && s.status === "PAID") {
+    const z = { kind: "done", label: "0원 · 계산서 없음", tone: "gray", meta: "0원 주문만 있는 달 · 입금 없음", tip: "동의 · 계산서 · 입금 없이 입금완료 처리된 달입니다. 실제 입금은 없습니다" };
+    return { merged: z, cur: z };
+  }
+  const cells = [agreeStage(client, s, now), invStage(s, now), payStage(s, now)];
+  const cur = cells.find((c) => c.kind === "live") || [...cells].reverse().find((c) => c.kind === "done") || null;
+  return { cells, cur };
+}
+
+/** 처리 칸 — 버튼은 하나(지금 상태에서 하는 일). 버튼이 없는 조치 필요 줄은 '연락 필요'(대쉬보드 칩과 같은 낱말). */
+function actOf(s, need) {
+  if (!s.zero && s.status === "AGREED") return { btn: "issue", label: "발급 처리", full: "계산서 발급 처리" };
+  if (s.status === "ISSUED" || s.status === "OVERDUE") return { btn: "pay", label: "입금 확인", full: "입금 확인" };
+  if (need) return { text: "연락 필요", need: true };
+  if (s.zero || s.status === "NONE") return { text: "처리 없음" };
+  if (s.status === "SCHEDULED") return { text: "발행 후 처리" };
+  if (s.status === "AWAITING_AGREEMENT") return { text: "동의 후 처리" };
+  return { text: "처리 완료" };
+}
+
+/** 펼침 '처리' 카드 — 동작마다 [할 수 있나, 그 이유]. 못 하는 이유는 글자로 그 자리에서 말한다(마우스 올림에 숨기지 않는다). */
+function availOf(s) {
+  let issue, pay;
+  if (s.status === "NONE") issue = [false, "거래가 없는 달은 명세서가 없습니다"];
+  else if (s.zero) issue = [false, "0원 달은 계산서가 없습니다"];
+  else if (s.status === "AGREED") issue = [true, `${fmtMdHm(s.agreedAt)} ${modeWord(s.mode)} 동의 · 계산서가 아직 발급되지 않았습니다`];
+  else if (s.einvoice) issue = [false, `발급완료 · 승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}`];
+  else if (s.status === "SCHEDULED") issue = [false, `명세서 발행 전입니다. ${fmtKoShortTime(s.issueAt)}에 발급됩니다`];
+  else issue = [false, "동의 전에는 계산서를 발급할 수 없습니다"];
+  if (s.status === "NONE") pay = [false, "청구할 금액이 없는 달입니다"];
+  else if (s.zero) pay = [false, "0원 달은 입금 없이 입금완료 처리됩니다"];
+  else if (s.status === "ISSUED" || s.status === "OVERDUE") pay = [true, `${won(s.amount)} 전액 · 정산기한 ${fmtKoShort(s.dueAt)}`];
+  else if (s.status === "PAID" && s.paidAt) pay = [false, `${fmtKoShortTime(s.paidAt)} 입금 확인`];
+  else pay = [false, "계산서 발급 뒤에 입금을 확인합니다"];
+  return { issue, pay };
+}
+
+/** 펼침 '진행 기록' — 발행 · 마감(보류) · 동의 · 발급 · 기한 초과 · 입금. 시간순. */
+function logOf(s, ct, now) {
+  const L = [];
+  const reach = ct && String(ct.phone || "").trim();
+  if (s.status === "SCHEDULED") L.push([s.issueAt, "명세서 발행 예정", "자동"]);
+  else if (s.status === "NONE") return [];
+  else L.push([s.issueAt, "명세서 발행", reach ? `발급 안내 → ${ct.name}` : "알림 수신자 없음 · 안내를 보내지 못했습니다"]);
+  if (s.autoAgreeHold && now.getTime() > s.deadline.getTime()) {
+    const terms = s.autoAgreeHold === "TERMS_NOT_AGREED";
+    L.push([s.deadline, terms ? "마감 · 자동 동의 안 함" : "마감 · 자동 동의 보류", HOLD_LABEL[s.autoAgreeHold].split(" · ")[0]]);
+  }
+  if (s.agreedAt) L.push([s.agreedAt, s.mode === "auto" ? "자동 동의" : "거래처 동의", s.mode === "auto" ? "마감 시각" : ""]);
+  /* 안내(T6 발급 · T8 기한 지남)도 '명세서 발행' 줄과 같은 판정이다 — 알림 수신자가 없으면 '보냄' 이라고 말하지 않는다
+     (같은 카드에서 발행 줄은 '보내지 못했습니다', 발급 줄은 '보냄' 이라고 갈리던 결함 — 2026-10-16 검토). */
+  const NOT_SENT = "알림 수신자 없음 · 안내를 보내지 못했습니다";
+  if (s.einvoice) {
+    const how = s.einvoice.mode === "manual" ? "직접 입력" : s.einvoice.mode === "retry" ? "다시 시도" : "자동";
+    L.push([s.einvoice.at, "계산서 발급", s.einvoice.mode === "manual" ? how : reach ? `${how} · 발급 안내 보냄` : `${how} · ${NOT_SENT}`]);
+  }
+  if (s.einvoice && now.getTime() >= s.overdueAt.getTime() && (s.status === "OVERDUE" || (s.paidAt && s.paidAt.getTime() >= s.overdueAt.getTime()))) {
+    L.push([s.overdueAt, "기한 초과", reach ? "입금 기한 지남 안내 보냄" : NOT_SENT]);
+  }
+  if (s.paidAt) L.push([s.paidAt, "입금 확인", ""]);
+  if (s.zero && s.status === "PAID") L.push([s.issueAt, "0원 달 · 입금 없이 입금완료 처리", "자동"]);
+  return L.sort((a, b) => a[0] - b[0]).map(([t, what, who]) => ({ t: fmtMdHm(t), what, who }));
+}
+
+/** 그 달 청구 근거를 품목별로 — 명세서 행(billingEntriesOf)과 **같은 집합**이라 합이 곧 청구금액이다(명세 3.4).
+ *  취소 수수료는 '취소 수수료' 품목 한 칸으로 묶인다(usageFor 와 같은 규칙 — 줄 모양은 디자이너 몫 ⑥). */
+function itemsOf(client, ym) {
+  const m = new Map();
+  billingEntriesOf(client, ym).forEach((e) => {
+    const it = m.get(e.product) || { name: e.product, count: 0, amount: 0 };
+    it.count += 1;
+    it.amount += e.amount;
+    m.set(e.product, it);
+  });
+  return [...m.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "ko"));
+}
 
 /* 내보낼 명세서가 있는 달 — 발행됐고 거래가 있다. 포털도 거래 없는 달에는 PDF·EXCEL·열람링크를 모두 잠근다. */
-const hasDoc = (r) => r.issued && !r.empty;
-const docTitle = (r, okText) =>
-  r.empty && r.issued ? "거래가 없는 달은 명세서가 없습니다"
-  : r.issued ? okText : `명세서 발행 전입니다 — ${fmtMdHm(r.발행일시)}에 발급됩니다`;
+const hasDoc = (s) => s.issued && !s.empty;
 
-// 정산 레코드 → 공개 명세서 doc (요약 1줄). 같은 거래처·귀속월이면 issueLink가 시드 토큰 재사용.
-// '계산서 발행' 칸은 INVOICE_NOTE 어휘로 — 예전엔 표 배지값('동의하기')이 그대로 PDF 에 찍혔다.
-// 판정은 util/settlement invoiceNoteOf 한 곳(포털 미리보기와 같다 — 둘이 같은 issueLink 토큰을 덮어쓴다).
-const buildDoc = (client, rec) => ({
-  title: `${rec.청구년월} 꽃배달 거래명세서`,
-  period: `${rec.청구년월} 귀속`,
-  // 부서는 사업자번호를 공유하는 거래처에만 — 그 외엔 빈 값이라 문서에서 행 자체가 빠진다.
-  buyer: { address: `${client.address} ${client.companyName}`, company: client.companyName, department: sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber)) ? client.department : "", bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: rec.발행일, invoiceNote: invoiceNoteOf(rec) },
-  supplier: SUPPLIER,
-  items: [{ date: rec.청구년월, sender: "-", address: "-", product: `${rec.청구년월} 꽃배달 이용료 합계`, amount: rec.정산금액 }],
-  account: ACCOUNT,
-  total: rec.정산금액,
-});
+// 정산 레코드 → 공개 명세서 doc — **포털 거래명세서(invoice.js `docData`)와 같은 문서**를 만든다.
+// 같은 (거래처, 사업자번호, 귀속월)이면 issueLink 가 **같은 토큰을 돌려주고 본문을 덮어쓴다** — 여기서 다른 문서를 만들면
+// 거래처에 이미 보낸 링크의 내용이 관리자가 링크를 복사한 순간 바뀐다(예전엔 '요약 1줄'이라 포털이 보낸 6줄 명세서가
+// 1줄로 바뀌고 제목·발행일 표기도 달라졌다 — 2026-10-16 검토 실측). 행·합계는 billingRowsOf(invoiceMonth) 한 소스.
+// '계산서 발행' 칸 낱말은 util/settlement `invoiceDocNoteOf` 한 곳. ⚠️ invoice.js docData 를 고치면 여기도 같이 고칠 것
+// (두 페이지 모듈은 서로를 import 하지 않는다).
+function buildDoc(client, s) {
+  const ym = s.period;
+  const m = invoiceMonth(client, ym);
+  const label = periodLabel(ym);
+  /* 포털과 같은 표시명 — 사업자번호를 공유하는 거래처만 계정 구분을 병기한다(util/biz displayName). */
+  const name = displayName(client, sharedBizKeys(store.get().clients));
+  const items = m.empty
+    ? [{ date: "", sender: "", address: "해당 월의 거래 내역이 없습니다", product: "", amount: "" }]
+    : m.rows.map((r) => ({ date: r[0], sender: r[1], address: r[2], product: r[3], amount: won(r[4]) }));
+  return {
+    title: `${ym.slice(2, 4)}년 ${ym.slice(5, 7)}월 꽃배달 거래명세서`,
+    period: `${label} 귀속`,
+    buyer: { address: `${client.address} ${name}`, company: name, bizNumber: client.bizNumber, ceo: client.ceoName, summary: "꽃배달 이용료 청구", issueDate: m.empty ? "-" : m.issue, invoiceNote: invoiceDocNoteOf(s) },
+    supplier: SUPPLIER,
+    items,
+    account: ACCOUNT,
+    total: won(m.total),
+  };
+}
 
 export function mount(root, { nav }) {
-  const now = DATA_NOW; // 목데이터 생성 기준과 동일 시각 → 월 전환 후에도 데이터 창 이탈 없음
-  /* 펼친 거래처(청구금액 드릴다운). 표는 통째로 재렌더되므로 DOM 클래스가 아니라
-     state 에서 읽는다 — 검색 한 글자에 초기화되는 것을 막는다(admin-clients 와 같은 이유). */
-  const state = { year: now.getFullYear(), month: now.getMonth() + 1, statusFilter: "all", search: "", expanded: new Set() };
-  const curY = now.getFullYear(), curM = now.getMonth() + 1;
-  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastY = lastDate.getFullYear(), lastM = lastDate.getMonth() + 1;
+  const toast = makeToast();
+  const curYm = periodOf(DATA_NOW); // 목데이터 창(최근 6개월)의 기준 — 모듈은 재평가되지 않으므로 DATA_NOW 를 쓴다
+  const lastYm = shiftPeriod(curYm, -1);
+  /* 기본은 **저번달** — 명세서가 나가 동의·계산서·입금이 진행 중인 달이다(이번 달은 전부 발급예정). 대쉬보드 '정산 진행'
+     카드와 '조치 필요' 칩도 같은 달을 센다. */
+  const state = { ym: lastYm, tab: "all", q: "", expanded: new Set(), anaOpen: false };
+  let minYm = shiftPeriod(curYm, -5);
+  let maxYm = curYm;
 
-  /* 선택 월 분석 데이터 (대시보드·리포트 공용) — 상태탭/검색과 무관 */
+  /* ── 다른 화면이 넘겨준 것(1회) ──
+     "action"              → 기본 달(저번달) · '조치 필요' 탭(대쉬보드 '조치 필요 열기')
+     "action:YYYY-MM"      → 그 달 · '조치 필요' 탭(대쉬보드 '기한 초과 N' 칩 — 기한 초과가 있는 가장 오래된 달)
+     "period:YYYY-MM" + 거래처 → 그 달 · 그 줄 펼침(주문 상세 '정산 귀속') */
+  const focusSec = takeFocusSection("admin-settlement");
+  const focusCid = takeFocusClient("admin-settlement");
+  let scrollTo = null;
+  if (focusSec === "action") state.tab = "action";
+  else if (focusSec && /^(period|action):/.test(focusSec)) {
+    const [kind, ym] = focusSec.split(":");
+    if (YM_RE.test(ym)) {
+      state.ym = ym;
+      /* 배송을 예약한 다음 달처럼 6개월 창 밖의 달도 열 수 있게 스테퍼 범위를 넓힌다. */
+      if (ym < minYm) minYm = ym;
+      if (ym > maxYm) maxYm = ym;
+      if (kind === "action") state.tab = "action";
+      else if (focusCid && store.get().clients.some((c) => c.id === focusCid)) { state.expanded.add(focusCid); scrollTo = focusCid; }
+    }
+  }
+
+  /* ── 데이터 ── */
+  function periodRows(now = new Date()) {
+    const clients = store.get().clients;
+    const shared = sharedBizKeys(clients);
+    return clients.map((c) => {
+      const s = settlementOf(c, state.ym, now);
+      return { client: c, s, need: needsAction(s), shared: shared.has(normalizeBiz(c.bizNumber)) };
+    });
+  }
+  const inTab = (tab, r) =>
+    tab === "all"
+    || (tab === "action" && r.need)
+    || (tab === "agree" && (r.s.status === "SCHEDULED" || r.s.status === "AWAITING_AGREEMENT"))
+    || (tab === "billing" && (r.s.status === "AGREED" || r.s.status === "ISSUED" || r.s.status === "OVERDUE"))
+    || (tab === "done" && r.s.status === "PAID");
+  const matchQ = (r, q) => !q || r.client.companyName.includes(q) || (r.client.department || "").includes(q);
+  const visibleRows = (rows) => {
+    const q = state.q.trim();
+    return rows.filter((r) => inTab(state.tab, r) && matchQ(r, q));
+  };
+  const rowOf = (cid, now = new Date()) => {
+    const c = store.get().clients.find((x) => x.id === cid);
+    if (!c) return null;
+    const s = settlementOf(c, state.ym, now);
+    return { client: c, s, need: needsAction(s), shared: sharedBizKeys(store.get().clients).has(normalizeBiz(c.bizNumber)) };
+  };
+
+  /* 선택 월 분석 데이터 (월간 분석 · 리포트 공용) — 상태탭/검색과 무관 */
   function reportFor() {
     const cs = store.get().clients;
+    const [y, m] = state.ym.split("-").map(Number);
     return buildMonthlyReport({
-      year: state.year, month: state.month,
+      year: y, month: m,
       clients: cs,
       usage: usageMap(cs), settlements: settlementsMap(cs), categories: USAGE_CATEGORIES,
     });
   }
-  /* ⚠️ 이 라벨은 장식이 아니라 **조인 키**다 — 정산 행의 `청구년월` 과 문자열 비교로 그 달을 찾는다.
-     포맷이 한 글자만 달라도 표가 통째로 빈다. 그래서 규칙 모듈(settlement-rules.periodLabel) 한 곳에서 만든다. */
-  const monthLabel = () => periodLabel(`${state.year}-${pad(state.month)}`);
-  function rowsForPeriod() {
-    const label = monthLabel();
-    return store.get().clients
-      .map((c) => {
-        const rec = settlementsFor(c).find((r) => r.청구년월 === label);
-        return rec ? { client: c, rec } : null;
-      })
-      .filter(Boolean);
-  }
-  function visibleRows() {
-    let rows = rowsForPeriod();
-    if (state.statusFilter === "done") rows = rows.filter(({ rec }) => isDone(rec));
-    else if (state.statusFilter === "pending") rows = rows.filter(({ rec }) => isPending(rec));
-    const q = state.search.trim();
-    if (q) rows = rows.filter(({ client }) => client.companyName.includes(q));
-    return rows;
-  }
 
-  /* ── ① KPI 카드 (증감 배지) ── */
+  /* ── 월간 분석(예전 분석 블록 그대로 — 표 아래 접힌 줄로 내렸다) ── */
   function kpiCards(r) {
     return html`
       <div class="kpis">
@@ -140,11 +330,10 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
-  /* ── ② 월간 인사이트 (헤드라인 + 6개월 막대) ── */
   function insightCard(r) {
+    const mm = monthOf(state.ym);
     let headline;
-    if (r.deltaTotal == null) headline = html`<b>${state.month}월</b> 총 이용금액은 <b class="num">${won(r.total)}</b>이에요`;
+    if (r.deltaTotal == null) headline = html`<b>${mm}월</b> 총 이용금액은 <b class="num">${won(r.total)}</b>이에요`;
     else if (r.deltaTotal === 0) headline = html`총 이용금액이 지난달과 <b class="num">같아요</b> (${won(r.total)})`;
     else if (r.deltaTotal > 0) headline = html`총 이용금액이 지난달보다<br /><span class="up num">${won(r.deltaTotal)}</span> 늘었어요`;
     else headline = html`총 이용금액이 지난달보다<br /><span class="down num">${won(Math.abs(r.deltaTotal))}</span> 줄었어요`;
@@ -164,11 +353,9 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
-  /* ── ③ 거래처별 이용 랭킹 (가로 막대 · 오렌지) ──
-     막대 길이 = 전체 대비 이용 비중(share%) — 우측에 표기된 % 와 시각적으로 일치. */
+  /* 거래처별 이용 랭킹 — 막대 길이 = 전체 대비 이용 비중(share%) */
   function clientRankCard(r) {
-    const RANK_LIMIT = 10; // 이용금액 상위 10위까지만 표시
+    const RANK_LIMIT = 10;
     const top = r.affiliates.slice(0, RANK_LIMIT);
     const hint = r.affiliates.length > RANK_LIMIT
       ? `상위 ${RANK_LIMIT}곳 · 전체 ${r.affiliates.length}곳`
@@ -192,8 +379,6 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
-  /* ── ④ 항목별 이용 비중 (도넛 + 범례) ── */
   function donutSvg(r) {
     const R = 44, CX = 62, CY = 62, SW = 24, CIRC = 2 * Math.PI * R;
     let acc = 0;
@@ -233,8 +418,6 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
-  /* ── ⑤ 정산 진행 현황 ── */
   function progressCard(r) {
     const s = r.settle;
     const step = (lbl, done, cnt) => html`<div class="step ${cnt > 0 && done === cnt ? "done" : ""}"><b>${lbl}</b><span class="num">${done}/${cnt}</span></div>`;
@@ -253,8 +436,6 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
-  /* ── ⑥ 월간 분석 리포트 카드 (라이트 · 문서 목차) ── */
   function reportCard(r) {
     return html`
       <div class="report">
@@ -272,10 +453,9 @@ export function mount(root, { nav }) {
       </div>
     `;
   }
-
   function dashBody() {
     const r = reportFor();
-    if (!r) return html`<div class="admin-empty">선택한 조건(${monthLabel()})에 이용 데이터가 없습니다.</div>`;
+    if (!r) return html`<div class="admin-empty">선택한 조건(${periodLabel(state.ym)})에 이용 데이터가 없습니다.</div>`;
     return html`
       <div class="adash">
         ${kpiCards(r)}
@@ -285,243 +465,427 @@ export function mount(root, { nav }) {
     `;
   }
 
-  function tableBody() {
-    const rows = visibleRows();
-    if (rows.length === 0) {
-      return html`<div class="admin-empty">선택한 조건(${monthLabel()})에 정산 내역이 없습니다.</div>`;
-    }
-    /* 부서 칩은 사업자번호를 공유하는 거래처에만 — 전 거래처에 부서가 있어
-       무조건 병기하면 모든 행이 노이즈가 된다. */
-    const sharedBiz = sharedBizKeys(store.get().clients);
+  /* ── 표 ── */
+  /** 표 머리 한 줄 요약 — 탭·검색과 무관하게 그 달 전체. 0원 달은 입금 없이 닫혀 입금완료 합계에서 뺀다(시안 · N20 ⓕ의 약점 —
+   *  '입금이 없었는데 입금완료로 세어짐'). 미입금 = util/settlement `isUnpaid` — 명세서가 나간 달 전부(동의 전·계산서 발급 전
+   *  포함 · 0원·거래 없음·발행 전 제외). 월간 분석 '미입금액'·대쉬보드 '미수금'·'정산 진행' 과 같은 판정이다(사용자 결정 A —
+   *  예전엔 여기만 계산서가 나간 달(ISSUED·OVERDUE)만 세어 같은 9월을 월간 분석과 다른 금액으로 말했다).
+   *  발행된 달이면 청구 합계 = 입금완료 + 미입금 이다(발행 전 달은 청구 합계에만 들어간다). */
+  function sumBody(rows) {
+    const nonZero = rows.filter((r) => !r.s.zero);
+    const sum = (arr) => won(arr.reduce((a, r) => a + r.s.amount, 0));
+    const zeroClosed = rows.filter((r) => r.s.zero && r.s.status === "PAID").length;
     return html`
-      <div class="settle-table">
-        <div class="settle-thead" style="grid-template-columns:${COL}">
-          ${HEADERS.map((h) => html`<div class="settle-th">${h}</div>`)}
-        </div>
-        ${rows.map(
-          ({ client, rec }) => html`
-            <div class="settle-trow" style="grid-template-columns:${COL}">
-              <!-- 정산·회계 담당자가 없으면 마감 임박·자동 동의 알림톡을 보낼 사람이 없다(2026-09-17 결정: 미발송 + 경고).
-                   자동 동의는 사전 고지가 전제라, 수신자 없는 거래처를 여기서 보이게 한다. -->
-              <div class="settle-td"><span class="settle-stack"><span><span class="ellipsis">${client.companyName}</span>${sharedBiz.has(normalizeBiz(client.bizNumber)) && client.department ? html`<span class="settle-dept">${client.department}</span>` : ""}</span>${store.getBillingContactOf(client.id) ? "" : html`<span class="settle-td__sub settle-td__sub--warn" title="정산·회계 담당자가 없어 마감 임박·자동 동의 알림을 보낼 수 없습니다">알림 수신자 없음</span>`}</span></div>
-              <div class="settle-td">
-                <button class="settle-amount settle-amount--drill" data-action="drill" data-id="${client.id}"
-                        aria-expanded="${state.expanded.has(client.id) ? "true" : "false"}"
-                        title="이 금액의 청구 근거 보기">${rec.정산금액}<span class="settle-caret"></span></button>
-              </div>
-              <div class="settle-td">${agreeBadge(rec)}</div>
-              <div class="settle-td">${issueBadge(rec)}</div>
-              <div class="settle-td">${payBadge(rec.입금완료)}</div>
-              <!-- 발행 전(발급예정) 달은 금액이 아직 쌓이는 중이다 — 확정되지 않은 명세서를 capability URL 로
-                   내보내거나 PDF 로 찍지 않는다. 포털도 같은 상황에서 네 버튼을 모두 잠근다. -->
-              <div class="settle-td"><button class="settle-linkbtn" data-action="copylink" data-id="${client.id}" ${hasDoc(rec) ? "" : "disabled"} title="${docTitle(rec, "공개 열람 링크를 복사합니다")}">${icon("external-link", { size: 11 })}<span>링크 복사</span></button></div>
-              <div class="settle-td"><button class="settle-dlbtn" data-action="download" data-id="${client.id}" ${hasDoc(rec) ? "" : "disabled"} title="${docTitle(rec, "명세서를 PDF로 내려받습니다")}">${icon("download", { size: 11 })}<span>PDF 다운로드</span></button></div>
-            </div>
-            ${state.expanded.has(client.id) ? drillBody(client, rec) : ""}
-          `
-        )}
-      </div>
+      <b>${rows.length}개 거래처</b>
+      <span>청구 합계 <b>${sum(nonZero)}</b></span>
+      <span>입금완료 <b>${sum(nonZero.filter((r) => r.s.status === "PAID"))}</b></span>
+      <span>미입금 <b class="is-unpaid">${sum(rows.filter((r) => isUnpaid(r.s)))}</b></span>
+      ${zeroClosed ? html`<span class="settle-sumline__note">0원 달 ${zeroClosed}곳은 입금 없이 닫혀 입금완료 합계에서 뺐습니다</span>` : ""}
     `;
   }
-
-  /* 청구금액 → 청구 근거 드릴다운.
-     ⚠️ 근거는 청구금액과 **같은 소스**에서 나와야 한다. 예전엔 금액은 이용 내역
-        (usageFor)에서, 펼친 목록은 b2b-mock 주문에서 각각 파생돼 합이 맞지 않았고,
-        두 달 이전 귀속월은 주문 목데이터가 아예 없어 '데모 데이터에 없습니다' 로
-        비면서 청구금액만 남았다 — 근거 없는 청구서다.
-     지금은 품목 행의 합이 곧 청구금액이라 구조적으로 어긋날 수 없다. 실제 주문
-     레코드를 보려면 주문관리로 넘어간다(그쪽이 주문의 단일 소스다). */
-  function billItemsOf(client) {
-    const month = usageFor(client)[monthLabel()];
-    if (!month) return [];
-    return Object.entries(month.items)
-      .filter(([, v]) => v.count > 0)
-      .map(([product, v]) => ({ product, count: v.count, amount: v.amount }))
-      .sort((a, b) => b.amount - a.amount);
+  /** isCur — '기한 · 비고' 칸이 이 단계의 근거를 이미 보이고 있다(지금 단계, 또는 다 끝난 달의 마지막 단계).
+   *  그 칸이 보이는 말은 여기서 .sr-only 로 다시 싣지 않는다 — 스크린리더가 같은 말을 두 번 읽는다(settle-mark.js 계약). */
+  function cellHtml(st, isCur) {
+    if (st.kind === "none") return html`<div class="settle-td">${settleMark({ kind: "none" })}</div>`;
+    /* 지금 단계(live)의 기한·사유는 '기한 · 비고' 칸에 보이므로 여기선 title 만 준다. 끝난 단계는 근거를 title + .sr-only 로.
+       done 은 tone 을 넘기지 않는다 — settleMark 의 done 기본값이 초록 ✓ 다(회색 ✓ 는 0원 달만). */
+    return html`<div class="settle-td">${settleMark(st.kind === "live" || isCur
+      ? { kind: st.kind, label: st.label, tone: st.tone, tip: st.tip || st.meta }
+      : { kind: "done", label: st.label, tone: st.tone, meta: st.meta, tip: st.tip })}</div>`;
   }
-  const TOP_ITEMS = 4; // 상품 9종이라 다 펼치면 아코디언이 표를 밀어낸다 — 나머지는 한 줄로 접는다
-  function drillBody(client, rec) {
-    const items = billItemsOf(client);
-    if (!items.length) {
-      return html`<div class="settle-drill settle-drill--empty">이 달의 이용 내역이 없습니다.</div>`;
-    }
+  function rowHtml(r, now) {
+    const { client: c, s, need } = r;
+    const open = state.expanded.has(c.id);
+    const ct = store.getBillingContactOf(c.id);
+    const st = stagesOf(c, s, now);
+    const act = actOf(s, need);
+    const chips = [];
+    /* 계정 구분은 사업자번호를 공유하는 거래처에만 — 전 거래처에 부서가 있어 무조건 병기하면 전 행이 노이즈다. */
+    if (r.shared && c.department) chips.push(["", c.department]);
+    if (c.status === "정지") chips.push(["amber", "정지 중"]);
+    /* 정산·회계 담당자가 없거나 연락처가 비면 명세서·마감 안내(T3·T4)가 닿지 않는다 — 고지 미도달 보류로 이어진다(명세 3.4). */
+    if (s.noRecipient) chips.push(["red", "알림 수신자 없음"]);
+    const nameTip = ct && String(ct.phone || "").trim()
+      ? `정산·회계 ${ct.name}${ct.role ? ` · ${ct.role}` : ""} · ${ct.phone}`
+      : "정산·회계 담당자가 없거나 연락처가 비어 알림을 보낼 수 없습니다";
+    const cur = st.cur;
+    const detail = cur ? (cur.vis || cur.meta || "") : "";
+    const detailTip = cur ? (cur.tip || cur.meta || "") : "";
+    const M = monthOf(state.ym);
+    return html`
+      <div class="settle-trow ${open ? "is-open" : ""}" data-cid="${c.id}">
+        <div class="settle-td settle-td--name" title="${nameTip}">
+          <b class="settle-name">${c.companyName}</b>
+          ${chips.map(([tone, t]) => html`<span class="settle-chip ${tone ? `settle-chip--${tone}` : ""}">${t}</span>`)}
+        </div>
+        <div class="settle-td settle-td--amt" title="주문 ${s.count}건">${won(s.amount)}</div>
+        ${st.merged
+          ? (st.merged.none
+            ? html`<div class="settle-td settle-td--span3"><span class="settle-none">${st.merged.text}</span></div>`
+            : html`<div class="settle-td settle-td--span3">${settleMark({ kind: "done", label: st.merged.label, tone: "gray", tip: st.merged.tip })}</div>`)
+          : st.cells.map((x) => cellHtml(x, x === cur && !x.vis))}
+        <div class="settle-td settle-td--detail ${cur && cur.hot ? "is-hot" : cur && cur.amb ? "is-amb" : ""}" ${detailTip ? html`title="${detailTip}"` : ""}>${detail}</div>
+        <div class="settle-td settle-td--act">
+          ${act.btn
+            ? html`<button type="button" class="settle-actbtn ${need ? "is-need" : ""}" data-action="${act.btn}" data-cid="${c.id}" aria-label="${c.companyName} ${M}월 ${act.full}">${act.label}</button>`
+            : html`<span class="settle-acttext ${act.need ? "is-need" : ""}">${act.text}</span>`}
+          <button type="button" class="settle-chev" data-action="toggle" data-cid="${c.id}" aria-expanded="${open ? "true" : "false"}"
+                  aria-controls="sx-${c.id}" aria-label="${c.companyName} ${open ? "접기" : "펼치기"}"></button>
+        </div>
+        <div class="settle-td settle-td--docs">
+          ${hasDoc(s)
+            ? html`<button type="button" class="settle-icbtn" data-action="copylink" data-cid="${c.id}" aria-label="${c.companyName} ${M}월 명세서 공개 링크 복사" title="공개 링크 복사">${icon("link", { size: 15 })}</button>
+                   <button type="button" class="settle-icbtn" data-action="download" data-cid="${c.id}" aria-label="${c.companyName} ${M}월 명세서 PDF 다운로드" title="PDF 다운로드">${icon("download", { size: 15 })}</button>`
+            : html`<span class="settle-docsoff" title="${s.status === "NONE" ? "거래가 없는 달은 명세서가 없습니다" : `명세서 발행 전입니다 — ${fmtKoShortTime(s.issueAt)}에 발급됩니다`}">${s.status === "NONE" ? "거래 없음" : "발행 전"}</span>`}
+        </div>
+      </div>
+      <div class="settle-exp" id="sx-${c.id}" data-slot="exp" ${open ? "" : "hidden"}>${open ? expBody(r, now) : ""}</div>
+    `;
+  }
+  function expBody(r, now) {
+    const { client: c, s } = r;
+    const ct = store.getBillingContactOf(c.id);
+    const items = itemsOf(c, state.ym);
     const top = items.slice(0, TOP_ITEMS);
-    const restList = items.slice(TOP_ITEMS);
-    const rest = restList.reduce((a, it) => ({ count: a.count + it.count, amount: a.amount + it.amount }), { count: 0, amount: 0 });
-    const totalCount = items.reduce((a, it) => a + it.count, 0);
-    const row = (label, count, amount, cls = "") => html`
-      <div class="settle-drill__row ${cls}">
-        <span class="settle-drill__p">${label}</span>
-        <span class="settle-drill__c">${count.toLocaleString("ko-KR")}건</span>
-        <span class="settle-drill__m">${amount}</span>
+    const rest = items.slice(TOP_ITEMS);
+    const restSum = rest.reduce((a, it) => ({ count: a.count + it.count, amount: a.amount + it.amount }), { count: 0, amount: 0 });
+    const av = availOf(s);
+    const log = logOf(s, ct, now);
+    const reach = ct && String(ct.phone || "").trim();
+    const ctText = !ct ? "없음 · 거래처 정보에서 지정하세요" : reach ? `${ct.name}${ct.role ? ` · ${ct.role}` : ""} · ${ct.phone}` : `${ct.name}${ct.role ? ` · ${ct.role}` : ""} · 연락처 없음`;
+    const M = monthOf(state.ym);
+    const itemRow = (name, count, amount, rest) => html`
+      <div class="settle-it ${rest ? "settle-it--rest" : ""}"><span class="settle-it__n">${name}</span><span class="settle-it__q">${count.toLocaleString("ko-KR")}건</span><span class="settle-it__a">${won(amount)}</span></div>`;
+    const doRow = (name, [can, why], action) => html`
+      <div class="settle-do ${can ? "" : "is-off"}">
+        <div class="settle-do__l"><b class="settle-do__n">${name}</b><p class="settle-do__w">${why}</p></div>
+        ${can ? html`<button type="button" class="settle-dobtn" data-action="${action}" data-cid="${c.id}" aria-label="${c.companyName} ${M}월 ${name}">${action === "issue" ? "발급 처리" : "입금 확인"}</button>` : ""}
       </div>`;
     return html`
-      <div class="settle-drill">
-        <div class="settle-drill__cap">${monthLabel()} 이용 내역 · 품목별</div>
-        ${top.map((it) => row(it.product, it.count, won(it.amount)))}
-        ${restList.length ? row(`그 외 ${restList.length}개 품목`, rest.count, won(rest.amount), "settle-drill__row--rest") : ""}
-        ${row("합계", totalCount, rec.정산금액, "settle-drill__row--sum")}
-        <button class="settle-drill__more" data-action="drill-all" data-id="${client.id}">
-          주문관리에서 이 거래처 주문 보기
-        </button>
-      </div>`;
-  }
-  function summaryBody() {
-    const rows = visibleRows();
-    const done = rows.filter(({ rec }) => isDone(rec)).length;
-    return html`총 <strong>${rows.length}</strong>개 거래처 · 정산완료 <strong>${done}</strong>건`;
-  }
-
-  // 조회 기간(선택한 년/월) 전체 거래처의 정산액 종합 — 상태탭/검색과 무관.
-  function periodStats() {
-    let total = 0, paid = 0, unpaid = 0;
-    rowsForPeriod().forEach(({ rec }) => {
-      const amt = wonToNum(rec.정산금액);
-      total += amt;
-      if (rec.입금완료 === "입금완료") paid += amt;
-      else unpaid += amt;
-    });
-    return { total, paid, unpaid };
-  }
-  function summaryCards() {
-    const s = periodStats();
-    return html`
-      <div class="settle-sum">
-        <div class="settle-sumcard">
-          <span class="settle-sumcard__lbl">총 정산액</span>
-          <span class="settle-sumcard__val">${won(s.total)}</span>
-        </div>
-        <div class="settle-sumcard settle-sumcard--ok">
-          <span class="settle-sumcard__lbl">입금완료 정산액</span>
-          <span class="settle-sumcard__val">${won(s.paid)}</span>
-        </div>
-        <div class="settle-sumcard settle-sumcard--warn">
-          <span class="settle-sumcard__lbl">미입금 정산액</span>
-          <span class="settle-sumcard__val">${won(s.unpaid)}</span>
-        </div>
+      <div class="settle-exp__grid">
+        <section class="settle-card" aria-label="품목별 내역">
+          <div class="settle-card__hd"><b>품목별 내역</b><span>합계 = 청구금액</span></div>
+          ${items.length
+            ? html`${top.map((it) => itemRow(it.name, it.count, it.amount))}
+                   ${rest.length ? itemRow(`그 외 ${rest.length}개 품목`, restSum.count, restSum.amount, true) : ""}
+                   <div class="settle-itsum"><b>합계</b><b>${won(s.amount)}</b></div>`
+            : html`<p class="settle-noit">이 달의 이용 내역이 없습니다.</p>`}
+          <button type="button" class="settle-pill settle-pill--start" data-action="orders" data-cid="${c.id}">이 거래처 · ${M}월 주문 보기 ›</button>
+        </section>
+        <section class="settle-card" aria-label="처리">
+          <div class="settle-card__hd"><b>처리</b><span>이 달 상태에서 할 수 있는 일</span></div>
+          <div class="settle-ct"><span class="settle-ct__k">정산·회계 담당자</span><b class="settle-ct__v ${reach ? "" : "is-warn"}">${ctText}</b></div>
+          ${doRow("계산서 발급 처리", av.issue, "issue")}
+          ${doRow("입금 확인", av.pay, "pay")}
+        </section>
+        <section class="settle-card" aria-label="진행 기록">
+          <div class="settle-card__hd"><b>진행 기록</b><span>누가 언제</span></div>
+          ${log.length
+            ? log.map((l) => html`<div class="settle-log"><span class="settle-log__t">${l.t}</span><span class="settle-log__w"><b>${l.what}</b>${l.who ? html`<span>${l.who}</span>` : ""}</span></div>`)
+            : html`<p class="settle-noit">거래가 없는 달이라 기록이 없습니다.</p>`}
+        </section>
       </div>
     `;
   }
+  function tableBody() {
+    const now = new Date();
+    const rows = periodRows(now);
+    const vis = visibleRows(rows);
+    const q = state.q.trim();
+    return html`
+      <div class="settle-sumline" data-slot="sum">${sumBody(rows)}</div>
+      ${vis.length
+        ? html`
+          <div class="settle-thead">
+            ${HEADERS.map(([t, k]) => html`<div class="settle-th ${k ? `settle-th--${k}` : ""}">${t}</div>`)}
+          </div>
+          <div data-slot="rows">${vis.map((r) => html`<div class="settle-rg" data-cid="${r.client.id}">${rowHtml(r, now)}</div>`)}</div>`
+        : html`
+          <div class="settle-emptyres">
+            <p class="settle-emptyres__t">${q ? `선택한 조건(${periodLabel(state.ym)} · '${q}')에 정산 내역이 없습니다` : `선택한 조건(${periodLabel(state.ym)})에 정산 내역이 없습니다`}</p>
+            ${q
+              ? html`<p class="settle-emptyres__s">거래처 이름을 확인하거나 검색어를 지워 보세요.</p>
+                     <button type="button" class="settle-pill" data-action="clearq">검색어 지우기</button>`
+              : ""}
+          </div>`}
+    `;
+  }
 
+  /* ── 필터 카드 ── */
+  function tabCounts(rows) {
+    return Object.fromEntries(TABS.map((t) => [t.v, rows.filter((r) => inTab(t.v, r)).length]));
+  }
+  const segOf = () => [["last", "저번달", lastYm], ["this", "이번달", curYm]];
   function render() {
+    const rows = periodRows();
+    const cnt = tabCounts(rows);
     setHTML(
       root,
       html`
-        <div class="page-admin">
+        <div class="page-admin page-settle">
           <div class="admin-inner">
-            ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계" })}
+            ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계", desc: "귀속월마다 명세서 동의 · 계산서 · 입금을 처리합니다" })}
             <div class="bf-card">
               <div class="bf-row bf-row--tabs">
-                <div class="bf-tabs">
-                  ${STATUS_TABS.map((t) => html`<button class="bf-tab ${state.statusFilter === t.value ? "is-active" : ""}" data-action="stab" data-v="${t.value}">${t.label}</button>`)}
+                <div class="bf-tabs" data-slot="tabs">
+                  ${TABS.map((t) => html`<button type="button" class="bf-tab ${state.tab === t.v ? "is-active" : ""}" data-action="tab" data-v="${t.v}" aria-pressed="${state.tab === t.v ? "true" : "false"}">${t.label}<span class="bf-tab__cnt ${t.v === "action" && cnt.action ? "bf-tab__cnt--alert" : ""}" data-cnt="${t.v}">${cnt[t.v]}</span></button>`)}
                 </div>
+                <span class="bf-flow">발행 → 동의 → 계산서 → 입금</span>
               </div>
               <div class="bf-row bf-row--main">
-                <span class="bf-lbl">조회 기간</span>
-                <select class="select" data-ctl="year">
-                  ${SETTLEMENT_YEARS.map((y) => html`<option value="${y}" ${state.year === y ? "selected" : ""}>${y}년</option>`)}
-                </select>
-                <select class="select" data-ctl="month">
-                  ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => html`<option value="${m}" ${state.month === m ? "selected" : ""}>${pad(m)}월</option>`)}
-                </select>
+                <div class="settle-mstep" role="group" aria-label="귀속월">
+                  <button type="button" class="settle-mstep__b" data-action="mprev" aria-label="이전 달">${icon("chevron-left", { size: 16 })}</button>
+                  <span class="settle-mstep__t" data-slot="mlabel" aria-live="polite">${periodLabel(state.ym)} 귀속</span>
+                  <button type="button" class="settle-mstep__b" data-action="mnext" aria-label="다음 달">${icon("chevron-right", { size: 16 })}</button>
+                </div>
                 <div class="bf-seg">
-                  <button class="bf-seg__btn ${state.year === curY && state.month === curM ? "is-sel" : ""}" data-action="qmonth" data-v="this">이번달</button>
-                  <button class="bf-seg__btn ${state.year === lastY && state.month === lastM ? "is-sel" : ""}" data-action="qmonth" data-v="last">저번달</button>
+                  ${segOf().map(([v, label, ym]) => html`<button type="button" class="bf-seg__btn ${state.ym === ym ? "is-sel" : ""}" data-action="qmonth" data-v="${v}" aria-pressed="${state.ym === ym ? "true" : "false"}">${label}</button>`)}
                 </div>
                 <div class="bf-right">
                   <div class="bf-srch bf-srch--addr">
                     ${icon("search", { size: 13, cls: "bf-srch__ic" })}
-                    <span class="bf-srch__lbl">거래처</span>
+                    <span class="bf-srch__lbl" aria-hidden="true">거래처</span>
                     <span class="bf-srch__dv"></span>
-                    <input type="text" data-search value="${state.search}" placeholder="거래처명 검색" />
+                    <input type="text" data-search value="${state.q}" placeholder="거래처 이름으로 검색" aria-label="거래처 이름으로 검색" />
                   </div>
                 </div>
               </div>
             </div>
-            <div data-slot="dash">${dashBody()}</div>
-            <div data-slot="sumcards">${summaryCards()}</div>
-            <p class="admin-summary" data-slot="summary">${summaryBody()}</p>
-            <div data-slot="table">${tableBody()}</div>
+            <div class="settle-table" data-slot="table">${tableBody()}</div>
+            <div class="settle-ana">
+              <div class="settle-ana__l"><b>월간 분석</b><span>총 이용금액 · 주문 건수 · 거래처별 이용 현황 · 항목별 비중</span></div>
+              <div class="settle-ana__r">
+                <button type="button" class="settle-pill" data-action="report">리포트 PDF</button>
+                <button type="button" class="settle-pill" data-action="ana" aria-expanded="${state.anaOpen ? "true" : "false"}" aria-controls="settle-ana-body">${state.anaOpen ? "접기" : "펼치기"}</button>
+              </div>
+            </div>
+            <div id="settle-ana-body" data-slot="dash" ${state.anaOpen ? "" : "hidden"}>${state.anaOpen ? dashBody() : ""}</div>
           </div>
         </div>
       `
     );
+    syncStepper();
   }
-  const refreshTable = () => {
+  /** 탭 건수·선택·월 표시만 갈아 끼운다 — 버튼을 다시 그리면 누른 버튼의 포커스가 날아간다. */
+  function syncFilters(rows = periodRows()) {
+    const cnt = tabCounts(rows);
+    qsa(root, "[data-action='tab']").forEach((b) => {
+      const on_ = b.dataset.v === state.tab;
+      b.classList.toggle("is-active", on_);
+      b.setAttribute("aria-pressed", on_ ? "true" : "false");
+      const c = qs(b, "[data-cnt]");
+      if (c) {
+        c.textContent = String(cnt[b.dataset.v]);
+        if (b.dataset.v === "action") c.classList.toggle("bf-tab__cnt--alert", cnt.action > 0);
+      }
+    });
+    const ml = qs(root, "[data-slot='mlabel']");
+    if (ml) ml.textContent = `${periodLabel(state.ym)} 귀속`;
+    const segYm = Object.fromEntries(segOf().map(([v, , ym]) => [v, ym]));
+    qsa(root, "[data-action='qmonth']").forEach((b) => {
+      const sel = segYm[b.dataset.v] === state.ym;
+      b.classList.toggle("is-sel", sel);
+      b.setAttribute("aria-pressed", sel ? "true" : "false");
+    });
+    syncStepper();
+  }
+  function syncStepper() {
+    const prev = qs(root, "[data-action='mprev']");
+    const next = qs(root, "[data-action='mnext']");
+    if (prev) prev.disabled = state.ym <= minYm;
+    if (next) next.disabled = state.ym >= maxYm;
+  }
+  function refreshTable() {
     const tbl = qs(root, "[data-slot='table']");
-    const sum = qs(root, "[data-slot='summary']");
-    const cards = qs(root, "[data-slot='sumcards']");
     if (tbl) setHTML(tbl, tableBody());
-    if (sum) setHTML(sum, summaryBody());
-    if (cards) setHTML(cards, summaryCards());
-  };
+  }
+  function refreshAna() {
+    const box = qs(root, "[data-slot='dash']");
+    const btn = qs(root, "[data-action='ana']");
+    if (btn) {
+      btn.setAttribute("aria-expanded", state.anaOpen ? "true" : "false");
+      btn.textContent = state.anaOpen ? "접기" : "펼치기";
+    }
+    if (!box) return;
+    box.hidden = !state.anaOpen;
+    setHTML(box, state.anaOpen ? dashBody() : "");
+  }
+  /** 달이 바뀌었다 — 펼침은 달마다 뜻이 달라 비운다. */
+  function setMonth(ym) {
+    if (ym === state.ym) return;
+    state.ym = ym;
+    state.expanded.clear();
+    syncFilters();
+    refreshTable();
+    refreshAna();
+  }
+  /** 그 줄만 다시 그린다(쓰기 성공 뒤) — 펼침 상태 보존. 탭 건수·머리 요약도 같은 소스라 함께 갱신한다. */
+  function refreshRow(cid) {
+    const g = qs(root, `.settle-rg[data-cid='${cid}']`);
+    const now = new Date();
+    const r = rowOf(cid, now);
+    if (g && r) setHTML(g, rowHtml(r, now));
+    const rows = periodRows(now);
+    const sum = qs(root, "[data-slot='sum']");
+    if (sum) setHTML(sum, sumBody(rows));
+    syncFilters(rows);
+    if (state.anaOpen) refreshAna();
+  }
+  /** 창이 닫힌 뒤 포커스가 사라졌으면(줄을 다시 그려 원래 버튼이 없어졌다) 그 줄의 펼침 버튼으로 되돌린다. */
+  function refocus(cid) {
+    const a = document.activeElement;
+    if (a && a !== document.body && document.contains(a)) return;
+    const b = qs(root, `.settle-chev[data-cid='${cid}']`);
+    if (b) b.focus();
+  }
+  function toggle(cid) {
+    const g = qs(root, `.settle-rg[data-cid='${cid}']`);
+    if (!g) return;
+    const open = !state.expanded.has(cid);
+    if (open) state.expanded.add(cid); else state.expanded.delete(cid);
+    const row = qs(g, ".settle-trow");
+    const chev = qs(g, ".settle-chev");
+    const exp = qs(g, "[data-slot='exp']");
+    const r = rowOf(cid);
+    if (row) row.classList.toggle("is-open", open);
+    if (chev && r) {
+      chev.setAttribute("aria-expanded", open ? "true" : "false");
+      chev.setAttribute("aria-label", `${r.client.companyName} ${open ? "접기" : "펼치기"}`);
+    }
+    if (exp) {
+      setHTML(exp, open && r ? expBody(r, new Date()) : "");
+      exp.hidden = !open;
+    }
+  }
 
   render();
 
-  const offChange = on(root, "change", "[data-ctl]", (e, t) => {
-    state[t.dataset.ctl] = Number(t.value);
-    render(); // re-render so 이번달/저번달 active state stays in sync
-  });
-  const offClick = on(root, "click", "[data-action='stab']", (e, t) => {
-    state.statusFilter = t.dataset.v;
-    render(); // re-render to update active chip
-  });
-  const offQuick = on(root, "click", "[data-action='qmonth']", (e, t) => {
-    const base = new Date(now.getFullYear(), now.getMonth() - (t.dataset.v === "last" ? 1 : 0), 1);
-    state.year = base.getFullYear();
-    state.month = base.getMonth() + 1;
-    render();
-  });
-  const offSearch = on(root, "input", "[data-search]", (e, t) => {
-    state.search = t.value;
+  /* 주문 상세 '정산 귀속' 에서 왔다 — 그 줄을 화면에 올린다. ⚠️ 다음 프레임에 한다: 라우터가 mount() 직후
+     `scrollTop = 0` 으로 되돌린다(router.js — 프로필 저장공간의 담당자 카드와 같은 함정). */
+  let raf = 0;
+  if (scrollTo) {
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const g = qs(root, `.settle-rg[data-cid='${scrollTo}']`);
+      if (!g) return;
+      g.scrollIntoView({ block: "center" });
+      const b = qs(g, ".settle-chev");
+      if (b) b.focus({ preventScroll: true });
+    });
+  }
+
+  const offs = [];
+  offs.push(on(root, "click", "[data-action='tab']", (e, t) => {
+    if (state.tab === t.dataset.v) return;
+    state.tab = t.dataset.v;
+    syncFilters();
     refreshTable();
-  });
-  /* 청구금액 클릭 → 그 자리에서 근거 주문 펼치기. 여러 거래처를 연달아 훑기 위해
-     화면 이동 대신 인라인 아코디언을 쓴다(상세·수정은 주문관리에서). */
-  const offDrill = on(root, "click", "[data-action='drill']", (e, t) => {
-    const id = t.dataset.id;
-    if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+  }));
+  offs.push(on(root, "click", "[data-action='mprev']", (e, t) => {
+    if (state.ym <= minYm) return;
+    setMonth(shiftPeriod(state.ym, -1));
+    if (t.disabled) { const n = qs(root, "[data-action='mnext']"); if (n) n.focus(); }
+  }));
+  offs.push(on(root, "click", "[data-action='mnext']", (e, t) => {
+    if (state.ym >= maxYm) return;
+    setMonth(shiftPeriod(state.ym, 1));
+    /* 끝 달에 닿아 버튼이 잠기면 포커스가 사라진다 — 옆 버튼으로 옮긴다. */
+    if (t.disabled) { const p = qs(root, "[data-action='mprev']"); if (p) p.focus(); }
+  }));
+  offs.push(on(root, "click", "[data-action='qmonth']", (e, t) => {
+    setMonth(t.dataset.v === "last" ? lastYm : curYm);
+  }));
+  offs.push(on(root, "input", "[data-search]", (e, t) => {
+    state.q = t.value;
     refreshTable();
-  });
-  const offDrillAll = on(root, "click", "[data-action='drill-all']", (e, t) => {
-    /* 주문관리로 이동 — 거래처명으로 검색이 걸리도록 해시에 힌트를 싣지 않고
-       단순 이동한다(라우터가 쿼리를 다루지 않는다). 후속: 필터 프리셋 전달. */
+  }));
+  offs.push(on(root, "click", "[data-action='clearq']", () => {
+    state.q = "";
+    state.tab = "all";
+    const inp = qs(root, "[data-search]");
+    if (inp) inp.value = "";
+    syncFilters();
+    refreshTable();
+    if (inp) inp.focus();
+  }));
+  /* 줄 아무 데나 → 펼침. onRowOpen 과 같은 가드: 안쪽 컨트롤은 비켜 가고(버튼 동작과 펼침이 둘 다 터지지 않게),
+     드래그 선택 중이면 열지 않는다(금액·이름을 긁어 복사하는 흐름). */
+  offs.push(on(root, "click", ".settle-trow", (e, t) => {
+    if (e.target.closest("button, a, input, select, textarea, label")) return;
+    if (!window.getSelection().isCollapsed) return;
+    toggle(t.dataset.cid);
+  }));
+  offs.push(on(root, "click", "[data-action='toggle']", (e, t) => toggle(t.dataset.cid)));
+  offs.push(on(root, "click", "[data-action='ana']", () => {
+    state.anaOpen = !state.anaOpen;
+    refreshAna();
+  }));
+  /* '이 거래처 · M월 주문 보기' — 주문관리를 그 거래처 · 날짜 기준 배송일 · 그 달 1일~말일로 연다(받는 쪽: admin-orders mount).
+     귀속월 = 배송일의 달이라 기본 날짜 기준(주문일)으로 넘기면 다른 주문이 보인다(2026-10-15). */
+  offs.push(on(root, "click", "[data-action='orders']", (e, t) => {
+    setFocusClient("orders", t.dataset.cid);
+    setFocusSection("orders", `deliver:${state.ym}`);
     nav("#/admin/orders");
-  });
-  const offCopy = on(root, "click", "[data-action='copylink']", (e, t) => {
-    const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row || !hasDoc(row.rec)) return; // 발행 전·거래 없는 달에는 토큰을 발급하지 않는다
-    const token = issueLink({ clientId: row.client.id, bizNumber: row.client.bizNumber, doc: buildDoc(row.client, row.rec) });
+  }));
+  const openFor = (kind, cid) => {
+    const c = store.get().clients.find((x) => x.id === cid);
+    if (!c) return;
+    const opts = {
+      client: c, ym: state.ym, toast,
+      onDone: () => refreshRow(cid),
+      onClose: () => refocus(cid),
+    };
+    if (kind === "issue") openIssueDialog(opts);
+    else openPaymentDialog(opts);
+  };
+  offs.push(on(root, "click", "[data-action='issue']", (e, t) => {
+    const r = rowOf(t.dataset.cid);
+    if (!r || r.s.status !== "AGREED" || r.s.zero) { refreshRow(t.dataset.cid); return; }
+    openFor("issue", t.dataset.cid);
+  }));
+  offs.push(on(root, "click", "[data-action='pay']", (e, t) => {
+    const r = rowOf(t.dataset.cid);
+    if (!r || (r.s.status !== "ISSUED" && r.s.status !== "OVERDUE")) { refreshRow(t.dataset.cid); return; }
+    openFor("pay", t.dataset.cid);
+  }));
+  offs.push(on(root, "click", "[data-action='copylink']", (e, t) => {
+    const r = rowOf(t.dataset.cid);
+    if (!r || !hasDoc(r.s)) return; // 발행 전·거래 없는 달에는 토큰을 발급하지 않는다(서버 409)
+    const token = issueLink({ clientId: r.client.id, bizNumber: r.client.bizNumber, doc: buildDoc(r.client, r.s) });
     const url = publicInvoiceUrl(token);
-    const span = t.querySelector("span");
-    const flash = () => { if (span) { span.textContent = "복사됨!"; setTimeout(() => { if (span) span.textContent = "링크 복사"; }, 1600); } };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(flash).catch(() => window.prompt("공개 링크", url));
+    const done = () => toast(`${r.client.companyName} ${monthOf(state.ym)}월 명세서 공개 링크를 복사했습니다`);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => window.prompt("공개 링크", url));
     else window.prompt("공개 링크", url);
-  });
+  }));
   // 명세서 PDF 즉시 다운로드: doc을 off-DOM으로 렌더 → printInvoiceDoc(새 창 인쇄 → PDF 저장)
-  const offDownload = on(root, "click", "[data-action='download']", (e, t) => {
-    const row = rowsForPeriod().find(({ client }) => client.id === t.dataset.id);
-    if (!row || !hasDoc(row.rec)) return; // 발행 전·거래 없는 달 명세서는 PDF 로도 내보내지 않는다
+  offs.push(on(root, "click", "[data-action='download']", (e, t) => {
+    const r = rowOf(t.dataset.cid);
+    if (!r || !hasDoc(r.s)) return; // 발행 전·거래 없는 달 명세서는 PDF 로도 내보내지 않는다
     const holder = document.createElement("div");
-    setHTML(holder, invoiceDoc(buildDoc(row.client, row.rec)));
+    setHTML(holder, invoiceDoc(buildDoc(r.client, r.s)));
     const docEl = holder.querySelector(".invoice-doc");
     if (!docEl) return;
-    try { printInvoiceDoc(docEl, `${row.client.companyName}_${row.rec.청구년월}_거래명세서`); }
-    catch (err) { console.error("PDF 생성 오류:", err); alert("PDF 생성 중 오류가 발생했습니다. 다시 시도해 주세요."); }
-  });
+    try { printInvoiceDoc(docEl, `${r.client.companyName}_${periodLabel(state.ym)}_거래명세서`); }
+    catch (err) { console.error("PDF 생성 오류:", err); toast("PDF를 만들지 못했습니다. 다시 시도해 주세요.", "warn"); }
+  }));
   // 월간 분석 리포트: 분석 실행 → A4 리포트 렌더 → printInvoiceDoc
-  const offReport = on(root, "click", "[data-action='report']", () => {
+  offs.push(on(root, "click", "[data-action='report']", () => {
     const r = reportFor();
-    if (!r) return;
+    if (!r) { toast(`${periodLabel(state.ym)}에는 분석할 이용 데이터가 없습니다`, "warn"); return; }
     const dt = new Date();
     const generatedAt = `${dt.getFullYear()}. ${pad(dt.getMonth() + 1)}. ${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
     const holder = document.createElement("div");
     setHTML(holder, reportDoc(r, generatedAt));
     const docEl = holder.querySelector(".report-doc");
     if (!docEl) return;
-    try { printInvoiceDoc(docEl, `거래처_이용분석_리포트_${state.year}_${pad(state.month)}`); }
-    catch (err) { console.error("리포트 생성 오류:", err); alert("리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요."); }
-  });
+    const [y, m] = state.ym.split("-");
+    try { printInvoiceDoc(docEl, `거래처_이용분석_리포트_${y}_${m}`); }
+    catch (err) { console.error("리포트 생성 오류:", err); toast("리포트를 만들지 못했습니다. 다시 시도해 주세요.", "warn"); }
+  }));
 
-  return () => { offChange(); offClick(); offQuick(); offSearch(); offDrill(); offDrillAll(); offCopy(); offDownload(); offReport(); };
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    offs.forEach((off) => off());
+    toast.destroy();
+  };
 }

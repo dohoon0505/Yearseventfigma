@@ -18,7 +18,13 @@ export const SUPPLIER = { company: "예시플라워", bizNumber: "000-00-00000",
 export const ACCOUNT = "예시은행 000-0000-0000-00 예금주 홍길동(예시플라워)";
 /** 문서의 '계산서 발행' 칸 어휘 — 포털 거래명세서·관리자 정산·공개 링크가 **한 벌**을 쓴다.
  *  예전엔 관리자가 표 배지값('동의하기')을 그대로 PDF 에 흘렸다. 전 품목 면세라 '계산서' 다. */
-export const INVOICE_NOTE = { wait: "발급대기", done: "발급완료" };
+export const INVOICE_NOTE = {
+  wait: "발급대기", done: "발급완료",
+  /* S-02 시안('포털 거래명세서 동의')이 정한 상태별 낱말 — util/settlement.js `invoiceDocNoteOf` 가 고른다.
+     동의 뒤 계산서가 아직 안 나온 달(발급 실패·재시도)을 '발급완료'·'발급대기' 로 뭉개지 않고, 0원 달·거래 없는 달·
+     발행 전 달을 '-' 대신 말로 적는다. */
+  none: "해당 없음", scheduled: "발행 전", awaiting: "발급대기 · 동의 후 발급", issuing: "발급 중", zero: "해당 없음(0원)",
+};
 
 const wonOf = (n) => Number(n).toLocaleString("ko-KR") + "원";
 /** 시드 명세서의 **거래 내역·합계는 INVOICE_DB 에서 파생한다.**

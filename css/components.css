@@ -1015,10 +1015,13 @@
 @keyframes hmPopOrd { from { opacity: 0; } to { opacity: 1; } }
 
 /* ══ 모달 셸 — 읽기 우선 · 넓은 가로형 ═══════════════════ */
+/* 시안 S-06(2026-10-16): 창은 오버레이 안쪽(사방 24px)을 다 쓴다 — 1280x720 에서 1232x672(예전 92vw·92vh 는
+   1178x662). 그 54px 가 원장 왼쪽 열로 가서 주문상품·연락처가 말줄임되지 않는다. */
 .modal-panel--ord {
   animation: hmPopOrd 0.18s ease;
-  width: min(1400px, 92vw);
-  max-height: 92vh; /* 구역 카드 여백 확보 (공용 88vh보다 여유) */
+  width: 1400px;
+  max-width: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 본문(.ord-grid)만 스크롤 → 헤더·푸터 고정 */
@@ -1026,13 +1029,16 @@
 .modal-panel--ord .hm__head {
   flex-shrink: 0;
   align-items: center;
-  padding: 18px 28px 14px;
+  padding: 16px 26px 12px;
   border-bottom: 1px solid var(--c-divider);
 }
+/* 푸터는 원장(.ord-main) 아래에만 선다(시안 S-06) — 다크 레일이 창 바닥까지 내려가 사진 자리가 그만큼 는다.
+   ⚠️ `.ord-ft` 공용 규칙(패딩 28px)보다 특이도가 높아야 한다 — 여기는 (0,2,0). */
 .modal-panel--ord .hm__foot {
   flex-shrink: 0;
-  border-top: 1px solid var(--c-divider);
-  padding: 12px 28px 14px;
+  margin: 0 22px;
+  border-top: 1px solid var(--c-fill-1);
+  padding: 12px 0 14px;
 }
 
 /* 메타 라인 인라인 담당자 컨트롤 — 클릭 시 담당자 지정 모달 */
@@ -1280,12 +1286,18 @@
       `minmax(0,1fr)` 로 스크롤포트 높이에 못박혀 있어 밀린 만큼 아래가 비고,
       `.ord-grid` 에는 배경이 없어 `.modal-panel` 흰색이 드러난다(1280x620 실측 70px,
       1366x660 실측 61px). 그래서 넘침은 **그리드 아이템인 `.ord-pane` 이 받는다** —
-      거래처 모달의 `.cli-grid`/`.cli-pane` 과 정확히 같은 구조다. */
+      거래처 모달의 `.cli-grid`/`.cli-pane` 과 정확히 같은 구조다.
+   시안 S-06(2026-10-16): 레일 **300px**(예전 350) — 사진이 가로를 가득 채운 3:4(264×352)로 들어가는 폭이다.
+   둘째 칸은 `.ord-main`(원장 스크롤러 `.ord-pane` + 푸터)이다 — 푸터가 원장 아래에만 서고 레일은 바닥까지 간다.
+   ⚠️ 레일 폭은 세 모달이 각각 다르다(상세 300 · 거래처 `.cli-grid` 324 · 등록 `.ordnew-grid` 288). */
 .ord-grid {
   flex: 1; min-height: 0; overflow: hidden;
-  display: grid; grid-template-columns: 350px minmax(0, 1fr);
+  display: grid; grid-template-columns: 300px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
+/* 원장 + 푸터. 넘침은 여전히 `.ord-pane` 이 받는다(푸터는 붙박이). */
+.ord-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.ord-main > .ord-pane { flex: 1 1 auto; }
 
 /* 좌측 다크 처리 레일 — 배송 현장 기록을 본문과 물리적으로 갈라 놓는다 */
 .ord-side {
@@ -1325,7 +1337,7 @@
 
 /* 우측 본문 */
 /* 원장 본문 — **넘침을 받는 곳**. 평소엔 넘치지 않아 스크롤바가 없고, 축소 여력
-   (사진 → 거래 조건 카드 → max-height:820px 여백)을 다 쓰고도 모자랄 때만 생긴다.
+   (사진 → 거래 조건 카드·처리 이력 카드(상세 — S-06) → max-height:820px 여백)을 다 쓰고도 모자랄 때만 생긴다.
    임계는 레코드마다 다르다(1280 폭 실측 ≈700~760px) — 단일 숫자로 적지 말 것.
    레일은 형제라 붙박이로 남는다(위 `.ord-grid` 주석의 흰 띠 참조). */
 .ord-pane {
@@ -1336,10 +1348,10 @@
 /* 세로도 못박는다(minmax(0,1fr)) — 안 그러면 두 열이 내용만큼 자라 버려
    거래 조건이 긴 거래처에서 본문이 모달 밖으로 밀린다. */
 .ord-cols {
-  display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr);
-  gap: 24px; min-width: 0; flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 288px; grid-template-rows: minmax(0, 1fr);
+  gap: 18px; min-width: 0; flex: 1 1 auto; min-height: 0;
 }
-.ord-colL, .ord-colR { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.ord-colL, .ord-colR { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 
 /* ── 카드 ─────────────────────────────────────────────────── */
 .ord-card { border: 1px solid var(--c-border); border-radius: var(--r-2xl); }
@@ -1517,6 +1529,108 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 @media (max-width: 1000px) {
   .ord-grid { grid-template-columns: minmax(0, 1fr); }
   .ord-row { grid-template-columns: 96px minmax(0, 1fr); }
+}
+
+/* ══ S-06 주문 상세(B2B·B2C 공용 셸) · 주문금액 잠금 — 시안 'S-06 B2B 주문 상세 금액 잠금'(2026-10-16) ═══════
+   시안 프레임은 1280x720 하나다. 치수는 그 프레임 값이고 다른 해상도도 같은 값을 쓴다(넓으면 원장 왼쪽 열이 넓어질 뿐).
+   ⚠️ 전부 `.modal-panel--ord` 스코프다 — `.ord-side`·`.ord-card`·`.ord-row`·`.ord-in`·`.ord-pane` 은 거래처 모달(`--cli`)과
+      등록 모달(`--ordnew`)도 쓴다. 스코프 없이 고치면 두 모달의 밀도가 같이 바뀐다.
+   ⚠️ 위 `@media (max-height: 820px)` 의 스코프 없는 축소(0,1,0)는 여기(0,2,0 이상)에 진다 — 시안 값이 그 축소보다 이미
+      촘촘해 상세 모달에는 필요 없다(거래처·등록 모달에는 그대로 걸린다). */
+/* 머리글 — 주문번호 26px · 오른쪽 조작 34px */
+.modal-panel--ord .ord-hd .ord-hd__no { font-size: var(--fs-26); }
+.modal-panel--ord .ord-hd__meta { margin-top: 4px; }
+.modal-panel--ord .ord-step__btn,
+.modal-panel--ord .ord-mgr { height: 34px; padding: 0 13px; }
+.modal-panel--ord .ord-iconbtn { width: 34px; height: 34px; flex-basis: 34px; }
+.modal-panel--ord .ord-more { flex-basis: 34px; }
+
+/* 다크 레일 300px — 사진이 가로를 가득 채운 3:4. 안내문은 머리줄 캡션으로 올라갔다(order-screen.js railV2). */
+.modal-panel--ord .ord-side { padding: 16px 18px; gap: 8px; }
+.modal-panel--ord .ord-side__cap { font-size: var(--fs-13); white-space: nowrap; }
+.modal-panel--ord .ord-side .hm-field label,
+.modal-panel--ord .ord-side__lbl { margin-bottom: 5px; }
+.modal-panel--ord .ord-side .hm-input { height: 36px; }
+/* 처리 메모 40px 한 줄(시안 52→40) — 줄 높이를 못박아야 한 줄짜리에 스크롤바가 생기지 않는다(8+22+8+테두리 2). */
+.modal-panel--ord .ord-side textarea.hm-input {
+  height: 40px; min-height: 40px; padding: 8px 12px; line-height: 22px;
+  font-size: var(--fs-15); resize: none; overflow-y: auto;
+}
+.modal-panel--ord .ord-drop.has { border-style: solid; } /* 사진이 들어오면 점선(올리는 자리)이 아니다 */
+
+/* 원장 — 카드 머리 9px · 줄 84px 라벨 + 4px 상하 · 값 16px(금액만 17px) */
+.modal-panel--ord .ord-pane { padding: 14px 22px 12px; gap: 12px; }
+.modal-panel--ord .ord-card__head { padding: 9px 18px; }
+.modal-panel--ord .ord-row { grid-template-columns: 84px minmax(0, 1fr) 84px minmax(0, 1fr); gap: 0 12px; padding: 4px 18px; }
+.modal-panel--ord .ord-row--full { grid-template-columns: 84px minmax(0, 1fr); }
+.modal-panel--ord .ord-in { height: 34px; font-size: var(--fs-16); text-overflow: ellipsis; }
+.modal-panel--ord textarea.ord-in { height: auto; min-height: 34px; padding: 5px 8px; line-height: 1.5; }
+.modal-panel--ord .ord-fdd > .dd-trigger,
+.modal-panel--ord .ord-dtp__trigger { height: 34px; font-size: var(--fs-16); }
+/* 읽기 전용 값(거래처·귀속월·연락처·알림 수신, 잠긴 주문상품) — 입력과 같은 글자·높이, 길면 말줄임 + title */
+.modal-panel--ord .ord-val {
+  display: block; min-width: 0; height: 34px; line-height: 34px; padding: 0 8px;
+  font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.modal-panel--ord .ord-val--num { font-variant-numeric: tabular-nums; }
+.modal-panel--ord .ord-val--lock { color: var(--c-text-2); }
+.modal-panel--ord .ord-val.is-empty { color: var(--c-text-4); font-weight: var(--fw-normal); }
+.ord-prodcell { min-width: 0; }
+
+/* 주문금액 한 줄 — [칸 150px] 원 [잠긴 이유]. 이유를 칸 아래로 내리지 않는다(창 높이가 그대로 — 시안). */
+.ord-amtf { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.modal-panel--ord .ord-amtf__in {
+  flex: 0 0 150px; width: 150px; padding: 0 10px; text-align: right;
+  font-size: var(--fs-17); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+}
+.ord-amtf__lock {
+  flex: 0 0 150px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 34px; padding: 0 10px; border-radius: var(--r-lg);
+  background: var(--c-fill-1); border: 1px solid var(--c-border); color: var(--c-text-2);
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums;
+}
+.ord-amtf__lock .icon { flex: 0 0 auto; color: var(--c-text-4); }
+.ord-amtf__lock:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+.ord-amtf__unit { flex: 0 0 auto; font-size: var(--fs-15); color: var(--c-text-4); }
+.ord-amtf__why {
+  min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-semibold); line-height: 1.4;
+  color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 요약 · 처리 이력 · 거래 조건 */
+.modal-panel--ord .ord-sum__head { padding: 12px 18px; }
+.modal-panel--ord .ord-sum__lbl { font-size: var(--fs-13); }
+.modal-panel--ord .ord-sum__big { margin-top: 1px; font-size: 19px; }
+.modal-panel--ord .ord-sum__row { padding: 9px 18px; }
+.modal-panel--ord button.ord-sum__row:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+/* 'M월 정산' 줄 — 상태 칩 + › . 칩 낱말은 관리자 정산회계와 같다(admin-orders.js SETTLE_CHIP). */
+.modal-panel--ord .ord-sum__row--settle .ord-sum__v { display: inline-flex; align-items: center; gap: 8px; }
+.ord-schip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+  font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap;
+}
+.ord-schip--warn { background: var(--c-orange-soft); color: var(--c-orange-ink-strong); }
+.ord-schip--ok { background: var(--c-success-bg); color: var(--c-success-ink); }
+.ord-schip--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
+.ord-schip--gray { background: var(--c-fill-1); color: var(--c-text-2); }
+.modal-panel--ord .ord-hist__row { padding: 8px 18px; }
+.modal-panel--ord .ord-hist__lbl { font-size: var(--fs-13); }
+.modal-panel--ord .ord-note__body { padding: 10px 18px; }
+/* 처리 이력도 세로가 모자라면 양보한다(거래 조건 카드 `.ord-note` 와 같은 수법) — 이력이 쌓인 주문에서 184px 를
+   고집하면 1280x720 에서 원장이 넘친다. 자체 스크롤이라 줄어도 내용은 남는다.
+   ⚠️ 바닥은 **한 줄(36px)** 이다 — 더 크게 잡으면 이력이 한 줄뿐인 주문에서 카드가 빈 줄만큼 늘어난다(min-height 는
+      내용이 짧아도 걸린다). */
+.modal-panel--ord .ord-histcard { min-height: 0; display: flex; flex-direction: column; }
+.modal-panel--ord .ord-histcard > [data-slot] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.modal-panel--ord .ord-histcard .ord-hist { flex: 0 1 auto; min-height: 36px; }
+
+.modal-panel--ord .ord-ft .hm-btn { height: 38px; }
+
+@media (max-width: 1000px) {
+  .modal-panel--ord .ord-row { grid-template-columns: 84px minmax(0, 1fr); }
+  .modal-panel--ord .ord-grid { grid-template-rows: auto minmax(0, 1fr); }
+  .modal-panel--ord .ord-side { max-height: 220px; overflow-y: auto; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1749,6 +1863,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   font-size: var(--fs-14); font-weight: var(--fw-semibold); box-shadow: none;
 }
 .dlg-ft .hm-btn--secondary { padding: 0 18px; }
+/* 푸터 버튼의 키보드 초점 — 위 `box-shadow: none` 이 전역 링(주황 9%)까지 지워 초점이 아예 안 보였다
+   (2026-10-16 S-01 검토 실측: 입금 확인 창에서 체크 → Tab → '입금 확인' 에 초점이 가도 표시 없음).
+   푸터는 스크롤 컨테이너가 아니라 바깥쪽 offset 이 잘리지 않는다 — 검정·주황 필 위에서도 보이게 바깥에 그린다. */
+.dlg-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 
 /* 키보드 초점 — 전역 `:focus-visible` 링(`--ring`, 주황 9% 알파)은 흰 다이얼로그 면에서
    1.1:1 이라 사실상 안 보인다. 주 조작 컨트롤은 인디고 외곽선으로 따로 그린다
@@ -2048,6 +2166,44 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-banner__btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 .cli-banner__state { font-style: normal; font-weight: var(--fw-semibold); }
 
+/* S-04 — 약관 동의 전 · 신규 등록 직후 (시안 'S-04 관리자 거래처 약관 동의 전')
+   배너가 둘 이상 겹칠 수 있다(등록 직후 + 약관 동의 전) — 슬롯이 사이를 띄운다.
+   ⚠️ 슬롯은 비면 `hidden` 으로 감춘다(.cli-pane gap 유령 간격 — 위 규약). display 를 주는 순간 UA 의 [hidden]
+      규칙을 이기므로 `[hidden]` 을 따로 못박는다. 색은 대쉬보드 약관 경고(S-05)와 같은 짝이다. */
+.cli-banners { display: flex; flex-direction: column; gap: 12px; }
+.cli-banners[hidden] { display: none; }
+.cli-termschip {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: var(--r-pill);
+  background: var(--c-warn-soft-bg); color: var(--c-amber-ink);
+  font-size: var(--fs-14); font-weight: var(--fw-bold); white-space: nowrap;
+}
+.cli-banner--new { background: var(--c-success-bg); color: var(--c-success-ink); }
+.cli-banner--new b { font-weight: var(--fw-semibold); }
+.cli-banner--terms {
+  align-items: flex-start; gap: 20px; padding: 16px 20px;
+  background: var(--c-warn-bg); border: 1px solid var(--c-amber-line); color: var(--c-text-strong);
+}
+.cli-tb__lead { font-size: var(--fs-15); line-height: 1.55; color: var(--c-amber-ink); }
+.cli-tb__lead b { font-weight: var(--fw-bold); }
+.cli-tb__facts {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px;
+  font-size: var(--fs-14); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+}
+.cli-tb__facts b { font-weight: var(--fw-semibold); }
+.cli-tb__facts .cli-tb__dday { font-weight: var(--fw-bold); color: var(--c-danger-ink); }
+.cli-tb__held { flex-basis: 100%; }
+.cli-tb__foot { margin-top: 8px; font-size: var(--fs-14); line-height: 1.55; color: var(--c-amber-ink); word-break: keep-all; }
+.cli-tb__act { flex: 0 0 220px; display: flex; flex-direction: column; align-items: stretch; gap: 7px; }
+.cli-tb__btn {
+  height: 38px; padding: 0 18px; border-radius: var(--r-pill);
+  background: var(--c-text-strong); color: var(--c-surface);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); white-space: nowrap;
+  transition: background 0.15s;
+}
+.cli-tb__btn:hover { background: var(--c-dark-hover); }
+.cli-tb__btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
+.cli-tb__cap { font-size: var(--fs-12); line-height: 1.5; color: var(--c-amber-ink); text-align: center; }
+
 /* ── 매출 채널 세그먼트 ────────────────────────────────────── */
 .seg-pill { display: flex; gap: 6px; }
 .seg-pill__btn {
@@ -2181,7 +2337,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .ordnew-auto:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
 
-/* 본문 — 레일 288px(시안). `.ord-grid`(350px)를 덮지 않는다(상세로 샌다).
+/* 본문 — 레일 288px(시안). `.ord-grid`(상세 300px)를 덮지 않는다(상세로 샌다).
    넘침은 `.ord-pane` 이 받는다 — 컨테이너를 스크롤시키면 레일이 밀려 흰 띠가 생긴다. */
 .ordnew-grid {
   flex: 1; min-height: 0; overflow: hidden;
@@ -2436,28 +2592,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   .ordnew-rail { max-height: 220px; overflow-y: auto; }
 }
 
-/* ── 정산 상태 배지 — 관리자 정산회계 · 포털 정산회계 조회 **공용** ────────
-   페이지 CSS(settlement.css)에 있던 것을 옮겼다 — 두 화면이 쓰는 클래스가 한 페이지 CSS 에 있으면
-   다른 화면이 전역 로드에 기대는 암시적 의존이 된다(`.tbl-*`·`.bf-*` 전례).
-   배지 아래 보조줄(.settle-td__sub)이 날짜·구분(수동/자동 · 마감 · 작성일자)을 말한다 —
-   색은 --c-text-4(5.7:1). --c-text-muted 는 12px 에서 3.5:1 로 AA 미달. */
-.settle-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-}
-.settle-badge--warn { background: var(--c-warn-soft-bg); color: var(--c-warn-soft-ink); }
-.settle-badge--ok { background: var(--c-success-bg); color: var(--c-success-ink); }
-.settle-badge--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
-/* 아직 순서가 오지 않은 단계(명세서 발행 전) — 경고도 완료도 아니다 */
-.settle-badge--gray { background: var(--c-surface-3); color: var(--c-text-4); }
-.settle-stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-.settle-td__sub { font-size: var(--fs-12); line-height: 1.3; color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* 알림 수신자 없음 — 12px 라 --c-warn-soft-ink(3.8:1)는 AA 미달, --c-danger-ink 로 */
-.settle-td__sub--warn { color: var(--c-danger-ink); }
+/* (예전 정산 상태 배지 `.settle-badge*`·`.settle-stack`·`.settle-td__sub` 는 S-01·S-03 이식으로 관리자·포털 정산 표가
+   한 줄 단계 셀 `.settle-mark*`(아래)로 바뀌어 쓰는 곳이 없어져 지웠다 — 2026-10-16 통합 점검. 되살리지 말고 settleMark 를 쓸 것.) */
 
 /* ── 이용약관 다이얼로그(util/terms-dialog.js) 본문 조각 ── */
 .terms-sec { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-xl); background: var(--c-surface-2); }
@@ -2465,3 +2601,81 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .terms-sec__list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .terms-sec__list li { font-size: 13px; line-height: 1.55; color: var(--c-text-4); word-break: keep-all; }
 .terms-sec + .dlg-check { margin-top: 14px; }
+
+/* ══ S-01 — 정산 단계 한 줄 상태 셀 (.settle-mark*) ══════════════════════════════
+   관리자 정산회계(S-01)·포털 정산회계(S-03) **공용**. 마크업은 js/util/settle-mark.js `settleMark()` 한 곳이다.
+   끝난 단계 ✓(초록) + 회색 낱말 · 지금 단계 ●(색 점) + 진한 낱말 · 아직 안 온 단계 - (시안 'S-01').
+   끝난 단계의 근거(동의 시각·수동/자동 · 작성일자)는 title + .sr-only 에 남는다 — 세무 근거라 버리지 않는다.
+   점 색은 `--settle-mark-c` 로 넘긴다(톤 클래스 하나가 변수 하나만 바꾼다). */
+.settle-mark {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%;
+  white-space: nowrap; font-size: var(--fs-14); line-height: 1.4;
+}
+.settle-mark__ic { width: 10px; height: 10px; flex: 0 0 10px; display: flex; align-items: center; justify-content: center; }
+.settle-mark--live .settle-mark__ic::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--settle-mark-c, var(--c-text-faint));
+}
+.settle-mark--done .settle-mark__ic { color: var(--c-success-ink); }
+.settle-mark--done .settle-mark__ic .icon { stroke-width: 3.4; }
+/* 실제 처리 없이 닫힌 완료(0원 달) — 체크도 회색 */
+.settle-mark--muted .settle-mark__ic { color: var(--c-text-faint); }
+.settle-mark__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.settle-mark--live .settle-mark__t { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.settle-mark--done .settle-mark__t { color: var(--c-text-4); }
+.settle-mark--none { color: var(--c-text-dim-2); }
+.settle-mark--orange { --settle-mark-c: var(--c-orange); }
+.settle-mark--amber { --settle-mark-c: var(--c-warn); }
+.settle-mark--red { --settle-mark-c: var(--c-danger-ink); }
+.settle-mark--gray { --settle-mark-c: var(--c-text-faint); }
+/* S-03 — tone "green"(settle-mark.js 에 추가). done 은 기존 초록 ✓ 그대로이고, live 점도 같은 초록으로 칠한다. */
+.settle-mark--green { --settle-mark-c: var(--c-success-ink); }
+
+/* 옛 머리글(pageTitle) 옆 한 줄 설명 — `pageTitle({ desc })`(S-01). 22px 제목 규격은 그대로 두고 설명만 붙인다. */
+.page-title__main { min-width: 0; }
+.page-title__desc {
+  margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-14); color: var(--c-text-4);
+}
+
+/* ══ S-01 — 작은 창 부품: 키-값 2열 · 오류/성공 상자 · 색 안내 면 · 진행 줄 · 되돌릴 수 없는 주 버튼 ══
+   계산서 발급 처리·입금 확인 창(js/util/settle-dialogs.js)이 쓴다. 같은 규격의 다른 작은 창도 그대로 쓸 수 있다.
+   ⚠️ 빈 상자는 `hidden` 으로 감춘다 — `.dlg-body--sections` 의 gap 이 빈 자식에도 한 번 먹어 유령 간격이 남는다. */
+.dlg-kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
+.dlg-kv__i { min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--c-fill-1); }
+.dlg-kv__k { font-size: var(--fs-13); color: var(--c-text-4); }
+.dlg-kv__v {
+  margin-top: 2px; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.4;
+  color: var(--c-text-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.dlg-kv__v.is-warn { color: var(--c-danger-ink); }
+/* 서버 응답 상자 — 오류(role=alert)는 거부 사유를, 성공(role=status)은 결과(승인번호 등)를 말한다 */
+.dlg-box { padding: 14px 16px; border-radius: var(--r-xl); }
+.dlg-box[hidden] { display: none; }
+.dlg-box__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.45; }
+.dlg-box__b { margin-top: 4px; font-size: var(--fs-14); line-height: 1.55; overflow-wrap: anywhere; }
+.dlg-box__b + .dlg-box__b { margin-top: 6px; }
+.dlg-box--err { background: var(--c-danger-bg); }
+.dlg-box--err .dlg-box__t { color: var(--c-danger-ink); }
+.dlg-box--err .dlg-box__b { color: var(--c-danger-ink-strong); }
+.dlg-box--ok { background: var(--c-success-bg); }
+.dlg-box--ok .dlg-box__t { color: var(--c-success-ink); }
+.dlg-box--ok .dlg-box__b { color: var(--c-text-2); font-variant-numeric: tabular-nums; }
+/* 안내 면(.dlg-note)의 제목 줄 + 색 — 회색(기본)·호박(주의)·빨강(기한 초과) */
+.dlg-note__t { display: block; font-size: var(--fs-14); line-height: 1.45; }
+.dlg-note__b { margin-top: 3px; font-size: var(--fs-14); line-height: 1.55; color: var(--c-text-2); }
+.dlg-note--amber { background: var(--c-warn-soft-bg); }
+.dlg-note--amber .dlg-note__t { color: var(--c-amber-ink); }
+.dlg-note--red { background: var(--c-danger-bg); }
+.dlg-note--red .dlg-note__t { color: var(--c-danger-ink); }
+/* 진행 중(응답 대기) 한 줄 — 돌아가는 아이콘 + 두 줄 설명 */
+.dlg-busy {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  border-radius: var(--r-xl); background: var(--c-surface-2); font-size: var(--fs-14); line-height: 1.5;
+}
+.dlg-busy[hidden] { display: none; }
+.dlg-busy > .icon { color: var(--c-text-strong); }
+.dlg-busy b { display: block; font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.dlg-busy b + span { color: var(--c-text-4); }
+/* 되돌릴 수 없는 주 버튼(입금 확인 · 발급완료로 저장 — 거래처에 알림이 나간다)은 검정(시안). 주황 주 버튼과 구분된다. */
+.hm-btn--ink { background: var(--c-dark); color: var(--c-surface); }
+.hm-btn--ink:hover:not(:disabled) { background: var(--c-dark-hover); }

@@ -22,16 +22,17 @@
    0원 달은 발행과 함께 PAID 로 닫힌다(동의·계산서·입금 없음 — 10.4 Q21 잠정 ①). 화면은 이 결과를 그대로 쓰고
    날짜로 상태를 추정하지 않는다(명세 6.6 — editLockAt·editable 도 그렇다).
 
-   ⚠️ 예전 문자열 필드(거래명세서동의 · 계산서발급 · 입금완료 · 약관보류 · 마감 · 동의구분 · 동의시각 · 작성일자)는
-      `settlementsFor` 가 status 에서 **파생해 유지**한다 — 지금 화면(관리자 정산·대쉬보드·포털 정산·리포트) 호환용이고,
-      각 화면을 시안대로 옮길 때 걷어낸다. '동의하기' 센티널은 계속 폐기 상태다(PDF 로 새던 결함).
+   ⚠️ 예전 문자열 필드는 아직 읽는 곳이 있는 셋(거래명세서동의 · 계산서발급 · 입금완료 — 리포트 · 대쉬보드 '정산 진행')만
+      `settlementsFor` 가 status 에서 **파생해 유지**한다. 나머지(약관보류 · 마감 · 동의구분 · 동의시각 · 작성일자 · 보류 ·
+      발행일 · 정산기한 …)는 S-01·S-03 이식 뒤 읽는 곳이 없어 지웠다(2026-10-16 통합 점검). '동의하기' 센티널은 계속 폐기
+      상태다(PDF 로 새던 결함).
    ============================================================ */
 import { store, einvoiceNoFor } from "../store.js";
 import { b2bList, b2bVersion } from "../data/b2b-mock.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 import {
-  invoiceDayOf, invoiceDayFor, issueDate, agreeDeadline, dueDate, fmtDot, fmtKo, parseAt,
-  periodOf, periodLabel, editLockAt, overdueAt, isPastOverdue, LOCK_REASON, HOLD_LABEL,
+  invoiceDayOf, invoiceDayFor, issueDate, fmtKo, parseAt,
+  periodOf, periodLabel, editLockAt, overdueAt, isPastOverdue, LOCK_REASON,
 } from "../data/settlement-rules.js";
 import { termsPending } from "./client.js";
 import { INVOICE_NOTE } from "../data/invoice-links.js";
@@ -135,7 +136,7 @@ export function usageFor(client) {
 /** report.js 계약 유지용 — { [clientId]: usageFor } */
 export const usageMap = (clients) => Object.fromEntries(clients.map((c) => [c.id, usageFor(c)]));
 
-/* ── per-client 정산 행의 **바탕**(날짜·금액) — 동의·발급·입금은 settlementsFor 가 얹는다 ─────── */
+/* ── per-client 정산 행의 **바탕**(귀속월·금액) — 날짜·동의·발급·입금은 settlementsFor 가 settlementOf 로 얹는다 ─────── */
 const settleCache = new Map();
 export function settlementBaseRows(client) {
   /* 메모 키: 주문 버전 + 발급일 **이력 지문** + 회사명. 발급일을 바꾸면 이력이 붙어 키가 갈리고,
@@ -145,23 +146,16 @@ export function settlementBaseRows(client) {
   const hit = settleCache.get(client.id);
   if (hit && hit.key === key) return hit.rows;
   const usage = usageFor(client);
+  /* 예전 표시 문자열(발행일시 · 정산기한일 · 발행일 · 정산기한 · 청구내역 · 입금자)은 S-01·S-03 이식 뒤 읽는 곳이 없어
+     지웠다(2026-10-16 통합 점검) — 날짜는 settlementOf 의 issueAt·dueAt 을 쓴다. 남은 둘: 청구년월(report.js 조인 키 ·
+     포털 정산 표) · 정산금액(report.js · 대쉬보드 '정산 진행'). */
   const rows = windowYms().map((ym, m) => {
-    /* 발행일시 = 귀속월 다음 달의 거래처 지정일 10:00 · 정산기한 = 그 발행일이 속한 달의 말일.
-       발급일은 **그 귀속월에 유효했던 값**이다(변경은 다음 달 발급분부터 적용). */
-    const issueD = issueDate(ym, invoiceDayFor(client, ym));
-    const dueD = dueDate(ym);
     const label = periodLabel(ym);
     return {
       id: `${client.id}-${ym.replace("-", "")}`,
       ym, m,
-      발행일시: issueD,
-      정산기한일: dueD,
-      발행일: fmtDot(issueD),
-      정산기한: fmtDot(dueD),
-      청구내역: `${label} 꽃배달 이용금 청구`,
       청구년월: label,
       정산금액: won(usage[label].total),
-      입금자: client.companyName,
     };
   });
   settleCache.set(client.id, { key, rows });
@@ -249,8 +243,22 @@ export function settlementOf(client, ym, now = new Date()) {
 }
 
 /**
- * 한 거래처의 최근 6개월 정산 행(m=0 이 이번 달 귀속) = 바탕(날짜·금액) + settlementOf.
- * 예전 문자열 필드는 status 에서 파생해 유지한다(지금 화면 호환 — 각 화면 이식 때 걷어낸다).
+ * 미입금인 달인가 — **명세서가 나갔고**(발행 시각이 지남) · 입금 전이고 · 청구할 금액이 있는 달.
+ * 동의 전(AWAITING_AGREEMENT — 보류 3종 포함)·계산서 발급 전(AGREED) 달도 센다 — 계산서 발급 여부와 무관하다
+ * (2026-10-16 사용자 결정 A). 세지 않는 달: 아직 발행 전(SCHEDULED — 이번 달은 늘 여기) · 0원 달(발행과 함께 닫힌다) ·
+ * 거래 없는 달(NONE) · 입금완료(PAID).
+ * 관리자 정산회계 표 머리 '미입금' · 월간 분석(report.js — 화면 KPI '미입금액' · 정산 진행 현황 · 리포트 PDF) · 대쉬보드
+ * KPI '미수금' · '정산 진행' 카드 '미입금' 이 **이 판정 하나**를 쓴다. 예전엔 셋이 달랐다 — 표 머리는 계산서가 나간 달
+ * (ISSUED·OVERDUE)만, 리포트·대쉬보드는 `입금완료 !== "입금완료"` 라 아직 발행 전인 달까지 세어, 같은 9월을 다른 금액으로
+ * 말했고 이번 달 '미수금' 은 그 달 청구 전액이었다. settlementOf 결과나 settlementsFor 행을 받는다.
+ */
+export const isUnpaid = (s) => !!s && !!s.issued && !s.zero && !s.empty && s.status !== "PAID";
+
+/**
+ * 한 거래처의 최근 6개월 정산 행(m=0 이 이번 달 귀속) = 바탕(귀속월·금액) + settlementOf.
+ * 예전 문자열 필드는 아직 읽는 곳이 있는 셋(거래명세서동의 · 계산서발급 · 입금완료 — report.js 정산 진행 · 대쉬보드
+ * '정산 진행')만 status 에서 파생해 남긴다. 마감 · 동의구분 · 동의시각 · 작성일자 · 약관보류 · 보류 는 S-01·S-03 이식 뒤
+ * 읽는 곳이 없어 지웠다(2026-10-16 통합 점검) — 새 화면은 settlementOf 의 deadline · mode · agreedAt · docDate · autoAgreeHold 를 쓴다.
  * 표시 문자열은 호출부가 포맷한다(html`` 은 Date 를 String() 으로 찍는다).
  */
 export function settlementsFor(client, now = new Date()) {
@@ -261,18 +269,13 @@ export function settlementsFor(client, now = new Date()) {
     return {
       ...b,
       ...s,
-      마감: s.deadline,
-      동의구분: s.mode,
-      동의시각: s.agreedAt,
-      작성일자: s.docDate,
-      /* 약관 동의 전에 마감된 달(2026-09-29 법무 답) — 예전 이름 그대로. 보류 3종의 낱말은 `보류` 에 싣는다. */
-      약관보류: s.autoAgreeHold === "TERMS_NOT_AGREED",
-      보류: s.autoAgreeHold ? HOLD_LABEL[s.autoAgreeHold] : "",
       /* 0원으로 닫힌 달은 동의·계산서가 없다 — '해당없음'(배지 대신 '0원 · 계산서 없음' 을 찍는다). */
       /* 거래가 없는 달(NONE)은 '거래없음' — 청구서가 없으니 입금완료도 미입금도 아니다. */
       거래명세서동의: none ? "거래없음" : closedZero ? "해당없음" : s.mode ? "동의완료" : !s.issued ? "발급예정" : "동의대기",
       계산서발급: none ? "거래없음" : closedZero ? "해당없음" : s.einvoice ? "발급완료" : "발급대기",
-      입금완료: none ? "거래없음" : s.status === "PAID" ? "입금완료" : "미입금",
+      /* '미입금' 은 isUnpaid 한 판정의 결과다(report.js 가 이 칸을 읽는다 — data 층이라 util 을 import 하지 않는다).
+         아직 발행 전인 달은 '청구전' — 낼 청구서가 아직 없어 미입금이 아니다(사용자 결정 A). */
+      입금완료: none ? "거래없음" : s.status === "PAID" ? "입금완료" : isUnpaid(s) ? "미입금" : "청구전",
     };
   });
 }
@@ -296,34 +299,66 @@ export function actionReasons(row) {
  *  관리자 정산 진행 카드(report.js)와 대쉬보드 '정산 진행' 이 같은 판정을 쓴다(예전엔 둘이 달라 같은 9월을 다른 수로 말했다). */
 export const inSettlementFlow = (row) => !!row && !row.zero && !row.empty;
 
-/** 문서의 '계산서 발행' 칸 — 정산 상태에서 끌어온다(동의 여부가 아니라 **계산서가 실제로 나갔는지**).
- *  계산서가 나간 달 = 발급완료 · 0원 달·거래 없는 달 = '-'(계산서가 없다) · 그 밖(발급 전·동의 전·발급 실패) = 발급대기.
- *  포털 미리보기·관리자 PDF·공개 링크가 같은 낱말을 쓴다 — 같은 issueLink 토큰을 양쪽이 덮어쓰므로 갈리면 안 된다. */
-export const invoiceNoteOf = (s) => (!s || s.empty || s.zero ? "-" : s.einvoice ? INVOICE_NOTE.done : INVOICE_NOTE.wait);
+/** 문서의 '계산서 발행' 칸 낱말(S-02 시안 · 상태별) — settlementOf 결과나 settlementsFor 행을 받는다.
+ *  동의 여부가 아니라 **계산서가 실제로 나갔는지**를 말한다.
+ *  발행 전 '발행 전' · 거래 없음 '해당 없음' · 0원 '해당 없음(0원)' · 동의대기 '발급대기 · 동의 후 발급' ·
+ *  동의했지만 계산서 전(AGREED — 발급 실패·재시도) '발급 중' · 계산서가 나간 달(ISSUED·OVERDUE·PAID) '발급완료'.
+ *  ⚠️ 발행 전이 거래 없음보다 먼저다 — 주문이 아직 0건인 이번 달도 '발행 전' 이다(2026-10-16 결정 D: 관리자·포털 정산회계가
+ *     이미 '발행 전 · M월 D일 10:00 발급' 이라고 말한다). '해당 없음' 은 발행 시각이 지났는데 거래가 없는 달(NONE)뿐이다.
+ *  포털 미리보기와 관리자 정산 PDF 가 쓴다 — 같은 issueLink 토큰을 양쪽이 덮어쓰므로 둘이 같은 함수여야 낱말이 갈리지 않는다.
+ *  (옛 두 낱말 판정 `invoiceNoteOf` 는 호출부가 없어져 지웠다 — 2026-10-16 통합 점검) */
+export const invoiceDocNoteOf = (s) => (
+  !s ? INVOICE_NOTE.wait
+    : s.status === "SCHEDULED" ? INVOICE_NOTE.scheduled
+    : s.empty ? INVOICE_NOTE.none
+    : s.zero ? INVOICE_NOTE.zero
+    : s.status === "AWAITING_AGREEMENT" ? INVOICE_NOTE.awaiting
+    : s.status === "AGREED" ? INVOICE_NOTE.issuing
+    : INVOICE_NOTE.done
+);
 /** 조치 필요 — settlementOf 결과나 settlementsFor 행을 받는다. */
 export const needsAction = (row) => actionReasons(row).length > 0;
 
+/* S-04·S-05 — 약관 동의 전 거래처의 명세서 일정(거래처 목록 한 줄 · 정보 창 배너 · 대쉬보드 약관 경고).
+   (첫 달만 보던 `firstStatementOf` 는 대쉬보드가 이 함수로 옮겨 호출부가 없어져 지웠다 — 2026-10-16 통합 점검) */
 /**
- * 그 거래처의 **첫 명세서**(가장 이른 귀속월 = 취소하지 않은 주문의 배송일 달, 또는 수수료가 있는 취소의 취소한 달).
- * 주문이 없으면 null. dDay 는 오늘 → 발급일의 달력일 차(지났으면 음수).
- * phase: "before"(발급 전) · "open"(발급 뒤 마감 전 — 정각 포함) · "closed"(마감 지남).
- * hot: 발급 7일 이내 · 발급 뒤 마감 전 · 마감이 지났어도 약관 동의 전이면 남는다(자동 동의가 안 되므로).
+ * 약관 동의 전 거래처의 **명세서 일정 경고**. 약관에 동의했거나(termsPending 이 아니면) 주문이 없으면 null.
+ * 상태는 settlementOf 에서 끌어온다 — 화면이 날짜로 상태를 짐작하지 않는다(명세 6.6).
+ * - held: 약관 동의 전에 마감이 지나 **자동 동의하지 않은** 달들(autoAgreeHold TERMS_NOT_AGREED · 오래된 순)
+ *   `[{ ym, label, issueAt, deadline, first }]`. 그 달은 마감 뒤에도 수동 동의를 기다린다(명세 3.4 예외표) — 그래서
+ *   거래처가 약관에 동의할 때까지 경고를 남긴다(운영자 결정 6).
+ * - next: 그 밖에 아직 마감 전인 가장 이른 달 — `{ ym, label, issueAt, deadline, dDay, phase: "before"|"open", first }` 또는 null.
+ *   first = 그 달이 첫 명세서(거래가 있는 가장 이른 귀속월 — 배송일의 달 또는 수수료 취소의 취소한 달)인가 ·
+ *   dDay = 오늘 → 발급일의 달력일 차. 0원으로 닫힌 첫 달(가입 혜택 '1회 무료')은 건너뛰므로 next 가 첫 달이 아닐 수 있다.
+ * - hot: next 가 7일 이내 발급이거나 발급 뒤 마감 전 · 또는 held 가 있다(마감이 지나도 약관 동의 전이면 남는다).
+ * 거래처 목록(S-04)과 대쉬보드 약관 경고(S-05)가 **같은 이 판정**을 쓴다 — 예전엔 대쉬보드가 첫 달만 보는 별도 판정이라
+ * 첫 달이 0원으로 닫힌 거래처를 목록은 'D-4' 로 경고하는데 대쉬보드는 놓쳤다(2026-10-16 통합 점검 실측).
  */
-export function firstStatementOf(client, now = new Date()) {
-  if (!client) return null;
+export function termsWatchOf(client, now = new Date()) {
+  if (!client || !termsPending(client)) return null;
   const m = index().get(client.id);
   const yms = m ? [...m.keys()].filter((ym) => m.get(ym).length).sort() : [];
   if (!yms.length) return null;
-  const ym = yms[0];
-  const day = invoiceDayFor(client, ym);
-  const issueAt = issueDate(ym, day);
-  const deadline = agreeDeadline(ym, day);
   const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const d1 = new Date(issueAt.getFullYear(), issueAt.getMonth(), issueAt.getDate());
-  const dDay = Math.round((d1 - d0) / 864e5);
-  const phase = now < issueAt ? "before" : now.getTime() <= deadline.getTime() ? "open" : "closed";
-  const hot = phase === "before" ? dDay <= 7 : phase === "open" ? true : termsPending(client);
-  return { ym, label: periodLabel(ym), issueAt, deadline, dDay, phase, hot, settlement: settlementOf(client, ym, now) };
+  const held = [];
+  let next = null;
+  yms.forEach((ym) => {
+    const s = settlementOf(client, ym, now);
+    if (s.autoAgreeHold === "TERMS_NOT_AGREED") {
+      held.push({ ym, label: periodLabel(ym), issueAt: s.issueAt, deadline: s.deadline, first: ym === yms[0] });
+      return;
+    }
+    if (next) return;
+    /* 0원으로 닫힌 달(PAID)·동의된 달은 동의를 기다리지 않는다 — 다음 후보로 넘어간다. */
+    if (s.status !== "SCHEDULED" && !(s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold)) return;
+    const d1 = new Date(s.issueAt.getFullYear(), s.issueAt.getMonth(), s.issueAt.getDate());
+    next = {
+      ym, label: periodLabel(ym), issueAt: s.issueAt, deadline: s.deadline,
+      dDay: Math.round((d1 - d0) / 864e5), phase: s.issued ? "open" : "before", first: ym === yms[0],
+    };
+  });
+  const hot = held.length > 0 || (!!next && (next.phase === "open" || next.dDay <= 7));
+  return { held, next, hot };
 }
 
 /* ── 포털 거래명세서의 달 (예전 invoice-mock 의 자리 · 시그니처 그대로) ─────────────────────── */
@@ -355,13 +390,8 @@ export function latestInvoiceKey(client, now = new Date()) {
 }
 
 /* ── 쓰기 — 상태를 settlementOf 로 한 번 더 거른 뒤 store 에 기록한다 ─────────────────────── */
-/** 그 달의 동의 상태(store.agreementOf) + 0원 여부. 포털 거래명세서의 동의 카드가 쓴다 — 0원 달은 동의를 받지 않는다. */
-export function agreementFor(client, ym, now = new Date()) {
-  const st = store.agreementOf(client.id, ym, now);
-  const amount = amountOf(client.id, ym);
-  const zero = amount === 0;
-  return { ...st, amount, zero, open: st.open && !zero };
-}
+/* (예전 `agreementFor` — 동의 상태 + 0원 여부 — 는 포털 거래명세서가 settlementOf 로 옮겨 호출부가 없어져 지웠다.
+   0원 달은 동의를 받지 않는다는 규칙은 settlementOf(zero → PAID) 와 store.agreeInvoice(currentAmount 0 → null) 가 지킨다.) */
 /** 거래처의 계산서 발급 동의 — **화면이 보여 준 금액**(shownAmount)을 함께 보낸다(명세 3.4 '마감 전 수정' 5).
  *  반환: 동의 시각 문자열 · null(동의할 수 없는 상태 — 마감 지나 자동 동의 등) ·
  *        `{ error: "SETTLEMENT_AMOUNT_CHANGED", amount }`(그 사이 금액이 바뀜 — 화면은 새 금액을 보여 주고 다시 받는다). */

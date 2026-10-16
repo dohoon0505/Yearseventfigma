@@ -276,114 +276,8 @@
   .prc-pend.is-on { margin-left: 0; } /* 1열에서는 가릴 pane 이 없다 */
 }
 
-/* ── 정산회계: 조회 기간 빠른 선택(이번달/저번달) ────────── */
-/* ── 정산회계: 기간 정산액 요약 (총/입금완료/미입금) ─────── */
-.settle-sum {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.settle-sumcard {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-}
-.settle-sumcard__lbl {
-  font-size: var(--fs-13);
-  color: var(--c-text-muted);
-  font-weight: var(--fw-medium);
-}
-.settle-sumcard__val {
-  font-size: var(--fs-22);
-  font-weight: var(--fw-bold);
-  color: var(--c-text-strong);
-  letter-spacing: -0.01em;
-}
-.settle-sumcard--ok {
-  background: var(--c-success-bg);
-  border-color: var(--c-success);
-}
-.settle-sumcard--ok .settle-sumcard__val {
-  color: var(--c-success-ink);
-}
-.settle-sumcard--warn {
-  background: var(--c-danger-bg);
-  border-color: var(--c-danger-border);
-}
-.settle-sumcard--warn .settle-sumcard__val {
-  color: var(--c-danger-ink);
-}
-
-/* ── 정산회계: 공개 링크 복사 버튼 ──────────────────────── */
-.settle-linkbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--c-border-input-2);
-  background: var(--c-surface);
-  color: var(--c-blue);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.settle-linkbtn:hover {
-  border-color: var(--c-blue);
-  background: var(--c-blue-soft);
-}
-.settle-linkbtn .icon {
-  flex-shrink: 0;
-}
-/* 발행 전(발급예정) 달은 금액이 아직 쌓이는 중이다 — 확정되지 않은 명세서를 링크·PDF 로 내보내지 않는다.
-   왜 못 누르는지는 title 로 말한다(포털은 같은 상황에서 네 버튼을 잠그고 이유 한 줄을 적는다). */
-.settle-linkbtn:disabled,
-.settle-dlbtn:disabled {
-  border-color: var(--c-border);
-  background: var(--c-surface-3);
-  color: var(--c-text-faint);
-  cursor: not-allowed;
-}
-.settle-linkbtn:disabled:hover,
-.settle-dlbtn:disabled:hover {
-  border-color: var(--c-border);
-  background: var(--c-surface-3);
-}
-
-/* ── 정산회계: 명세서 PDF 다운로드 버튼 ─────────────────── */
-.settle-dlbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--c-border-input-2);
-  background: var(--c-surface);
-  color: var(--c-orange);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.settle-dlbtn:hover {
-  border-color: var(--c-orange);
-  background: var(--c-orange-soft);
-}
-.settle-dlbtn .icon {
-  flex-shrink: 0;
-}
-
-/* ── 정산회계 표: 거래처(첫 열) 제외 전 열 가운데 정렬 ───── */
-.page-admin .settle-thead .settle-th:not(:first-child),
-.page-admin .settle-trow .settle-td:not(:first-child) {
-  justify-content: center;
-  text-align: center;
-}
+/* 관리자 정산회계(admin-settlement.js)의 표·요약·링크/PDF 버튼은 2026-10-16 시안 이식(S-01)으로
+   css/pages/settlement.css 아래쪽 '관리자 정산회계' 블록으로 옮겼다(예전 요약 카드 3장·가운데 정렬 규칙은 걷어냈다). */
 
 /* ══ ② 대시보드 카드 (.adash / .acard / .kpi) ═════════════════
    카드 = 헤더 존(구분선) + 본문. 색상은 tokens.css 토큰만. 숫자는 .num. */
@@ -496,10 +390,30 @@
 .cli-child::before { content: "↳"; margin-right: 5px; color: var(--c-text-faint); }
 .cli-dash { color: var(--c-text-faint); }
 
-/* 정산 표 거래처명 옆 부서 칩 — 사업자번호를 공유하는 거래처만 표시 */
-.settle-dept {
-  flex: 0 0 auto; margin-left: 6px; font-size: 11.5px;
-  color: var(--c-text-muted); background: var(--c-surface-3);
-  border-radius: var(--r-sm); padding: 1px 6px;
+/* ── S-04 거래처 목록: '약관 동의 전' 표시 (시안 'S-04 관리자 거래처 약관 동의 전') ──────
+   상태 칸이 아니라 **회사명 아래**에 붙는다 — '활성 + 약관 동의 전'처럼 상태와 함께 성립하는 다른 종류의 사실이다.
+   일정 글자는 7일 이내 발급 · 발급 뒤 마감 전 · 마감 지남(약관 동의 전이면 남는다)일 때 빨갛다(대쉬보드 S-05 와 같은 기준).
+   색은 대쉬보드 약관 경고와 같은 짝(--c-warn-soft-bg · --c-amber-ink). */
+.cli-name { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; width: 100%; }
+.cli-name > .ellipsis { max-width: 100%; }
+.cli-terms { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; min-width: 0; max-width: 100%; }
+.cli-tbadge {
+  flex-shrink: 0; display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
+  border-radius: var(--r-pill); background: var(--c-warn-soft-bg); color: var(--c-amber-ink);
+  font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap;
 }
+/* 일정 한 줄 — 칸이 좁으면(1280: 회사명 칸 ≈ 220px) 띄어쓰기에서 접힌다. nowrap 이면 옆 칸으로 넘친다. */
+.cli-tsched {
+  min-width: 0; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-4);
+  font-variant-numeric: tabular-nums; word-break: keep-all;
+}
+.cli-tsched.is-hot { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
+/* 날짜·시각 한 덩어리('10-28 13:00') — 하이픈 뒤에서도 줄이 접혀 '10- / 28 13:00' 으로 갈렸다(1280 실측). 덩어리 앞뒤 띄어쓰기에서만 접는다. */
+.cli-tsched__dt { white-space: nowrap; }
+/* 접힌 묶음 줄 — 'N곳 약관 동의 전'(펼치면 자식 줄이 각자 말하므로 숨는다) */
+.cli-grpnote { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-amber-ink); }
+/* '약관 동의 전만 보기' 칩 — 탭 줄 오른쪽(공용 .bf-chip). 상태 탭을 늘리지 않는다(시안). */
+.cli-termsslot { margin-left: auto; padding-left: 16px; display: flex; align-items: center; }
+.cli-termsonly__n { font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.cli-termsonly:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 

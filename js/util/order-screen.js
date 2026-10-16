@@ -360,25 +360,28 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew 
 }
 
 /* ── 처리 레일(다크) ──────────────────────────────────────── */
-export function railV2({ order, imgInner, cap = "배송 현장 기록" }) {
+/* 시안 S-06(2026-10-16): 레일 300px 안에 현장사진이 **가로를 가득 채운 3:4**(264×352)로 들어간다. 높이를 맞추려고
+   예전 맨 아래 안내문('사진·인수자 저장 시 배송완료 전환 · 알림톡 자동 발송')을 머리줄 캡션으로 올렸다 —
+   알림톡 이야기는 캡션의 title 로 남긴다. 상세 모달 두 화면(B2B·B2C)이 같은 레일을 쓴다(둘 다 같은 자동 전환 규칙).
+   라벨은 입력 id 와 묶는다(`for` 없는 label 은 눌러도 포커스가 가지 않는다) — 상세 모달은 한 번에 하나뿐이라 id 가 겹치지 않는다. */
+export function railV2({ order, imgInner, cap = "저장 시 배송완료 전환" }) {
   return html`
     <aside class="ord-side">
       <div class="ord-side__h">
         <b class="ord-side__t">처리</b>
-        <span class="ord-side__cap">${cap}</span>
+        <span class="ord-side__cap" title="주문접수 상태에서 사진·인수자를 함께 저장하면 배송완료로 바뀌고 알림톡이 자동 발송됩니다">${cap}</span>
       </div>
-      <div class="ord-drop" data-slot="imgbox" data-action="img-zoom"
+      <div class="ord-drop ${order.image ? "has" : ""}" data-slot="imgbox" data-action="img-zoom"
         title="${order.image ? "클릭하여 크게 보기" : "클릭하여 업로드"}">${imgInner}</div>
       <input type="file" accept="image/*" data-img-input hidden />
       <div class="hm-field">
-        <label class="ord-side__lbl">인수자 성함</label>
-        <input class="hm-input" data-f="receiver" value="${order.receiver ?? ""}" placeholder="현장에서 수령한 분" />
+        <label class="ord-side__lbl" for="ord-rcv">인수자 성함</label>
+        <input class="hm-input" id="ord-rcv" data-f="receiver" value="${order.receiver ?? ""}" placeholder="현장에서 수령한 분" />
       </div>
       <div class="hm-field">
-        <label class="ord-side__lbl">처리 메모</label>
-        <textarea class="hm-input" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${order.memo ?? ""}</textarea>
+        <label class="ord-side__lbl" for="ord-memo">처리 메모</label>
+        <textarea class="hm-input" id="ord-memo" data-f="memo" placeholder="담당자 처리 메모 · 특이사항">${order.memo ?? ""}</textarea>
       </div>
-      <p class="ord-side__note">사진·인수자 저장 시 <b>배송완료</b> 전환 · 알림톡 자동 발송</p>
     </aside>`;
 }
 
@@ -405,15 +408,18 @@ export function remainOf(deliverAt) {
   return { label: `${spanOf(t)} 남음`, cls: t < 86400000 ? "is-soon" : "" };
 }
 
+/* 행 서술자: { k, v, empty, action, cls }. action 이 있으면 누르는 줄(button)이고 `v` 에 Html 을 넣어도 된다
+   (B2B 의 정산 줄이 상태 칩을 싣는다). action 이 없는 줄의 `v` 는 **문자열만** — title 로도 찍히기 때문이다.
+   배송완료된 주문은 '남은시간' 대신 '배송 완료' 라고 말한다(시안 S-06) — '3일 경과' 는 끝난 주문에 아무 뜻이 없다. */
 export function summaryBodyV2({ order, rows }) {
-  const r = remainOf(order.deliverAt);
+  const r = order.status === "배송완료" ? { label: "배송 완료", cls: "" } : remainOf(order.deliverAt);
   return html`
     <div class="ord-sum__head">
       <p class="ord-sum__lbl">배송일시까지 남은시간</p>
       <p class="ord-sum__big ${r.cls}">${r.label}</p>
     </div>
     ${rows.map((x) => (x.action
-      ? html`<button class="ord-sum__row" data-action="${x.action}">
+      ? html`<button type="button" class="ord-sum__row ${x.cls || ""}" data-action="${x.action}">
           <span class="ord-sum__k">${x.k}</span>
           <span class="ord-sum__v ${x.empty ? "is-empty" : ""}">${x.v} ›</span></button>`
       : html`<div class="ord-sum__row">

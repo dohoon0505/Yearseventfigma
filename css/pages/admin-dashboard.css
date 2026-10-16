@@ -146,6 +146,55 @@
 .dsh-btn--ok { border: none; background: var(--c-success); color: var(--c-surface); }
 .dsh-btn--ok:hover { background: var(--c-success-ink); }
 
+/* ── 상태 알약 — 약관 경고 칩 · 정산 진행 '연락 필요 · 기한 초과' 공용 ─────────────
+   시안: 24px · 좌우 10px · 12px 굵게. 발급 전(D-n · 오늘 발급)은 호박, 발급 뒤·마감 지남·정산 조치는 빨강. */
+.dsh-pill {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  height: 24px; padding: 0 10px; border-radius: var(--r-pill);
+  font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.dsh-pill--warn { background: var(--c-warn-soft-bg); color: var(--c-amber-ink); }
+.dsh-pill--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
+/* '정산 진행' 의 '기한 초과 N' 칩은 누를 수 있다(가장 오래된 기한 초과 달의 정산회계 '조치 필요' 탭 — 사용자 결정 B).
+   모양은 알약 그대로 두고 버튼 기본값만 지운다. 전역 :focus-visible 링(--ring)은 흰 면에서 1.1:1 이라 직접 그린다. */
+button.dsh-pill { border: none; margin: 0; font-family: inherit; line-height: 1; cursor: pointer; }
+button.dsh-pill:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
+
+/* ── 약관 동의 전 · 첫 명세서 임박 (시안 'S-05 대쉬보드 약관 경고') ─────────────────
+   건이 있을 때만 오른쪽 열 맨 위에 나타난다('가입 승인 대기' 와 같은 문법) — 없으면 카드째 사라진다.
+   껍데기는 이웃 카드(.dsh-card)와 같고 호박 면·테두리만 다르다. 머리 글자 크기는 이웃 카드 규격(14px)을 따른다. */
+.dsh-card.is-warn { border-color: var(--c-amber-line); }
+.dsh-card.is-warn > .dsh-card__h { background: var(--c-warn-bg); border-bottom-color: var(--c-amber-line); align-items: baseline; }
+.dsh-card.is-warn > .dsh-card__h b { color: var(--c-amber-ink); }
+.dsh-tw__hl { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+.dsh-badge--warn { color: var(--c-amber-ink); background: var(--c-warn-soft-bg); font-weight: var(--fw-bold); }
+.dsh-tw__sort { font-size: var(--fs-12); color: var(--c-amber-ink); white-space: nowrap; }
+/* 좁은 열(1280 — 407px)에서 두 줄로 꺾인다 — 낱말 가운데('동의|할')서 끊지 않게 keep-all. */
+.dsh-tw__desc { margin: 0; padding: 10px 18px 0; font-size: var(--fs-13); line-height: 1.5; color: var(--c-amber-ink); word-break: keep-all; }
+.dsh-tw__list { list-style: none; margin: 0; padding: 0; }
+.dsh-tw { margin-top: 10px; padding: 12px 18px; border-top: 1px solid var(--c-amber-line); }
+.dsh-tw__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dsh-tw__n {
+  min-width: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dsh-tw__line { margin: 5px 0 0; font-size: var(--fs-13); line-height: 1.5; color: var(--c-text-2); font-variant-numeric: tabular-nums; word-break: keep-all; }
+.dsh-tw__line--2 { margin-top: 1px; }
+.dsh-tw__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+/* 연락 줄 — 보조 글자는 --c-text-4(13px 에서 5.7:1). --c-text-muted 는 AA 미달. */
+.dsh-tw__ct { min-width: 0; font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.dsh-tw__ct b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.dsh-tw__open {
+  flex-shrink: 0; height: 30px; padding: 0 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2);
+  white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.dsh-tw__open:hover { border-color: var(--c-orange); background: var(--c-orange-soft); color: var(--c-orange-ink); }
+/* 전역 :focus-visible 링(--ring, 9% 알파)은 흰 면에서 1.1:1 이라 없는 것과 같다 — 직접 그린다. */
+.dsh-tw__open:focus-visible,
+.dsh-more:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
+
 /* ── 상품별 이용 비중 ────────────────────────────────────── */
 .dsh-chips { display: flex; align-items: center; gap: 6px; }
 .dsh-chip {
@@ -202,8 +251,11 @@
 .dsh-stg.is-zero { background: var(--c-danger-bg); }
 .dsh-stg.is-zero span { color: var(--c-danger-ink); }
 
+/* 조치 필요 칩 줄 — 0건 칩은 숨기고, 둘 다 0이면 줄째 없다(시안: 위 1px 선 · 12px 띄움). */
+.dsh-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--c-fill-1); }
+
 .dsh-more {
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center; gap: 4px; /* flex 라 글자 끝 공백이 접힌다 — '열기 ›' 사이 */
   width: 100%; margin-top: 14px; height: 42px; border-radius: var(--r-lg);
   background: var(--c-surface); border: 1px solid var(--c-border-strong);
   color: var(--c-text-2); font-size: 13.5px; font-weight: var(--fw-semibold); cursor: pointer;
