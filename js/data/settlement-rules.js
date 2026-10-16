@@ -215,7 +215,7 @@ export const isPastOverdue = (period, now) => now.getTime() >= overdueAt(period)
 /** 잠긴 이유 — 명세 6.4 '정산 잠금' 의 정본 문구 3종(2026-10-15 결정 — 귀속월 배송일 기준). 화면이 지어내지 않는다.
  *  editLock: 수정 마감 뒤 · 동의 전 / agreed: 동의된 달(AGREED·ISSUED·PAID·OVERDUE) / zero: 0원으로 계산서 없이 닫는(닫힌) 달 */
 export const LOCK_REASON = {
-  editLock: "배송일이 지난 달 · 마감 안내가 나갔습니다 — 금액 조정은 동의 뒤 수정계산서로",
+  editLock: "배송일이 지난 달 · 수정 마감(마감 안내 시각)이 지났습니다 — 금액 조정은 동의 뒤 수정계산서로",
   agreed: "배송일이 지난 달 · 동의를 마쳤습니다 — 금액 조정은 수정계산서로",
   zero: "배송일이 지난 달 · 0원이라 계산서 없이 닫는 달입니다 — 금액을 바꿀 수 없습니다",
 };

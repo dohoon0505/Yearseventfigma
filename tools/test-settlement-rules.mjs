@@ -206,7 +206,7 @@ eq("기한 초과: 1월분(정산기한 2월 말) → 03-01 10:00", overdueAt("2
 eq("기한 초과 정각 1ms 전은 아직", isPastOverdue("2026-09", D(2026, 11, 1, 9, 59, 999)), false);
 eq("기한 초과 정각부터", isPastOverdue("2026-09", D(2026, 11, 1, 10)), true);
 eq("잠긴 이유 3종은 모두 '배송일이 지난 달' 로 시작", Object.values(LOCK_REASON).every((s) => s.startsWith("배송일이 지난 달 · ")), true);
-eq("잠긴 이유: 수정 마감", LOCK_REASON.editLock, "배송일이 지난 달 · 마감 안내가 나갔습니다 — 금액 조정은 동의 뒤 수정계산서로");
+eq("잠긴 이유: 수정 마감", LOCK_REASON.editLock, "배송일이 지난 달 · 수정 마감(마감 안내 시각)이 지났습니다 — 금액 조정은 동의 뒤 수정계산서로");
 eq("보류 낱말 3종", HOLD_CODES.join(","), "TERMS_NOT_AGREED,NOTICE_UNDELIVERED,CLIENT_SUSPENDED");
 eq("보류 낱말: 약관", HOLD_LABEL.TERMS_NOT_AGREED, "약관 동의 전 · 자동 동의 안 함");
 
