@@ -45,12 +45,15 @@ const HINT_BASE = "제작 착수 전이면 수수료 0원";
 
 /**
  * @param {{orderNo:string, amount:number, settle?:string|false,
- *          onConfirm:(r:{reason:string, fee:number}) => void}} opts
+ *          onConfirm:(r:{reason:string, fee:number}) => void, onClose?:() => void}} opts
  *   settle 에 달 이름('2026년 10월' — 취소한 달)을 넘기면 "그 달 정산에 가산된다"는 안내를 띄운다(B2B).
  *   달을 이름으로 말하는 이유: 수수료가 붙는 달(취소한 달)과 주문의 귀속월(배송한 달)이 다를 수 있다.
+ *   onClose(선택) — 창이 닫힌 뒤(✕·돌아가기·ESC·취소 확정 모두 · 삭제 확인 창 openDeleteConfirm 의 onClose 와 같은 자리).
+ *   확정은 onConfirm 이 상세 창 머리를 다시 그린 **뒤** 창을 닫으므로, 창이 돌려줄 버튼(···)이 그사이 DOM 에서 떨어져 초점이
+ *   body 로 빠진다 — 호출부가 여기서 새 버튼으로 되돌린다. 안 넘기면 예전과 같다.
  * @returns 다이얼로그 인스턴스({ panel, close, setHint }) — 호출부가 닫기 책임을 진다
  */
-export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) {
+export function openCancelModal({ orderNo, amount, settle = false, onConfirm, onClose }) {
   /* fee 는 마지막으로 받아들인 값(숫자). feeBad 는 지금 칸의 글자가 거부된 상태인지 — 그동안은 취소를 막는다
      (되돌릴 수 없는 동작이라 칸에 보이는 값과 청구될 값이 다를 수 있는 순간에 누르게 두지 않는다). */
   const form = { reason: CANCEL_REASONS[0], etc: "", fee: 0, feeBad: false };
@@ -108,6 +111,7 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm }) 
     bodyClass: "dlg-body--sections",
     body,
     hint: HINT_BASE,
+    onClose,
     actions: dlgActions({
       cancel: "돌아가기",
       ok: "주문 취소하기",

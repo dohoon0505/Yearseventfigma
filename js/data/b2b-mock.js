@@ -627,7 +627,8 @@ function ledgerLinesFor(before, after, ctx = {}, now = new Date()) {
   return issued.map((d) => {
     const st = store.agreementOf(d.clientId, d.ym, now);
     const client = store.get().clients.find((c) => c.id === d.clientId);
-    if (st.mode || now.getTime() >= editLockAt(d.ym, invoiceDayFor(client, d.ym)).getTime()) {
+    if (st.mode || now.getTime() >= editLockAt(d.ym, invoiceDayFor(client, d.ym)).getTime()
+      || zeroClosedBefore(d.clientId, d.ym, st.issueDate, before, after)) {
       console.warn(`[정산 금액 변경 기록] 잠긴 달(${d.clientId} ${d.ym})의 금액이 바뀌었습니다 — 화면이 settlementImpactOf 로 먼저 막아야 합니다`);
     }
     const other = changed.find((x) => x !== d);
@@ -640,6 +641,26 @@ function ledgerLinesFor(before, after, ctx = {}, now = new Date()) {
     if (move) line.move = move;
     return line;
   });
+}
+/** 그 (거래처, 귀속월)이 이 쓰기 **전에** '발급 때부터 0원' 으로 닫혀 있었는가 — util/settlement `settlementOf` 의
+ *  `zero && !zeroEdited`(발행과 함께 PAID · 수정 마감 전에도 잠긴 달 · LOCK_REASON.zero). 위 경고(개발용) 판정에만 쓴다.
+ *  이 모듈은 settlementOf 를 부를 수 없어(그쪽이 이 모듈을 import 한다 — 순환) 같은 두 값으로 다시 잰다: 그 달 줄의 합
+ *  (이 주문은 바꾸기 전 모양 — 캐시에는 이미 바꾼 뒤 모양이 들어 있다)과 발행 뒤 기록 줄(사용자 줄 ∪ 시드 줄)의 순변동.
+ *  줄이 없는 달(NONE)은 잠긴 달이 아니라 false(들어오는 주문은 settlementImpactOf 가 따로 막는다 — 2차 답 3). */
+function zeroClosedBefore(clientId, ym, issueAt, before, after) {
+  const self = after || before;
+  let n = 0, sum = 0;
+  const add = (o) => entriesOfOrder(o).forEach((e) => {
+    if (e.clientId === clientId && e.ym === ym) { n++; sum += Number(e.amount) || 0; }
+  });
+  list().forEach((o) => { if (o !== self && o.id !== self.id) add(o); });
+  if (before) add(before);
+  if (!n || sum !== 0) return false;
+  const from = fmtAt(issueAt);
+  const logged = [...store.amountLogOf(clientId, ym), ...((seedLines[clientId] || {})[ym] || [])]
+    .filter((l) => String(l.at || "") >= from)
+    .reduce((a, l) => a + (Number(l.after) - Number(l.before)), 0);
+  return !(sum - logged > 0); // 발급 때 금액 = 지금 − 순변동. 0 보다 크면 고쳐서 0원 — 수정 마감까지 고칠 수 있다
 }
 
 /** 캐시의 레코드 하나를 변경분으로 기록·저장한다(사본을 남긴다 — 캐시 객체를 store 와 공유하지 않게).

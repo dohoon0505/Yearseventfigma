@@ -49,7 +49,7 @@ import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
-  makeImageBox, openStaffPicker, openDeleteConfirm,
+  makeImageBox, openStaffPicker, openDeleteConfirm, editIndexOf, focusAfterDelete, focusAfterStep,
   ordHeader, bindOrdMenu, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 /* ⚠️ 주문 레코드는 **저장 함수로만** 고친다(b2bUpsert·b2bPushHistory·b2bCancel·…) — b2b-mock 이 변경분을
@@ -1711,8 +1711,7 @@ export function mount(root, { nav }) {
     renderHd(); renderSum(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다 · 요약은 '배송 완료'
     toast(next !== "배송완료" ? `${next}(으)로 변경했습니다`
       : rec.notified ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : "배송완료로 전환 · 받을 사람이 없어 알림톡은 나가지 않습니다");
-    const p = panelOf();
-    if (p) qs(p, ".ord-step__btn.is-now")?.focus();
+    focusAfterStep(panelOf()); // 새 '지금' 단계는 disabled 라 초점을 못 받는다 — 다음 단계로(order-screen)
   }
 
   function openEditor(order) {
@@ -1758,9 +1757,11 @@ export function mount(root, { nav }) {
       menu.close(); // 확인 창이 닫히면 초점이 ··· 로 돌아온다
       const name = editing.orderNo;
       const doRemove = (imp2) => {
+        const idx = editIndexOf(root, editing.id); // 지우기 전 순번 — 그 자리에 올라온 줄로 초점을 옮긴다
         if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
         closeModal();
         refreshList();
+        focusAfterDelete(root, idx); // 창이 돌려준 연필이 다시 그린 목록에서 사라졌다(body) — order-screen
         const tail = settleAfter(imp2);
         toast(`${name} 주문을 삭제했습니다${imp2.months.some((m) => m.delta !== 0) ? ` · ${tail}` : ""}`, "warn");
       };
@@ -1867,6 +1868,8 @@ export function mount(root, { nav }) {
         /* 수수료는 **취소한 날이 속한 달**의 정산에 붙는다(2026-10-15 기본값 — 명세 3.4 '마감 전 수정' 6).
            주문의 귀속월(배송한 달)이 아니다 — 그래서 달 이름을 넘겨 안내문이 그 달을 말하게 한다. B2C 는 정산이 없다. */
         settle: periodLabel(periodOf(new Date())),
+        /* 확정하면 아래에서 머리를 다시 그려 창이 돌려줄 ··· 가 사라진다(초점이 body 로 빠졌다) — 새 ··· 로. */
+        onClose: () => menu.refocus(),
         onConfirm: ({ reason, fee }) => {
           /* 사유를 적는 사이 잠겼을 수 있다 — 취소하는 순간 한 번 더 판정한다(서버 409 대역 · 적은 수수료로). */
           const h2 = cancelHit(fee);

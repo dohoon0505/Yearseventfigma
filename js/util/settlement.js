@@ -43,7 +43,7 @@ import { store, einvoiceNoFor } from "../store.js";
 import { b2bList, b2bVersion, b2bSeedAmountChanges } from "../data/b2b-mock.js";
 import { DATA_NOW } from "../data/admin-mock.js";
 import {
-  invoiceDayOf, invoiceDayFor, issueDate, fmtKo, fmtKoShort, parseAt,
+  invoiceDayOf, invoiceDayFor, issueDate, fmtKo, fmtKoShortY, parseAt,
   periodOf, periodLabel, editLockAt, overdueAt, isPastOverdue, LOCK_REASON, LOCK_SHORT,
   issuedEmptyReason, ISSUED_EMPTY_SHORT,
 } from "../data/settlement-rules.js";
@@ -325,10 +325,12 @@ export function amountChangesOf(client, ym, now = new Date()) {
 }
 
 /** '발급 때 X원 → 지금 Y원 (M월 D일 수정)' — 금액이 바뀐 달(s.changed)의 한 줄. S-01 칩 title · S-02 요약 · S-03 안내가
- *  **같은 말**을 하게 한 곳에서 만든다(요청서 R9 문장 그대로). 바뀌지 않은 달이면 "". */
-export function amountChangeLine(s) {
+ *  **같은 말**을 하게 한 곳에서 만든다(요청서 R9 문장 그대로). 바뀌지 않은 달이면 "".
+ *  수정한 날이 `now` 와 해가 다르면 연도를 붙인다('(2026년 12월 20일 수정)' — fmtKoShortY · 같은 해면 예전과 한 글자도 같다).
+ *  지난해에 고친 달을 해가 바뀐 뒤 열면(11월분을 12월에 고치고 1월에 보면) 연도 없이는 올해 12월로 읽힌다. */
+export function amountChangeLine(s, now = new Date()) {
   if (!s || !s.changed) return "";
-  const when = s.amountChangedAt ? ` (${fmtKoShort(s.amountChangedAt)} 수정)` : "";
+  const when = s.amountChangedAt ? ` (${fmtKoShortY(s.amountChangedAt, now)} 수정)` : "";
   return `발급 때 ${won(s.issuedAmount)} → 지금 ${won(s.amount)}${when}`;
 }
 

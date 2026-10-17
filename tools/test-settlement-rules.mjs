@@ -230,6 +230,35 @@ eq("보류: termsHold 는 약관일 때만", stH("NOTICE_UNDELIVERED", AFTER).te
 eq("보류: 모르는 값은 무시(자동)", stH("WHATEVER", AFTER).mode, "auto");
 eq("보류: 없으면 자동 · 이유 null", stH(null, AFTER).autoAgreeHold, null);
 
+/* ── 마감 때 보류였던 이유(heldAtDeadline) — autoAgreeHold 와 같은 판정이되 **마감 뒤 직접 동의해도 남는다**
+      (관리자 진행 기록의 '마감 · 자동 동의 보류/안 함' 줄 · 명세 6.6 · 10.4 Q34). 마감(2026-09-10 13:00) 전이거나,
+      마감 전(정각 포함)에 직접 동의했거나, 자동 동의된 달은 null. ── */
+const HELD_DL = D(2026, 9, 10, 13);
+eq("마감 때 보류: 고지 미도달 · 동의 전 → 남는다", stH("NOTICE_UNDELIVERED", AFTER).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 고지 미도달 · 마감 뒤 직접 동의 → 남는다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 마감 뒤 직접 동의면 지금 보류는 없다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").autoAgreeHold, null);
+eq("마감 때 보류: 정지 중 마감 · 마감 뒤 직접 동의 → 남는다", stH("CLIENT_SUSPENDED", AFTER, "2026-09-11 10:00").heldAtDeadline, "CLIENT_SUSPENDED");
+eq("마감 때 보류: 마감 1분 뒤 직접 동의 → 남는다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-10 13:01").heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 마감 정각 직접 동의 → 없음(정각은 아직 열림)", stH("NOTICE_UNDELIVERED", AFTER, HELD_DL).heldAtDeadline, null);
+eq("마감 때 보류: 마감 전 직접 동의 → 없음(보류 기록이 있어도)", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-03 10:00").heldAtDeadline, null);
+eq("마감 때 보류: 마감 정각(now)은 아직 없음", stH("NOTICE_UNDELIVERED", HELD_DL).heldAtDeadline, null);
+eq("마감 때 보류: 마감 1ms 뒤부터", stH("NOTICE_UNDELIVERED", D(2026, 9, 10, 13, 0, 1)).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 보류 없음 → 자동 동의 · 없음", stH(null, AFTER).heldAtDeadline, null);
+eq("마감 때 보류: 보류 없음 → 자동 동의(mode)", stH(null, AFTER).mode, "auto");
+eq("마감 때 보류: 약관 동의 전 · 마감 뒤 약관+직접 동의 → 약관", stH(null, AFTER, "2026-09-11 10:00", "2026-09-11 09:59").heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 약관 보류가 먼저(고지 미도달 기록과 겹쳐도)", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00", "2026-09-11 09:59").heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 약관 기록 없음 · 동의 전 → 약관", stH(null, AFTER, null, null).heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 약관을 마감 정각에 동의 → 약관 보류 아님(자동)", stH(null, AFTER, null, HELD_DL).heldAtDeadline, null);
+eq("마감 때 보류: 순수 규칙 계산(termsAt 없음)도 보류 기록은 본다",
+  agreementState({ period: "2026-08", invoiceDay: "1", hold: "NOTICE_UNDELIVERED", now: AFTER }).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 순수 규칙 계산 · 보류 없음 → 없음", agreementState({ period: "2026-08", invoiceDay: "1", now: AFTER }).heldAtDeadline, null);
+eq("마감 때 보류: hold 에 약관 코드를 넣어도 보류로 치지 않는다", stH("TERMS_NOT_AGREED", AFTER).heldAtDeadline, null);
+eq("마감 때 보류: 모르는 값 → 없음", stH("WHATEVER", AFTER).heldAtDeadline, null);
+eq("마감 때 보류: 11~28 그룹(15일 · 마감 09-28 13:00) 마감 뒤 직접 동의 → 남는다",
+  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-29 09:00", termsAt: "2026-01-01 09:00", hold: "CLIENT_SUSPENDED", now: D(2026, 9, 30) }).heldAtDeadline, "CLIENT_SUSPENDED");
+eq("마감 때 보류: 11~28 그룹 마감 전 직접 동의 → 없음",
+  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-28 12:59", termsAt: "2026-01-01 09:00", hold: "CLIENT_SUSPENDED", now: D(2026, 9, 30) }).heldAtDeadline, null);
+
 /* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 버전 고정 문장이라 파생하지 않는다) ── */
 const clause2 = TERMS[0].items[1];
 const early = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);

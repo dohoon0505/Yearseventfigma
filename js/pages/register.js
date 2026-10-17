@@ -9,7 +9,7 @@ import { TERMS_VERSION } from "../data/terms.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import {
   INVOICE_DAYS, MIN_CONSENT_DAYS, ISSUE_HOUR, DEADLINE_HOUR, deadlineDayOf, consentWindowHours,
-  periodOf, periodLabel, issueDate, agreeDeadline, dueDate, periodEnd, fmtKoShort, fmtKoShortTime,
+  periodOf, periodLabel, issueDate, agreeDeadline, dueDate, periodEnd, fmtKoShortY, fmtKoShortTimeY,
 } from "../data/settlement-rules.js";
 
 /* 4단계 '정산 방식'(2026-09-29 사용자 지시) — **발급일은 가입자가 고른다.** 예전엔 가입하면 1일로 박히고
@@ -225,7 +225,10 @@ export function mount(root, { nav }) {
           </tbody>
         </table>`;
     }
-    const period = periodOf(new Date());
+    /* 이번 달 이용분의 발급·마감·정산기한은 다음 달이라 12월에 가입하면 다음 해다 — 해가 다르면 연도를 붙인다
+       (fmtKoShortY·fmtKoShortTimeY · 같은 해면 예전과 한 글자도 같다). 없으면 '1월 1일 10:00' 이 올해 1월로 읽힌다. */
+    const now = new Date();
+    const period = periodOf(now);
     const issue = issueDate(period, day);
     const deadline = agreeDeadline(period, day);
     const remind = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate() - 1, ISSUE_HOUR);
@@ -235,13 +238,13 @@ export function mount(root, { nav }) {
     return html`
       <p class="rf-inv__lead"><b>${periodLabel(period)} 이용분</b>은 이렇게 정산됩니다</p>
       <ol class="rf-inv__steps">
-        <li><b>${fmtKoShortTime(issue)}</b><span>거래명세서 발급 · ${who}에게 알림톡</span></li>
-        <li><b>${fmtKoShortTime(remind)}</b><span>아직 동의하지 않았으면 한 번 더 알림</span></li>
-        <li><b>${fmtKoShortTime(deadline)}</b><span>동의 마감 — 이때까지 동의나 이의가 없으면 <em>자동으로 동의</em>한 것으로 봅니다</span></li>
+        <li><b>${fmtKoShortTimeY(issue, now)}</b><span>거래명세서 발급 · ${who}에게 알림톡</span></li>
+        <li><b>${fmtKoShortTimeY(remind, now)}</b><span>아직 동의하지 않았으면 한 번 더 알림</span></li>
+        <li><b>${fmtKoShortTimeY(deadline, now)}</b><span>동의 마감 — 이때까지 동의나 이의가 없으면 <em>자동으로 동의</em>한 것으로 봅니다</span></li>
         <li><b>동의 즉시</b><span>계산서 발급 · 작성일자 ${early
-          ? `${fmtKoShort(periodEnd(period))}(이용한 달의 말일)`
-          : `동의한 날(자동 동의면 ${fmtKoShort(deadline)})`}</span></li>
-        <li><b>${fmtKoShort(dueDate(period))}</b><span>정산기한 — 이날까지 입금</span></li>
+          ? `${fmtKoShortY(periodEnd(period), now)}(이용한 달의 말일)`
+          : `동의한 날(자동 동의면 ${fmtKoShortY(deadline, now)})`}</span></li>
+        <li><b>${fmtKoShortY(dueDate(period), now)}</b><span>정산기한 — 이날까지 입금</span></li>
       </ol>
       <ul class="rf-inv__notes">
         <li>동의할 수 있는 시간은 ${Math.floor(hours / 24)}일 ${hours % 24}시간입니다(어느 발급일이든 최소 ${MIN_CONSENT_DAYS}일).</li>

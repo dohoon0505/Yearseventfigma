@@ -110,8 +110,28 @@ export const onRowOpen = (root, open) =>
    컴포넌트가 스스로 연 모달은 페이지가 모르므로 남아서 다음 화면을 덮는다. */
 const OPEN_MODALS = new Set();
 
+/* Tab 이 닿을 수 있는 **후보** 셀렉터 — 실제로 닿는지는 아래 `tabbables()` 가 한 번 더 거른다. */
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** 창 안에서 Tab 이 실제로 멈추는 요소(문서 순서). 트랩의 처음·끝과 창을 열 때의 첫 초점이 이것을 본다.
+ *  셀렉터만으로 고르면 브라우저가 건너뛰는 요소가 처음·끝으로 뽑혀, 그 요소에 초점이 있을 때만 막는
+ *  트랩이 엉뚱한 자리를 지킨다(2026-10-17 실측 — 발급 처리 창 진행 중 처음이자 끝이 잠긴 선택 행이었다).
+ *  빼는 것: tabindex=-1 인 버튼(로빙 선택 행의 나머지 · ⋯ 메뉴 항목 — `button:not([disabled])` 가 잡는다) ·
+ *  disabled 인데 tabindex=0 인 요소(선택된 행이 잠긴 경우 — `[tabindex]` 가 잡는다) · inert 안 ·
+ *  보이지 않는 것(hidden·display:none·visibility:hidden — 닫힌 배송일시 피커의 달력·숨긴 스텝). */
+function tabbables(root) {
+  return qsa(root, FOCUSABLE).filter((el) => {
+    if (el.tabIndex < 0 || el.matches(":disabled") || el.closest("[inert]")) return false;
+    if (typeof el.checkVisibility === "function") {
+      return el.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true });
+    }
+    return el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+  });
+}
+/* 모달 오버레이 **밖**(body 로 따로 붙은) 팝오버 — 그 안의 Tab 은 팝오버 몫이라 트랩이 빼앗지 않는다.
+   지금의 드롭다운·배송일시 피커·날짜 칸 피커는 모두 창 안에 살아 이 가드에 걸리지 않는다(창 안이면 창 순서대로 돈다). */
+const OUTSIDE_POPOVER = ".dd, .ord-dtp, .dpk";
 
 /**
  * openModal({ panelClass, body, labelledBy, onClose }) → { panel, close, render }
@@ -134,31 +154,36 @@ export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } 
   OPEN_MODALS.add(close); /* function 선언이라 호이스팅된다 */
 
   let closed = false;
+  let tabBack = null; /* 브라우저에 맡긴 Tab 의 방향(true = Shift) — 그 이동이 끝날 때까지만 산다(아래 trapTab) */
+  let tabTimer = 0;
   function close() {
     if (closed) return;
     closed = true;
     OPEN_MODALS.delete(close);
     document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("focusin", onFocusIn, true);
+    clearTimeout(tabTimer);
     overlay.remove();
     if (prevFocus && prevFocus.focus) prevFocus.focus();
     onClose && onClose();
   }
   function focusFirst() {
-    const f = qsa(panel, FOCUSABLE);
-    (f[0] || panel).focus();
+    (tabbables(panel)[0] || panel).focus();
   }
   function onKey(e) {
     if (document.querySelector(".lightbox")) return; /* 라이트박스 우선 */
-    /* 배송일시 피커가 열려 있으면 ESC 는 피커 몫이다. 상시 편집 모달에서 ESC 한 번에
-       미저장 편집이 통째로 날아가는 것을 막는다. capture 등록 순서상 이 가드가 아니면
-       피커 쪽 stopPropagation 이 늦어 소용이 없다. */
-    const dtp = document.querySelector(".ord-dtp.is-open");
-    if (dtp && overlay.contains(dtp)) return;
     /* 스택된 모달 지원: 최상위(마지막에 열린) 오버레이만 ESC/Tab 처리 —
        오버레이가 1개뿐인 기존 사용처는 항상 최상위라 무영향. */
     const overlays = document.querySelectorAll(".modal-overlay");
     if (overlay !== overlays[overlays.length - 1]) return;
     if (e.key === "Escape") {
+      /* 배송일시 피커가 열려 있으면 ESC 는 피커 몫이다. 상시 편집 모달에서 ESC 한 번에
+         미저장 편집이 통째로 날아가는 것을 막는다. capture 등록 순서상 이 가드가 아니면
+         피커 쪽 stopPropagation 이 늦어 소용이 없다.
+         ⚠️ ESC 만 양보한다 — 예전엔 피커가 열려 있으면 Tab 까지 통째로 놓아 Shift+Tab 이
+            뒤 화면 표로 빠져나갔다(2026-10-17 실측 36~37번). 피커는 창 안에 있어 창 순서대로 돈다. */
+      const dtp = document.querySelector(".ord-dtp.is-open");
+      if (dtp && overlay.contains(dtp)) return;
       e.preventDefault();
       /* 닫기 전에 한 번 물어볼 기회 — `false` 를 돌려주면 닫지 않는다.
          ⚠️ 호출부가 자기 capture 리스너로 ESC 를 가로채는 것은 소용이 없다.
@@ -166,24 +191,59 @@ export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } 
             등록 순서가 이긴다(등록 위저드의 이중 확인이 실제로 죽어 있었다). */
       if (onEsc && onEsc() === false) return;
       close();
-    } else if (e.key === "Tab") {
-      const f = qsa(panel, FOCUSABLE);
-      if (!f.length) return;
-      const first = f[0];
-      const last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+    } else if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      trapTab(e);
     }
+  }
+  /* ── Tab 가두기 ──
+     예전엔 '초점이 처음(끝) 요소일 때만' 막았다. 창 본문의 글자처럼 초점을 받지 않는 곳을 누르면 초점이
+     패널 자체(tabindex=-1)로 가는데, 거기서 Shift+Tab 은 처음 요소가 아니라 막지 않아 뒤 화면 버튼으로
+     나갔다(2026-10-17 실측 — 모든 작은 창 · 거래처 창 · 주문 상세 · 등록 위저드 · 스택된 창은 아래 창으로).
+     지금 규칙: 초점이 **창 밖이거나 패널 자체**면 Tab → 처음, Shift+Tab → 끝. 창 안이면 그 자리 **뒤(앞)에
+     Tab 후보가 없을 때만** 끝 → 처음(처음 → 끝)으로 감고, 가운데는 브라우저 순서에 맡긴다 — 로빙 선택 행·
+     내용만 있는 스크롤 칸(크롬은 Tab 으로 닿게 한다)·⋯ 메뉴의 자체 Tab 처리를 그대로 두기 위해서다.
+     그래도 브라우저 이동이 창 밖에 떨어지면(후보 판정과 브라우저가 어긋난 경우) `onFocusIn` 이 되돌린다. */
+  const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+  function trapTab(e) {
+    if (e.defaultPrevented) return; /* 앞선 capture 리스너가 이미 옮겼다 */
+    const a = document.activeElement;
+    if (a && a !== document.body && !a.closest(".modal-overlay") && a.closest(OUTSIDE_POPOVER)) return;
+    const f = tabbables(panel);
+    if (!f.length) {
+      /* 닿을 곳이 없다(진행 중이라 전부 잠긴 창) — 패널에 붙잡아 둔다 */
+      e.preventDefault();
+      if (a !== panel) panel.focus({ preventScroll: true });
+      return;
+    }
+    const first = f[0];
+    const last = f[f.length - 1];
+    let to = null;
+    if (!a || a === panel || !panel.contains(a)) to = e.shiftKey ? last : first;
+    else if (e.shiftKey) { if (!f.some((el) => el.compareDocumentPosition(a) & FOLLOWING)) to = last; }
+    else if (!f.some((el) => a.compareDocumentPosition(el) & FOLLOWING)) to = first;
+    if (to) {
+      e.preventDefault();
+      to.focus();
+      return;
+    }
+    tabBack = e.shiftKey;
+    clearTimeout(tabTimer);
+    /* 기본 이동은 keydown 바로 뒤 같은 작업 안에서 일어난다 — 마이크로태스크는 그보다 먼저 돌아 쓸 수 없다 */
+    tabTimer = setTimeout(() => { tabBack = null; }, 0);
+  }
+  function onFocusIn(e) {
+    if (tabBack === null) return;
+    const back = tabBack;
+    tabBack = null;
+    if (overlay.contains(e.target)) return;
+    const f = tabbables(panel);
+    (f.length ? (back ? f[f.length - 1] : f[0]) : panel).focus();
   }
   overlay.addEventListener("click", (e) => {
     if (e.target.closest("[data-modal-close]")) close();
   });
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("focusin", onFocusIn, true);
   focusFirst();
 
   return {
@@ -249,6 +309,12 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
       e.preventDefault();
       e.stopPropagation(); /* 아래 모달의 ESC 핸들러보다 먼저 소비 */
       close();
+    } else if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      /* Tab 가두기 — 초점을 받는 것은 닫기 버튼 하나뿐이라 Tab·Shift+Tab 모두 그 자리에 둔다.
+         라이트박스가 떠 있으면 openModal 의 트랩은 비켜서므로(그쪽 onKey 첫 줄) 여기가 유일한 트랩이다 —
+         예전엔 Tab 이 뒤 화면(셸 링크)으로, Shift+Tab 이 아래 주문 상세 창의 버튼으로 빠졌다(2026-10-17 실측). */
+      e.preventDefault();
+      btn.focus();
     }
   }
   el.addEventListener("click", (e) => {

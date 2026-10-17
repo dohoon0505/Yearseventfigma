@@ -30,7 +30,7 @@ import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
-  makeImageBox, openStaffPicker, openDeleteConfirm,
+  makeImageBox, openStaffPicker, openDeleteConfirm, editIndexOf, focusAfterDelete, focusAfterStep,
   ordHeader, bindOrdMenu, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
@@ -668,8 +668,7 @@ export function mount(root, { nav }) {
     refreshList();
     renderHd(); renderSum(); renderHist(); // 요약 머리가 배송완료면 '배송 완료' 라고 말한다(order-screen summaryBodyV2)
     toast(next === "배송완료" ? "배송완료로 전환 · 고객 알림톡이 발송됩니다" : `${next}(으)로 변경했습니다`);
-    const p = panelOf();
-    if (p) qs(p, ".ord-step__btn.is-now")?.focus(); // 재렌더로 사라진 버튼의 포커스 복구
+    focusAfterStep(panelOf()); // 재렌더로 사라진 버튼의 포커스 복구 — 새 '지금' 단계는 disabled 라 다음 단계로(order-screen)
   }
 
   function openEditor(order) {
@@ -703,9 +702,11 @@ export function mount(root, { nav }) {
         orderNo: editing.orderNo,
         onConfirm: () => {
           const name = editing.orderNo;
+          const idx = editIndexOf(root, editing.id); // 지우기 전 순번 — 그 자리에 올라온 줄로 초점을 옮긴다
           b2cRemove(editing.id);
           closeModal();
           refreshList();
+          focusAfterDelete(root, idx); // 창이 돌려준 연필이 다시 그린 목록에서 사라졌다(body) — order-screen
           toast(`${name} 주문을 삭제했습니다`, "warn");
         },
       });
@@ -716,6 +717,8 @@ export function mount(root, { nav }) {
       openCancelModal({
         orderNo: editing.orderNo,
         amount: editing.amount,
+        /* 확정하면 아래에서 머리를 다시 그려 창이 돌려줄 ··· 가 사라진다(초점이 body 로 빠졌다) — 새 ··· 로. */
+        onClose: () => menu.refocus(),
         onConfirm: ({ reason, fee }) => {
           editing.status = "취소";
           editing.cancelReason = reason;

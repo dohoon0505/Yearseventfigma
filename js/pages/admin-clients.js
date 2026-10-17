@@ -12,7 +12,7 @@ import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { onPhoneInput, phoneOk } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
-import { autosize, openDeleteConfirm } from "../util/order-screen.js";
+import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
 import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel, fmtMdHm, fmtKoShortTime } from "../data/settlement-rules.js";
@@ -587,9 +587,11 @@ export function mount(root, { nav }) {
           <div class="ord-more">
             <button class="ord-iconbtn ${menuOpen ? "is-on" : ""}" data-action="menu" aria-haspopup="menu"
               aria-expanded="${menuOpen ? "true" : "false"}" aria-label="더보기">⋯</button>
-            ${menuOpen ? html`<div class="ord-menu" role="menu">
-              <button class="ord-menu__item" role="menuitem" data-action="reset-pw">임시비밀번호 발급</button>
-              <button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">거래처 삭제</button>
+            ${/* 주문 상세 ⋯ 메뉴와 같은 마크업·같은 키보드(order-screen bindOrdMenu) — 항목은 tabindex=-1 이라 메뉴 안은
+                 화살표로 옮기고 Tab 은 메뉴를 닫고 나간다. 열고 닫는 키는 아래 bindOrdMenu 가 준다. */ ""}
+            ${menuOpen ? html`<div class="ord-menu" role="menu" aria-label="거래처 더보기">
+              <button class="ord-menu__item" role="menuitem" tabindex="-1" data-action="reset-pw">임시비밀번호 발급</button>
+              <button class="ord-menu__item ord-menu__item--danger" role="menuitem" tabindex="-1" data-action="delete">거래처 삭제</button>
             </div>` : ""}
           </div>` : ""}
           <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
@@ -807,10 +809,25 @@ export function mount(root, { nav }) {
 
     const ddCfs = [];
     const destroyDds = () => { ddCfs.forEach((d) => d.destroy()); ddCfs.length = 0; };
+    let menu = null; // ⋯ 메뉴 키보드(order-screen bindOrdMenu) — 열려 있으면 ESC 는 메뉴만 닫는다
     activeModal = openModal({
       panelClass: "modal-panel--cli",
       body: body(),
       labelledBy: "modal-title",
+      /* ⋯ 메뉴가 열려 있으면 ESC 는 메뉴만 닫는다(false — 창은 그대로). 예전엔 창이 통째로 닫혀 저장 안 한 원장 편집이 사라졌다.
+         openModal 의 capture 핸들러가 먼저 받으므로 메뉴 쪽 keydown 으로는 못 막는다 — 이 훅이 유일한 길이다(주문 상세와 같다). */
+      onEsc: () => {
+        if (!menu) return true;
+        /* 메뉴가 열린 채 초점이 머리의 **다른** 버튼(상태 pill·✕)에 있으면 escape 가 머리를 다시 그려 그 버튼이 DOM 에서 떨어진다 —
+           초점이 body 로 빠졌다(실측: ⋯ 를 마우스로 연 채 '반려' → 거부 사유 창 ESC(초점은 '반려' 로 돌아온다) → ESC). 같은 버튼의
+           새 요소로 돌려준다. 초점을 잃었을 때만 옮기므로(refocus) 본문 칸·⋯ 의 경우는 escape 가 정한 그대로다. */
+        const a = document.activeElement;
+        const inHd = a && a.closest && a.closest("[data-slot='hd']") && !a.closest(".ord-more");
+        const key = !inHd ? "" : a.dataset.status ? `[data-status='${a.dataset.status}']` : a.dataset.action ? `[data-action='${a.dataset.action}']` : "";
+        const r = menu.escape();
+        if (r === false && key) refocus(`[data-slot='hd'] ${key}`, "[data-action='menu']");
+        return r;
+      },
       onClose: () => {
         destroyDds(); activeModal = null;
         /* 창을 연 목록 버튼(연필)은 저장·상태 변경 때 refreshList 가 다시 그려 DOM 에서 떨어져 있다 — openModal 이 그 버튼으로
@@ -978,8 +995,11 @@ export function mount(root, { nav }) {
       afterStatus();
     }));
 
-    /* ⋯ 버튼도 머리를 다시 그린다 — 열고 닫은 뒤 포커스를 같은 버튼에 둔다(메뉴 항목은 DOM 순서상 바로 다음 Tab 이다). */
-    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); refocus("[data-action='menu']"); });
+    /* ⋯ 메뉴 — 주문 상세와 같은 `bindOrdMenu`(order-screen): 열면 첫 항목에 초점(↑ 로 열면 끝 항목), ↑↓·Home·End 로 옮기고
+       Tab 은 메뉴를 닫고 ✕ 로 · Shift+Tab 은 ⋯ 로, ESC 는 위 onEsc 가 메뉴만 닫는다. 예전엔 role="menu" 라고 선언해 놓고 화살표가
+       없었고(실측: ↓↑·Home·End 를 눌러도 초점이 ⋯ 에 그대로), 열린 채 ESC 를 누르면 창이 통째로 닫혔다.
+       머리는 열고 닫을 때마다 다시 그려진다 — 초점은 그 함수가 다시 그린 **뒤** 새 요소에 준다. */
+    menu = bindOrdMenu(panel, { isOpen: () => menuOpen, setOpen: (v) => { menuOpen = v; renderHd(); } });
     /* 임시비밀번호 발급 — **누르는 즉시 적용**한다(S-04). 저장 버튼에 태우면 배너의 '…까지 유효'가 거짓말이 되고,
        관리자가 비밀번호만 알려 주고 창을 닫으면 그 비밀번호로는 들어갈 수 없었다.
        ⚠️ 레코드에는 **password 만** 쓴다 — 저장소의 지금 레코드 위에 덮는다. `{ ...form }` 을 넘기면 원장에서
@@ -1015,11 +1035,15 @@ export function mount(root, { nav }) {
     });
     on(panel, "click", "[data-action='delete']", () => {
       /* 메뉴를 닫으며 머리를 다시 그린다 — 확인 창이 '연 자리' 로 기억할 포커스를 ⋯ 버튼에 먼저 둔다(취소하면 거기로 돌아온다). */
-      menuOpen = false; renderHd(); refocus("[data-action='menu']");
+      menu.close();
+      /* 확인 창 제목·토스트가 부르는 이름은 **저장된 레코드**의 것이다(storedRec — 승인·거부와 같은 규칙). 지우는 것은 저장소의
+         레코드인데 form 의 이름을 부르면, 원장에서 회사명을 고치던 중(저장 안 함)일 때 '푸른누리협회수정중 거래처를 삭제할까요?'
+         처럼 목록에 없는 이름을 물었다(실측 — 목록 휴지통 경로는 저장된 레코드라 제 이름이었다). */
+      const rec = storedRec();
       openDeleteConfirm({
-        ...deleteCopy(form),
+        ...deleteCopy(rec),
         onConfirm: () => {
-          const name = form.companyName;
+          const name = rec.companyName;
           const idx = editIndex(form.id);
           store.removeClient(form.id);
           closeModal();

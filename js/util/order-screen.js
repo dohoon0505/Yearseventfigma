@@ -164,6 +164,20 @@ export const amtCell = (n) => html`<span class="ord-amt">${won(n)}</span>`;
 export const editBtn = (id) =>
   html`<button class="tbl-edit" data-action="edit" data-id="${id}" aria-label="주문 상세">${icon("pencil", { size: 14 })}</button>`;
 
+/* ── 주문서 삭제 뒤 초점 (B2B·B2C 목록 공용) ─────────────────
+   지우면 상세 창이 닫히고 목록을 다시 그린다 — 창이 돌려준 연필(창을 연 줄)이 DOM 에서 떨어져 초점이 body 로 빠진다(실측 —
+   Tab 이 문서 맨 앞부터 다시 시작한다). 거래처 목록의 focusAfterDelete(admin-clients)와 같은 생각이다:
+   **그 자리에 올라온 줄**(지운 줄이 마지막이었으면 새 마지막 줄)의 연필로, 그 줄이 목록에 없었거나 표가 비면 '신규 주문 등록'으로.
+   순번은 지우기 **전에** `editIndexOf` 로 잰다. 초점을 잃었을 때만 옮긴다 — 사람이 이미 다른 곳에 둔 초점은 건드리지 않는다. */
+export const editIndexOf = (root, id) => qsa(root, "[data-action='edit']").findIndex((b) => b.dataset.id === id);
+export function focusAfterDelete(root, idx) {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  const btns = qsa(root, "[data-action='edit']");
+  const b = (idx >= 0 && btns[Math.min(idx, btns.length - 1)]) || qs(root, "[data-action='new']");
+  if (b) b.focus();
+}
+
 /* ── 처리 레일 현장사진 — 업로드·다운로드·라이트박스 ──────
    FileReader · data-URL · <a download> · 오버레이 버튼 제외 분기까지
    두 화면이 글자 하나까지 같아야 하는 덩어리. 복붙하면 한쪽만 고쳐진다. */
@@ -256,6 +270,18 @@ export const managerControl = (name) => html`
    `eyebrow` 는 **선택 인자**다 — 주문 문맥이 아닌 곳(등록 모달)에서 부르면
    '주문 담당자'가 그 자리를 채운다. ── */
 export function openStaffPicker({ current, names, onPick, toast, eyebrow }) {
+  /* '지정' 하면 호출부 onPick 이 상세 창의 머리·요약을 다시 그려, 이 창을 연 담당자 버튼이 DOM 에서 떨어진다 — 창이 닫히며
+     돌려줄 곳이 없어 초점이 body 로 빠졌다(실측 · B2B·B2C). 연 버튼이 있던 **구역**(`data-slot` — 머리 hd · 요약 sum)을 열 때 잡아 두고,
+     초점을 잃었으면 그 구역의 새 담당자 버튼으로 옮긴다. 담당자 미지정 주문을 열자마자 뜬 경우는 창의 첫 칸(머리)이 연 자리다.
+     구역에 담당자 버튼이 없는 곳에서 부르면 아무것도 하지 않는다. */
+  const opener = document.activeElement;
+  const slot = opener && opener.closest ? opener.closest("[data-slot]") : null;
+  const backToPick = () => {
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const b = slot && slot.isConnected ? qs(slot, "[data-action='pick-manager']") : null;
+    if (b) b.focus();
+  };
   /* names 는 **함수**다 — 담당자 목록은 시스템 관리에서 실시간으로 바뀐다.
      정적 배열로 받으면 방금 추가한 담당자가 안 뜬다. */
   const list = names();
@@ -277,6 +303,7 @@ export function openStaffPicker({ current, names, onPick, toast, eyebrow }) {
     rows, current: cur, confirmLabel: "지정", confirmIcon: "check", toast,
     empty: "지정할 수 있는 담당자가 없습니다.",
     onPick, pickedMsg: (v) => `담당자를 ${v}(으)로 지정했습니다`,
+    onClose: backToPick,
   });
 }
 
@@ -316,6 +343,20 @@ export function stepper({ status, statuses, canComplete }) {
         <span class="ord-step__mark">${done ? "✓" : String(i + 1)}</span>${s}</button>`;
     })}
   </div>`;
+}
+
+/* 스테퍼로 상태를 바꾸면 호출부가 머리를 다시 그려 누른 단계 버튼이 사라진다. 예전엔 새 '지금' 단계(`.is-now`)에 초점을 줬는데
+   그 버튼은 `disabled` 라 초점을 받지 못해 **body 로 빠졌다**(실측 — 키보드로 '주문접수' 를 누르면 다음 Tab 이 창 맨 앞부터).
+   그 자리의 다음 Tab 정거장으로 옮긴다: 뒤 단계(잠긴 단계도 — 누르면 이유를 말한다) → 머리의 담당자 → ···.
+   초점을 잃었을 때만 옮긴다(위에 다른 창이 떴거나 사람이 이미 둔 초점은 건드리지 않는다). */
+export function focusAfterStep(panel) {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  const hd = panel && qs(panel, ".ord-hd__r");
+  if (!hd) return;
+  const t = qs(hd, ".ord-step__btn.is-now ~ .ord-step__btn:not([disabled])")
+    || qs(hd, "[data-action='pick-manager']") || qs(hd, "[data-action='menu']");
+  if (t) t.focus();
 }
 
 /* `delLock`(선택 · B2B 만 넘긴다) — 지울 수 없는 이유(명세 6.4 정본 문구). 있으면 '주문서 삭제' 가 자물쇠와 함께 잠기고
@@ -371,14 +412,16 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew,
 
 /* ── ··· 메뉴 키보드 — `role="menu"` 의 약속(WAI-ARIA 메뉴 버튼) ──────────────────
    메뉴라고 선언해 놓고 키를 주지 않으면 화면낭독기 사용자에게 거짓말이 된다(다이얼로그 규격의 role 정직성 줄과 같은 원칙).
-   · 열기: 누르기(Enter·Space·마우스) 또는 ↓ = 첫 항목에 초점 · ↑ = 끝 항목에 초점. 닫기: ··· 를 다시 누르기 · ESC · 항목 고르기.
+   · 열기: 누르기(Enter·Space·마우스) 또는 ↓ = 첫 항목에 초점 · ↑ = 끝 항목에 초점. 닫기: ··· 를 다시 누르기 · ESC · 항목 고르기 ·
+     바깥 클릭(초점은 누른 곳에 둔다 — 아래 host 리스너).
    · 항목 사이: ↑↓(끝에서 되돌아간다) · Home · End. 항목은 tabindex=-1 이라 Tab 은 메뉴를 닫고 ✕ 로, Shift+Tab 은 ··· 로 간다.
    · 잠긴 '주문서 삭제'(aria-disabled)에도 초점이 간다 — 이유가 aria-describedby 로 읽힌다(메뉴의 잠긴 항목은 초점을 받는다).
    머리는 열고 닫을 때마다 통째로 다시 그려진다(호출부 renderHd) — 그래서 초점은 다시 그린 **뒤** 새 요소에 준다.
    ⚠️ ESC 는 여기서 keydown 으로 잡지 않는다 — openModal 의 capture 핸들러가 먼저 받아 모달째 닫는다(ui.js 주석의 그 함정).
       대신 `escape()` 를 돌려주고 호출부가 `openModal({ onEsc })` 에 잇는다: 메뉴가 열려 있으면 메뉴만 닫고(초점이 메뉴에 있었으면
       ··· 로 옮긴다) false(모달은 그대로), 닫혀 있으면 true(예전처럼 모달을 닫는다). 위에 쌓인 다이얼로그가 있으면 openModal 이 이 창에 ESC 를 넘기지 않는다.
-   `close()` 는 항목을 고른 뒤 호출부가 부른다 — 메뉴를 닫고 ··· 에 초점을 둔다(그 뒤 여는 확인 창이 닫히면 초점이 ··· 로 돌아온다). */
+   `close()` 는 항목을 고른 뒤 호출부가 부른다 — 메뉴를 닫고 ··· 에 초점을 둔다(그 뒤 여는 확인 창이 닫히면 초점이 ··· 로 돌아온다).
+   `refocus()` 는 그 확인 창이 확정하며 머리를 다시 그렸을 때 창의 onClose 에서 부른다 — 초점을 잃었으면 새 ··· 로. */
 export function bindOrdMenu(panel, { isOpen, setOpen }) {
   const btn = () => qs(panel, ".ord-more [data-action='menu']");
   const items = () => qsa(panel, ".ord-menu [role='menuitem']");
@@ -417,14 +460,57 @@ export function bindOrdMenu(panel, { isOpen, setOpen }) {
   });
   /* ESC — 초점이 메뉴(또는 ···)에 있었으면 ··· 로 옮긴다. 마우스로 메뉴를 연 채 본문 칸을 눌러 글을 쓰다 ESC 를 누른 경우는
      메뉴만 닫고 초점은 그 칸에 둔다 — 머리만 다시 그려 칸의 커서가 살아 있는데 ··· 로 끌어가면 쓰던 자리를 잃는다(검토 실측). */
+  /* ⚠️ 초점이 머리의 **다른** 버튼(담당자 pill·스테퍼·✕)에 있으면 닫으며 머리를 다시 그려 그 버튼이 떨어진다 — 아래 바깥 클릭과
+     같이 같은 순번의 새 버튼으로 옮긴다(실측 길: ⋯ 를 연 채 담당자 pill → 담당자 지정 창 ESC → ESC — 예전엔 body). */
   const escape = () => {
     if (!isOpen()) return true;
     const a = document.activeElement;
-    if (!a || a === document.body || a.closest(".ord-more")) close();
-    else setOpen(false);
+    if (!a || a === document.body || a.closest(".ord-more")) { close(); return false; }
+    const at = a !== panel && panel.contains(a) ? ring().indexOf(a) : -1;
+    setOpen(false);
+    if (at >= 0 && !a.isConnected) { const n = ring()[at]; if (n) n.focus({ preventScroll: true }); }
     return false;
   };
-  return { close, escape };
+  /* 바깥 클릭 — 메뉴를 닫는다(WAI-ARIA 메뉴 버튼 관례 · 예전엔 머리 제목·본문·레일을 눌러도 열린 채 남았다). 초점은 누른 곳에 맡긴다.
+     ··· 와 메뉴 안(`.ord-more`)은 지금 동작 그대로다 — ··· 재클릭은 위 토글이, 항목은 호출부가 닫는다.
+     ⚠️ 듣는 자리는 오버레이의 **버블 단계**다(패널에 위임된 스테퍼·담당자·✕ 처리가 다 돈 뒤). 먼저(capture·mousedown) 닫으면 머리를
+        다시 그려 누른 버튼이 DOM 에서 떨어지고, `on()` 위임이 `contains` 로 걸러 그 클릭이 사라진다(mousedown 이면 click 자체가 안 생긴다).
+        오버레이는 창과 함께 사라지므로 리스너를 따로 걷지 않아도 된다.
+     ⚠️ 닫으면 머리를 통째로 다시 그린다(호출부 setOpen) — 그 클릭이 머리의 버튼에 초점을 두었으면(잠긴 단계를 눌러 토스트만 뜬 경우 등)
+        **같은 순번의 새 버튼**으로 옮긴다. 메뉴 항목을 뺀 순번이다(메뉴만 사라지므로 나머지 순번은 그대로다).
+     ⚠️ 그 클릭이 위에 다른 창을 열었으면(담당자 pill → 담당자 지정) 지금 닫지 않는다 — 다시 그리면 그 창이 닫힐 때 돌려줄 pill 이
+        사라져 초점이 body 로 빠진다. 메뉴는 그 창 뒤에 열린 채 남고 다음 바깥 클릭·ESC 가 닫는다(예전과 같다). */
+  const ring = () => qsa(panel, "button, a[href], input, select, textarea, [tabindex]").filter((el) => !el.closest(".ord-menu"));
+  const host = panel.closest(".modal-overlay") || panel;
+  const outside = (e) => {
+    if (!isOpen() || !panel.isConnected) return;
+    const t = e.target;
+    if (t instanceof Element && t.closest(".ord-more")) return; // 떨어진 노드여도 옛 조상 사슬로 판정된다
+    const ovs = document.querySelectorAll(".modal-overlay");
+    if (host !== panel && ovs[ovs.length - 1] !== host) return;
+    const a = document.activeElement;
+    const at = a && a !== panel && panel.contains(a) ? ring().indexOf(a) : -1;
+    setOpen(false);
+    if (at >= 0 && !a.isConnected) { const n = ring()[at]; if (n) n.focus({ preventScroll: true }); }
+  };
+  host.addEventListener("click", outside);
+  /* ⚠️ 잠긴(disabled) 버튼에는 브라우저가 click 을 보내지 않는다(mousedown·mouseup 도 없다 — pointer 이벤트만 온다 · 실측
+     헤드리스 크롬 153: '지금' 단계 · 수정이 없어 잠긴 '저장' 을 눌러도 메뉴가 열린 채 남았다). 그 경우만 pointerup 에서 닫는다 —
+     다른 곳까지 pointerup 에서 닫으면 위 ⚠️ 그대로 누른 버튼이 click 전에 떨어진다. 잠긴 버튼은 아무 동작이 없어 순서 문제가 없다. */
+  host.addEventListener("pointerup", (e) => {
+    const t = e.target;
+    if (e.button === 0 && t instanceof Element && t.closest(":disabled")) outside(e);
+  });
+  /* 초점을 잃었으면 ··· 로 — 메뉴 항목이 연 창(주문취소)이 확정하며 머리를 다시 그리면, 창이 닫힐 때 돌려줄 ··· 가 DOM 에서 떨어져
+     초점이 body 로 빠진다(실측 — 그 뒤 Tab 이 창 밖으로 나갔다). 호출부가 그 창의 onClose 에 잇는다. 사람이 이미 둔 초점은 건드리지 않는다. */
+  const refocus = () => {
+    if (!panel.isConnected) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const b = btn();
+    if (b) b.focus();
+  };
+  return { close, escape, refocus };
 }
 
 /* ── 처리 레일(다크) ──────────────────────────────────────── */
