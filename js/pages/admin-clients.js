@@ -119,6 +119,9 @@ const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s
 /** 지금 시각 "오후 2:53" — 변경 이력·저장 표시에 쓴다(주문 모달과 같은 포맷). */
 const nowHM = () => new Date().toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
 
+/** 키보드 포커스를 잃었는가 — 누른 버튼이 다시 그려져 DOM 에서 떨어지면 브라우저가 포커스를 body 로 돌린다. */
+const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !a.isConnected; };
+
 /* ── 약관 동의 전 (S-04 · 명세 3.1 · N18) ─────────────────────────────
    관리자가 등록한 거래처는 약관 기록 없이 '활성'으로 생기고, 첫 로그인 게이트에서 처음 동의한다. 첫 명세서 마감까지
    동의가 없으면 그 달은 자동 동의되지 않는다(명세 3.4 예외표) — 직원이 미리 연락하도록 목록·정보 창에 늘 보인다.
@@ -190,6 +193,25 @@ export function mount(root, { nav }) {
     if (activeModal) { activeModal.close(); activeModal = null; }
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   }
+  /** 목록 표는 쓰기마다 refreshList 로 다시 그려진다 — 누른(또는 창을 연) 표 버튼이 DOM 에서 떨어져 포커스가 body 로 빠졌으면
+   *  같은 거래처 줄의 버튼으로 옮긴다. 필터로 그 줄이 사라졌으면 그대로 둔다. */
+  const focusRowBtn = (id, ...actions) => {
+    if (!focusLost()) return;
+    for (const a of actions) {
+      const b = qs(root, `[data-action='${a}'][data-id='${id}']`);
+      if (b) { b.focus(); return; }
+    }
+  };
+  /** 삭제하면 그 줄이 통째로 사라져 같은 줄의 버튼이 없다 — 포커스가 body 로 빠지면(실측: 목록 휴지통 · 창의 ⋯ › 거래처 삭제)
+   *  **그 자리에 올라온 줄**(지운 줄이 마지막이었으면 새 마지막 줄)의 연필로 옮긴다. 지운 줄이 목록에 없었거나 표가 비면
+   *  '신규 거래처 등록'. 순번은 지우기 **전에** `editIndex` 로 잰다. */
+  const editIndex = (id) => qsa(root, "[data-action='edit']").findIndex((b) => b.dataset.id === id);
+  const focusAfterDelete = (idx) => {
+    if (!focusLost()) return;
+    const btns = qsa(root, "[data-action='edit']");
+    const b = (idx >= 0 && btns[Math.min(idx, btns.length - 1)]) || qs(root, "[data-action='new']");
+    if (b) b.focus();
+  };
 
   /** 자식 필드(계정 구분) 매칭 — 이 경우에만 그룹을 자동으로 펼친다.
       담당자명은 더 이상 거래처 레코드에서 관리하지 않으므로 검색 대상에서 뺐다. */
@@ -516,7 +538,7 @@ export function mount(root, { nav }) {
       : `임시비밀번호 ${pwShown} · 등록하면 적용됩니다(${pwUntil()}까지 유효). 창을 닫으면 다시 볼 수 없습니다.`);
     /** 지금 저장소의 이 거래처 레코드 — 정산 일정·약관 판정은 저장된 값으로 한다(원장에서 고치는 중인 값이 아니라). */
     const storedRec = () => store.get().clients.find((c) => c.id === form.id) || form;
-    /** 이 창에서 레코드를 쓰는 길(저장·상태 pill·승인·거부). form 은 창을 연 순간의 사본이라, 발급일을 바꿔 저장하면
+    /** 이 창에서 원장을 저장하는 길('저장' 버튼). 상태 pill·승인·거부는 이 길이 아니라 아래 writeStatus 다. form 은 창을 연 순간의 사본이라, 발급일을 바꿔 저장하면
      *  저장소가 덧붙인 발급일 이력(`invoiceDayLog`)이 form 에는 없다 — 그 form 을 한 번 더 쓰면(두 번째 저장·상태 변경)
      *  발급일이 그대로라 `withInvoiceDayLog` 가 form 을 그대로 받아 **이력이 통째로 지워졌다**(실측: 20일 → 5일 저장 뒤
      *  한 번 더 저장하면 9월분이 5일 기준으로 다시 계산돼 '9월분 마감 지남 · 자동 동의 안 함' 으로 바뀌었다 — 작성일자가 걸린 값).
@@ -524,6 +546,17 @@ export function mount(root, { nav }) {
     const writeForm = () => {
       store.updateClient({ ...form, invoiceDayLog: storedRec().invoiceDayLog });
       form.invoiceDayLog = storedRec().invoiceDayLog;
+    };
+    /** 상태만 쓴다(상태 pill·승인·거부 — 누르는 즉시 반영). 저장소의 지금 레코드 위에 **상태·거부 사유만** 덮는다 — 임시비밀번호 발급이
+     *  password 만 쓰는 것과 같은 수법이다(발급일 이력도 저장소의 것이 그대로 간다). 예전엔 writeForm 으로 form 전체를 써서 원장에서 고치던
+     *  (아직 저장하지 않은) 칸까지 함께 저장됐다 — 실측: 회사명·이메일을 고친 채 '정지' 를 누르면 둘 다 저장소·목록에 들어갔는데 푸터는
+     *  여전히 '수정한 항목 2개' 라고 했다. 원장 편집은 form·touched 에 그대로 남아 계속 센다.
+     *  form 에도 같은 값을 넣는다 — 나중에 원장을 저장할 때(writeForm 은 form 전체를 쓴다) 옛 상태로 되돌아가지 않게. */
+    const writeStatus = (status, rejectReason) => {
+      form.status = status;
+      form.rejectReason = rejectReason;
+      const rec = store.get().clients.find((c) => c.id === form.id);
+      if (rec) store.updateClient({ ...rec, status, rejectReason });
     };
 
     /* ── 헤더 ── */
@@ -778,10 +811,25 @@ export function mount(root, { nav }) {
       panelClass: "modal-panel--cli",
       body: body(),
       labelledBy: "modal-title",
-      onClose: () => { destroyDds(); activeModal = null; },
+      onClose: () => {
+        destroyDds(); activeModal = null;
+        /* 창을 연 목록 버튼(연필)은 저장·상태 변경 때 refreshList 가 다시 그려 DOM 에서 떨어져 있다 — openModal 이 그 버튼으로
+           돌려준 포커스가 body 로 빠지므로 같은 거래처의 새 연필로 옮긴다(필터로 그 줄이 사라졌으면 그대로 둔다). */
+        focusRowBtn(form.id, "edit");
+      },
     });
     const panel = activeModal.panel;
     const slot = (n) => qs(panel, `[data-slot='${n}']`);
+    /* 다시 그리면 누른 버튼이 DOM 에서 떨어져 키보드 포커스가 body 로 빠진다(실측 — 저장·등록·상태 pill·승인·거부·⋯ 메뉴·
+       담당자 관리 창을 닫은 뒤·첨부). 그러면 Tab 이 창 맨 앞에서 다시 시작하고(openModal 의 트랩은 첫·끝 칸에서만 감는다) Shift+Tab 은
+       창 밖으로 나간다. **포커스를 잃었을 때만** 그 자리를 대신하는 버튼으로 옮긴다 — 사람이 이미 다른 곳에 둔 포커스는 건드리지 않는다. */
+    function refocus(...sels) {
+      if (!focusLost()) return;
+      for (const s of sels) {
+        const b = qs(panel, s);
+        if (b && !b.disabled) { b.focus(); return; }
+      }
+    }
     const renderHd = () => { const e = slot("hd"); if (e) setHTML(e, hdBody()); };
     /* 레일 슬롯(aside)이 곧 레일의 스크롤러다(S-04 2차 — `.modal-panel--cli .ord-side`). 다시 그릴 때 **굴려 둔 자리를 지킨다** —
        상태 pill·발급·첨부마다 레일이 맨 위로 튀면 이력을 보던 사람이 자리를 잃는다. 새 이력이 생겨도 저절로 굴리지 않는다
@@ -800,7 +848,14 @@ export function mount(root, { nav }) {
       const def = CARD_SALES.find((x) => x.k === "bizLicense");
       if (cell && def) setHTML(cell, cliCell(def, form));
     };
-    const renderFt = () => { const e = slot("ft"); if (e) setHTML(e, ftBody()); };
+    const renderFt = () => {
+      const e = slot("ft");
+      if (!e) return;
+      /* 푸터 버튼(저장·등록)을 누른 뒤면 다시 그린 **같은 버튼**으로 돌려준다 — 잠겼으면 옆 '취소'로. 입력 중(포커스가 칸에 있을 때)은 건드리지 않는다. */
+      const was = e.contains(document.activeElement) ? document.activeElement.dataset.action || "" : "";
+      setHTML(e, ftBody());
+      if (was) refocus(`[data-slot='ft'] [data-action='${was}']`, "[data-slot='ft'] [data-action='close']");
+    };
     const renderBanner = () => {
       const e = slot("banner");
       if (!e) return;
@@ -883,20 +938,25 @@ export function mount(root, { nav }) {
 
     /* 상태 전환은 **즉시 반영**한다 — 지금 동작이 그렇고 토스트 문구도 즉시 통보를 전제한다.
        저장 버튼에 태우면 "승인했습니다"가 거짓말이 된다. */
+    /* 상태 전환·승인·거부 뒤 공통. 누른 버튼이 사라졌으면(머리를 다시 그렸다 · 승인·거부 배너는 상태가 바뀌면 배너째 없어진다)
+       머리의 **지금 상태** 칸으로 포커스를 옮긴다 — 그 자리를 대신해 바뀐 결과를 말하는 버튼이다. */
+    const afterStatus = () => {
+      renderHd(); renderBanner(); renderRail(); refreshList();
+      refocus(`[data-status='${form.status}']`);
+    };
+    /* 승인·거부 확인 창과 토스트가 부르는 이름은 **저장된 레코드**의 것이다(storedRec) — 상태만 쓰므로 원장에서 고치던 회사명은
+       저장되지 않는데, form 의 이름을 부르면 '…수정중 거래처를 승인했습니다' 처럼 목록·알림톡에 없는 이름을 말했다(실측). */
     on(panel, "click", "[data-status]", (e, t) => {
       const v = t.dataset.status;
       if (v === form.status) return;
-      if (v === "반려") return openReject(form, (reason) => {
-        form.status = "반려"; form.rejectReason = reason;
-        writeForm();
+      if (v === "반려") return openReject(storedRec(), (reason) => {
+        writeStatus("반려", reason);
         push("가입 거부 · 사유 통보", "danger");
-        renderHd(); renderBanner(); renderRail(); refreshList();
+        afterStatus();
       });
-      form.status = v;
-      if (v !== "반려") form.rejectReason = "";
-      writeForm();
-      push(`상태 변경 · ${v}`, v === "활성" ? "ok" : v === "반려" ? "danger" : "warn");
-      renderHd(); renderBanner(); renderRail(); refreshList();
+      writeStatus(v, "");
+      push(`상태 변경 · ${v}`, v === "활성" ? "ok" : "warn");
+      afterStatus();
       toast(`${v}(으)로 변경했습니다`);
     });
     /* 저장하지 않은 편집을 두고 단가 화면으로 가면 편집이 사라진다(라우터가 모달을 닫는다) — 막고 이유를 말한다. */
@@ -906,21 +966,20 @@ export function mount(root, { nav }) {
       return false;
     };
     on(panel, "click", "[data-action='to-pricing']", () => { if (canLeave()) goPricing(form.id); });
-    on(panel, "click", "[data-action='approve']", () => confirmApprove(form, () => {
-      form.status = "활성"; form.rejectReason = "";
-      writeForm();
+    on(panel, "click", "[data-action='approve']", () => confirmApprove(storedRec(), () => {
+      writeStatus("활성", "");
       push("가입 승인 · 활성 전환", "ok");
-      renderHd(); renderBanner(); renderRail(); refreshList();
-      toast(`${form.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
+      afterStatus();
+      toast(`${storedRec().companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
     }, canLeave));
-    on(panel, "click", "[data-action='reject']", () => openReject(form, (reason) => {
-      form.status = "반려"; form.rejectReason = reason;
-      writeForm();
+    on(panel, "click", "[data-action='reject']", () => openReject(storedRec(), (reason) => {
+      writeStatus("반려", reason);
       push("가입 거부 · 사유 통보", "danger");
-      renderHd(); renderBanner(); renderRail(); refreshList();
+      afterStatus();
     }));
 
-    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
+    /* ⋯ 버튼도 머리를 다시 그린다 — 열고 닫은 뒤 포커스를 같은 버튼에 둔다(메뉴 항목은 DOM 순서상 바로 다음 Tab 이다). */
+    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); refocus("[data-action='menu']"); });
     /* 임시비밀번호 발급 — **누르는 즉시 적용**한다(S-04). 저장 버튼에 태우면 배너의 '…까지 유효'가 거짓말이 되고,
        관리자가 비밀번호만 알려 주고 창을 닫으면 그 비밀번호로는 들어갈 수 없었다.
        ⚠️ 레코드에는 **password 만** 쓴다 — 저장소의 지금 레코드 위에 덮는다. `{ ...form }` 을 넘기면 원장에서
@@ -950,17 +1009,22 @@ export function mount(root, { nav }) {
        원장 편집이 살아 있다. ⚠️ 핸들을 `activeModal` 에 담지 말 것(→ contacts-modal.js). */
     on(panel, "click", "[data-action='go-contacts']", () => {
       /* 약관 배너의 '연락' 줄이 정산 담당자를 읽는다 — 담당자를 고치면 배너도 같이 다시 그린다. */
-      openContactsModal({ client: form, toast, onChange: () => { renderRail(); renderBanner(); refreshList(); } });
+      openContactsModal({ client: form, toast, onChange: () => { renderRail(); renderBanner(); refreshList(); },
+        /* 명단을 바꿨으면 레일이 다시 그려져 이 버튼이 떨어져 있다 — 닫은 뒤 새 버튼으로 */
+        onClose: () => refocus("[data-action='go-contacts']") });
     });
     on(panel, "click", "[data-action='delete']", () => {
-      menuOpen = false; renderHd();
+      /* 메뉴를 닫으며 머리를 다시 그린다 — 확인 창이 '연 자리' 로 기억할 포커스를 ⋯ 버튼에 먼저 둔다(취소하면 거기로 돌아온다). */
+      menuOpen = false; renderHd(); refocus("[data-action='menu']");
       openDeleteConfirm({
         ...deleteCopy(form),
         onConfirm: () => {
           const name = form.companyName;
+          const idx = editIndex(form.id);
           store.removeClient(form.id);
           closeModal();
           refreshList();
+          focusAfterDelete(idx);
           toast(`${name} 거래처를 삭제했습니다`, "warn");
         },
       });
@@ -995,6 +1059,7 @@ export function mount(root, { nav }) {
         form.bizLicense = att;
         touched.bizLicense = 1;
         renderAttach(); renderFt();
+        refocus("[data-attach-pick]"); // 첨부 칸을 다시 그려 '파일 선택/변경' 버튼이 새로 생겼다
         push(`사업자등록증 첨부 · ${att.name}`, "info");
         renderRail();
         toast(`${att.name} 을 첨부했습니다 · 저장해야 적용됩니다`);
@@ -1047,6 +1112,7 @@ export function mount(root, { nav }) {
     confirmApprove(client, () => {
       store.updateClient({ ...client, status: "활성", rejectReason: undefined });
       refreshList();
+      focusRowBtn(client.id, "edit"); // 승인하면 그 줄의 승인·거부 버튼이 사라진다 — 같은 줄의 연필로
       toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
     });
   }
@@ -1129,7 +1195,7 @@ export function mount(root, { nav }) {
       if (!reason) return;
       d.close();
       if (onDone) onDone(reason);
-      else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); }
+      else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); focusRowBtn(client.id, "edit"); }
       toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
     });
     ta.focus();
@@ -1143,8 +1209,10 @@ export function mount(root, { nav }) {
     openDeleteConfirm({
       ...deleteCopy(client),
       onConfirm: () => {
+        const idx = editIndex(client.id);
         store.removeClient(client.id);
         refreshList();
+        focusAfterDelete(idx);
         toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
       },
     });
@@ -1184,7 +1252,9 @@ export function mount(root, { nav }) {
     }
     const c = findClient(t.dataset.id);
     if (!c) return;
-    if (a === "contacts") openContactsModal({ client: c, toast, onChange: () => refreshList() });
+    if (a === "contacts") openContactsModal({ client: c, toast, onChange: () => refreshList(),
+      /* 명단을 바꾸면 표가 다시 그려져 누른 사람 아이콘이 떨어져 있다 — 같은 거래처의 새 아이콘으로 */
+      onClose: () => focusRowBtn(c.id, "contacts") });
     else if (a === "edit") openClientModal(c);
     else if (a === "del") openDelete(c);
     else if (a === "approve") approve(c);

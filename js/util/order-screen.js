@@ -16,13 +16,12 @@
 
    짝이 되는 스타일은 css/components.css 의 `.ord-*` 블록(파일 끝).
    ============================================================ */
-import { html, raw, escapeHtml, setHTML, on, qs } from "../dom.js";
+import { html, raw, escapeHtml, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { makeDatepicker, openLightbox } from "../ui.js";
 import { HIST_DOT } from "../data/order-history.js";
 import { won, pad2, dash, fmtFull, parseFlexDate, dtpMarkup, card, renderFields, autosize } from "./order-fields.js";
 import { openRowPicker } from "./order-dialogs.js";
-import { openDialog } from "./dialog.js";
 import { attachmentOf } from "./image.js";
 
 /* 폼 프리미티브는 order-fields.js 가 소유한다 — 기존 호출부가 깨지지 않게 재수출만 한다.
@@ -322,17 +321,18 @@ export function stepper({ status, statuses, canComplete }) {
 /* `delLock`(선택 · B2B 만 넘긴다) — 지울 수 없는 이유(명세 6.4 정본 문구). 있으면 '주문서 삭제' 가 자물쇠와 함께 잠기고
    그 아래에 이유를 적는다(시안 S-06 '잠긴 달의 삭제 시도'). ⚠️ 잠긴 항목도 **포커스가 가는 버튼**이다(`aria-disabled` +
    `aria-describedby`) — 시안처럼 div 로 두면 키보드 사용자가 이유를 읽을 수 없다. 누르면 호출부가 아무것도 하지 않는다
-   (`data-action="delete-locked"`). B2C 는 넘기지 않아 예전 그대로다. */
+   (`data-action="delete-locked"`). B2C 는 넘기지 않아 예전 그대로다.
+   항목은 `tabindex="-1"` 이다 — 메뉴 안은 화살표로 옮기고 Tab 은 메뉴를 닫고 나간다(아래 `bindOrdMenu`). */
 export const ordMenu = ({ delLock } = {}) => html`
-  <div class="ord-menu ${delLock ? "ord-menu--wide" : ""}" role="menu">
-    <button class="ord-menu__item" role="menuitem" data-action="order-cancel">주문취소</button>
+  <div class="ord-menu ${delLock ? "ord-menu--wide" : ""}" role="menu" aria-label="주문 더보기">
+    <button class="ord-menu__item" role="menuitem" tabindex="-1" data-action="order-cancel">주문취소</button>
     ${delLock
-      ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" aria-disabled="true"
+      ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" tabindex="-1" aria-disabled="true"
           aria-describedby="ord-del-why" data-action="delete-locked">
           <span class="ord-menu__row"><span>주문서 삭제</span>${icon("lock", { size: 14 })}</span>
           <span class="ord-menu__why" id="ord-del-why">${delLock}</span>
         </button>`
-      : html`<button class="ord-menu__item ord-menu__item--danger" role="menuitem" data-action="delete">주문서 삭제</button>`}
+      : html`<button class="ord-menu__item ord-menu__item--danger" role="menuitem" tabindex="-1" data-action="delete">주문서 삭제</button>`}
   </div>`;
 
 /* 헤더 전체 — 주문번호·상태·메타 / 스테퍼·담당자·더보기·닫기 */
@@ -367,6 +367,64 @@ export function ordHeader({ order, meta, statuses, canComplete, menuOpen, isNew,
       </div>
       <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
     </div>`;
+}
+
+/* ── ··· 메뉴 키보드 — `role="menu"` 의 약속(WAI-ARIA 메뉴 버튼) ──────────────────
+   메뉴라고 선언해 놓고 키를 주지 않으면 화면낭독기 사용자에게 거짓말이 된다(다이얼로그 규격의 role 정직성 줄과 같은 원칙).
+   · 열기: 누르기(Enter·Space·마우스) 또는 ↓ = 첫 항목에 초점 · ↑ = 끝 항목에 초점. 닫기: ··· 를 다시 누르기 · ESC · 항목 고르기.
+   · 항목 사이: ↑↓(끝에서 되돌아간다) · Home · End. 항목은 tabindex=-1 이라 Tab 은 메뉴를 닫고 ✕ 로, Shift+Tab 은 ··· 로 간다.
+   · 잠긴 '주문서 삭제'(aria-disabled)에도 초점이 간다 — 이유가 aria-describedby 로 읽힌다(메뉴의 잠긴 항목은 초점을 받는다).
+   머리는 열고 닫을 때마다 통째로 다시 그려진다(호출부 renderHd) — 그래서 초점은 다시 그린 **뒤** 새 요소에 준다.
+   ⚠️ ESC 는 여기서 keydown 으로 잡지 않는다 — openModal 의 capture 핸들러가 먼저 받아 모달째 닫는다(ui.js 주석의 그 함정).
+      대신 `escape()` 를 돌려주고 호출부가 `openModal({ onEsc })` 에 잇는다: 메뉴가 열려 있으면 메뉴만 닫고(초점이 메뉴에 있었으면
+      ··· 로 옮긴다) false(모달은 그대로), 닫혀 있으면 true(예전처럼 모달을 닫는다). 위에 쌓인 다이얼로그가 있으면 openModal 이 이 창에 ESC 를 넘기지 않는다.
+   `close()` 는 항목을 고른 뒤 호출부가 부른다 — 메뉴를 닫고 ··· 에 초점을 둔다(그 뒤 여는 확인 창이 닫히면 초점이 ··· 로 돌아온다). */
+export function bindOrdMenu(panel, { isOpen, setOpen }) {
+  const btn = () => qs(panel, ".ord-more [data-action='menu']");
+  const items = () => qsa(panel, ".ord-menu [role='menuitem']");
+  const openTo = (last) => {
+    setOpen(true);
+    const l = items();
+    const t = last ? l[l.length - 1] : l[0];
+    if (t) t.focus();
+  };
+  const close = () => {
+    setOpen(false);
+    const b = btn();
+    if (b) b.focus();
+  };
+  on(panel, "click", ".ord-more [data-action='menu']", () => (isOpen() ? close() : openTo(false)));
+  on(panel, "keydown", ".ord-more [data-action='menu']", (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    openTo(e.key === "ArrowUp");
+  });
+  on(panel, "keydown", ".ord-menu [role='menuitem']", (e, t) => {
+    const l = items();
+    if (!l.length) return;
+    const i = l.indexOf(t);
+    const to = { ArrowDown: (i + 1) % l.length, ArrowUp: (i - 1 + l.length) % l.length, Home: 0, End: l.length - 1 }[e.key];
+    if (to !== undefined) { e.preventDefault(); l[to].focus(); return; }
+    if (e.key !== "Tab") return;
+    /* 메뉴를 닫으면 머리가 다시 그려져 Tab 의 기본 이동 대상이 사라진다 — 이동을 직접 한다. */
+    e.preventDefault();
+    const back = e.shiftKey;
+    setOpen(false);
+    const b = btn();
+    const next = b && b.closest(".ord-more")?.nextElementSibling;
+    if (!back && next && next.matches("button")) next.focus();
+    else if (b) b.focus();
+  });
+  /* ESC — 초점이 메뉴(또는 ···)에 있었으면 ··· 로 옮긴다. 마우스로 메뉴를 연 채 본문 칸을 눌러 글을 쓰다 ESC 를 누른 경우는
+     메뉴만 닫고 초점은 그 칸에 둔다 — 머리만 다시 그려 칸의 커서가 살아 있는데 ··· 로 끌어가면 쓰던 자리를 잃는다(검토 실측). */
+  const escape = () => {
+    if (!isOpen()) return true;
+    const a = document.activeElement;
+    if (!a || a === document.body || a.closest(".ord-more")) close();
+    else setOpen(false);
+    return false;
+  };
+  return { close, escape };
 }
 
 /* ── 처리 레일(다크) ──────────────────────────────────────── */

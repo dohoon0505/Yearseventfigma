@@ -151,6 +151,11 @@ export const fmtDot = (d) => `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pa
 /** "9월 28일" / "9월 28일 13:00" — 안내문용 */
 export const fmtKoShort = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일`;
 export const fmtKoShortTime = (d) => `${fmtKoShort(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/** 위 둘과 같되 **`now` 와 해가 다르면 연도를 붙인다** — "2027년 1월 1일" / "2027년 1월 1일 10:00"(같은 해면 위와 한 글자도
+ *  같다). 다음 해·지난해 달을 고를 수 있는 화면용 — 연도 없이 '1월 1일 10:00에 발급됩니다' 라고 하면 올해 1월로 읽힌다. */
+export const fmtKoShortY = (d, now = new Date()) =>
+  (d.getFullYear() === now.getFullYear() ? fmtKoShort(d) : `${d.getFullYear()}년 ${fmtKoShort(d)}`);
+export const fmtKoShortTimeY = (d, now = new Date()) => `${fmtKoShortY(d, now)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 /* ── 동의 상태 ────────────────────────────────────────────── */
 /**
@@ -183,6 +188,11 @@ export function agreementState({ period, invoiceDay, manualAt = null, termsAt, h
   if (manual) { mode = "manual"; at = manual; }
   else if (termsOk && !heldBy && past) { mode = "auto"; at = deadline; }
   const autoAgreeHold = manual || !past ? null : !termsOk ? "TERMS_NOT_AGREED" : heldBy;
+  /* 마감 시각에 자동 동의를 막고 있던 이유 — autoAgreeHold 와 같은 판정이되 **마감 뒤 직접 동의해도 남는다**(지난 사실 ·
+     관리자 진행 기록의 '마감 · 자동 동의 보류' 줄 · 서버 보류 이력의 데모 대역 — 명세 10.4 Q34). 마감 전이거나, 마감 전
+     (정각 포함)에 직접 동의했거나, 자동 동의된 달은 null. termsAt 은 처음 동의한 시각이라 뒤에 바뀌지 않고, hold 도
+     기록이라 동의 뒤에 지워지지 않는다 — 그래서 날짜로 짐작하지 않고 같은 두 값에서 파생한다. */
+  const heldAtDeadline = !past || (manual && manual.getTime() <= deadline.getTime()) ? null : !termsOk ? "TERMS_NOT_AGREED" : heldBy;
   return {
     period, invoiceDay: day, group: day <= 10 ? "early" : "late",
     issueDate: issue, deadline, dueDate: dueDate(period),
@@ -191,6 +201,7 @@ export function agreementState({ period, invoiceDay, manualAt = null, termsAt, h
     termsHold: !manual && !termsOk && past,
     /* 마감이 지났는데 자동 동의하지 않은 이유(명세 6.6 `autoAgreeHold`) — 보류 3종 중 하나, 아니면 null */
     autoAgreeHold,
+    heldAtDeadline,
     docDate: mode ? docDate(period, day, at) : (day <= 10 ? periodEnd(period) : null),
   };
 }

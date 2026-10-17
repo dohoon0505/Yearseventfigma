@@ -682,6 +682,8 @@
 .settle-ct__k { color: var(--c-text-4); white-space: nowrap; }
 .settle-ct__v { font-weight: var(--fw-semibold); color: var(--c-text-strong); text-align: right; overflow-wrap: anywhere; }
 .settle-ct__v.is-warn { color: var(--c-danger-ink); }
+/* 연락처 번호는 한 덩어리 — 좁은 칸(1280 · 200px)에서 하이픈 자리('010-0000-' / '0105')로 갈리지 않게. 꺾는 자리는 ' · ' 뿐 */
+.settle-ct__ph { white-space: nowrap; }
 .settle-do {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 8px 0; border-bottom: 1px solid var(--c-fill-1);

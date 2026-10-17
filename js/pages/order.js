@@ -22,8 +22,8 @@ import { b2bUpsert, b2bNewId, b2bNextOrderNo } from "../data/b2b-mock.js";
 import { intakeBlockOf } from "../util/settlement.js";
 import { histEntry } from "../data/order-history.js";
 
-/* 금액 문자열("70,000원") ↔ 숫자 — 배송지 추가 배송비 합산용 */
-const parseWon = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
+/* 숫자 → 금액 문자열("70,000원"). (예전 짝 `parseWon` — 숫자 외 글자를 **지워** 읽던 모양 — 은 쓰는 곳이 없어 지웠다.
+   금액을 읽어야 하면 지우지 않고 거부하는 util/order-fields.js 의 parseWon·readWonInput 을 쓸 것.) */
 const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 /* 적용 단가 — 카탈로그 정가(`p.price`)가 아니라 **이 거래처의 계약 단가**를 쓴다.

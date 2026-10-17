@@ -234,12 +234,14 @@ export function invoiceDoc(d, assetBase = "./assets/") {
   `;
 }
 
-/** Open the invoice in a bare window and trigger print (→ Save as PDF). */
+/** Open the invoice in a bare window and trigger print (→ Save as PDF).
+ *  돌려주는 값: 인쇄창을 열었으면 `true`, 팝업이 막혔으면 `false`(경고창은 여기서 띄운다). 호출부는 `=== false` 면
+ *  '내려받습니다' 류 통보를 띄우지 않는다 — 막혔는데 경고창과 성공 토스트가 함께 떴다(2026-10-17). 출력은 그대로다. */
 export function printInvoiceDoc(el, title) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) {
     alert("팝업이 차단되었습니다. 팝업을 허용해 주세요.");
-    return;
+    return false;
   }
   const div = document.createElement("div");
   div.innerHTML = el.outerHTML;
@@ -278,4 +280,5 @@ export function printInvoiceDoc(el, title) {
 </body>
 </html>`);
   printWindow.document.close();
+  return true;
 }

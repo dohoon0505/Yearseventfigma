@@ -14,7 +14,8 @@
    · 다시 시도: 서버 대역(store.issueEinvoice)은 늘 성공한다. 그러면 '실패' 갈래(시안 d — 바로빌 오류를 그대로 보이고
      상태는 동의완료 · 발급 전에 남는다)를 볼 길이 없어, **자동 발급이 실패해 있던 달(einvoiceFail 시드)의 첫 다시 시도는
      그 오류 문구 그대로 실패**하게 했다(두 번째부터 성공). 새로고침하면 다시 처음부터다. 실서비스는 바로빌 응답을 그대로 쓴다.
-   · '진행 중' 은 1.2초다(응답 대기 흉내). 그동안 창을 닫을 수 없다(✕·취소 잠금 · ESC · 바깥 클릭 무시).
+   · '진행 중' 은 1.2초다(응답 대기 흉내). 그동안 창을 닫을 수 없다(✕·취소 잠금 · ESC · 바깥 클릭 무시) — 초점도 패널에
+     붙잡아 두고 Tab·Shift+Tab 이 창 밖으로 나가지 않게 막는다(누를 수 있는 것이 없다).
    ============================================================ */
 import { html, on, qs, qsa, setHTML } from "../dom.js";
 import { icon } from "../icons.js";
@@ -38,11 +39,16 @@ const storageFull = (r) => !!r && r.error === "STORAGE_FULL";
 const RETRIED = new Set();
 let seq = 0;
 
+/** 사업자번호를 다른 계정과 공유하는 거래처이고 계정 구분이 있다(표의 이름 옆 칩과 같은 규칙). */
+const splitAccount = (client) =>
+  !!client.department && sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber));
 /** 창 머리 윗줄 — 어느 거래처 · 어느 달인지. 계정 구분은 사업자번호를 공유하는 거래처에만(표와 같은 규칙). */
 function headOf(client, ym) {
-  const shared = sharedBizKeys(store.get().clients).has(normalizeBiz(client.bizNumber));
-  return `${client.companyName}${shared && client.department ? ` · ${client.department}` : ""} · ${periodLabel(ym)} 귀속`;
+  return `${client.companyName}${splitAccount(client) ? ` · ${client.department}` : ""} · ${periodLabel(ym)} 귀속`;
 }
+/** 토스트에 쓰는 거래처 이름 — admin-settlement.js `rowName` 과 같은 규칙. 회사명만 쓰면 한빛과학(주)(C001)과
+ *  한빛과학(주) 연구소 계정(C027) · 법무법인 한결 두 계정의 입금 확인 토스트가 한 글자도 다르지 않았다(실측). */
+const nameOf = (client) => (splitAccount(client) ? `${client.companyName} ${client.department}` : client.companyName);
 /** 정산·회계 담당자와 알림(T6)이 닿는지. 연락처가 비면 '보냈습니다' 라고 말하지 않는다. */
 function recipientOf(client) {
   const ct = store.getBillingContactOf(client.id);
@@ -185,10 +191,17 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     onEsc: () => st.step !== "busy",
     onClose: () => {
       if (timer) { clearTimeout(timer); timer = 0; }
+      document.removeEventListener("keydown", trapBusy, true);
       onClose && onClose();
     },
   });
   const p = d.panel;
+  /** 진행 중 Tab 붙잡기(아래 등록부 주석) — 함수 선언이라 위 onClose 에서도 같은 참조를 뗀다. */
+  function trapBusy(e) {
+    if (e.key !== "Tab" || st.step !== "busy") return;
+    e.preventDefault();
+    if (document.activeElement !== p) p.focus({ preventScroll: true });
+  }
   const okBtn = qs(p, "[data-action='ok']");
   const cancelBtn = qs(p, ".dlg-ft [data-action='close']");
   const inNo = qs(p, "[data-f='no']");
@@ -315,6 +328,14 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       else d.setHint("누르면 바로 요청합니다", false);
     }
   }
+
+  /* ⚠️ 진행 중(busy)에는 Tab·Shift+Tab 을 창 안에 붙잡는다. 그동안 창 안의 조작이 전부 disabled 라 초점은 패널에 있는데,
+     openModal 의 트랩은 선택된 방식 행(tabindex=0 · disabled — FOCUSABLE 이 [tabindex] 로 잡는다)을 처음이자 마지막으로 보고
+     '초점이 그 행일 때만' 막는다 — 패널에 있는 초점은 그대로 지나가 뒤 화면(주문 고치기·PDF 버튼 등)으로 나갔다(실측).
+     트랩(ui.js · 문서 capture)이 먼저 등록돼 먼저 돌고 이 리스너가 뒤에 기본 동작을 막는다. 패널이 아니라 **문서**에 거는
+     것은 진행 중 배경(오버레이 — 바깥 클릭을 막느라 backdrop 이 클릭을 흘려보낸다)을 누르면 초점이 body 로 빠지기 때문이다 —
+     패널 리스너는 그 뒤의 Tab 을 듣지 못해 다시 창 밖으로 나갔다(실측). 창이 닫히면 onClose 가 뗀다. */
+  document.addEventListener("keydown", trapBusy, true);
 
   bindPick(p, (v) => {
     if (v === st.mode) return;
@@ -506,7 +527,7 @@ export function openPaymentDialog({ client, ym, onDone, toast, onClose } = {}) {
       return;
     }
     onDone && onDone({ type: "pay", rec: r });
-    toast && toast(`입금을 확인했습니다. ${client.companyName} ${M}월 귀속이 입금완료가 되었습니다`);
+    toast && toast(`입금을 확인했습니다. ${nameOf(client)} ${M}월 귀속이 입금완료가 되었습니다`);
     d.close();
   });
 

@@ -50,7 +50,7 @@ import {
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
   makeImageBox, openStaffPicker, openDeleteConfirm,
-  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
+  ordHeader, bindOrdMenu, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 /* ⚠️ 주문 레코드는 **저장 함수로만** 고친다(b2bUpsert·b2bPushHistory·b2bCancel·…) — b2b-mock 이 변경분을
    store 에 영속한다. `findOrder()` 로 받은 레코드에 pushHistory·필드 대입을 직접 하면 새로고침에 사라진다. */
@@ -1638,9 +1638,13 @@ export function mount(root, { nav }) {
     if (!amtLock && saved) { const nl = lockOf(saved); if (nl) applyLock(nl, null); }
     refreshAmtBox();
     syncDirty(); renderHd(); renderSum(); renderHist();
+    /* 정산 꼬리는 자동 배송완료 저장에도 같은 규칙으로 붙인다 — 같은 저장이 명세서가 나간 달의 금액을 바꿨을 수 있다
+       (금액·상품·배송일시를 고치고 사진·인수자까지 넣어 한 번에 저장). 예전엔 이 갈래만 꼬리가 없어 확인 창을 지나 저장해도
+       바뀐 명세서 금액을 말하지 않았다. */
+    const tail = `${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`;
     toast(autoDone
-      ? (merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다")
-      : `저장했습니다 · ${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`);
+      ? `${merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다"} · ${tail}`
+      : `저장했습니다 · ${tail}`);
     return true;
   }
 
@@ -1721,9 +1725,11 @@ export function mount(root, { nav }) {
     unsaved = ""; unsavedTip = ""; lastImp = null; // 저장 줄 메모는 창을 닫으면 사라진다(사용자 답 2)
     s0 = settleOf(order); // 저장된 배송일시의 달 — 요약 줄·금액 칸 안내·배송일시 안내의 기준
     amtLock = s0 && !s0.editable ? s0 : null; // 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다
+    let menu = null; // ··· 메뉴 키보드(order-screen bindOrdMenu) — 열려 있으면 ESC 는 메뉴만 닫는다
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
+      onEsc: () => (menu ? menu.escape() : true),
       onClose: () => { destroyDds(); activeModal = null; editing = null; baseline = null; s0 = null; lastImp = null; },
     });
     amtSig = amtSigOf();
@@ -1735,12 +1741,9 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => saveOrder());
     on(panel, "click", "[data-action='step']", (e, t) => stepTo(t.dataset.v));
-    /* 머리를 다시 그리면 눌린 ··· 버튼이 갈려 포커스가 사라진다 — 새 버튼에 되돌려 Tab 한 번에 메뉴 항목(잠긴 '주문서 삭제' 와
-       그 이유 포함)에 닿게 한다. */
-    on(panel, "click", "[data-action='menu']", () => {
-      menuOpen = !menuOpen; renderHd();
-      const mb = qs(panel, "[data-action='menu']"); if (mb) mb.focus();
-    });
+    /* ··· 메뉴 — 열면 첫 항목에 초점, ↑↓·Home·End 로 옮기고 ESC·Tab 은 메뉴를 닫는다(order-screen bindOrdMenu).
+       머리를 다시 그리면 눌린 버튼이 갈리므로 초점은 그 함수가 다시 그린 뒤에 준다. 잠긴 '주문서 삭제' 에도 화살표로 닿는다. */
+    menu = bindOrdMenu(panel, { isOpen: () => menuOpen, setOpen: (v) => { menuOpen = v; renderHd(); } });
     /* 잠긴 '주문서 삭제'(aria-disabled) — 아무것도 하지 않는다. 이유는 바로 아래 줄에 적혀 있고 aria-describedby 가 읽는다. */
     on(panel, "click", "[data-action='delete-locked']", () => {});
     /* 삭제 — B2B 주문은 그 달 청구의 근거다. 판정은 settlementImpactOf(저장본, null) 하나다(명세 6.4 — 귀속월과, 수수료가
@@ -1748,11 +1751,11 @@ export function mount(root, { nav }) {
        ⚠️ 저장된 값으로 말한다 — 삭제하면 저장 안 한 수정은 버려지므로, 화면에서 배송일시·금액을 고쳐 둔 채 지우면 청구에서
        빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달). */
     on(panel, "click", "[data-action='delete']", () => {
-      menuOpen = false;
       const saved = findOrder(editing.id) || baseline || editing;
       const imp = settlementImpactOf(saved, null, new Date());
-      if (imp.lock) { menuOpen = true; renderHd(); toast(lockMsg(imp.lock, "지울"), "warn"); return; }
-      renderHd();
+      /* 메뉴를 연 사이 잠겼다 — 메뉴를 다시 그려 잠긴 항목 + 이유를 보이고 초점을 그 항목에 둔다(다시 그리면 누른 항목이 사라진다). */
+      if (imp.lock) { renderHd(); qs(panel, "[data-action='delete-locked']")?.focus(); toast(lockMsg(imp.lock, "지울"), "warn"); return; }
+      menu.close(); // 확인 창이 닫히면 초점이 ··· 로 돌아온다
       const name = editing.orderNo;
       const doRemove = (imp2) => {
         if (!b2bRemove(editing.id)) { toast(SAVE_FAIL, "warn"); return; }
@@ -1808,6 +1811,9 @@ export function mount(root, { nav }) {
             menuOpen = true; renderHd();
             return false;
           },
+          /* 위에서 머리를 다시 그렸으면 창이 되돌려 줄 ··· 가 사라져 초점이 body 로 빠진다 — 열어 둔 잠긴 항목에 둔다.
+             막히지 않고 닫혔으면(돌아가기·삭제) 메뉴가 닫혀 있어 아무것도 하지 않는다. */
+          onClose: () => { if (menuOpen && panelOf()) qs(panel, "[data-action='delete-locked']")?.focus(); },
           onConfirm: () => doRemove(imp2),
         });
         return;
@@ -1831,7 +1837,9 @@ export function mount(root, { nav }) {
         guard: (d) => {
           const again = settlementImpactOf(findOrder(editing.id) || saved, null, new Date());
           if (!again.lock) { impB = again; return true; }
-          d.close(); menuOpen = true; renderHd(); toast(lockMsg(again.lock, "지울"), "warn");
+          /* 창이 닫히며 ··· 로 돌아간 초점은 머리를 다시 그리면 사라진다(body) — 잠긴 항목에 둬 이유를 읽게 한다(위 메뉴 경로와 같다). */
+          d.close(); menuOpen = true; renderHd(); qs(panel, "[data-action='delete-locked']")?.focus();
+          toast(lockMsg(again.lock, "지울"), "warn");
           return false;
         },
         onConfirm: () => doRemove(impB),
@@ -1849,7 +1857,7 @@ export function mount(root, { nav }) {
       return settlementImpactOf(rec, { ...rec, status: "취소", cancelFee: Number(fee) || 0, canceledAt: fmtAt(now) }, now).lock;
     };
     on(panel, "click", "[data-action='order-cancel']", () => {
-      menuOpen = false; renderHd();
+      menu.close(); // 주문취소 창이 닫히면 초점이 ··· 로 돌아온다
       if (!editing || editing.status === "취소") return;
       const hit = cancelHit();
       if (hit) { toast(lockMsg(hit, "취소할"), "warn"); return; }

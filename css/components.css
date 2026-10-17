@@ -921,12 +921,19 @@
 }
 .bf-chip:hover { border-color: var(--c-border-strong); color: var(--c-text-3); }
 .bf-chip.is-on { border-color: var(--c-orange); background: var(--c-orange-soft); color: var(--c-orange-ink); font-weight: var(--fw-bold); }
-.bf-detail__srch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+/* ⚠️ 열은 `minmax(0, 1fr)` 다 — 그냥 `1fr` 은 `minmax(auto, 1fr)` 라 각 칸이 검색창의 최소 내용 폭(라벨 + input 의 기본 폭
+   ≈ 290px)보다 줄지 않아, 1280 에서 네 칸이 카드보다 196px 넓어져 '주문번호' 칸이 카드 밖으로 잘렸다(주문 목록 두 화면 · 이식 전부터).
+   이제 네 칸이 카드 폭을 똑같이 나누고 줄어드는 것은 input 이다(min-width: 0). */
+.bf-detail__srch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .bf-detail__srch .bf-srch { height: 40px; }
 
-/* ── 반응형: 좁은 폭에서 검색 그리드 2열, 우측 그룹 줄바꿈 ── */
+/* ── 반응형: 좁은 폭에서 검색 그리드 2열, 우측 그룹 줄바꿈 ──
+   검색 그리드의 2열 전환은 1320px 이하다(우측 그룹 줄바꿈 1240px 보다 넓다). 네 칸이 한 줄이면 1280 창(Windows 스크롤바 15px 포함)에서
+   칸 하나가 ≈236px 라 '주문번호' 자리표시('예) B2C-2607-0006')의 끝 글자가 5px 잘린다 — 네 칸이 다 들어가는 폭부터 한 줄이다(실측). */
+@media (max-width: 1320px) {
+  .bf-detail__srch { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 1240px) {
-  .bf-detail__srch { grid-template-columns: repeat(2, 1fr); }
   .bf-right { margin-left: 0; flex: 1 1 100%; }
   .bf-srch--addr { flex: 1; width: auto; }
 }
@@ -1544,6 +1551,22 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-mgr { height: 34px; padding: 0 13px; }
 .modal-panel--ord .ord-iconbtn { width: 34px; height: 34px; flex-basis: 34px; }
 .modal-panel--ord .ord-more { flex-basis: 34px; }
+/* 머리 조작(스테퍼 · 담당자 pill · ⋯ · ✕)의 키보드 초점 — 전역 링(`--ring`, 주황 9% 알파)은 흰 머리에서 1.1:1 이라 없는 것과 같다.
+   메뉴 항목·요약 줄과 같은 인디고 2px. 머리는 스크롤 컨테이너가 아니라 바깥(offset 2px)에 그려도 잘리지 않는다(위 16px · 아래 12px 여백).
+   ⚠️ 잠긴 단계(`.is-locked`)는 `opacity: 0.45` 로 흐리게 그리는데 opacity 는 outline 까지 흐린다(인디고 45% = 흰 면 2.1:1).
+      그래서 **초점이 있을 때만** 같은 모습을 opacity 대신 색 섞기로 그린다 — 흰 면 위 45% 와 같은 색이라 모양은 그대로고 링만 또렷하다. */
+.modal-panel--ord .ord-step__btn:focus-visible,
+.modal-panel--ord .ord-mgr:focus-visible,
+.modal-panel--ord .ord-iconbtn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
+.modal-panel--ord .ord-step__btn.is-locked:focus-visible {
+  opacity: 1;
+  color: color-mix(in srgb, var(--c-text-4) 45%, var(--c-surface));
+  border-color: color-mix(in srgb, var(--c-border) 45%, var(--c-surface));
+}
+.modal-panel--ord .ord-step__btn.is-locked:focus-visible .ord-step__mark {
+  background: color-mix(in srgb, var(--c-fill-1) 45%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-text-4) 45%, var(--c-surface));
+}
 
 /* 다크 레일 300px — 사진이 가로를 가득 채운 3:4. 안내문은 머리줄 캡션으로 올라갔다(order-screen.js railV2). */
 .modal-panel--ord .ord-side { padding: 16px 18px; gap: 8px; }
@@ -2133,6 +2156,17 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   color: var(--c-surface); font-weight: var(--fw-semibold);
 }
 .cli-st__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
+/* 키보드 초점 — 이 창은 누른 버튼을 다시 그린 뒤 그 자리로 포커스를 되돌린다(admin-clients.js `refocus`). 그런데 전역 링
+   (`--ring`, 주황 9% 알파)은 흰 면에서 사실상 안 보여 **돌아온 초점이 보이지 않았다**(실측: 상태 pill·⋯·저장·담당자 관리 모두 표시 없음).
+   공용 규격대로 인디고 2px 를 직접 그린다 — 머리·푸터는 스크롤 컨테이너가 아니라 바깥에, 레일·원장(스크롤 컨테이너) 안은 안쪽(-2px)에.
+   ⚠️ `.ord-iconbtn`·`.ord-ft .hm-btn`·`.ord-menu__item`·`.rail-card__btn` 은 주문 상세·등록 모달과 공유한다 — 이 창 스코프로만 건다. */
+.modal-panel--cli .cli-st__btn:focus-visible,
+.modal-panel--cli .ord-hd .ord-iconbtn:focus-visible,
+.modal-panel--cli .ord-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
+.modal-panel--cli .ord-menu__item:focus-visible,
+.modal-panel--cli .rail-card__btn:focus-visible,
+.modal-panel--cli .cli-minibtn:focus-visible,
+.modal-panel--cli .cli-attachbtn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
 
 /* ── 레일 카드 ─────────────────────────────────────────────── */
 /* 다크 레일 위 정보 카드 · 세그먼트 — `--cli` 전용이 아니라 **공용**이다.

@@ -4,8 +4,11 @@
 .page-orders {
   padding: 24px;
 }
+/* 폭은 1300px 까지 — 예전 `width: 1300px` 고정은 본문 칸(좌우 패딩 뺀 폭 — 1280 창에서 1,012px · 1440 에서 1,172px)보다 넓어 필터 카드와 표가
+   오른쪽으로 넘쳤다(가로 스크롤 264px · '주소지' 검색칸이 화면 밖). 넓은 창에서는 예전과 같다. */
 .orders-inner {
-  width: 1300px;
+  width: 100%;
+  max-width: 1300px;
   display: flex;
   flex-direction: column;
   gap: 16px;

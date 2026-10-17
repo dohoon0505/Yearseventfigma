@@ -46,7 +46,7 @@ import { setHTML, on, qs, qsa, html } from "../dom.js";
 import { icon } from "../icons.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, DOC_STAMP } from "../data/invoice-links.js";
-import { fmtAt, fmtKoShort, fmtKoShortTime, periodLabel, periodEnd } from "../data/settlement-rules.js";
+import { fmtAt, fmtKoShortY, fmtKoShortTimeY, periodLabel, periodEnd } from "../data/settlement-rules.js";
 import { CS_PHONE } from "../data/contact.js";
 import { currentClient } from "../util/client.js";
 import { takeFocusSection } from "../session.js";
@@ -210,6 +210,9 @@ export function mount(root) {
     if (!btn) return;
     setHTML(btn, monthInner({ mm }));
   }
+  /** 열두 줄의 안쪽을 지금 값으로(같은 수법 — 스크롤·포커스가 남는다). 화면을 연 채 발행(10:00)·마감(13:00) 시각이 지나면
+   *  줄은 옛 알약('발행 전'·'동의 필요')인데 그 달을 고르면 카드는 새 갈래를 말했다(2026-10-17 실측) — 달을 고를 때마다 맞춘다. */
+  const refreshMonthRows = () => qsa(root, ".iv-month").forEach((b) => refreshMonthRow(b.dataset.month));
 
   /* ── 요약(금액 한 줄 + 금액이 바뀐 달이면 '발급 때 → 지금' 한 줄) ─────────────────
      건수·금액은 settlementOf 의 count(주문만) · feeCount · amount 다(월 목록·카드·확인 창과 같은 값 — 모두 지금 값). */
@@ -217,7 +220,7 @@ export function mount(root) {
     const s = settle();
     const meta = noTrade(s)
       ? "거래 내역 없음"
-      : `거래 ${s.count}건${s.feeCount ? ` · 수수료 ${s.feeCount}건` : ""} · ${fmtKoShort(s.issueAt)} 발행`;
+      : `거래 ${s.count}건${s.feeCount ? ` · 수수료 ${s.feeCount}건` : ""} · ${fmtKoShortY(s.issueAt)} 발행`;
     const chg = amountChangeLine(s);
     return html`
       <div class="iv-sum__row">
@@ -237,10 +240,10 @@ export function mount(root) {
      (시안은 '자동이면 …' 이지만 1차 자동 결정을 지킨다).
      ⚠️ html`` 은 Date 를 String(date) 로 찍는다 — 반드시 포맷해서 넣는다. */
   function writtenOf(s, now) {
-    if (s.group === "early") return `${fmtKoShort(periodEnd(s.period))} · 배송한 달 말일`;
-    if (s.agreedAt) return `${fmtKoShort(s.agreedAt)} · 동의한 날`;
-    if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShort(now)}`;
-    return `동의한 날 · 자동이면 ${fmtKoShort(s.deadline)}`;
+    if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송한 달 말일`;
+    if (s.agreedAt) return `${fmtKoShortY(s.agreedAt, now)} · 동의한 날`;
+    if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
+    return `동의한 날 · 자동이면 ${fmtKoShortY(s.deadline, now)}`;
   }
   /** 정산 상태 → 카드 갈래. btn: "on"(동의 가능) · "off"(잠금 — 이유는 제목·설명이 말한다) · "none"(버튼 없음).
    *  help: 고객센터 줄의 앞말(없으면 그 줄이 없다).
@@ -252,7 +255,7 @@ export function mount(root) {
     if (s.status === "SCHEDULED") {
       return {
         badge: ["발행 전", "gray"], title: "아직 발행 전입니다",
-        body: `이 달의 거래명세서는 ${fmtKoShortTime(s.issueAt)}에 발급됩니다. 발급되면 내용을 확인하고 동의할 수 있습니다.`, btn: "off",
+        body: `이 달의 거래명세서는 ${fmtKoShortTimeY(s.issueAt, now)}에 발급됩니다. 발급되면 내용을 확인하고 동의할 수 있습니다.`, btn: "off",
       };
     }
     if (s.status === "NONE") {
@@ -271,7 +274,7 @@ export function mount(root) {
        '거래 없음' 이라고 하면 거래처가 받은 명세서가 사라진 것처럼 읽힌다(DATA.md Q3 — '남은 거래 0건'). */
     if (s.zeroEdited) {
       const closed = s.status === "PAID";
-      const when = fmtKoShortTime(s.zeroCloseAt);
+      const when = fmtKoShortTimeY(s.zeroCloseAt, now);
       return {
         badge: ["0원 · 계산서 없음", "gray"], title: "고쳐져서 청구 금액이 0원이 되었습니다",
         body: `발급 뒤 내역이 고쳐져 이 달은 계산서 발급 동의가 필요 없습니다. ${when} 마감에 계산서 없이 ${closed ? "닫혔습니다" : "닫힙니다"}.`,
@@ -284,17 +287,17 @@ export function mount(root) {
       return {
         badge: ["동의 필요", "orange"], title: HOLD_TITLE[s.autoAgreeHold] || "마감이 지났지만 자동 동의되지 않았습니다",
         body: "그래서 자동 동의되지 않았습니다. 내용을 확인하시고 동의해 주세요. 마감이 지났어도 지금 동의할 수 있습니다.",
-        facts: [["동의 마감", `${fmtKoShortTime(s.deadline)} · 지남`], ["작성일자", writtenOf(s, now)]],
+        facts: [["동의 마감", `${fmtKoShortTimeY(s.deadline, now)} · 지남`], ["작성일자", writtenOf(s, now)]],
         btn: "on", help: HELP_ASK,
       };
     }
     if (s.status === "AWAITING_AGREEMENT") {
       const left = s.deadline.getTime() - now.getTime();
       /* 마감 24시간 전부터 남은 시간을 빨갛게(시안 · S-01·S-03 과 같은 기준). */
-      const due = ["동의 마감", `${fmtKoShortTime(s.deadline)} · ${spanText(left)} 남음`, left <= DAY];
+      const due = ["동의 마감", `${fmtKoShortTimeY(s.deadline, now)} · ${spanText(left)} 남음`, left <= DAY];
       const auto = ["마감까지 동의가 없으면", "그 시각에 자동 동의"];
       const written = ["작성일자", writtenOf(s, now)];
-      const lock = fmtKoShortTime(s.editLockAt);
+      const lock = fmtKoShortTimeY(s.editLockAt, now);
       if (s.changed) {
         /* 금액이 바뀐 달(시안 c-changed-before). 수정 마감이 지난 뒤는 시안에 없는 상태라 같은 사실을 지난 일로 말한다. */
         return {
@@ -315,7 +318,7 @@ export function mount(root) {
       };
     }
     const auto = s.mode === "auto";
-    const agreed = s.agreedAt ? `${fmtKoShortTime(s.agreedAt)} · ${auto ? "자동 동의" : "직접 동의"}` : "-";
+    const agreed = s.agreedAt ? `${fmtKoShortTimeY(s.agreedAt, now)} · ${auto ? "자동 동의" : "직접 동의"}` : "-";
     /* AGREED — 동의는 했지만 계산서가 아직 안 나왔다(발급 실패·재시도). '발급완료' 라고 말하지 않는다. */
     if (s.status === "AGREED") {
       return {
@@ -357,7 +360,7 @@ export function mount(root) {
      '발급대기 · 동의 후 발급' 이라 동의 전인 것은 보인다). 금액이 바뀐 달이면 '발급 때 → 지금' 줄을 붙인다(시안). */
   function stripBody() {
     const s = settle();
-    if (s.status === "SCHEDULED") return html`<p class="iv-strip">발행 전이라 내려받을 수 없습니다. ${fmtKoShortTime(s.issueAt)}에 발급됩니다</p>`;
+    if (s.status === "SCHEDULED") return html`<p class="iv-strip">발행 전이라 내려받을 수 없습니다. ${fmtKoShortTimeY(s.issueAt)}에 발급됩니다</p>`;
     if (s.status === "NONE") return html`<p class="iv-strip">거래가 없는 달이라 PDF · EXCEL · 열람링크를 쓸 수 없습니다</p>`;
     if (s.docStamp) {
       const chg = amountChangeLine(s);
@@ -470,8 +473,9 @@ export function mount(root) {
     const ag = qs(root, "[data-slot='agree']");
     if (ag) setHTML(ag, agreeBody());
   };
-  /** 선택 달이 바뀌거나 그 달의 상태가 바뀌었을 때 — 목록은 그 줄만, 나머지는 슬롯만. */
+  /** 선택 달이 바뀌거나 그 달의 상태가 바뀌었을 때 — 목록은 줄 안쪽만(다시 그리지 않는다), 나머지는 슬롯만. */
   function renderMonth() {
+    refreshMonthRows();
     renderSum();
     renderActs();
     renderDoc();
@@ -632,7 +636,15 @@ export function mount(root) {
      없으니 창을 닫고 카드를 0원 갈래로 다시 그린 뒤 토스트로 알린다(DATA.md Q5). */
   function openAgree() {
     const s0 = settle();
-    if (s0.status !== "AWAITING_AGREEMENT" || !s0.open || dlg) return;
+    if (dlg) return;
+    if (s0.status !== "AWAITING_AGREEMENT" || !s0.open) {
+      /* 화면을 연 채 마감(13:00)이 지나 카드가 옛 갈래('동의 필요' + 살아 있는 버튼)로 남아 있었다 — 눌러도 아무 일이 없었다
+         (2026-10-17 실측). 지금 값으로 다시 그리고, 창을 연 사이 마감이 지났을 때와 같은 말로 알린다. */
+      renderMonth();
+      toast(s0.mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 바뀌었습니다", "warn");
+      refocus(false);
+      return;
+    }
     const now = new Date();
     let shown = s0.amount; /* 창이 보여 주는 금액 — 동의 요청에 함께 싣는다(명세 3.4 '마감 전 수정' 5 · 6.6) */
     let err = null;        /* 거부된 뒤: { was: 동의하려던 금액, at: 바뀐 시각 } */
@@ -643,11 +655,11 @@ export function mount(root) {
     const HINT_ON = "동의하면 바로 발급을 시작합니다";
     const line = s0.autoAgreeHold
       ? ["자동 동의되지 않은 명세서", "마감이 지나 자동 동의되지 않은 명세서입니다. 지금 동의하시면 계산서가 발급됩니다."]
-      : ["자동 동의", `${fmtKoShortTime(s0.deadline)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`];
+      : ["자동 동의", `${fmtKoShortTimeY(s0.deadline, now)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`];
     /* 창의 작성일자는 **지금 동의하면 실제로 찍힐 날짜**다(2026-10-16 결정) — 11~25일 그룹은 동의한 날 = 오늘.
        카드는 시안 문장 그대로('동의한 날 · 자동이면 …')지만, 동의 버튼을 누르기 직전의 창이 '자동이면 10월 28일' 이라고
        말하면 오늘 동의하는 사람에게 다른 날짜를 보여 주게 된다. 1~7일 그룹은 배송한 달 말일 그대로(동의 시점과 무관). */
-    const writtenNow = s0.group === "early" ? writtenOf(s0, now) : `${fmtKoShort(now)} · 동의한 날(오늘)`;
+    const writtenNow = s0.group === "early" ? writtenOf(s0, now) : `${fmtKoShortY(now)} · 동의한 날(오늘)`;
     const recapBody = (s) => html`
       <div><span>귀속 · 배송한 달</span><b>${period}</b></div>
       <div><span>거래 건수</span><b class="num">${s.count}건</b></div>
@@ -660,7 +672,7 @@ export function mount(root) {
     const errBox = () => html`
       <div class="iv-agerr" role="alert">
         <b class="iv-agerr__t">금액이 바뀌었습니다. 다시 확인해 주세요</b>
-        <p class="iv-agerr__p">동의하려던 금액 ${won(err.was)} → 지금 ${won(shown)}${err.at ? ` (${fmtKoShortTime(err.at)} 수정)` : ""}. 새 금액을 확인하고 다시 체크해 주세요.</p>
+        <p class="iv-agerr__p">동의하려던 금액 ${won(err.was)} → 지금 ${won(shown)}${err.at ? ` (${fmtKoShortTimeY(err.at, now)} 수정)` : ""}. 새 금액을 확인하고 다시 체크해 주세요.</p>
       </div>`;
     let closingByCode = false;
     dlg = openDialog({
@@ -715,8 +727,7 @@ export function mount(root) {
       }
       if (res && res.error === "SETTLEMENT_AMOUNT_CHANGED") {
         /* 창 뒤(카드·월 목록·미리보기)도 새 금액으로. 바뀐 시각은 거부 응답에 없다 — settlementOf 를 다시 읽는다(명세 6.6). */
-        renderMonth();
-        refreshMonthRow();
+        renderMonth(); /* 월 목록 줄도 같이(refreshMonthRows) */
         const s1 = settle();
         if (s1.amount === 0 || !s1.open) {
           closeByCode();
@@ -754,7 +765,6 @@ export function mount(root) {
       }
       closeByCode();
       renderMonth();
-      refreshMonthRow();
       if (!res) {
         toast(settle().mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 바뀌었습니다", "warn");
         refocus(false);
@@ -812,7 +822,8 @@ export function mount(root) {
         const d = docData(new Date());
         const el = d && invoiceDocElement(d, ASSET);
         if (!el) throw new Error("invoice doc not rendered");
-        printInvoiceDoc(el, `거래명세서_${state.year}_${state.month}`);
+        /* 팝업이 막히면 printInvoiceDoc 이 경고창을 띄우고 false — '내려받습니다' 토스트를 함께 띄우면 거짓이 된다. */
+        if (printInvoiceDoc(el, `거래명세서_${state.year}_${state.month}`) === false) return;
         toast(d.stamp ? `PDF를 내려받습니다 · '${d.stamp.text} · ${d.stamp.printedAt} 출력'이 찍힙니다` : "PDF 다운로드를 시작했습니다");
       } catch (err) { console.error("PDF 생성 오류:", err); toast("PDF 생성 중 오류가 발생했습니다", "warn"); }
       return;

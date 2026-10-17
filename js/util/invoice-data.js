@@ -88,9 +88,10 @@ export function invoiceDocElement(d, assetBase) {
 }
 
 /** 누르는 순간의 시각으로 문서를 **다시 만들어** 인쇄창(→ PDF)을 연다. 실패하면 throw(호출부가 토스트로 말한다).
- *  `title` 은 인쇄창 제목(저장 파일명), `assetBase` 는 로고 경로("./assets/" 앱 · "../assets/" 공개 페이지). */
+ *  `title` 은 인쇄창 제목(저장 파일명), `assetBase` 는 로고 경로("./assets/" 앱 · "../assets/" 공개 페이지).
+ *  돌려주는 값은 printInvoiceDoc 그대로 — `=== false` 면 팝업이 막혔다(경고창은 이미 떴다 · 성공 통보를 띄우지 말 것). */
 export function printInvoiceFor(client, ym, title, { now = new Date(), assetBase } = {}) {
   const el = invoiceDocElement(invoiceDocData(client, ym, now), assetBase);
   if (!el) throw new Error("invoice doc not rendered");
-  printInvoiceDoc(el, title);
+  return printInvoiceDoc(el, title);
 }

@@ -34,6 +34,8 @@ import { onPhoneInput } from "./phone.js";
  *  - client    { id, companyName, … }
  *  - toast
  *  - onChange()  명단이 바뀔 때마다 호출 — 호출부가 목록·레일을 다시 그린다
+ *  - onClose()   (선택) 닫힌 뒤 호출 — openModal 이 연 자리로 포커스를 돌려준 **다음**이다. onChange 가 연 버튼을 다시 그렸으면
+ *                그 버튼은 DOM 에서 떨어져 포커스가 body 로 빠지므로, 호출부가 새 버튼으로 옮긴다(거래처 창 '담당자 관리')
  */
 export function openContactsModal(o) {
   const cid = o.client.id;
@@ -110,6 +112,7 @@ export function openContactsModal(o) {
       </div>`,
     hint: "변경 사항은 입력과 동시에 저장됩니다",
     actions: html`<button class="hm-btn hm-btn--primary" data-action="close">닫기</button>`,
+    onClose: o.onClose,
   });
 
   /* 입력은 write-through 만 — 표를 다시 그리면 커서가 날아간다.

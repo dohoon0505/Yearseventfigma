@@ -197,6 +197,7 @@ export function noRecipientOf(client) {
  * 한 (거래처, 귀속월)의 정산 상태(명세 5.4 · 6.6 응답의 데모 대역).
  * @returns {{ id, period, status: "SCHEDULED"|"AWAITING_AGREEMENT"|"AGREED"|"ISSUED"|"OVERDUE"|"PAID"|"NONE",
  *   autoAgreeHold: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED",
+ *   heldAtDeadline: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED",
  *   amount: number, count: number, feeCount: number, empty: boolean, zero: boolean, group: "early"|"late",
  *   issued: boolean, open: boolean, issueAt: Date, deadline: Date, dueAt: Date, overdueAt: Date,
  *   editLockAt: Date|null, editable: boolean, lockReason: string|null, lockShort: string|null,
@@ -279,6 +280,9 @@ export function settlementOf(client, ym, now = new Date()) {
     id: `${client.id}-${ym.replace("-", "")}`,
     period: ym, status,
     autoAgreeHold: waiting && !zeroEdited ? st.autoAgreeHold || null : null,
+    /* 마감 때 보류였던 이유 — 마감 뒤 직접 동의해도 남는다(settlement-rules agreementState · 진행 기록용). 동의를 받지 않는
+       0원 달(두 갈래)·거래 없는 달은 null. 동의 전이면 autoAgreeHold 와 같다. */
+    heldAtDeadline: !zero && !zeroEdited && !empty ? st.heldAtDeadline || null : null,
     amount, count: list.filter((e) => e.kind === "order").length, feeCount: list.filter((e) => e.kind === "cancelFee").length,
     empty, zero, group: st.group,
     issued: st.issued, open: waiting && !zeroEdited,

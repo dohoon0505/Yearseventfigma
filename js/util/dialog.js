@@ -161,8 +161,9 @@ export const dlgActions = ({ cancel = "취소", ok, okIcon, okClass = "hm-btn--p
  *   body       체크 앞 본문 Html(desc·note 대신) · checkLabel 체크 문구 · width 패널 폭 · hintOn 체크 뒤 힌트
  *   guard(d)   삭제 버튼을 누른 순간 한 번 더 판정 — false 를 돌려주면 창을 닫지 않고 onConfirm 도 부르지 않는다
  *              (창 안에 이유를 그리는 것은 호출부 몫이다 — 서버 409 의 데모 대역).
+ *   onClose()  창이 닫힌 뒤(✕·돌아가기·ESC·삭제 모두) — 창을 연 버튼이 그사이 다시 그려져 초점이 body 로 빠질 때 호출부가 되돌린다.
  */
-export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm, body, checkLabel, width, hintOn, guard }) {
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm, body, checkLabel, width, hintOn, guard, onClose }) {
   let ack = false;
   /* 힌트 두 문장은 상수로 묶는다 — 초기 렌더와 토글이 각자 문자열을 적으면
      한쪽만 고쳐져 푸터가 버튼 상태와 다른 말을 하게 된다. */
@@ -175,6 +176,7 @@ export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel
     eyebrowNum: eyebrow == null,
     title: title ?? "주문서를 삭제할까요?",
     width: width || 440,
+    onClose,
     /* ⚠️ 섹션 간격(`--sections`)을 쓰지 않는다 — `.dlg-desc + .dlg-note`(12px)와
        `.dlg-check`(16px)가 이미 자기 여백을 갖고 있어 flex `gap:20px` 이 **더해진다**
        (경고가 붙는 B2B 경로에서 32/36px 로 벌어졌다). 간격은 한 곳에서만 준다. */

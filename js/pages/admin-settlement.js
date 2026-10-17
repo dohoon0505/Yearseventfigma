@@ -325,9 +325,11 @@ function logOf(client, s, ct, now, lines) {
       L.push([s.editLockAt, "수정 마감 · 금액 고정", undelivered ? "마감 하루 전 안내가 닿지 않았습니다" : reach ? `마감 하루 전 안내 → ${ct.name} · 최종 ${won(s.amount)}` : NOT_SENT]);
     }
   }
-  if (s.autoAgreeHold && now.getTime() > s.deadline.getTime()) {
-    const terms = s.autoAgreeHold === "TERMS_NOT_AGREED";
-    L.push([s.deadline, terms ? "마감 · 자동 동의 안 함" : "마감 · 자동 동의 보류", HOLD_LABEL[s.autoAgreeHold].split(" · ")[0]]);
+  /* 마감 때 보류였던 달 — `heldAtDeadline`(settlementOf 파생)으로 본다. autoAgreeHold 는 '지금 보류 중' 이라 거래처가 마감 뒤
+     직접 동의하면 null 이 되고, 그것으로 그리던 때는 이 줄이 통째로 사라져 '마감 → 거래처 동의' 사이의 사정이 기록에서 빠졌다(실측). */
+  if (s.heldAtDeadline && now.getTime() > s.deadline.getTime()) {
+    const terms = s.heldAtDeadline === "TERMS_NOT_AGREED";
+    L.push([s.deadline, terms ? "마감 · 자동 동의 안 함" : "마감 · 자동 동의 보류", HOLD_LABEL[s.heldAtDeadline].split(" · ")[0]]);
   }
   /* 거래처 동의 줄에는 사람 이름을 적지 않는다 — 동의는 계정이 했고 누가 눌렀는지는 기록이 없다(2차 시안의 담당자 이름은 받지 않았다). */
   if (s.agreedAt) L.push([s.agreedAt, s.mode === "auto" ? "자동 동의" : "거래처 동의", s.mode === "auto" ? "마감 시각" : ""]);
@@ -692,7 +694,12 @@ export function mount(root, { nav }) {
     const lines = amountChangesOf(c, state.ym, now).lines;
     const log = logOf(c, s, ct, now, lines);
     const reach = ct && String(ct.phone || "").trim();
-    const ctText = !ct ? "없음 · 거래처 정보에서 지정하세요" : reach ? `${ct.name}${ct.role ? ` · ${ct.role}` : ""} · ${ct.phone}` : `${ct.name}${ct.role ? ` · ${ct.role}` : ""} · 연락처 없음`;
+    /* 번호는 한 덩어리(.settle-ct__ph — nowrap)로 — 1280 에서 칸이 200px 로 좁아져 '010-0000-' / '0105' 로 하이픈에서 갈렸다(실측).
+       꺾는 자리는 ' · ' 뿐이다(품목 카드 수수료 줄의 주문번호와 같은 수법). */
+    const ctWho = ct ? `${ct.name}${ct.role ? ` · ${ct.role}` : ""}` : "";
+    const ctText = !ct ? "없음 · 거래처 정보에서 지정하세요"
+      : reach ? html`${ctWho} · <span class="settle-ct__ph">${ct.phone}</span>`
+      : `${ctWho} · 연락처 없음`;
     const M = monthOf(state.ym);
     const editNow = canEdit(s);
     const itemRow = (name, count, amount, rest) => html`
@@ -1042,6 +1049,8 @@ export function mount(root, { nav }) {
   offs.push(on(root, "click", "[data-action='download']", (e, t) => {
     const r = rowOf(t.dataset.cid);
     if (!r || !hasDoc(r.s)) return; // 발행 전·거래 없는 달 명세서는 PDF 로도 내보내지 않는다
+    /* 성공 통보 토스트는 두지 않는다 — 인쇄창이 열리는 것이 결과다. printInvoiceFor 가 `false` 를 돌려주면 팝업이 막힌 것이고
+       그때는 invoice-doc 의 경고창이 이미 말했다(여기서 무엇을 더 띄우면 두 번 말한다). 성공 토스트를 더할 거면 `=== false` 를 거를 것. */
     try { printInvoiceFor(r.client, state.ym, `${rowName(r)}_${periodLabel(state.ym)}_거래명세서`, { now: new Date() }); }
     catch (err) { console.error("PDF 생성 오류:", err); toast("PDF를 만들지 못했습니다. 다시 시도해 주세요.", "warn"); }
   }));

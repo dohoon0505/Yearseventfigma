@@ -31,7 +31,7 @@ import {
   tabBtn, filterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
   makeImageBox, openStaffPicker, openDeleteConfirm,
-  ordHeader, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
+  ordHeader, bindOrdMenu, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 import {
   staffOptions, B2C_CHANNELS, B2C_CHANNEL_META, B2C_PAY_STATES, B2C_STATUSES, B2C_PRODUCTS,
@@ -679,9 +679,11 @@ export function mount(root, { nav }) {
     baseline = { ...editing };
     savedAt = "";
     menuOpen = false;
+    let menu = null; // ··· 메뉴 키보드(order-screen bindOrdMenu) — 열려 있으면 ESC 는 메뉴만 닫는다
     activeModal = openModal({
       panelClass: "modal-panel--ord",
       body: modalBody(),
+      onEsc: () => (menu ? menu.escape() : true),
       onClose: () => { destroyDds(); activeModal = null; editing = null; baseline = null; },
     });
     const panel = activeModal.panel;
@@ -692,9 +694,11 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => saveOrder());
     on(panel, "click", "[data-action='step']", (e, t) => stepTo(t.dataset.v));
-    on(panel, "click", "[data-action='menu']", () => { menuOpen = !menuOpen; renderHd(); });
+    /* ··· 메뉴 — 열면 첫 항목에 초점, ↑↓·Home·End 로 옮기고 ESC·Tab 은 메뉴를 닫는다(B2B 상세와 같은 셸). */
+    menu = bindOrdMenu(panel, { isOpen: () => menuOpen, setOpen: (v) => { menuOpen = v; renderHd(); } });
     on(panel, "click", "[data-action='delete']", () => {
-      menuOpen = false;
+      /* 메뉴를 닫는다(예전엔 상태만 끄고 다시 그리지 않아 확인 창 뒤에 메뉴가 열린 채 남았다) — 초점은 ··· 로 */
+      menu.close();
       openDeleteConfirm({
         orderNo: editing.orderNo,
         onConfirm: () => {
@@ -707,7 +711,7 @@ export function mount(root, { nav }) {
       });
     });
     on(panel, "click", "[data-action='order-cancel']", () => {
-      menuOpen = false; renderHd();
+      menu.close(); // 주문취소 창이 닫히면 초점이 ··· 로 돌아온다
       if (!editing || editing.status === "취소") return;
       openCancelModal({
         orderNo: editing.orderNo,

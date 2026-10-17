@@ -39,7 +39,7 @@ import { settlementsFor, amountChangeLine, INVOICE_YM_KEY } from "../util/settle
 import {
   INVOICE_DAYS, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, editLockDayOf,
   issueDate, agreeDeadline, shiftPeriod, periodLabel, ISSUE_HOUR, DEADLINE_HOUR,
-  fmtDot, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime,
+  fmtDot, fmtMd, fmtMdHm, fmtKoShortTime, fmtKoShortY, fmtKoShortTimeY,
 } from "../data/settlement-rules.js";
 import { sharedBizKeys, displayName, onBizInput } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
@@ -443,8 +443,9 @@ export function mount(root, { nav }) {
         return `매월 ${d}일 ${hm(ISSUE_HOUR)}에 전월 이용분 명세서가 발급되고, 동의 마감은 ${deadlineDayOf(d)}일 ${hm(DEADLINE_HOUR)}입니다.${keep}`;
       const from = invoiceDayEffectiveFrom(now);
       const early = deadlineDayOf(d) === 10;
-      return `${periodLabel(from)} 이용분부터 적용 — ${fmtKoShortTime(issueDate(from, d))} 발급 · 동의 마감 `
-        + `${fmtKoShortTime(agreeDeadline(from, d))} · 작성일자 ${early ? "이용한 달의 말일" : "동의한 날"}.${keep}`;
+      /* 첫 적용 발급은 다음 달이라 12월에 바꾸면 다음 해다 — 해가 다르면 연도를 붙인다(fmtKoShortTimeY). */
+      return `${periodLabel(from)} 이용분부터 적용 — ${fmtKoShortTimeY(issueDate(from, d), now)} 발급 · 동의 마감 `
+        + `${fmtKoShortTimeY(agreeDeadline(from, d), now)} · 작성일자 ${early ? "이용한 달의 말일" : "동의한 날"}.${keep}`;
     };
     const dayChip = () => html`매월 <b>${form.invoiceDay}일</b> 발급`;
 
@@ -624,7 +625,7 @@ export function mount(root, { nav }) {
       store.updateClient({ ...(currentClient() || client), ...patch });
       refreshClientBadge(); // 회사명을 고쳤으면 셸 배지도 같이
       const dayMsg = patch.invoiceDay
-        ? ` · 새 발급일은 ${fmtKoShort(issueDate(invoiceDayEffectiveFrom(new Date()), patch.invoiceDay))} 발급분부터`
+        ? ` · 새 발급일은 ${fmtKoShortY(issueDate(invoiceDayEffectiveFrom(new Date()), patch.invoiceDay))} 발급분부터`
         : "";
       d.close();
       render();
