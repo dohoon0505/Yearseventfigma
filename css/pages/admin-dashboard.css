@@ -161,7 +161,8 @@
 .dsh-pill--orange { background: var(--c-orange-soft); color: var(--c-orange-ink-strong); }
 .dsh-pill--gray { background: var(--c-surface-2); color: var(--c-text-2); }
 /* '정산 진행' 의 '기한 초과 N' 칩은 누를 수 있다(가장 오래된 기한 초과 달의 정산회계 '조치 필요' 탭 — 사용자 결정 B).
-   모양은 알약 그대로 두고 버튼 기본값만 지운다. 전역 :focus-visible 링(--ring)은 흰 면에서 1.1:1 이라 직접 그린다. */
+   모양은 알약 그대로 두고 버튼 기본값만 지운다. 초점 링은 전역 :focus-visible 링(--ring)이 흰 면에서 1.1:1 이던 때 직접 그렸고,
+   2026-10-19 부터 전역(base.css · 인디고 2px · 바깥 2px)과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다, CLAUDE.md 초점 줄). */
 button.dsh-pill { border: none; margin: 0; font-family: inherit; line-height: 1; cursor: pointer; }
 button.dsh-pill:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
 
@@ -206,7 +207,8 @@ button.dsh-pill:focus-visible { outline: 2px solid var(--c-indigo); outline-offs
   white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s;
 }
 .dsh-tw__open:hover { border-color: var(--c-orange); background: var(--c-orange-soft); color: var(--c-orange-ink); }
-/* 전역 :focus-visible 링(--ring, 9% 알파)은 흰 면에서 1.1:1 이라 없는 것과 같다 — 직접 그린다. */
+/* 전역 :focus-visible 링(--ring, 9% 알파)이 흰 면에서 1.1:1 이던 때 직접 그린 링이다 — 2026-10-19 부터 전역(base.css)과
+   같은 값이다(떼도 같다 — 실측 · 지우지 않는다). */
 .dsh-tw__open:focus-visible,
 .dsh-more:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
 

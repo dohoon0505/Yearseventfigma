@@ -48,9 +48,9 @@ import { setFocusClient, setFocusSection, takeFocusClient, takeFocusSection } fr
 import { staffOptions } from "../data/staff-mock.js";
 import {
   won, pad2, dash, fmtFull, parseFlexDate, statusBadge, tabDefs,
-  tabBtn, filterCard, makeDateRange,
+  tabBtn, filterCard, detailBlock, syncFilterCard, makeDateRange,
   dateCell, photoFlag, notiFlag, amtCell, editBtn, onRowOpen,
-  makeImageBox, openStaffPicker, openDeleteConfirm, editIndexOf, focusAfterDelete, focusAfterStep,
+  makeImageBox, openStaffPicker, openDeleteConfirm, editIndexOf, focusAfterDelete, focusAfterClose, focusAfterSave, focusAfterStep,
   ordHeader, bindOrdMenu, card, renderFields, autosize, railV2, summaryBodyV2, historyBody, histScrollEnd, footerV2,
 } from "../util/order-screen.js";
 /* ⚠️ 주문 레코드는 **저장 함수로만** 고친다(b2bUpsert·b2bPushHistory·b2bCancel·…) — b2b-mock 이 변경분을
@@ -98,6 +98,8 @@ export function mount(root, { nav }) {
   const DP_MAX = new Date(new Date().getFullYear() + 2, 11, 31);
   let activeModal = null;
   let editing = null;      // 편집 작업본 — 모든 입력이 write-through
+  let editIdx = -1;        // 상세 창의 주문 줄이 마지막으로 목록에 있던 순번(창을 닫은 뒤 초점 — order-screen focusAfterClose)
+  let alive = true;        // 화면을 떠나며 창을 닫을 때는 목록으로 초점을 옮기지 않는다(cleanup)
   const dds = [];
   const toast = makeToast();
 
@@ -143,16 +145,24 @@ export function mount(root, { nav }) {
 
   /* 탭 카운트는 전체 기준 — 기간·검색을 반영하면 탭이 필터에 따라 요동쳐서
      '지금 몇 건이 밀려 있나'를 읽을 수 없게 된다(B2C 와 같은 규약). */
-  function tabsBody() {
+  const tabCount = (v) => {
     const all = b2bList();
-    return TABS.map((t) => tabBtn({
-      v: t.v, label: t.label, active: state.tab === t.v,
-      count: t.v === "all" ? all.length : all.filter((o) => o.status === t.v).length,
-    }));
+    return v === "all" ? all.length : all.filter((o) => o.status === v).length;
+  };
+  function tabsBody() {
+    return TABS.map((t) => tabBtn({ v: t.v, label: t.label, active: state.tab === t.v, count: tabCount(t.v) }));
   }
   const summaryBody = () => html`<span>조회 <strong>${filtered().length}</strong>건</span>${rowToneLegend()}`;
   const srch = (key, label, ph) => ({ key, label, ph, value: state[key] });
 
+  const searches = () => [
+    srch("qClient", "거래처", "회사명·부서"),
+    srch("qRecipient", "받는분", "받는분 성함"),
+    srch("qOrderer", "발송인", "발송인 성함·부서"),
+    /* 자리표시는 지금 번호 체계로 — 시드는 배송 달별 `B2B-YYMMNNN`, 새 주문은 `B2B-YYMM9NNN`(b2b-mock).
+       글자 포함 검색이라 앞부분('B2B-2609')만 넣어도 그 달 주문이 걸린다. */
+    srch("qOrderNo", "주문번호", "예) B2B-2609001"),
+  ];
   function filterBody() {
     return filterCard({
       tabs: tabsBody(),
@@ -160,16 +170,16 @@ export function mount(root, { nav }) {
       quickActive: state.dateQuick,
       addr: srch("qAddress", "배송지", "배송지 주소로 검색"),
       detailOpen: state.detailOpen, photo: state.photo, noti: state.noti,
-      searches: [
-        srch("qClient", "거래처", "회사명·부서"),
-        srch("qRecipient", "받는분", "받는분 성함"),
-        srch("qOrderer", "발송인", "발송인 성함·부서"),
-        /* 자리표시는 지금 번호 체계로 — 시드는 배송 달별 `B2B-YYMMNNN`, 새 주문은 `B2B-YYMM9NNN`(b2b-mock).
-           글자 포함 검색이라 앞부분('B2B-2609')만 넣어도 그 달 주문이 걸린다. */
-        srch("qOrderNo", "주문번호", "예) B2B-2609001"),
-      ],
+      searches: searches(),
     });
   }
+  /* 필터 카드는 처음 한 번만 그리고 그 뒤로는 제자리에서 고친다(order-screen syncFilterCard — 누른 버튼에 초점이 남는다). */
+  const syncFilters = () => syncFilterCard(qs(root, "[data-slot='filters']"), {
+    tab: state.tab, tabCount,
+    basisActive: state.dateBasis, quickActive: state.dateQuick,
+    detailOpen: state.detailOpen, photo: state.photo, noti: state.noti,
+    detail: () => detailBlock({ photo: state.photo, noti: state.noti, searches: searches() }),
+  });
 
   /* ══ 표 — 통합주문관리와 같은 11열 ═══════════════════════ */
   const columns = [
@@ -216,10 +226,12 @@ export function mount(root, { nav }) {
   }
 
   const refreshList = () => {
-    const tabs = qs(root, "[data-slot='tabs']");
+    /* 상세 창이 열린 채 다시 그리면(저장·스테퍼·취소·담당자 지정) 그 주문 줄의 지금 순번을 먼저 잰다 — 이번에 필터에서 빠지면
+       창을 닫을 때 이 자리 줄로 초점을 옮긴다(focusAfterClose). */
+    if (activeModal && editing) { const i = editIndexOf(root, editing.id); if (i >= 0) editIdx = i; }
+    syncFilters(); // 탭 건수 — 탭은 다시 그리지 않는다
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
-    if (tabs) setHTML(tabs, tabsBody());
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
@@ -235,17 +247,17 @@ export function mount(root, { nav }) {
       /* 직접 날짜 선택 → 커스텀 범위(퀵버튼 해제). 자기 자신(datepicker) 재생성 없이 표만 갱신. */
       state[key] = v;
       state.dateQuick = "custom";
-      qsa(root, "[data-action='date']").forEach((b) => b.classList.remove("is-sel"));
+      syncFilters(); // 기간 빠른 선택 해제(is-sel · aria-pressed)
       refreshTableOnly();
     },
     min: DP_MIN, max: DP_MAX,
   });
-  /* 필터 조작 시 — 필터 블록 + 요약 + 표 재렌더 (검색 입력은 제외: 포커스 보존) */
+  /* 필터 조작 시 — 필터 카드는 제자리에서 고치고(syncFilters) 요약 + 표만 다시 그린다. 예전엔 필터 카드를 통째로 다시 그려
+     Enter·Space 로 누른 탭·세그먼트·칩·'상세 필터' 가 DOM 에서 떨어져 초점이 body 로 빠졌다(2026-10-19 실측). 기간 피커도 그대로
+     두고 트리거 글자만 맞춘다(dateRange.sync). 검색 입력은 예전부터 이 경로를 지나지 않는다(포커스 보존). */
   const refreshFilters = () => {
-    dateRange.destroy();
-    const f = qs(root, "[data-slot='filters']");
-    if (f) setHTML(f, filterBody());
-    dateRange.bind();
+    syncFilters();
+    dateRange.sync();
     refreshTableOnly();
   };
 
@@ -1458,8 +1470,13 @@ export function mount(root, { nav }) {
     refreshList();
     if (filtered().some((o) => o.id === rec.id)) { toast(`${rec.orderNo} 주문을 등록했습니다`, "ok"); return; }
     state.tab = "all"; state.dateQuick = "전체"; state.dateStart = ""; state.dateEnd = "";
-    if (state.clientId && state.clientId !== rec.clientId) { state.clientId = ""; state.qClient = ""; }
-    dateRange.destroy(); render(); dateRange.bind(); // 기간 피커는 다시 그린 필터 카드에 다시 붙인다
+    if (state.clientId && state.clientId !== rec.clientId) {
+      state.clientId = ""; state.qClient = "";
+      const q = qs(root, "[data-search='qClient']");
+      if (q) q.value = "";
+    }
+    /* 화면을 통째로 다시 그리지 않는다 — 등록 창이 닫히며 초점을 돌려준 '신규 주문 등록' 이 갈려 초점이 body 로 빠졌다(2026-10-19). */
+    refreshFilters();
 
     toast(`${rec.orderNo} 등록 · 보이도록 목록 필터를 초기화했습니다`, "ok");
   }
@@ -1600,6 +1617,7 @@ export function mount(root, { nav }) {
     if (imp && imp.lock) {
       rejectLocked(imp.lock, stored);
       toast(lockTitle(imp.lock), "warn");
+      focusAfterSave(panelOf()); // 금액·상품을 되돌려 고친 칸이 0 이 되면 저장 버튼이 잠긴다 — 그 버튼에 있던 초점 → '닫기'
       return;
     }
     if (imp && imp.confirm.length) { openSaveConfirm(imp, stored); return; }
@@ -1626,7 +1644,11 @@ export function mount(root, { nav }) {
         return lockErr(imp2.lock, st);
       },
       onConfirm: (note) => (editing ? commitSave(pending, note) : true),
-      onLockedClose: () => { if (editing && lockSeen) rejectLocked(lockSeen, findOrder(editing.id) || stored); },
+      onLockedClose: () => {
+        if (!editing || !lockSeen) return;
+        rejectLocked(lockSeen, findOrder(editing.id) || stored);
+        focusAfterSave(panelOf()); // 확인 창이 돌려준 저장 버튼이 잠겼으면 '닫기' 로(order-screen)
+      },
     });
   }
   /** 쓰기 — 실패하면(저장 공간 한도) false 를 돌려 확인 창을 닫지 않는다(적은 사유를 잃지 않게). */
@@ -1668,6 +1690,7 @@ export function mount(root, { nav }) {
     toast(autoDone
       ? `${merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다"} · ${tail}`
       : `저장했습니다 · ${tail}`);
+    focusAfterSave(panelOf()); // 잠긴 저장 버튼에 있던 초점 → '닫기'(order-screen)
     return true;
   }
 
@@ -1739,6 +1762,7 @@ export function mount(root, { nav }) {
 
   function openEditor(order) {
     closeModal();
+    editIdx = editIndexOf(root, order.id);
     const { history: _h, ...draft } = order;
     editing = { ...draft, history: order.history || [] };
     baseline = { ...editing };
@@ -1752,7 +1776,10 @@ export function mount(root, { nav }) {
       panelClass: "modal-panel--ord",
       body: modalBody(),
       onEsc: () => (menu ? menu.escape() : true),
-      onClose: () => { destroyDds(); activeModal = null; editing = null; baseline = null; s0 = null; lastImp = null; },
+      onClose: () => {
+        destroyDds(); activeModal = null; editing = null; baseline = null; s0 = null; lastImp = null;
+        if (alive) focusAfterClose(root, order.id, editIdx); // 연필이 다시 그려졌으면 같은 주문의 새 연필로 · 빠졌으면 그 자리 줄로
+      },
     });
     amtSig = amtSigOf();
     const panel = activeModal.panel;
@@ -2026,6 +2053,14 @@ export function mount(root, { nav }) {
     if (a === "new") { openCreate(); return; }
     if (a === "edit") { const o = findOrder(t.dataset.id); if (o) openEditor(o, false); }
   });
+  /* ⚠️ 필터 버튼은 이제 누른 뒤에도 초점을 지키므로 Enter 를 누른 채로 두면 자동 반복 keydown 마다 같은 버튼이 다시 눌린다 —
+     사진·알림 칩과 '상세 필터' 는 반복 수만큼 켜졌다 꺼졌고(실측), 탭·세그먼트는 같은 값이라도 반복마다 표(수백 줄)를 다시 그렸다.
+     반복 keydown 의 Enter 를 버린다 — 떼었다 다시 누르면 그대로 눌린다(거래처 목록 묶음 줄 · 담당자 설정 토글과 같은 처리).
+     Space 는 뗄 때 한 번만 눌려 해당 없다. ⚠️ 기간 달력 안('이전 달'·'다음 달')은 뺀다 — 꾹 눌러 여러 달을 넘기는 것은 예전부터
+     되던 동작이고 초점도 그대로다(2026-10-19 검토 실측: 반복 6번에 10월 → 3월, 막으면 9월에서 멈췄다). 날짜 칸은 첫 누름에 달력이 닫힌다. */
+  const offKey = on(root, "keydown", "[data-slot='filters'] button", (e, t) => {
+    if (e.repeat && e.key === "Enter" && !t.closest(".cal-panel")) e.preventDefault();
+  });
   /* 검색은 필터 카드를 재렌더하지 않는다 — 입력 포커스가 날아간다 */
   /* 행 아무 데나 눌러도 열린다 — 연필은 같은 일을 하는 명시적 버튼으로 남는다 */
   const offRow = onRowOpen(root, (id) => { const o = findOrder(id); if (o) openEditor(o, false); });
@@ -2037,7 +2072,8 @@ export function mount(root, { nav }) {
   });
 
   return () => {
-    offList(); offRow();
+    alive = false;
+    offList(); offRow(); offKey();
     offSearch();
     dateRange.destroy();
     closeModal();

@@ -205,7 +205,9 @@
 .modal-panel--pick .pick-opt { text-align: left; padding: 13px 15px; border-radius: var(--r-lg); background: var(--c-surface-2); border: 1px solid transparent; font-size: 14.5px; font-weight: 500; color: var(--c-text-2); transition: background 0.13s, border-color 0.13s, color 0.13s; }
 .modal-panel--pick .pick-opt:hover { background: var(--c-surface-hover-2); }
 .modal-panel--pick .pick-opt.sel { background: var(--c-blue-soft); border-color: var(--c-user-border); color: var(--c-blue); font-weight: 600; }
-/* 전역 링은 흰 면에서 1.1:1 — 직접 그린다(스크롤되는 본문 안이라 안쪽으로) */
+/* 스크롤되는 본문(`.dlg-body`) 안이라 안쪽(-2px)으로 그린다. 전역 링(base.css · 바깥 2px)도 Tab 으로 들어올 땐 전역 `scroll-margin`
+   덕에 잘리지 않지만(2026-10-19 검토 실측 1440·1280), 초점을 둔 채 본문을 굴려 칸 끝에 걸치면 바깥 링은 잘린다(실측 아랫변 2.9px · 안쪽은 그대로).
+   (처음 그릴 땐 전역 링이 흰 면에서 1.1:1 이었다.) */
 .modal-panel--pick .pick-opt:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
 
 /* ── 확인 단계 ── */

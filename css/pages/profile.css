@@ -93,7 +93,8 @@
 .page-profile .pf-add:hover {
   background: var(--c-orange-hover);
 }
-/* 전역 :focus-visible 링은 --ring(주황 9% 알파)이라 흰 면에서 1.1:1 — 직접 그린다. */
+/* 전역 :focus-visible 링이 --ring(주황 9% 알파)으로 흰 면에서 1.1:1 이던 때 직접 그린 링이다 — 2026-10-19 부터
+   전역(base.css)과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다). */
 .page-profile .pf-add:focus-visible,
 .page-profile .pf-billset:focus-visible {
   outline: 2px solid var(--c-indigo);

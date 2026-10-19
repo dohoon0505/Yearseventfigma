@@ -17,7 +17,7 @@
   --pc-desc: minmax(0, 1fr);
   --pc-price: 130px;
   --pc-aside: 400px;
-  /* 스티키 바 높이(12 + 40 + 12 + 테두리 2). 패널 top·표 scroll-margin 이 함께 쓰므로
+  /* 스티키 바 높이(12 + 40 + 12 + 테두리 2). 패널 top·초점 스크롤 여백(별·이름·사진 scroll-margin-top)이 함께 쓰므로
      숫자를 두 곳에 적지 않는다 — 바가 두 줄로 접히면 여기만 고치면 된다. */
   --pc-bar-h: 66px;
 
@@ -109,8 +109,11 @@
   color: var(--c-surface);
   font-weight: var(--fw-semibold);
 }
-/* 전역 :focus-visible 링은 --ring(주황 9% 알파)이라 흰 면에서 1.1:1 — 없는 것과 같다.
-   새로 만드는 조작 컨트롤은 인디고 아웃라인을 직접 그린다. */
+/* 전역 :focus-visible 링(base.css)은 2026-10-19 부터 인디고 2px · 바깥 2px 라 이 화면의 버튼은 그것만으로도 보인다
+   (예전엔 --ring 주황 9% 알파 · 흰 면 1.1:1 이라 아래 인디고 규칙들을 화면에서 직접 그렸다 — 저장·사진·즐겨찾기 버튼 규칙은
+   전역과 같은 값이라 그대로 둔다 · 표의 별·이름만 안쪽(-2px)이다, 그 규칙 주석 참조).
+   분류 pill 은 다르다 — 초점을 받는 라디오는 1px · clip 으로 숨어 있어 그 전역 링이 화면에 보이지 않는다(실측 인디고 0픽셀) —
+   그래서 옆 span 에 링을 그린다. 이 규칙을 지우면 분류 pill 의 초점 표시가 통째로 사라진다. */
 .page-products .prod-cat input:focus-visible + span {
   outline: 2px solid var(--c-indigo);
   outline-offset: 2px;
@@ -205,15 +208,28 @@
    ⚠️ 여기서 background 를 건드리면 `.table-grid__row:hover`(0,2,0)를 이겨 hover 가 죽는다 — cursor 만. */
 .page-products .table-grid__row {
   cursor: pointer;
-  /* 폴드 아래 이름 버튼으로 Tab 하면 크롬이 그 행을 스크롤포트 맨 위로 올리는데,
-     거기가 스티키 바 밑이라 포커스된 컨트롤이 보이지 않는다. */
-  scroll-margin-top: calc(var(--pc-bar-h) + var(--sp-4));
 }
 /* 선택 행 워시는 **커스텀 프로퍼티로** 넘긴다 — 단일 클래스로 background 를 칠하면
    위와 같은 이유로 hover 반응이 죽는다(규약에 박힌 `.is-group` 전력). */
 .page-products .prodrow--sel {
   --row-tone: var(--c-orange-soft);
   --row-tone-hv: var(--c-orange-soft-hv);
+}
+/* ── 초점 스크롤이 스티키 바 밑에 세우지 않게 — 바 높이 + 패널 간격만큼 비켜 세운다(패널 top 과 같은 값) ──
+   크롬은 Tab 으로 화면 밖 요소에 초점을 줄 때 그 요소를 스크롤 칸 끝(+ 전역 scroll-margin 6px)에 맞추는데, 위 끝은 스티키 바 밑이다.
+   - 표의 별·이름: Shift+Tab 으로 표를 거슬러 오르면 버튼이 바 밑에 섰다(2026-10-19 실측 — 1440x900 7곳 · 1280x720 4곳 ·
+     1100x800 4곳 · 바 밑 1~61px, 대부분 통째로). 예전엔 이 값을 **행**(`.table-grid__row`)에 줬는데, scroll-margin 은 초점을 받은 요소
+     자기 것만 쓰여 행 값을 0 으로 바꿔도 결과가 같았다 — 그래서 버튼으로 옮겼다.
+   - 상세 패널 사진(확대 버튼): 표 마지막 줄에서 Tab 으로 오면(라이트박스를 닫아 초점이 돌아와도) 페이지가 바닥 근처라 패널이
+     sticky 자리보다 위로 밀려 있어 사진 윗부분과 바깥 링 윗변이 바 밑에 가렸다(실측 — 1440x900 링 23px · 1280x720 7~25px).
+     안쪽(-2px) 링은 답이 아니다 — 가린 것은 사진 윗부분이라 링을 안으로 옮겨도 바 밑이고, 사진 위에서는 대비가 1.05~2.45:1 로 떨어졌다.
+   ⚠️ `:focus-visible` 에만 건다(전역 `:focus-visible { scroll-margin: 6px }` 과 같은 수법). 늘 걸어 두면 마우스로 연 라이트박스를
+      마우스로 닫을 때(초점이 사진으로 돌아오지만 링은 안 선다) 페이지가 위로 튀었다(실측 1440x900 31px · 1280x720 15px).
+   평소(바 아래에 이미 보이는 요소 · 패널이 sticky 자리)에는 이 여백보다 아래라 스크롤이 더 일어나지 않는다. 다른 세 변은 전역 6px 그대로다. */
+.page-products .prod-star:focus-visible,
+.page-products .prod-name:focus-visible,
+.page-products .prod-media:focus-visible {
+  scroll-margin-top: calc(var(--pc-bar-h) + var(--sp-4));
 }
 
 /* 즐겨찾기 별 — base.css 가 `.icon { fill:none; stroke:currentColor }` 를 주므로
@@ -301,6 +317,7 @@
   background: var(--c-surface-2);
   overflow: hidden;
   cursor: zoom-in;
+  /* scroll-margin-top 은 위 '초점 스크롤이 스티키 바 밑에 세우지 않게' 블록(표의 별·이름과 같이) */
 }
 .page-products .prod-media.is-34 {
   aspect-ratio: 3 / 4;

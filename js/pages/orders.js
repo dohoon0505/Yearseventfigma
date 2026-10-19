@@ -1,7 +1,7 @@
 /* ============================================================
    orders.js — ports RealTimeOrders.tsx (실시간 주문처리 내역)
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, openModal, openLightbox, rowToneLegend } from "../ui.js";
 import { onRowOpen } from "../util/order-screen.js";
@@ -163,7 +163,7 @@ export function mount(root, { nav }) {
                     const cls = `orders-statbtn${sf.value === "all" ? " orders-statbtn--all" : ""}${active ? " is-active" : ""}`;
                     // 활성 칩만 상태색을 CSS 변수로 주입 — 색 리터럴은 STATUS_STYLE(토큰)에만 산다.
                     const style = active && sf.value !== "all" ? `--st-bg:${st.bg};--st-fg:${st.fg}` : "";
-                    return html`<button class="${cls}" style="${style}" data-action="status" data-v="${sf.value}">${sf.label}</button>`;
+                    return html`<button class="${cls}" style="${style}" data-action="status" data-v="${sf.value}" aria-pressed="${active ? "true" : "false"}">${sf.label}</button>`;
                   })}
                 </div>
                 <span class="bf-vdiv"></span>
@@ -186,13 +186,13 @@ export function mount(root, { nav }) {
                 <span class="bf-lbl">배송요청일</span>
                 <div class="orders-daterange">
                   ${icon("calendar-days", { size: 13, cls: "tint-muted" })}
-                  <span>${formatDateLabel(rangeStart)}</span>
+                  <span data-slot="range-start">${formatDateLabel(rangeStart)}</span>
                   ${icon("chevron-left", { size: 13 })}${icon("chevron-right", { size: 13 })}
-                  <span>${formatDateLabel(rangeEnd)}</span>
+                  <span data-slot="range-end">${formatDateLabel(rangeEnd)}</span>
                 </div>
                 <div class="bf-seg">
                   ${quickDates.map(
-                    (opt) => html`<button class="bf-seg__btn ${state.activeDateFilter === opt ? "is-sel" : ""}" data-action="date" data-v="${opt}">${opt}</button>`
+                    (opt) => html`<button class="bf-seg__btn ${state.activeDateFilter === opt ? "is-sel" : ""}" data-action="date" data-v="${opt}" aria-pressed="${state.activeDateFilter === opt ? "true" : "false"}">${opt}</button>`
                   )}
                 </div>
               </div>
@@ -282,10 +282,56 @@ export function mount(root, { nav }) {
 
   render();
 
+  /* ── 필터 제자리 갱신 ──
+     예전엔 상태 칩·기간 빠른 선택·사진 필터를 누를 때마다 화면을 통째로 다시 그렸다(render) — Enter·Space 로 누른 버튼(체크칸)이
+     DOM 에서 떨어져 초점이 body 로 빠지고 다음 Tab 이 상태 칩 처음('전체')으로 돌아갔다(2026-10-19 실측 · 관리자 주문 목록과 같은
+     결함). 버튼 수는 바뀌지 않으므로 **다시 그리지 않고** 고른 표시(클래스·aria-pressed·상태색 변수·체크)와 기간 글자만 바꾸고
+     건수·표만 다시 그린다(관리자 주문 목록 syncFilterCard · 거래처 목록 syncTabs 와 같은 처방). */
+  function syncFilters() {
+    qsa(root, "[data-action='status']").forEach((b) => {
+      const v = b.dataset.v;
+      const active = state.activeStatus === v;
+      b.classList.toggle("is-active", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+      /* 활성 칩만 상태색을 CSS 변수로 — render 와 같은 규칙(색 리터럴은 STATUS_STYLE 토큰에만) */
+      if (active && v !== "all") {
+        const st = statusStyle(v);
+        b.style.setProperty("--st-bg", st.bg);
+        b.style.setProperty("--st-fg", st.fg);
+      } else {
+        b.style.removeProperty("--st-bg");
+        b.style.removeProperty("--st-fg");
+      }
+    });
+    qsa(root, "[data-action='date']").forEach((b) => {
+      const sel = state.activeDateFilter === b.dataset.v;
+      b.classList.toggle("is-sel", sel);
+      b.setAttribute("aria-pressed", sel ? "true" : "false");
+    });
+    qsa(root, "[data-action='imgfilter']").forEach((inp) => {
+      const on_ = state.imageFiltersOn.includes(inp.dataset.v);
+      inp.checked = on_;
+      const lbl = inp.nextElementSibling;
+      if (lbl) lbl.classList.toggle("is-on", on_);
+    });
+    const [rangeStart, rangeEnd] = getDateRange(state.activeDateFilter);
+    const rs = qs(root, "[data-slot='range-start']");
+    const re = qs(root, "[data-slot='range-end']");
+    if (rs) rs.textContent = formatDateLabel(rangeStart);
+    if (re) re.textContent = formatDateLabel(rangeEnd);
+  }
+  function refreshList() {
+    syncFilters();
+    const tbl = qs(root, "[data-slot='table']");
+    const cnt = qs(root, "[data-slot='count']");
+    if (tbl) setHTML(tbl, tableBody());
+    if (cnt) setHTML(cnt, countBody());
+  }
+
   const offClick = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
-    if (a === "status") { state.activeStatus = t.dataset.v; render(); }
-    else if (a === "date") { state.activeDateFilter = t.dataset.v; render(); }
+    if (a === "status") { state.activeStatus = t.dataset.v; refreshList(); }
+    else if (a === "date") { state.activeDateFilter = t.dataset.v; refreshList(); }
     else if (a === "detail") {
       const o = orderData().find((x) => String(x.id) === t.dataset.id);
       if (o) openDetail(o);
@@ -301,7 +347,12 @@ export function mount(root, { nav }) {
     state.imageFiltersOn = state.imageFiltersOn.includes(v)
       ? state.imageFiltersOn.filter((x) => x !== v)
       : [...state.imageFiltersOn, v];
-    render();
+    refreshList();
+  });
+  /* 필터 버튼은 이제 누른 뒤에도 초점을 지킨다 — Enter 를 누른 채로 두면 반복 keydown 마다 같은 칩이 다시 눌려 표를 거듭 그렸다
+     (같은 값이라 결과는 같다 · 실측 7번). 관리자 주문 목록과 같이 반복 keydown 의 Enter 를 버린다. 체크칸은 Space(뗄 때 한 번)라 해당 없다. */
+  const offKey = on(root, "keydown", ".bf-card button", (e) => {
+    if (e.repeat && e.key === "Enter") e.preventDefault();
   });
   const offInput = on(root, "input", "[data-search]", (e, t) => {
     state[t.dataset.search] = t.value;
@@ -311,5 +362,5 @@ export function mount(root, { nav }) {
     if (cnt) setHTML(cnt, countBody());
   });
 
-  return () => { offClick(); offRow(); offChange(); offInput(); closeModal(); };
+  return () => { offClick(); offRow(); offChange(); offKey(); offInput(); closeModal(); };
 }

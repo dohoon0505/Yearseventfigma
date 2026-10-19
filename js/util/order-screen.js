@@ -57,16 +57,20 @@ export const NOTI_FILTERS = [{ v: "on", label: "알림 발송" }, { v: "off", la
 export const QUICK_DATES = ["전체", "오늘", "어제", "내일", "이번 달", "지난 달"];
 
 /* ── 필터 마크업 ───────────────────────────────────────── */
+/* 탭·세그먼트·칩은 `aria-pressed` 로 고른 상태를 말한다 — 관리자 정산회계·거래처 목록·담당자 설정의 탭과 같은 방식이다
+   (예전엔 클래스뿐이라 화면 읽기 프로그램이 어느 탭이 골라졌는지 몰랐다). 고를 때 다시 그리지 않으므로(아래 syncFilterCard)
+   이 값은 그쪽에서 제자리로 바꾼다. */
 export const tabBtn = ({ v, label, count, active }) =>
-  html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${v}">${label}<span class="bf-tab__cnt">${count}</span></button>`;
+  html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${v}" aria-pressed="${active ? "true" : "false"}">${label}<span class="bf-tab__cnt">${count}</span></button>`;
 
 export const segBtns = (items, active, action) =>
-  items.map((it) => html`<button class="bf-seg__btn ${active === it.v ? "is-sel" : ""}" data-action="${action}" data-v="${it.v}">${it.label}</button>`);
+  items.map((it) => html`<button class="bf-seg__btn ${active === it.v ? "is-sel" : ""}" data-action="${action}" data-v="${it.v}" aria-pressed="${active === it.v ? "true" : "false"}">${it.label}</button>`);
 
+/* 칩 글자('✓ ' + 이름)는 고를 때 제자리에서 다시 쓴다 — 이름은 `data-label` 에 둔다. */
 export const toggleChips = (defs, onList, action) =>
   defs.map((f) => {
     const sel = onList.includes(f.v);
-    return html`<button class="bf-chip ${sel ? "is-on" : ""}" data-action="${action}" data-v="${f.v}">${sel ? "✓ " : ""}${f.label}</button>`;
+    return html`<button class="bf-chip ${sel ? "is-on" : ""}" data-action="${action}" data-v="${f.v}" data-label="${f.label}" aria-pressed="${sel ? "true" : "false"}">${sel ? "✓ " : ""}${f.label}</button>`;
   });
 
 /* 인라인 라벨형 검색창. value 를 **인자로** 받는다 — 페이지 state 클로저를
@@ -118,24 +122,73 @@ export function filterCard({ tabs, basis, basisActive, quickActive, addr, detail
       </div>
     </div>
 
-    ${detailOpen ? html`
-      <div class="bf-detail">
-        <div class="bf-detail__chips">
-          <span class="bf-lbl">사진</span>
-          ${toggleChips(PHOTO_FILTERS, photo, "photofilter")}
-          <span class="bf-vdiv"></span>
-          <span class="bf-lbl">알림</span>
-          ${toggleChips(NOTI_FILTERS, noti, "notifilter")}
-        </div>
-        <div class="bf-detail__srch">${searches.map((s) => srchBox(s))}</div>
-      </div>
-    ` : ""}
+    ${detailOpen ? detailBlock({ photo, noti, searches }) : ""}
   `;
 }
+/* 접이식 상세(사진·알림 칩 + 검색 4종) — filterCard 가 처음 그릴 때와 syncFilterCard 가 펼 때 같은 마크업을 쓴다. */
+export const detailBlock = ({ photo, noti, searches }) => html`
+  <div class="bf-detail">
+    <div class="bf-detail__chips">
+      <span class="bf-lbl">사진</span>
+      ${toggleChips(PHOTO_FILTERS, photo, "photofilter")}
+      <span class="bf-vdiv"></span>
+      <span class="bf-lbl">알림</span>
+      ${toggleChips(NOTI_FILTERS, noti, "notifilter")}
+    </div>
+    <div class="bf-detail__srch">${searches.map((s) => srchBox(s))}</div>
+  </div>`;
 
-/* 기간 datepicker 쌍 수명주기 — 필터 슬롯 재렌더마다 destroy→재생성해야 하고
-   cleanup 에서도 destroy 해야 한다(makeDatepicker 가 document 리스너를 건다).
-   두 규약을 손으로 지키면 한쪽을 반드시 빠뜨리므로 묶어 둔다. */
+/* ── 필터 카드 제자리 갱신 (B2B·B2C 목록 공용) ─────────────────
+   예전엔 탭·날짜 기준·기간 빠른 선택·사진/알림 칩·'상세 필터' 를 누를 때마다 필터 카드를 통째로 다시 그렸다(refreshFilters) —
+   Enter·Space 로 누른 버튼이 DOM 에서 떨어져 초점이 body 로 빠지고 다음 Tab 이 탭 줄 처음('전체')으로 돌아갔다(2026-10-19 실측 ·
+   두 화면 13가지 조작 모두). 거래처 목록·담당자 설정의 syncTabs(2026-10-19)와 같은 처방이다: **다시 그리지 않고** 클래스·aria·글자만
+   바꾼다. 버튼 수는 바뀌지 않는다(탭·세그먼트는 고정 목록) — 접이식 상세만 펼 때 넣고 접을 때 뺀다(그 안의 검색칸 값은 state 에서 다시 채운다).
+   기간 피커(makeDateRange)는 다시 만들지 않으므로 트리거 글자는 호출부가 `dateRange.sync()` 로 맞춘다. */
+export function syncFilterCard(slot, { tab, tabCount, basisActive, quickActive, detailOpen, photo, noti, detail }) {
+  if (!slot) return;
+  const press = (b, on_, cls) => {
+    b.classList.toggle(cls, on_);
+    b.setAttribute("aria-pressed", on_ ? "true" : "false");
+  };
+  qsa(slot, "[data-action='tab']").forEach((b) => {
+    press(b, b.dataset.v === tab, "is-active");
+    const c = qs(b, ".bf-tab__cnt");
+    if (c && tabCount) c.textContent = String(tabCount(b.dataset.v));
+  });
+  qsa(slot, "[data-action='datebasis']").forEach((b) => press(b, b.dataset.v === basisActive, "is-sel"));
+  qsa(slot, "[data-action='date']").forEach((b) => press(b, b.dataset.v === quickActive, "is-sel"));
+  for (const [action, list] of [["photofilter", photo], ["notifilter", noti]]) {
+    qsa(slot, `[data-action='${action}']`).forEach((b) => {
+      const sel = list.includes(b.dataset.v);
+      press(b, sel, "is-on");
+      b.textContent = `${sel ? "✓ " : ""}${b.dataset.label || ""}`;
+    });
+  }
+  const btn = qs(slot, "[data-action='detail-toggle']");
+  if (btn) {
+    btn.classList.toggle("is-open", !!detailOpen);
+    btn.setAttribute("aria-expanded", detailOpen ? "true" : "false");
+    const n = photo.length + noti.length;
+    let badge = qs(btn, ".bf-detailbtn__badge");
+    if (n && !badge) {
+      badge = document.createElement("span");
+      badge.className = "bf-detailbtn__badge";
+      btn.insertBefore(badge, qs(btn, ".bf-chevron"));
+    }
+    if (badge) { if (n) badge.textContent = String(n); else badge.remove(); }
+  }
+  const box = qs(slot, ".bf-detail");
+  if (detailOpen && !box && detail) {
+    const tmp = document.createElement("div");
+    setHTML(tmp, detail());
+    slot.append(...tmp.childNodes);
+  } else if (!detailOpen && box) box.remove();
+}
+
+/* 기간 datepicker 쌍 수명주기 — 필터 카드를 그린 뒤 bind, cleanup 에서 destroy 해야 한다(makeDatepicker 가 document 리스너를
+   건다). 2026-10-19 부터 필터 카드는 다시 그리지 않으므로(syncFilterCard) 한 번 붙여 끝까지 쓰고, 값이 바뀌면 `sync()` 로
+   트리거 글자만 맞춘다. 필터 카드를 다시 그리는 코드를 되살리면 destroy→bind 를 다시 짝지어야 한다(예전 B2C 등록 뒤 필터
+   초기화가 render() 만 하고 다시 붙이지 않아 두 트리거가 빈 글자에 눌러도 열리지 않았다). */
 export function makeDateRange(root, { get, set, min, max }) {
   const dps = [];
   const destroy = () => { dps.forEach((d) => d.destroy()); dps.length = 0; };
@@ -146,7 +199,9 @@ export function makeDateRange(root, { get, set, min, max }) {
       dps.push(makeDatepicker(el, { get: () => get(key), set: (v) => set(key, v), min, max, placeholder: ph }));
     }
   };
-  return { bind, destroy };
+  /* 값이 바뀌면(기간 빠른 선택·필터 초기화) 트리거 글자만 다시 쓴다 — 필터 카드를 다시 그리지 않으니 피커도 다시 만들지 않는다. */
+  const sync = () => dps.forEach((d) => d.renderTrigger());
+  return { bind, destroy, sync };
 }
 
 /* ── 표 셀 ─────────────────────────────────────────────── */
@@ -170,12 +225,53 @@ export const editBtn = (id) =>
    **그 자리에 올라온 줄**(지운 줄이 마지막이었으면 새 마지막 줄)의 연필로, 그 줄이 목록에 없었거나 표가 비면 '신규 주문 등록'으로.
    순번은 지우기 **전에** `editIndexOf` 로 잰다. 초점을 잃었을 때만 옮긴다 — 사람이 이미 다른 곳에 둔 초점은 건드리지 않는다. */
 export const editIndexOf = (root, id) => qsa(root, "[data-action='edit']").findIndex((b) => b.dataset.id === id);
+const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !a.isConnected; };
+/* 꾹 누른 Enter — 코드가 초점을 **옮겨 준** 창 안 버튼(저장 뒤 '닫기' · 스테퍼 뒤 다음 단계)에서는 Enter 자동 반복을 버린다.
+   그 버튼에 닿는 반복은 늘 다른 버튼에서 누른 채 넘어온 키다 — 예전엔 초점이 body 로 빠져 반복이 닿을 곳이 없었는데, 저장 뒤 초점을
+   '닫기' 로 옮기자 '저장' 에서 Enter 를 꾹 누르면 다음 반복이 '닫기' 를 눌러 창이 닫혔다(2026-10-19 검토 실측 · B2B·B2C 반복 3·8번).
+   그 버튼을 새로 누른 첫 keydown 은 반복이 아니라 그대로 눌린다. 같은 함수라 여러 번 걸어도 한 벌이다. */
+const dropHeldEnter = (e) => { if (e.repeat && e.key === "Enter") e.preventDefault(); };
+const focusHeld = (b) => { b.addEventListener("keydown", dropHeldEnter); b.focus(); };
 export function focusAfterDelete(root, idx) {
-  const a = document.activeElement;
-  if (a && a !== document.body && a.isConnected) return;
+  if (!focusLost()) return;
   const btns = qsa(root, "[data-action='edit']");
   const b = (idx >= 0 && btns[Math.min(idx, btns.length - 1)]) || qs(root, "[data-action='new']");
   if (b) b.focus();
+}
+/* ── 상세 창을 닫은 뒤 초점 (B2B·B2C 목록 공용) ─────────────────
+   저장·스테퍼·주문취소·담당자 지정은 창을 연 채 목록을 다시 그린다(refreshList — 요약·색·현황이 바로 바뀌게) — 창을 연 연필이
+   DOM 에서 떨어져, 창이 닫히며 초점을 돌려줄 곳이 없어 body 로 빠졌다(2026-10-19 실측 · 예전부터 · 다음 Tab 은 문서 밖).
+   **초점을 잃었을 때만** 같은 주문 줄의 새 연필로, 그 주문이 필터에서 빠졌으면(접수대기 탭에서 주문접수로 넘김 등) 그 자리에 올라온
+   줄의 연필로(focusAfterDelete 와 같은 규칙 · 표가 비면 '신규 주문 등록'). `idx` 는 그 주문 줄이 **마지막으로 목록에 있던** 순번이다
+   (호출부가 다시 그리기 전에 잰다). 마우스로 줄을 눌러 연 창은 돌려줄 곳(main)이 살아 있어 건드리지 않는다.
+   ⚠️ 스테퍼·주문취소로 그 주문 줄이 색 순서상 멀리 옮겨 가면 초점을 따라 목록이 굴러간다 — **마우스로 닫았으면 굴리지 않는다**
+   (초점 테두리가 서지 않는 초점이면 `preventScroll` 그대로). 연필을 마우스로 눌러 연 창을 '닫기' 로 닫자 목록이 1,070px 굴렀다
+   (2026-10-19 검토 실측 · B2B 접수대기 첫 줄 → 주문접수 · 예전엔 그대로였다). 키보드로 닫았으면 그 줄이 보이게 굴린다. */
+export function focusAfterClose(root, id, idx) {
+  if (!focusLost() || !root.isConnected) return;
+  const btns = qsa(root, "[data-action='edit']");
+  const b = btns.find((x) => x.dataset.id === id) || (idx >= 0 && btns[Math.min(idx, btns.length - 1)]) || qs(root, "[data-action='new']");
+  if (!b) return;
+  b.focus({ preventScroll: true });
+  if (b.matches(":focus-visible")) b.scrollIntoView({ block: "nearest" });
+}
+/* ── 저장 뒤 창 안 초점 ──
+   저장하면 '수정한 항목' 이 0 이 되어 저장 버튼이 잠긴다 — Enter 로 누른 버튼이 잠기며 초점이 body 로 빠졌다(실측 · 이어서 ESC 로
+   닫으면 위 focusAfterClose 몫이 되지만 그 사이 Tab 은 창 처음부터 다시 시작했다). 거래처 정보 창의 푸터와 같은 규칙으로 잠기지
+   않았으면 저장 버튼에, 잠겼으면 옆 '닫기' 로 옮긴다. 확인 창(B2B 명세서 금액 변경)을 지난 저장은 그 창이 닫히며 잠긴 저장 버튼으로
+   초점을 돌려주려다 실패하므로 한 번 더 본다(마이크로태스크 — 확인 창은 확정 처리기 안에서 바로 닫힌다). B2B 저장이 수정 마감에
+   막혀 금액·상품을 되돌린 뒤(rejectLocked — 고친 칸이 그것뿐이면 저장 버튼이 잠긴다)에도 같은 일이 생겨 같이 쓴다. */
+export function focusAfterSave(panel) {
+  const fix = () => {
+    if (!panel || !panel.isConnected) return;
+    const a = document.activeElement;
+    if (!(focusLost() || (a && a.disabled && panel.contains(a)))) return;
+    const save = qs(panel, ".ord-ft [data-action='save']");
+    const b = save && !save.disabled ? save : qs(panel, ".ord-ft [data-action='close']");
+    if (b) focusHeld(b); // '저장' 에서 꾹 누른 Enter 가 '닫기' 를 누르지 않게(위 dropHeldEnter)
+  };
+  fix();
+  queueMicrotask(fix);
 }
 
 /* ── 처리 레일 현장사진 — 업로드·다운로드·라이트박스 ──────
@@ -348,7 +444,10 @@ export function stepper({ status, statuses, canComplete }) {
 /* 스테퍼로 상태를 바꾸면 호출부가 머리를 다시 그려 누른 단계 버튼이 사라진다. 예전엔 새 '지금' 단계(`.is-now`)에 초점을 줬는데
    그 버튼은 `disabled` 라 초점을 받지 못해 **body 로 빠졌다**(실측 — 키보드로 '주문접수' 를 누르면 다음 Tab 이 창 맨 앞부터).
    그 자리의 다음 Tab 정거장으로 옮긴다: 뒤 단계(잠긴 단계도 — 누르면 이유를 말한다) → 머리의 담당자 → ···.
-   초점을 잃었을 때만 옮긴다(위에 다른 창이 떴거나 사람이 이미 둔 초점은 건드리지 않는다). */
+   초점을 잃었을 때만 옮긴다(위에 다른 창이 떴거나 사람이 이미 둔 초점은 건드리지 않는다).
+   ⚠️ 옮겨 준 버튼에서는 꾹 누른 Enter 의 반복을 버린다(위 dropHeldEnter) — 사진·인수자가 있는 접수대기 주문에서 '주문접수' 를 꾹 누르면
+   다음 반복이 초점을 받은 '배송완료' 를 눌러 **배송완료로 넘어가고 알림톡까지 나갔다**(되돌릴 수 없다 · 그다음 반복은 담당자 지정 창을
+   열었다 — 2026-10-19 검토 실측, 예전부터 · B2B·B2C 반복 6번). */
 export function focusAfterStep(panel) {
   const a = document.activeElement;
   if (a && a !== document.body && a.isConnected) return;
@@ -356,7 +455,7 @@ export function focusAfterStep(panel) {
   if (!hd) return;
   const t = qs(hd, ".ord-step__btn.is-now ~ .ord-step__btn:not([disabled])")
     || qs(hd, "[data-action='pick-manager']") || qs(hd, "[data-action='menu']");
-  if (t) t.focus();
+  if (t) focusHeld(t);
 }
 
 /* `delLock`(선택 · B2B 만 넘긴다) — 지울 수 없는 이유(명세 6.4 정본 문구). 있으면 '주문서 삭제' 가 자물쇠와 함께 잠기고

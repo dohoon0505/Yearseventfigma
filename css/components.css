@@ -526,8 +526,9 @@
       이겨 버려 hover 반응이 죽는다(거래처 `.is-group` 이 실제로 그렇다). cursor 만. */
 .page-ordscr .table-grid__row,
 .page-orders .table-grid__row { cursor: pointer; }
-/* 상품 규격 안내는 자기 페이지 CSS(products.css)에서 같은 규칙을 준다 — scroll-margin-top 까지
-   함께 얹어야 해서 그쪽에 뒀다. 세 스코프가 같은 이유로 존재한다는 것만 여기 적어 둔다. */
+/* 상품 규격 안내는 자기 페이지 CSS(products.css)의 `.page-products .table-grid__row` 가 같은 cursor 를
+   준다(스티키 바 아래로 초점이 가리지 않게 하는 여백은 2026-10-19 부터 행이 아니라 버튼 자신의
+   :focus-visible 규칙에 있다). 세 스코프가 같은 이유로 존재한다는 것만 여기 적어 둔다. */
 
 /* 주문 목록 행 톤 — 클래스는 util/date.js 의 orderRowTone() 이 돌려준다.
    접두사를 `ordrow--` 로 둔 이유: rowClass 반환값이 날것으로 붙어서
@@ -879,8 +880,8 @@
 .bf-srch__lbl { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-2); white-space: nowrap; }
 .bf-srch__dv { width: 1px; height: 16px; background: var(--c-divider); flex: 0 0 auto; }
 .bf-srch input { border: none; outline: none; flex: 1; min-width: 0; background: transparent; font-size: var(--fs-13); color: var(--c-text); font-family: inherit; }
-/* 포커스 표시는 컨테이너(:focus-within 오렌지 보더+링)가 담당 —
-   전역 :focus-visible 링(base.css)이 input에 겹치면 검색창 속 검색창처럼 보여 제거 */
+/* 포커스 표시는 컨테이너(:focus-within 오렌지 보더 + `--ring` 그림자)가 담당한다. 글자칸은 2026-10-19 부터 base.css 가
+   전역 링에서 이미 빼므로 이 줄은 안전판이다(떼도 같다 — 실측). 예전 전역 링(box-shadow)은 input 에 겹쳐 검색창 속 검색창처럼 보였다. */
 .bf-srch input:focus-visible { box-shadow: none; outline: none; }
 .bf-srch input::placeholder { color: var(--c-text-faint); }
 .bf-srch--addr { width: 270px; }
@@ -1563,8 +1564,9 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-mgr { height: 34px; padding: 0 13px; }
 .modal-panel--ord .ord-iconbtn { width: 34px; height: 34px; flex-basis: 34px; }
 .modal-panel--ord .ord-more { flex-basis: 34px; }
-/* 머리 조작(스테퍼 · 담당자 pill · ⋯ · ✕)의 키보드 초점 — 전역 링(`--ring`, 주황 9% 알파)은 흰 머리에서 1.1:1 이라 없는 것과 같다.
-   메뉴 항목·요약 줄과 같은 인디고 2px. 머리는 스크롤 컨테이너가 아니라 바깥(offset 2px)에 그려도 잘리지 않는다(위 16px · 아래 12px 여백).
+/* 머리 조작(스테퍼 · 담당자 pill · ⋯ · ✕)의 키보드 초점 — 그릴 때는 전역 링(`--ring`, 주황 9% 알파)이 흰 머리에서 1.1:1 이었다.
+   2026-10-19 부터 전역(base.css)도 인디고 2px · 바깥 2px 라 첫 묶음은 전역과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다, CLAUDE.md
+   초점 줄 · `box-shadow: none` 은 옛 전역 링의 흔적). 머리는 스크롤 컨테이너가 아니라 바깥에 그려도 잘리지 않는다(위 16px · 아래 12px 여백).
    ⚠️ 잠긴 단계(`.is-locked`)는 `opacity: 0.45` 로 흐리게 그리는데 opacity 는 outline 까지 흐린다(인디고 45% = 흰 면 2.1:1).
       그래서 **초점이 있을 때만** 같은 모습을 opacity 대신 색 섞기로 그린다 — 흰 면 위 45% 와 같은 색이라 모양은 그대로고 링만 또렷하다. */
 .modal-panel--ord .ord-step__btn:focus-visible,
@@ -1983,15 +1985,18 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   font-size: var(--fs-14); font-weight: var(--fw-semibold); box-shadow: none;
 }
 .dlg-ft .hm-btn--secondary { padding: 0 18px; }
-/* 푸터 버튼의 키보드 초점 — 위 `box-shadow: none` 이 전역 링(주황 9%)까지 지워 초점이 아예 안 보였다
+/* 푸터 버튼의 키보드 초점 — 위 `box-shadow: none` 이 그때의 전역 링(주황 9% box-shadow)까지 지워 초점이 아예 안 보였다
    (2026-10-16 S-01 검토 실측: 입금 확인 창에서 체크 → Tab → '입금 확인' 에 초점이 가도 표시 없음).
-   푸터는 스크롤 컨테이너가 아니라 바깥쪽 offset 이 잘리지 않는다 — 검정·주황 필 위에서도 보이게 바깥에 그린다. */
+   푸터는 스크롤 컨테이너가 아니라 바깥쪽 offset 이 잘리지 않는다 — 검정·주황 필 위에서도 보이게 바깥에 그린다.
+   2026-10-19 부터 전역 링(base.css · outline 이라 그 `box-shadow: none` 에 지워지지 않는다)과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다). */
 .dlg-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 
-/* 키보드 초점 — 전역 `:focus-visible` 링(`--ring`, 주황 9% 알파)은 흰 다이얼로그 면에서
-   1.1:1 이라 사실상 안 보인다. 주 조작 컨트롤은 인디고 외곽선으로 따로 그린다
-   (`.ordnew-req__row` 선례와 같은 처방). ⚠️ `.dlg-list`/`.dlg-body` 가 스크롤 컨테이너라
-   바깥쪽 offset 은 잘린다 → 안쪽(-2px)으로 그린다. */
+/* 키보드 초점 — 이 목록이 남는 까닭은 **안쪽(-2px)** 이다. 색·굵기는 전역 링(base.css · 2026-10-19 부터 인디고 2px)과 같고
+   자리만 다르다: `.dlg-list` 는 줄이 칸을 가로로 꽉 채워 전역의 바깥 링(offset 2px)이 좌·우(맨 윗줄은 위도) 4px 잘린다.
+   `.dlg-body` 안 조작은 Tab 으로 들어올 땐 전역 `scroll-margin` 이 자리를 내 바깥 링도 안 잘리고, 초점을 둔 채 칸을 굴려 끝에
+   걸칠 때만 잘린다(2026-10-19 검토 실측 1280). ✕·피커 '취소' 처럼 스크롤 칸 밖 컨트롤도 이 목록에 있어 함께 안쪽이다.
+   처음 그릴 땐 전역 링(주황 9% 알파)이 흰 면에서 1.1:1 이라 링 자체를 대신 그리려던 규칙이었다(`.ordnew-req__row` 선례).
+   `box-shadow: none` 은 그 옛 링의 흔적이다. */
 .dlg-pick:focus-visible,
 .dlg-seg__b:focus-visible,
 .dlg-check:focus-visible,
@@ -2170,9 +2175,12 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   color: var(--c-surface); font-weight: var(--fw-semibold);
 }
 .cli-st__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
-/* 키보드 초점 — 이 창은 누른 버튼을 다시 그린 뒤 그 자리로 포커스를 되돌린다(admin-clients.js `refocus`). 그런데 전역 링
+/* 키보드 초점 — 이 창은 누른 버튼을 다시 그린 뒤 그 자리로 포커스를 되돌린다(admin-clients.js `refocus`). 그런데 그때의 전역 링
    (`--ring`, 주황 9% 알파)은 흰 면에서 사실상 안 보여 **돌아온 초점이 보이지 않았다**(실측: 상태 pill·⋯·저장·담당자 관리 모두 표시 없음).
-   공용 규격대로 인디고 2px 를 직접 그린다 — 머리·푸터는 스크롤 컨테이너가 아니라 바깥에, 레일·원장(스크롤 컨테이너) 안은 안쪽(-2px)에.
+   그래서 인디고 2px 를 직접 그렸다 — 머리·푸터는 스크롤 컨테이너가 아니라 바깥에(첫 묶음 — 2026-10-19 부터 전역 링과 같은 값이다,
+   떼도 같다 — 실측 · 지우지 않는다), 레일·원장(스크롤 컨테이너) 안은 안쪽(-2px)에(둘째 묶음 — Tab 으로 들어올 땐 전역 `scroll-margin`
+   덕에 바깥이어도 안 잘리고(2026-10-19 검토 실측 1280x720), 초점을 둔 채 칸을 굴려 끝에 걸칠 때 바깥 링만 잘린다 · ⋯ 메뉴 항목은
+   스크롤 칸이 아니지만 주문 상세 메뉴와 같은 안쪽이다).
    ⚠️ `.ord-iconbtn`·`.ord-ft .hm-btn`·`.ord-menu__item`·`.rail-card__btn` 은 주문 상세·등록 모달과 공유한다 — 이 창 스코프로만 건다. */
 .modal-panel--cli .cli-st__btn:focus-visible,
 .modal-panel--cli .ord-hd .ord-iconbtn:focus-visible,
@@ -2232,11 +2240,12 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* 다크 레일 위 거래 조건 본문 — 메모가 아니라 **지켜야 하는 조건**이라 경고 톤을 쓴다.
    밝은 면의 `.ord-note__body`(--c-danger-ink)는 어두워 레일에서 읽히지 않는다 →
    다크 면용 경고 토큰은 `--c-toast-warn` 이다.
-   길이가 거래처마다 5자~103자(4줄)로 갈리므로 **자체 스크롤**을 갖는다 — 레일 높이가
-   거래처 하나 때문에 흔들리면 알림 명단이 밀려난다. */
+   길이가 거래처마다 5자~103자(4줄)로 갈리지만 **자체 스크롤은 두지 않는다**(아래 ⚠️ — 처음부터 overflow 가 없었다).
+   긴 조건은 카드가 늘고, 레일의 넘침은 레일 본문(`.ordnew-railbody`) 하나가 받는다. */
 /* ⚠️ 여기에 `max-height`+`overflow` 를 걸지 않는다. `.ordnew-railbody` 가 이미 레일의
-   넘침을 받으므로, 여기서 한 번 더 자르면 **키보드로 도달할 수 없는 두 번째 스크롤러**가
-   생긴다(스크롤 컨테이너는 포커스를 받지 못한다). 레일은 스크롤러 하나로 끝낸다. */
+   넘침을 받으므로, 여기서 한 번 더 자르면 **두 번째 스크롤러**가 생긴다. 크롬은 안에 조작이 없는
+   스크롤 칸을 Tab 정거장으로 하나 더 만든다(2026-10-19 시험 실측 — 다크 카드 위라 인디고 링도 1.9:1 로 흐리다),
+   칸을 정거장으로 삼지 않는 브라우저에서는 키보드로 굴릴 길이 없다(그쪽은 확인 못 함). 레일은 스크롤러 하나로 끝낸다. */
 .rail-card__note {
   margin-top: 4px; font-size: var(--fs-14); line-height: 1.6;
   color: var(--c-toast-warn); white-space: pre-line; word-break: keep-all;
@@ -2253,7 +2262,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    ⚠️ **줄어들지 않는다**(`flex: 0 0 auto`). 예전엔 목록이 336px 안에서 자체 스크롤(overflow)이라 flex 항목의 최소 높이가
    0 이 되어, 1280x720 에서 레일 높이가 모자라자 목록이 **높이 0** 으로 눌려 제목만 남았다(실측 494px 레일 · 이력 3~5건).
    이제 넘침은 레일 하나(`.modal-panel--cli .ord-side`)가 받는다 — 안쪽에 두 번째 스크롤러를 두지 않는다
-   (`.rail-card__note` 와 같은 이유 — 스크롤 컨테이너는 포커스를 받지 못해 키보드로 닿지 않는다). */
+   (`.rail-card__note` 와 같은 이유 — 조작 없는 스크롤 칸은 크롬에서 Tab 정거장이 하나 늘고(2026-10-19 시험 실측),
+   칸을 정거장으로 삼지 않는 브라우저에서는 키보드로 굴리지 못한다). */
 .cli-hist {
   flex: 0 0 auto;
   display: flex; flex-direction: column; gap: 2px;
@@ -2647,9 +2657,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums;
 }
 .ordnew-req__lead { padding: 12px 20px 4px; font-size: var(--fs-13); line-height: 1.6; color: var(--c-text-muted); }
-/* ⚠️ 전역 `:focus-visible` 링은 `--ring`(주황 9% 알파)이라 흰 카드 위에서 **사실상 보이지
-   않는다**(대비 1.1:1). 이 세 컨트롤은 이제 1단계의 주 조작 수단이므로 키보드 초점을
-   눈에 보이게 그린다 — 색은 이 레포가 이미 '필드 포커스'로 쓰는 인디고다. */
+/* 이 세 컨트롤은 1단계의 주 조작 수단이라 키보드 초점을 인디고로 그렸다 — 그때 전역 `:focus-visible` 링은
+   `--ring`(주황 9% 알파)이라 흰 카드 위에서 사실상 안 보였다(대비 1.1:1). 2026-10-19 부터 전역 링(base.css)도
+   인디고 2px · 바깥 2px 라 아래 바깥 묶음은 전역과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다, CLAUDE.md 초점 줄 ·
+   `box-shadow: none` 은 옛 전역 링의 흔적). 목록 끝 잘림은 그 아래 `scroll-margin` 이, 스크롤 칸 안 조작은 안쪽(-2px) 묶음이 맡는다. */
 .ordnew-req__row:focus-visible,
 .ordnew-mgr__chip:focus-visible,
 .ordnew-clipick__btn:focus-visible,
@@ -2668,13 +2679,16 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-cli,
 .ordnew-req__row { scroll-margin: 6px; }
 /* 2단계 본문(`.ord-pane` 이 스크롤 칸)의 배송일시 트리거(칸을 가득 채운다) · 보내는분 '선택' — 안쪽(-2px).
-   바깥이면 칸 끝에서 잘린다(1280x720 실측 '선택' 아랫변 3px). */
+   그릴 땐 바깥이면 칸 끝에서 잘렸다(1280x720 실측 '선택' 아랫변 3px). 2026-10-19 전역 `scroll-margin` 뒤로는 Tab·Shift+Tab 으로
+   들어올 때 바깥이어도 안 잘리고(검토 실측 1280x720·1280x620), 초점을 둔 채 본문을 굴려 끝에 걸칠 때만 잘린다 — 지우지 않는다.
+   `box-shadow: none` 은 피커가 열린 채 트리거에 초점이 오면 열림 표시 그림자(`--ring-field`)도 지운다(실측 · 이 규칙이 생긴 때부터 같다). */
 .modal-panel--ordnew .ord-dtp__trigger:focus-visible,
 .modal-panel--ordnew .ord-pick__btn:focus-visible {
   outline: 2px solid var(--c-indigo); outline-offset: -2px; box-shadow: none;
 }
 /* 푸터 취소·이전·다음·등록 — 거래처 정보 창(`.modal-panel--cli .ord-ft .hm-btn`)과 같은 처방. 주 버튼은 자기 그림자가
-   전역 링을 덮어 초점 표시가 아예 없었다(1.4:1 은 그 그림자다) — 그림자는 그대로 두고 바깥 링만 더한다. */
+   그때의 전역 링(box-shadow)을 덮어 초점 표시가 아예 없었다(1.4:1 은 그 그림자다) — 그림자는 그대로 두고 바깥 링만 더한다.
+   2026-10-19 부터 전역 링(base.css · outline)과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다). */
 .modal-panel--ordnew .ord-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 /* 확정된 요청자 한 줄 — '연락처가 없으면 배송완료 알림을 못 보낸다'는 사실이 1단계에
    보이는 유일한 자리다(레일의 알림 명단은 2단계에서만 그려진다). */

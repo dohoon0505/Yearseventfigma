@@ -359,7 +359,9 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
      초점이 돌아간 확대 버튼을 다음 반복이 다시 눌러 열렸다 닫혔다 했다(포털 상품 규격 안내 실측: 꾹 1 닫힘 · 2 열림 · 3 닫힘 ·
      8 열림(5번 열림) — 주문 창 안 사진도 같다). 닫기 버튼을 꾹 누르면 반대로 닫혔다 다시 열렸다. openModal 의 `dropHeldRepeat` 와
      같은 규칙으로, 연 뒤 그 키를 **새로 누르거나 뗄 때까지** 라이트박스 안 반복 Enter·Space 를 버리고(`settled` — 키마다),
-     닫는 순간 눌린 채인 키(`down`)는 모듈의 `swallowHeldRepeat` 에 넘겨 돌아간 여는 버튼이 다시 눌리지 않게 한다. */
+     닫는 순간 눌린 채인 키(`down`)는 모듈의 `swallowHeldRepeat` 에 넘겨 돌아간 여는 버튼이 다시 눌리지 않게 한다.
+     ⚠️ 공개 배송 리포트(`js/public-delivery.js` — 비모듈 IIFE 라 이 모듈을 못 가져온다)가 이 규칙과 `swallowHeldRepeat` 를
+        **복제**해 쓴다(2026-10-19) — 한쪽을 고치면 다른 쪽도 고칠 것. */
   const HELD = ["Enter", " "];
   const settled = new Set();
   const down = new Set();

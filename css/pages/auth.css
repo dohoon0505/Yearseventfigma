@@ -318,7 +318,8 @@
 .auth__help-link:hover {
   color: var(--c-text-3);
 }
-/* 고객센터 번호(tel: 링크, 2026-09-29) — 전역 링은 흰 면에서 안 보인다 */
+/* 고객센터 번호(tel: 링크, 2026-09-29) — 그때 전역 링(주황 9% 알파)이 흰 면에서 안 보여 직접 그렸다. 2026-10-19 부터 링 값은
+   전역(base.css)과 같고, 이 규칙이 더하는 것은 `border-radius: 2px`(링 모서리를 살짝 둥글린다)뿐이다(실측). */
 .auth__help-link:focus-visible {
   outline: 2px solid var(--c-indigo);
   outline-offset: 2px;
@@ -785,7 +786,8 @@
   font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-blue);
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
-/* 전역 링(주황 9% 알파)은 흰 면에서 1.1:1 — 직접 그린다 */
+/* 전역 링(주황 9% 알파)이 흰 면에서 1.1:1 이던 때 직접 그렸다 — 2026-10-19 부터 링 값은 전역(base.css)과 같고,
+   더하는 것은 `border-radius: 3px`(링 모서리를 살짝 둥글린다)뿐이다(실측). */
 .rf__link:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; border-radius: 3px; }
 
 /* ── 가입 4단계(정산 방식): 발급일 셀렉트 + 발급 안내 (2026-09-29) ──
