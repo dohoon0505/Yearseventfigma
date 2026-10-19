@@ -12,7 +12,7 @@
       · 담당자가 1명 이상이면 정산·회계 담당은 **정확히 1명**(store.fixBilling 이 보장)
       · **정산담당은 직접 삭제할 수 없다** — 다른 사람을 먼저 지정해야 한다
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, MSG_NONE, newContactId, newProfileId } from "../store.js";
 import { currentClientName } from "../util/client.js";
@@ -35,11 +35,15 @@ export function mount(root) {
   const contacts = () => store.contactsOf(); // 로그인 거래처의 담당자만
 
   /* ── 표 셀 조각 ───────────────────────────────────────── */
-  const rowActs = (kind, id, lockDel) => html`
-    <button class="pf-act" data-action="edit" data-kind="${kind}" data-id="${id}" aria-label="수정">${icon("pencil", { size: 15 })}</button>
+  /* 줄 버튼의 이름은 **그 줄의 사람**을 부른다. 삭제·수정·지정 뒤 초점이 그 자리에 올라온 다른 줄의 같은 버튼으로
+     옮겨 가므로(아래 focusCol) '삭제' 만으로는 화면낭독기가 누구의 버튼인지 말하지 못한다(관리자 담당자 관리 창과 같은 처리).
+     표는 다이얼로그가 닫힌 뒤에만 다시 그리므로 이름이 바뀌면 이 글자도 같이 바뀐다. */
+  const who = (name) => trim(name) || "담당자";
+  const rowActs = (kind, r, lockDel) => html`
+    <button class="pf-act" data-action="edit" data-kind="${kind}" data-id="${r.id}" aria-label="${who(r.name)} 수정">${icon("pencil", { size: 15 })}</button>
     ${lockDel
       ? html`<span class="pf-act is-lock" title="정산 · 회계 담당자는 삭제할 수 없습니다" aria-hidden="true">${icon("trash2", { size: 15 })}</span>`
-      : html`<button class="pf-act" data-action="del" data-kind="${kind}" data-id="${id}" aria-label="삭제">${icon("trash2", { size: 15 })}</button>`}
+      : html`<button class="pf-act" data-action="del" data-kind="${kind}" data-id="${r.id}" aria-label="${who(r.name)} 삭제">${icon("trash2", { size: 15 })}</button>`}
   `;
 
   /* ⚠️ 폭을 `var(--pf-*)` 로 넘기는 이유는 상품 규격 안내와 같다 — tableGrid 가
@@ -51,7 +55,7 @@ export function mount(root) {
     { label: "직위", width: "var(--pf-role, 130px)", render: (r) => r.role },
     { label: "배송완료 수신번호", width: "var(--pf-phone, 180px)", render: (r) => html`<span class="pf-num">${r.phone}</span>` },
     { label: "리본 고정문구", width: "var(--pf-rest, minmax(0,1fr))", render: (r) => html`<span class="pf-ink">${r.greeting}</span>` },
-    { label: "관리", width: "var(--pf-acts, 96px)", align: "center", render: (r) => rowActs("profile", r.id, false) },
+    { label: "관리", width: "var(--pf-acts, 96px)", align: "center", render: (r) => rowActs("profile", r, false) },
   ];
 
   const contactCols = [
@@ -69,11 +73,11 @@ export function mount(root) {
       label: "정산 · 회계 담당", width: "var(--pf-bill, 160px)", align: "center",
       render: (r) => (r.isBilling
         ? html`<span class="pf-billon">${icon("check", { size: 13 })}담당</span>`
-        : html`<button class="pf-billset" data-action="set-billing" data-id="${r.id}">지정</button>`),
+        : html`<button class="pf-billset" data-action="set-billing" data-id="${r.id}" aria-label="${who(r.name)} 정산 · 회계 담당 지정">지정</button>`),
     },
     /* 정산담당은 삭제 버튼 자리에 잠긴 아이콘을 둔다 — 자리를 비우면 행마다 관리 칸이
        들쭉날쭉해지고 '왜 못 지우는지'도 사라진다(관리자 화면과 같은 처리). */
-    { label: "관리", width: "var(--pf-acts, 96px)", align: "center", render: (r) => rowActs("contact", r.id, r.isBilling) },
+    { label: "관리", width: "var(--pf-acts, 96px)", align: "center", render: (r) => rowActs("contact", r, r.isBilling) },
   ];
 
   /* ── 화면 ─────────────────────────────────────────────── */
@@ -108,6 +112,38 @@ export function mount(root) {
     const cc = qs(root, "[data-slot='ccount']");
     if (pc) pc.textContent = String(profiles().length);
     if (cc) cc.textContent = String(contacts().length);
+  }
+
+  /* ── 다시 그린 뒤 초점 ─────────────────────────────────────
+     삭제 확정·수정 저장·표의 '지정' 은 표를 다시 그린다 — 창이 닫히며 연 버튼으로 돌려준 초점이 그 버튼과 함께 DOM 에서
+     떨어져 body 로 빠졌다(실측: 두 카드의 삭제 확정 · 수정 저장 · 표 '지정' 모두 — 링이 사라지고 화면낭독기는 어디인지 말하지 못했다).
+     관리자 담당자 관리 창의 focusCol 과 같은 생각으로 **하던 자리**에 둔다: 누른 열의 버튼을 **그 줄 → 아래 줄 → 위 줄** 순으로
+     찾는다. 삭제면 '그 줄' 이 그 자리에 올라온 줄이고, 마지막 줄을 지웠으면 위 줄부터다. 정산담당 줄의 삭제 칸은 잠긴 표지
+     (`.pf-act.is-lock` — span 이라 초점을 못 받는다)라 그 줄은 건너뛴다. 표의 '지정' 이면 누른 줄의 칸이 '담당' 표지로 바뀌므로
+     다음 '지정' 으로 간다. 그 열에 버튼이 하나도 없으면(프로필을 다 지웠다 · 남은 담당자가 정산담당뿐) 그 카드의 등록 버튼으로.
+     순번은 다시 그리기 **전에** 잰다. 초점을 잃었을 때만 옮긴다 — 사람이 이미 다른 곳에 둔 초점은 건드리지 않는다
+     (등록 저장은 연 버튼 '… 등록' 이 머리글에 있어 다시 그려지지 않으므로 창이 돌려준 그 자리에 그대로 남는다 — 실측). */
+  const slotOf = (kind) => (kind === "profile" ? "ptable" : "ctable");
+  const rowEls = (kind) => qsa(root, `[data-slot='${slotOf(kind)}'] .table-grid__row`);
+  const rowIndexOf = (kind, id) => rowEls(kind).findIndex((r) => r.dataset.rowkey === id);
+  const lostFocus = () => {
+    const a = document.activeElement;
+    return !a || a === document.body || !a.isConnected;
+  };
+  const focusAdd = (kind) => {
+    const add = qs(root, `[data-action='${kind === "profile" ? "new-profile" : "new-contact"}']`);
+    if (add) add.focus();
+  };
+  function focusCol(kind, action, idx) {
+    if (!lostFocus()) return;
+    const list = rowEls(kind);
+    const start = Math.min(Math.max(idx, 0), list.length - 1);
+    const order = [...list.slice(start), ...list.slice(0, Math.max(start, 0)).reverse()];
+    for (const r of order) {
+      const b = qs(r, `button[data-action='${action}']`);
+      if (b && !b.disabled) { b.focus(); return; }
+    }
+    focusAdd(kind);
   }
 
   function render() {
@@ -277,11 +313,17 @@ export function mount(root) {
         form.isBilling = true;
         const slot = qs(p, "[data-slot='bill']");
         if (slot) setHTML(slot, billBody(form));
+        /* 누른 '지정' 이 '지정됨' 표지로 바뀌며 DOM 에서 떨어져 초점이 body 로 빠졌다 — 다음 Tab 이 창 맨 앞 ✕ 로 튀었다(실측).
+           그 자리의 표지(tabindex=-1 · 탭 순서 밖)에 둔다: 다음 Tab 은 푸터 '취소', Shift+Tab 은 바로 위 알림톡 스위치다.
+           명세서 동의 직후 카드 제목에 초점을 두는 것과 같은 수법이다. 초점을 잃었을 때만. */
+        const chip = slot && qs(slot, ".pf-billon");
+        if (chip && lostFocus()) chip.focus();
       });
     }
 
     on(p, "click", "[data-action='ok']", () => {
       if (!ok()) return;
+      const idx = isNew ? -1 : rowIndexOf(kind, form.id); // 다시 그리기 전 순번 — 수정이면 그 줄의 새 '수정' 버튼으로(focusCol)
       if (isProfile) {
         const next = { ...form, name: trim(form.name), role: trim(form.role), phone: trim(form.phone), greeting: trim(form.greeting) };
         store.setProfiles((prev) => (isNew ? [...prev, next] : prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))));
@@ -292,13 +334,19 @@ export function mount(root) {
       }
       closeDlg();
       refresh();
+      /* 수정 = 그 줄의 '수정'(줄이 다시 그려졌으니 같은 줄의 새 버튼) · 등록 = 창이 돌려준 '… 등록' 이 그대로 남는다
+         (머리글은 다시 그리지 않는다 — 이어서 한 명 더 등록하는 흐름이 흔하고 ✕·취소·ESC 도 그 자리로 돌아간다.
+         새 줄은 표 맨 끝에 붙고 '등록했습니다' 가 읽힌다). 등록인데 초점을 잃었다면 그 등록 버튼으로. */
+      if (isNew) { if (lostFocus()) focusAdd(kind); }
+      else focusCol(kind, "edit", idx);
       toast(isNew ? "등록했습니다" : "저장했습니다");
     });
   }
 
+  /* '지정됨' 표지의 tabindex=-1 은 '지정' 을 누른 직후 초점이 머무를 자리다(위 setbill — 탭 순서에는 끼지 않는다). */
   const billBody = (form) =>
     form.isBilling
-      ? html`<span class="pf-billon pf-billon--sm">${icon("check", { size: 13 })}지정됨</span>`
+      ? html`<span class="pf-billon pf-billon--sm" tabindex="-1">${icon("check", { size: 13 })}지정됨</span>`
       : html`<button type="button" class="pf-billset" data-action="setbill">지정</button>`;
 
   /* ── 삭제 ─────────────────────────────────────────────── */
@@ -331,10 +379,14 @@ export function mount(root) {
         : html`관리자 화면의 담당자 명단에서도 함께 사라지고, 배송완료 알림톡 대상에서 빠집니다.`,
       okLabel: isProfile ? "프로필 삭제" : "담당자 삭제",
       onConfirm: () => {
+        /* 확인 창은 닫히며 이 줄의 '삭제' 로 초점을 돌려준 뒤 이 함수를 부른다 — 곧 그 버튼이 표와 함께 사라진다.
+           지우기 전 순번을 재 두었다가 그 자리에 올라온 줄의 '삭제' 로(focusCol). ESC·돌아가기는 표를 그리지 않아 그 줄 '삭제' 그대로다. */
+        const idx = rowIndexOf(kind, row.id);
         if (isProfile) store.setProfiles((prev) => prev.filter((x) => x.id !== row.id));
         else store.setContacts((prev) => prev.filter((x) => x.id !== row.id));
         dlg = null;
         refresh();
+        focusCol(kind, "del", idx);
         toast("삭제했습니다");
       },
     });
@@ -368,8 +420,10 @@ export function mount(root) {
     if (a === "new-contact") return openForm("contact", null);
     if (a === "set-billing") {
       const c = contacts().find((x) => x.id === t.dataset.id);
+      const idx = rowIndexOf("contact", t.dataset.id); // 다시 그리기 전 순번 — 그 줄의 칸은 '담당' 표지가 된다(focusCol)
       store.setBillingContactOf(null, t.dataset.id);
       refresh();
+      focusCol("contact", "set-billing", idx);
       toast(`${c ? c.name : "담당자"}님을 정산 · 회계 담당자로 지정했습니다`);
       return;
     }
@@ -381,8 +435,19 @@ export function mount(root) {
     else openDel(kind, row);
   });
 
+  /* ⚠️ Enter 를 누른 채로 두면 자동 반복 keydown 마다 **초점이 있는 버튼**이 다시 눌린다. 위 focusCol 이 초점을 다음 줄의 같은
+     버튼에 두므로 표의 '지정' 을 길게 누르면 정산·회계 담당이 줄마다 옮겨 다니다 엉뚱한 사람에서 멈췄다(실측: 할다운을 눌렀는데
+     김현수). 삭제 확정을 길게 누르면 다음 줄의 확인 창이, 수정 저장·등록을 길게 누르면 같은 창이 저절로 열렸다 닫혔다(실측 3번씩 —
+     등록은 예전부터). 초점이 내려앉는 버튼(줄의 지정·수정·삭제 · 두 카드의 등록)에서는 **반복 keydown 의 Enter 를 버린다** —
+     떼었다 다시 누르면 그대로 눌린다(관리자 담당자 관리 창과 같은 처리).
+     Space 는 뗄 때 한 번만 눌려 해당 없다. */
+  const offKey = on(root, "keydown", "[data-action='set-billing'], [data-action='edit'], [data-action='del'], [data-action='new-profile'], [data-action='new-contact']", (e) => {
+    if (e.repeat && e.key === "Enter") e.preventDefault();
+  });
+
   return () => {
     off();
+    offKey();
     closeDlg();
     toast.destroy();
     if (focusRaf) cancelAnimationFrame(focusRaf);

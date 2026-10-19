@@ -339,6 +339,8 @@ export function mount(root, { nav }) {
   const cDestroy = () => { cDds.forEach((d) => d.destroy()); cDds.length = 0; };
 
   const chanMeta = (v) => B2C_CHANNEL_META[v] || { desc: "" };
+  /* 2단계 '주문자 · 결제' 카드 캡션 — 그 카드의 `ordnew-paycard` 는 칠하는 규칙이 없는 고리다(글자만 고칠 자리를 찾는다). */
+  const payCap = () => [cDraft.channel, cDraft.payStatus].filter(Boolean).join(" · ") || "경로 미선택";
 
   function openCreate() {
     if (createModal) return;   /* 두 번 눌러 등록 모달이 겹쳐 열리지 않게 */
@@ -364,14 +366,18 @@ export function mount(root, { nav }) {
         </div>`;
     };
 
-    /* ── step1: 주문경로 · 결제 ── */
+    /* ── step1: 주문경로 · 결제 ──
+       주문경로 카드는 **누름 버튼**(`aria-pressed`)이라 Tab 으로 하나씩 지난다(화살표 약속이 없다 — 6장이 두 줄이라 화살표로
+       옮기면 위아래가 모호하다). 결제 상태는 **라디오 그룹**이라 화살표로 옮기고 Tab 은 그룹을 한 정거장으로 지난다
+       (roving tabindex — 고른 칸, 없으면 첫 칸만 0 · 키는 아래 bindCreateDelegates). 둘 다 고를 때 다시 그리지 않는다. */
+    const payTab = (v) => (cDraft.payStatus ? cDraft.payStatus === v : v === B2C_PAY_STATES[0]) ? "0" : "-1";
     const step1Body = () => html`
       <section class="ord-card">
         <div class="ord-card__head">
           <b class="ord-card__t">주문경로</b>
           <span class="ord-card__cap">어디서 들어온 주문인지 남깁니다</span>
         </div>
-        <div class="ordnew-chan" data-slot="chan">
+        <div class="ordnew-chan" data-slot="chan" role="group" aria-label="주문경로">
           ${B2C_CHANNELS.map((v) => html`
             <button type="button" class="ordnew-chan__card ${cDraft.channel === v ? "is-on" : ""}"
               data-cchan="${v}" aria-pressed="${cDraft.channel === v ? "true" : "false"}">
@@ -380,21 +386,27 @@ export function mount(root, { nav }) {
             </button>`)}
         </div>
         <div class="ord-row">
-          <label class="ord-k">결제 상태</label>
+          ${/* 묶을 컨트롤 id 가 없다(버튼 셋) — `for` 없는 label 은 눌러도 아무 일이 없으니 span 으로 두고 이름은 그룹의 aria-label 이 준다 */ ""}
+          <span class="ord-k">결제 상태</span>
           <div class="seg-pill" role="radiogroup" aria-label="결제 상태" data-slot="cpay">
             ${B2C_PAY_STATES.map((v) => html`
               <button type="button" class="seg-pill__btn ${cDraft.payStatus === v ? "is-on" : ""}"
-                data-cpay="${v}" role="radio" aria-checked="${cDraft.payStatus === v ? "true" : "false"}">${v}</button>`)}
+                data-cpay="${v}" role="radio" aria-checked="${cDraft.payStatus === v ? "true" : "false"}"
+                tabindex="${payTab(v)}">${v}</button>`)}
           </div>
-          <label class="ord-k">접수일시</label>
-          <input class="ord-in ord-in--num" data-cf="receivedAt" value="${cDraft.receivedAt}" />
+          ${/* 이 칸은 id 가 있으니 `for` 로 묶는다 — 예전엔 for 가 없어 라벨을 눌러도 칸으로 가지 않았고, Tab 으로 닿으면 이름 없이
+               값('2026-10-19 10:00')만 읽혔다(검토 실측). 등록 창은 한 번에 하나라 id 가 겹치지 않는다(openCreate 의 가드). */ ""}
+          <label class="ord-k" for="cnew-received">접수일시</label>
+          <input class="ord-in ord-in--num" id="cnew-received" data-cf="receivedAt" value="${cDraft.receivedAt}" />
         </div>
       </section>
       ${card({ title: "주문 담당자", cap: "이 주문을 처리할 우리 직원", body: mgrBody(), slot: "cmgr" })}`;
 
     /* ── step2: 주문 내용 — 상세 모달과 **같은 서술자 배열**을 읽는다 ── */
+    /* 캡션 문자열은 여기 한 곳 — 1단계에서 경로·결제를 고르면 bindCreateDelegates 가 같은 함수로 글자만 고친다
+       (예전엔 1단계만 다시 그려 이 캡션이 등록 창을 연 순간의 '경로 미선택' 으로 남아 있었다 — 실측). */
     const step2Body = () => html`
-      ${card({ title: "주문자 · 결제", cap: [cDraft.channel, cDraft.payStatus].filter(Boolean).join(" · ") || "경로 미선택",
+      ${card({ title: "주문자 · 결제", cap: payCap(), cls: "ordnew-paycard",
                body: renderFields(ORDER_FIELDS, cDraft) })}
       ${card({ title: "발주정보", cap: "화원 전달 내용", body: renderFields(DELIVER_FIELDS, cDraft) })}`;
 
@@ -455,15 +467,54 @@ export function mount(root, { nav }) {
   /* step2 의 드롭다운·피커 — 셸이 스텝을 버리지 않으므로 한 번만 만든다. */
   /* 등록 모달 전용 위임 — 셸 패널에 1회. 슬롯 부분 갱신에도 생존한다. */
   function bindCreateDelegates(panel) {
+    /* 주문경로·결제 상태 — **1단계를 다시 그리지 않는다.** 예전엔 고를 때마다 `rerenderStep("s1")` 로 1단계를 통째로 갈아
+       누른 버튼이 DOM 에서 떨어졌다 — 초점이 body 로 빠져 다음 Tab 이 창 맨 앞 '자동작성' 부터 다시 시작했다(실측 1440·1280 ·
+       Enter·Space 모두 · 결제 상태도 같다). 1단계에서 이 둘에 매인 칸은 없으니(접수일시·담당자는 따로 산다) 표시(클래스·aria)만
+       바꾸고, 따라 바뀌는 곳 — 레일 · 푸터 · 2단계 카드 캡션 — 만 고친다. 그래서 초점은 누른 그 버튼에 그대로 있다
+       (담당자 칩 `[data-cmgr]` 과 같은 수법). */
+    const afterPick = () => {
+      const cap = qs(panel, ".ordnew-paycard .ord-card__cap");
+      if (cap) cap.textContent = payCap();
+      createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
+    };
     on(panel, "click", "[data-cchan]", (e, t) => {
-      if (cDraft.channel === t.dataset.cchan) return;
-      cDraft.channel = t.dataset.cchan;
-      createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.markTouched();
+      const v = t.dataset.cchan;
+      if (cDraft.channel === v) return;
+      cDraft.channel = v;
+      qsa(panel, "[data-cchan]").forEach((b) => {
+        const on2 = b.dataset.cchan === v;
+        b.classList.toggle("is-on", on2);
+        b.setAttribute("aria-pressed", on2 ? "true" : "false");
+      });
+      afterPick();
     });
-    on(panel, "click", "[data-cpay]", (e, t) => {
-      if (cDraft.payStatus === t.dataset.cpay) return;
-      cDraft.payStatus = t.dataset.cpay;
-      createModal.rerenderStep("s1"); createModal.rerenderRail(); createModal.markTouched();
+    const pickPay = (t) => {
+      const v = t.dataset.cpay;
+      qsa(panel, "[data-cpay]").forEach((b) => {
+        const on2 = b === t;
+        b.classList.toggle("is-on", on2);
+        b.setAttribute("aria-checked", on2 ? "true" : "false");
+        b.tabIndex = on2 ? 0 : -1; /* 그룹 전체가 Tab 한 정거장 — 고른 칸이 그 정거장이다 */
+      });
+      if (cDraft.payStatus === v) return;
+      cDraft.payStatus = v;
+      afterPick();
+    };
+    on(panel, "click", "[data-cpay]", (e, t) => pickPay(t));
+    /* `role="radio"` 의 약속 — 화살표·Home·End 로 옮기면 그 칸이 골라진다(dialog.js `bindPick` 과 같은 키 · 끝에서 감긴다).
+       bindPick 을 그대로 쓰지 않는 까닭: 그쪽은 `is-sel`·`data-pickrow` 를 칠하고, 이 세그먼트(`.seg-pill`)는 `is-on` 으로 칠한다. */
+    const PAY_STEP = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+    on(panel, "keydown", "[data-cpay]", (e, t) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return; /* Alt+← (뒤로 가기) 같은 브라우저 단축키는 그대로 둔다 */
+      const all = qsa(panel, "[data-cpay]");
+      const i = all.indexOf(t);
+      const to = e.key === "Home" ? all[0]
+        : e.key === "End" ? all[all.length - 1]
+        : PAY_STEP[e.key] ? all[(i + PAY_STEP[e.key] + all.length) % all.length] : null;
+      if (!to) return;
+      e.preventDefault(); /* 패널 스크롤이 아니라 선택을 옮긴다 */
+      to.focus();
+      pickPay(to);
     });
     /* 자동작성 — 채우는 대상은 **발주정보**(step2)다. 1단계에서 눌러도 값은 들어가고
        레일·푸터가 따라오므로, 스텝을 강제로 넘기지 않는다(사용자의 자리를 뺏지 않는다). */

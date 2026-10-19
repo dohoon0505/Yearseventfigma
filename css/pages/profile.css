@@ -267,7 +267,10 @@
   border-color: var(--c-orange);
   color: var(--c-orange-ink);
 }
-.modal-panel--dlg .pf-billset:focus-visible {
+/* '지정됨' 표지는 '지정' 을 누른 직후 초점이 머무르는 자리다(tabindex=-1 · profile.js setbill) — 방금 누른 버튼과
+   같은 자리 · 같은 링으로 그려 키보드 사용자가 초점이 어디 있는지 본다(마우스로 누르면 :focus-visible 이 아니라 링이 없다). */
+.modal-panel--dlg .pf-billset:focus-visible,
+.modal-panel--dlg .pf-billon--sm:focus-visible {
   outline: 2px solid var(--c-indigo);
   outline-offset: 2px;
 }
