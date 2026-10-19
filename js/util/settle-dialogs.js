@@ -21,7 +21,7 @@ import { html, on, qs, qsa, setHTML } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, EINVOICE_NO_RE } from "../store.js";
 import { openDialog, dlgRule, dlgRow, dlgPick, bindPick } from "./dialog.js";
-import { settlementOf, issueEinvoiceFor, confirmPaymentFor } from "./settlement.js";
+import { settlementOf, issueEinvoiceFor, confirmPaymentFor, EINVOICE_MODE_WORD, overdueLateOf, OVERDUE_LATE_WORD } from "./settlement.js";
 import { actorLabel } from "./actor.js";
 import { sharedBizKeys, normalizeBiz } from "./biz.js";
 import {
@@ -49,7 +49,8 @@ function headOf(client, ym) {
 /** 토스트에 쓰는 거래처 이름 — admin-settlement.js `rowName` 과 같은 규칙. 회사명만 쓰면 한빛과학(주)(C001)과
  *  한빛과학(주) 연구소 계정(C027) · 법무법인 한결 두 계정의 입금 확인 토스트가 한 글자도 다르지 않았다(실측). */
 const nameOf = (client) => (splitAccount(client) ? `${client.companyName} ${client.department}` : client.companyName);
-/** 정산·회계 담당자와 알림(T6)이 닿는지. 연락처가 비면 '보냈습니다' 라고 말하지 않는다. */
+/** 정산·회계 담당자와 알림(T6)이 닿는지. 연락처가 비면 '보냈습니다' 라고 말하지 않는다.
+ *  T6~T8 은 정지 중에도 평소대로 간다(10.4 Q35 ① 잠정) — 그래서 여기는 정지를 보지 않는다(T3·T4 만 정지 중에 빠진다). */
 function recipientOf(client) {
   const ct = store.getBillingContactOf(client.id);
   const ok = !!ct && !!String(ct.phone || "").trim();
@@ -68,6 +69,20 @@ function parseDateTime(dateStr, timeStr) {
   return dt;
 }
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+/** 계산서 방식 낱말(자동 발급 · 다시 시도 · 직접 입력 — util/settlement 한 벌). 자동 발급은 붙이지 않는 자리에서는 "". */
+const modeSuffix = (ev) => (ev && ev.mode !== "auto" ? ` · ${EINVOICE_MODE_WORD[ev.mode] || ""}` : "");
+/** 지금 계산서를 내면(또는 냈더니) 정산기한 다음 날 10:00 이 지나 **발급 순간 기한 초과**인가(명세 3.4 · M39 · N01 · 10.4 Q36 잠정
+ *  '지금 규칙 그대로') — 그때 계산서 발급 안내(T6)와 입금 기한 지남 안내(T8)가 **함께** 간다. 직접 입력으로 지난 시각을 적어도
+ *  기록하는 지금이 기한 다음 날 10:00 뒤면 같다(T8 은 발급이 기록된 직후로 미뤄졌다가 나간다 — M39). */
+const pastOverdue = (s, at) => at.getTime() >= s.overdueAt.getTime();
+/** 발급 안내 문장 — '보냈다/나간다' 는 공통 판정(알림 수신자) 그대로. late = 발급 순간 기한 초과(T6 + T8). */
+function issueNotice(rc, late, done) {
+  if (!rc.ok) return late
+    ? `알림 수신자가 없어 계산서 발급 안내와 입금 기한 지남 안내는 ${done ? "보내지 못했습니다" : "나가지 않습니다"}`
+    : `알림 수신자가 없어 계산서 발급 안내는 ${done ? "보내지 못했습니다" : "나가지 않습니다"}`;
+  if (done) return late ? `계산서 발급 안내와 입금 기한 지남 안내를 ${rc.who}에게 함께 보냈습니다` : `계산서 발급 안내를 ${rc.who}에게 보냈습니다`;
+  return late ? `계산서 발급 안내와 입금 기한 지남 안내가 ${rc.who}에게 함께 나갑니다` : `계산서 발급 안내가 ${rc.who}에게 나갑니다`;
+}
 /** 1~10 그룹의 지연발급 경계 — 발급월 11일 00:00(이 시각부터 발급하면 '발급월 10일을 넘긴' 발급이다 · 명세 3.4 ⚠ · N02 ⓐ).
  *  11~28 그룹은 해당 없음(null). 발급월 = 귀속월 다음 달. */
 function lateIssueAt(client, ym) {
@@ -125,7 +140,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
   const late = day > 10;
   const lateAt = lateIssueAt(client, ym);
   const id = ++seq;
-  const st = { mode: "retry", step: "idle", err: null, failDetail: "", okRec: null, no: "", date: "", time: "", noTouched: false, noServerBad: false, timeServerBad: false };
+  const st = { mode: "retry", step: "idle", err: null, failDetail: "", okRec: null, late: false, no: "", date: "", time: "", noTouched: false, noServerBad: false, timeServerBad: false };
   let timer = 0;
 
   const kv = [
@@ -216,7 +231,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       const who = s.einvoice.mode !== "auto" ? actorLabel(s.einvoice.by) : "";
       return {
         title: "이미 발급된 달입니다",
-        body: [`${fmtKoShortTime(s.einvoice.at)}에 ${who ? `${who} 님이 발급 처리했습니다` : "발급 처리됐습니다"} · 승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}.${st.mode === "manual" ? " 적은 값은 그대로 두었습니다." : ""}`],
+        body: [`${fmtKoShortTime(s.einvoice.at)}에 ${who ? `${who} 님이 발급 처리했습니다` : "발급 처리됐습니다"} · 승인번호 ${s.einvoice.no}${modeSuffix(s.einvoice)}.${st.mode === "manual" ? " 적은 값은 그대로 두었습니다." : ""}`],
       };
     }
     return { title: "지금은 계산서를 발급 처리할 수 없는 달입니다", body: ["표에서 이 달의 상태를 다시 확인하세요."] };
@@ -266,7 +281,11 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
         body: [st.failDetail, "상태는 '동의완료 · 발급 전'에 그대로 남습니다. 원인을 고친 뒤 다시 시도하거나, 바로빌 콘솔에서 발급하고 직접 입력으로 기록하세요."],
       });
     } else if (done && st.okRec) {
-      alert = okBox("발급되었습니다", `승인번호 ${st.okRec.no} · ${fmtKoShortTime(parseAt(st.okRec.at))} · ${rc.ok ? `계산서 발급 안내를 ${rc.who}에게 보냈습니다` : "알림 수신자가 없어 계산서 발급 안내는 보내지 못했습니다"}`);
+      /* 발급 순간 기한 초과였으면(정산기한 다음 날 10:00 뒤 발급) 그렇다고 말하고 두 안내가 함께 갔다고 말한다(st.late — 쓴 뒤 settlementOf 로 다시 읽은 값) */
+      alert = okBox(
+        st.late ? "발급되었습니다 · 기한 초과" : "발급되었습니다",
+        `승인번호 ${st.okRec.no} · ${fmtKoShortTime(parseAt(st.okRec.at))}${st.late ? ` · 정산기한(${fmtKoShort(s0.dueAt)})이 지나 발급 순간 기한 초과가 되었습니다` : ""} · ${issueNotice(rc, st.late, true)}`,
+      );
     }
     fill(p, "alert", alert);
     qs(p, "[data-slot='busy']").hidden = !busy;
@@ -283,8 +302,16 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       notes.push(noteBox("amber", "발급월 10일을 넘겨 발급되면 지연발급이 됩니다", "발급 전에 세무 확인이 필요합니다 · 세무사 답변에 따라 문구가 바뀔 수 있습니다."));
     }
     if (!done && !st.err) {
-      if (manual) notes.push(noteBox("", "저장하면 발급완료가 됩니다", rc.ok ? `계산서 발급 안내가 ${rc.who}에게 나갑니다.` : "알림 수신자가 없어 계산서 발급 안내는 나가지 않습니다."));
-      else if (st.step === "idle") notes.push(noteBox("", "같은 내용으로 바로빌에 발급을 다시 요청합니다", rc.ok ? `성공하면 발급완료가 되고 계산서 발급 안내가 ${rc.who}에게 나갑니다.` : "성공하면 발급완료가 됩니다. 알림 수신자가 없어 발급 안내는 나가지 않습니다."));
+      /* 지금 발급(기록)하면 정산기한 다음 날 10:00 이 지난 뒤다 — 발급 순간 기한 초과이고 T6 과 T8 이 함께 간다(명세 3.4 · Q36 잠정).
+         직접 입력은 적은 발급 시각이 그 전이어도 **저장하는 순간**이 기준이다(settlementOf overdueFrom — recordedAt · 검토 4). */
+      const due = pastOverdue(s0, now);
+      const dueLine = due ? `정산기한(${fmtKoShort(s0.dueAt)})이 지나 ${manual ? "저장하는" : "발급"} 순간 기한 초과가 됩니다. ` : "";
+      if (manual) notes.push(noteBox(due ? "amber" : "", due ? "저장하면 발급완료 · 기한 초과가 됩니다" : "저장하면 발급완료가 됩니다", `${dueLine}${issueNotice(rc, due, false)}.`));
+      else if (st.step === "idle") {
+        notes.push(due
+          ? noteBox("amber", "같은 내용으로 바로빌에 발급을 다시 요청합니다", `성공하면 발급완료가 됩니다. ${dueLine}${issueNotice(rc, true, false)}.`)
+          : noteBox("", "같은 내용으로 바로빌에 발급을 다시 요청합니다", rc.ok ? `성공하면 발급완료가 되고 계산서 발급 안내가 ${rc.who}에게 나갑니다.` : "성공하면 발급완료가 됩니다. 알림 수신자가 없어 발급 안내는 나가지 않습니다."));
+      }
     }
     fill(p, "notes", notes.length ? notes : "");
 
@@ -381,6 +408,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       }
       st.step = "ok";
       st.okRec = r;
+      st.late = settlementOf(client, ym, new Date()).status === "OVERDUE";
       sync();
       onDone && onDone({ type: "issue", rec: r });
       cancelBtn.focus();
@@ -403,7 +431,9 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     if (r.error === "EINVOICE_AT_INVALID") { st.timeServerBad = true; sync(); inDate.focus(); return; }
     /* 성공 — 줄을 먼저 다시 그리고(호출부) 창을 닫는다. 닫힐 때 포커스는 onClose 가 그 줄로 되돌린다. */
     onDone && onDone({ type: "issue", rec: r });
-    toast && toast(`발급완료로 저장했습니다. ${rc.ok ? `계산서 발급 안내를 ${rc.who}에게 보냈습니다` : "알림 수신자가 없어 계산서 발급 안내는 보내지 못했습니다"}`);
+    /* 기록하는 지금이 정산기한 다음 날 10:00 뒤면 발급 순간 기한 초과 — 두 안내가 함께 갔다고 말한다(쓴 뒤 다시 읽은 상태로) */
+    const overdueNow = settlementOf(client, ym, new Date()).status === "OVERDUE";
+    toast && toast(`발급완료로 저장했습니다${overdueNow ? " · 정산기한이 지나 기한 초과가 되었습니다" : ""}. ${issueNotice(rc, overdueNow, true)}`);
     d.close();
   }
 
@@ -450,7 +480,13 @@ export function openPaymentDialog({ client, ym, onDone, toast, onClose } = {}) {
   const now0 = new Date();
   const s0 = settlementOf(client, ym, now0);
   const od = s0.status === "OVERDUE";
-  const days = od ? Math.max(1, Math.floor((now0 - s0.overdueAt) / DAY)) : 0;
+  /* 기한 초과가 된 시각 = max(정산기한 다음 날 10:00, 계산서가 시스템에 생긴 시각 — 직접 입력은 기록한 시각)(settlementOf().overdueFrom —
+     표의 '…부터 기한 초과' 와 같은 값). 계산서가 정산기한 뒤에 나온(기록된) 달은 그 순간부터 기한 초과다(명세 3.4 · M39 · Q36 잠정).
+     까닭의 말은 표·진행 기록과 한 벌(OVERDUE_LATE_WORD — 다시 시도 '발급 순간' · 직접 입력 '기록한 순간'). */
+  const from = s0.overdueFrom || s0.overdueAt;
+  const late = overdueLateOf(s0);
+  const lateIssued = !!late;
+  const days = od ? Math.max(1, Math.floor((now0 - from) / DAY)) : 0;
   const ev = s0.einvoice;
   const st = { ack: false, err: null };
   const M = Number(ym.slice(5, 7));
@@ -460,15 +496,16 @@ export function openPaymentDialog({ client, ym, onDone, toast, onClose } = {}) {
   const kv = [
     { k: "금액", v: `${won(s0.amount)} · 전액` },
     { k: "정산기한", v: fmtKoShort(s0.dueAt) },
-    { k: "기한", v: od ? `기한 초과 · ${days}일 지남` : `${fmtKoShortTime(s0.overdueAt)} 전까지 기한 안`, warn: od },
-    { k: "계산서", v: ev ? `작성 ${fmtKoShort(s0.docDate)} · ${ev.mode === "manual" ? "직접 입력" : "자동 발급"}` : "-" },
+    { k: "기한", v: od ? `기한 초과 · ${days}일 지남` : `${fmtKoShortTime(from)} 전까지 기한 안`, warn: od },
+    /* 방식 낱말 셋 — 자동 발급 · 다시 시도 · 직접 입력(예전엔 다시 시도로 낸 계산서도 '자동 발급' 이라고 했다) */
+    { k: "계산서", v: ev ? `작성 ${fmtKoShort(s0.docDate)} · ${EINVOICE_MODE_WORD[ev.mode] || EINVOICE_MODE_WORD.auto}` : "-" },
   ];
   const notes = [
     od
-      ? noteBox("red", `${fmtKoShortTime(s0.overdueAt)}부터 기한 초과입니다`, rc.ok
-        ? "입금 기한 지남 안내가 이미 나갔습니다. 확인하면 입금완료로 닫힙니다."
-        : "알림 수신자가 없어 입금 기한 지남 안내는 보내지 못했습니다. 확인하면 입금완료로 닫힙니다.")
-      : noteBox("", `${fmtKoShortTime(s0.overdueAt)} 전에 확인하면`, "이 달은 기한 초과와 입금 기한 지남 안내 대상에서 빠집니다."),
+      ? noteBox("red", `${fmtKoShortTime(from)}부터 기한 초과입니다`, `${lateIssued ? `${OVERDUE_LATE_WORD[late]}입니다. ` : ""}${rc.ok
+        ? `입금 기한 지남 안내가 ${lateIssued ? "계산서 발급 안내와 함께 " : ""}이미 나갔습니다. 확인하면 입금완료로 닫힙니다.`
+        : "알림 수신자가 없어 입금 기한 지남 안내는 보내지 못했습니다. 확인하면 입금완료로 닫힙니다."}`)
+      : noteBox("", `${fmtKoShortTime(from)} 전에 확인하면`, "이 달은 기한 초과와 입금 기한 지남 안내 대상에서 빠집니다."),
     noteBox("", "부분 입금은 받지 않습니다", "전액이 들어온 경우에만 확인합니다. 금액이 다르면 거래처에 먼저 연락하세요."),
   ];
   const HINT_OFF = "확인에 체크해야 입금 확인할 수 있습니다";

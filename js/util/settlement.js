@@ -202,10 +202,10 @@ export function noRecipientOf(client) {
  *   issued: boolean, open: boolean, issueAt: Date, deadline: Date, dueAt: Date, overdueAt: Date,
  *   editLockAt: Date|null, editable: boolean, lockReason: string|null, lockShort: string|null,
  *   agreedAt: Date|null, mode: null|"manual"|"auto", docDate: Date|null,
- *   einvoice: { no, at: Date, mode: "auto"|"retry"|"manual", by: object|null }|null, einvoiceFail: { detail }|null,
+ *   einvoice: { no, at: Date, mode: "auto"|"retry"|"manual", by: object|null, recordedAt: Date|null }|null, einvoiceFail: { detail }|null,
  *   paidAt: Date|null, paidBy: object|null, termsHold: boolean, noRecipient: boolean,
  *   issuedAmount: number|null, amountChangedAt: Date|null, changed: boolean, changeCount: number,
- *   zeroEdited: boolean, zeroCloseAt: Date|null, docStamp: boolean }}
+ *   zeroEdited: boolean, zeroCloseAt: Date|null, docStamp: boolean, overdueFrom: Date|null, notice: object }}
  * - 0원 달(zero — 줄은 있고 합이 0원): 발급 때부터 0원이면 발행 전 SCHEDULED, 발행 뒤 PAID(동의·계산서·입금 칸은 비운다).
  * - 고쳐서 0원(zeroEdited — 발행 뒤 금액이 0이 됐다 · issuedAmount > 0): 마감까지 AWAITING_AGREEMENT(open:false · 보류 없음),
  *   마감(13:00) 뒤 PAID. 줄이 다 빠진 달(취소·삭제)도 이 갈래다 — NONE 이 아니다(서버엔 그 달 Settlement 가 있다).
@@ -214,6 +214,13 @@ export function noRecipientOf(client) {
  * - 계산서: 동의(수동·자동)된 달은 동의 시각에 자동 발급된 것으로 파생(승인번호도 결정적 — 예시 꼴, 미확정 M62 · by: null = '자동').
  *   store.einvoiceFail 에 든 달만 AGREED 에 머물고, 다시 시도·직접 입력(store.einvoice)이 성공하면 ISSUED.
  * - OVERDUE: 계산서가 나간 미입금 달이 정산기한 다음 날 10:00 을 지났다(정각 포함 · 발급이 그 뒤면 발급 순간부터).
+ *   overdueFrom = 기한 초과가 **된** 시각 = max(overdueAt, 계산서가 시스템에 생긴 시각) — 계산서가 정산기한 뒤에 나온 달(바로빌 장애 뒤
+ *   다시 시도 · 보류 달의 늦은 직접 동의)은 발급 순간 기한 초과다(명세 3.4 · M39 · N01 · 10.4 Q36 잠정 '지금 규칙 그대로'). 계산서가 없으면 null.
+ *   '시스템에 생긴 시각' = 직접 입력이면 **기록한 시각**(einvoice.recordedAt — 적은 발급 시각 at 은 바로빌 콘솔에서 낸 과거일 수 있다 ·
+ *   T6·T8 은 기록한 순간에 나간다 · M39 · 2026-10-19 검토 4 · 옛 기록은 at), 그 밖은 발급 시각(at). 까닭은 `overdueLateOf`.
+ *   진행 기록의 '기한 초과' 줄 · 표의 '…부터 기한 초과' · 입금 확인 창 · 포털 정산회계가 이 값을 쓴다(overdueAt 은 규칙상의 시각 그대로).
+ * - notice: 정산 안내 도달(settlement-rules `noticeState` — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류). 0원 달은 가리지
+ *   않은 날것이다 — 0원 달에는 T3·T4 가 없다(N20 ⓔ · Q21)는 것은 화면이 zero·zeroEdited 로 가린다.
  * - editable: SCHEDULED · NONE 이거나 (AWAITING_AGREEMENT 이고 now < editLockAt). lockReason 은 명세 6.4 세 문구 중 하나,
  *   lockShort 는 그 짧은 말(settlement-rules LOCK_SHORT — 0원 달은 null).
  *   ⚠️ NONE 이 editable 인 것은 '잠글 정산이 없다' 는 뜻이다 — 그 달로 **들어오는** 주문은 settlementImpactOf 가 막는다(사용자 답 3).
@@ -257,7 +264,7 @@ export function settlementOf(client, ym, now = new Date()) {
     agreedAt = st.at;
     const rec = store.einvoiceOf(client.id, ym);
     einvoice = rec
-      ? { no: rec.no, at: parseAt(rec.at), mode: rec.mode, by: rec.by || null }
+      ? { no: rec.no, at: parseAt(rec.at), mode: rec.mode, by: rec.by || null, recordedAt: parseAt(rec.recordedAt) }
       : fail ? null : { no: einvoiceNoFor(client.id, ym, st.at), at: st.at, mode: "auto", by: null };
     const pay = einvoice ? store.paymentOf(client.id, ym) : null;
     if (!einvoice) status = "AGREED";
@@ -291,6 +298,8 @@ export function settlementOf(client, ym, now = new Date()) {
     agreedAt, mode, docDate: zeroish ? null : st.docDate,
     einvoice, einvoiceFail: mode && !einvoice ? fail : null,
     paidAt, paidBy,
+    overdueFrom: einvoice && einvoice.at ? new Date(Math.max(overdueAt(ym).getTime(), (einvoice.recordedAt || einvoice.at).getTime())) : null,
+    notice: st.notice,
     termsHold: waiting && !zeroEdited && !!st.termsHold,
     noRecipient: noRecipientOf(client),
     issuedAmount,
@@ -578,6 +587,30 @@ export function latestInvoiceKey(client, now = new Date()) {
 /* (예전 `agreementFor` — 동의 상태 + 0원 여부 — 는 포털 거래명세서가 settlementOf 로 옮겨 호출부가 없어져 지웠다.
    0원 달은 동의를 받지 않는다는 규칙은 settlementOf(zero → PAID · 고쳐서 0원 → open:false) 와 store.agreeInvoice
    (보여 준 금액도 0 → null) 가 지킨다.) */
+/** 기한 초과가 규칙상 시각(정산기한 다음 날 10:00)보다 **늦게** 시작한 까닭 — null(제때 · 기한 초과 전) · "issue"(계산서가 정산기한 뒤에
+ *  발급됐다 — 다시 시도 · 늦은 동의) · "record"(직접 입력을 정산기한 뒤에 **기록**했다 — 적은 발급 시각은 그 전이어도 안내 T6·T8 은
+ *  기록한 순간 함께 나간다 · M39). 관리자 표 · 진행 기록 · 입금 확인 창이 같은 말(`OVERDUE_LATE_WORD`)을 쓴다. */
+export function overdueLateOf(s) {
+  if (!s || !s.einvoice || !s.overdueFrom || s.overdueFrom.getTime() <= s.overdueAt.getTime()) return null;
+  const e = s.einvoice;
+  return e.mode === "manual" && e.recordedAt && e.recordedAt.getTime() === s.overdueFrom.getTime() && e.at.getTime() < e.recordedAt.getTime()
+    ? "record" : "issue";
+}
+/** 위 까닭의 말 — '…부터 기한 초과 · {말}' 자리 */
+export const OVERDUE_LATE_WORD = {
+  issue: "계산서가 정산기한 뒤에 발급돼 발급 순간부터",
+  record: "직접 입력을 정산기한 뒤에 기록해 기록한 순간부터",
+};
+/** 마감 전인데 **이대로면 보류**(고지 미도달 · 정지 중 마감)가 잡힐 달 — `notice.hold`(settlement-rules `noticeState`) 예측. 그런 달에
+ *  '마감까지 동의가 없으면 그 시각에 자동 동의됩니다' 라고 단정하지 않는다(관리자 정산회계 · 포털 거래명세서 · 포털 정산회계가 같은 판정 ·
+ *  2026-10-19 검토 9). 아직 오지 않은 시각(마감 당일 10:00 · 마감 13:00)의 상태는 지금 상태로 본다. 보류는 마감 시각에 정해지므로
+ *  settlementOf 의 autoAgreeHold 는 마감 뒤에야 선다 — 그 전 예측이 이것이다. 고쳐서 0원인 달은 동의를 받지 않아 해당 없음. */
+export const holdPendingOf = (s) => !!s && s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold && !s.zeroEdited && !!(s.notice && s.notice.hold);
+
+/** 계산서 발급 방식 낱말(명세 6.6 einvoice.mode) — 세 낱말을 한 벌로 둔다. 예전엔 화면마다 `mode === "manual" ? "직접 입력" : "자동 발급"`
+ *  이라 다시 시도로 낸 계산서가 '자동 발급' 으로 읽혔다(입금 확인 창 '계산서' 줄 · 2026-10-19). */
+export const EINVOICE_MODE_WORD = { auto: "자동 발급", retry: "다시 시도", manual: "직접 입력" };
+
 /** 거래처의 계산서 발급 동의 — **화면이 보여 준 금액**(shownAmount)을 함께 보낸다(명세 3.4 '마감 전 수정' 5).
  *  반환: 동의 시각 문자열 · null(동의할 수 없는 상태 — 마감 지나 자동 동의 등 · 보여 준 금액도 지금 금액도 0) ·
  *        `{ error: "SETTLEMENT_AMOUNT_CHANGED", amount, issuedAmount }`(그 사이 금액이 바뀜 — **금액 불일치를 먼저 본다**:

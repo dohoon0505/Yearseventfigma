@@ -9,7 +9,7 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
-import { onPhoneInput, phoneOk } from "../util/phone.js";
+import { onContactPhoneInput, contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup } from "../util/dialog.js";
 import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
@@ -533,7 +533,9 @@ export function mount(root, { nav }) {
       const out = REQUIRED.filter(([k]) => !String(form[k] ?? "").trim()).map(([, l]) => l);
       if (isEdit ? false : !String(form.accountId ?? "").trim()) out.unshift("접속 아이디");
       if (!isEdit && !bill.name.trim()) out.push("정산담당자 이름");
-      if (!isEdit && !phoneOk(bill.phone)) out.push("정산담당자 연락처");
+      /* 정산 담당 연락처는 담당자 연락처 기준(util/phone.js contactPhoneOk — 숫자 10~12자리 · 010 번호는 11자리 · 2026-10-19 사용자
+         결정 ⓔ — 담당자 등록 창·담당자 관리 창·가입 2단계와 같은 판정)이다. 적다 만 번호면 무엇이 모자란지 함께 말한다. */
+      if (!isEdit && !contactPhoneOk(bill.phone)) out.push(bill.phone.trim() ? `정산담당자 연락처(${contactPhoneNeed(bill.phone)})` : "정산담당자 연락처");
       if (dupes().length && !String(form.department ?? "").trim()) out.push("계정 구분");
       return out;
     };
@@ -955,7 +957,7 @@ export function mount(root, { nav }) {
     });
     on(panel, "input", "[data-bill]", (e, t) => {
       const k = t.dataset.bill;
-      bill[k] = k === "phone" ? onPhoneInput(t) : t.value;
+      bill[k] = k === "phone" ? onContactPhoneInput(t) : t.value;
       touched[`bill.${k}`] = 1;
       renderFt();
     });
@@ -1127,7 +1129,7 @@ export function mount(root, { nav }) {
         if (!String(form.contact ?? "").trim()) form.contact = bill.phone;
         store.addClient({ ...form });
         store.setContactsOf(form.id, [{
-          id: newContactId(), name: bill.name.trim(), role: "", phone: bill.phone,
+          id: newContactId(), name: bill.name.trim(), role: "", phone: bill.phone.trim(),
           message: MSG_RECEIVE, isBilling: true,
         }]);
         isEdit = true; // 이제 이 창은 방금 만든 거래처의 수정 창이다 — 헤더·레일·배너가 그 모습으로 바뀐다

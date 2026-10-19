@@ -12,7 +12,7 @@ import {
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
   INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel, DEADLINE_HOUR,
   editLockAt, overdueAt, isEditLocked, isPastOverdue, LOCK_REASON, HOLD_LABEL, HOLD_CODES,
-  editLockDayOf,
+  editLockDayOf, statusAt, noticeState, noticeResendAt, SUSPENDED,
 } from "../js/data/settlement-rules.js";
 import { TERMS } from "../js/data/terms.js";
 
@@ -258,6 +258,103 @@ eq("마감 때 보류: 11~28 그룹(15일 · 마감 09-28 13:00) 마감 뒤 직�
   agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-29 09:00", termsAt: "2026-01-01 09:00", hold: "CLIENT_SUSPENDED", now: D(2026, 9, 30) }).heldAtDeadline, "CLIENT_SUSPENDED");
 eq("마감 때 보류: 11~28 그룹 마감 전 직접 동의 → 없음",
   agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-28 12:59", termsAt: "2026-01-01 09:00", hold: "CLIENT_SUSPENDED", now: D(2026, 9, 30) }).heldAtDeadline, null);
+
+/* ── 거래처 상태 이력(statusAt) — 2026-10-19 '정지 이력을 남긴다'. 지금 상태 하나로 지난 달을 가르면 정지를 풀거나 거는
+   순간 지난 달의 보류·안내 기록이 소급해 바뀐다(발급일 이력과 같은 함정) ── */
+const LOG = [{ at: "2026-09-08 16:00", from: "활성", to: "정지" }, { at: "2026-09-11 10:00", from: "정지", to: "활성" }];
+const cl = (status, statusLog) => ({ status, statusLog });
+eq("상태: 이력 없음 → 지금 상태(활성)", statusAt(cl("활성"), D(2026, 1, 1)), "활성");
+eq("상태: 이력 없음 → 지금 상태(정지)가 내내", statusAt(cl("정지"), D(2020, 1, 1)), "정지");
+eq("상태: 상태 칸 없음 → 활성", statusAt({}, D(2026, 9, 1)), "활성");
+eq("상태: 첫 이력 앞 → 첫 이력의 from", statusAt(cl("활성", LOG), D(2026, 9, 8, 15, 59)), "활성");
+/* 줄 시각 'HH:mm' 은 그 분의 끝(HH:mm:59.999)에 일어난 것으로 본다(2026-10-19 검토 5 — 초를 버린 기록이다) */
+eq("상태: 같은 분 안은 바뀌기 전(16:00:00)", statusAt(cl("활성", LOG), D(2026, 9, 8, 16)), "활성");
+eq("상태: 같은 분 안은 바뀌기 전(16:00:59.998)", statusAt(cl("활성", LOG), new Date(2026, 8, 8, 16, 0, 59, 998)), "활성");
+eq("상태: 그 분이 끝나면 바뀐 뒤(16:01)", statusAt(cl("활성", LOG), D(2026, 9, 8, 16, 1)), "정지");
+eq("상태: 두 이력 사이", statusAt(cl("활성", LOG), D(2026, 9, 10, 13)), "정지");
+eq("상태: 해제 줄과 같은 분(10:00) — 아직 정지", statusAt(cl("활성", LOG), D(2026, 9, 11, 10)), "정지");
+eq("상태: 마지막 이력 뒤 → 레코드의 지금 상태", statusAt(cl("활성", LOG), D(2026, 9, 11, 10, 1)), "활성");
+eq("상태: 이력과 레코드가 어긋나면 마지막 이력 뒤는 레코드가 맞다", statusAt(cl("정지", LOG), D(2026, 10, 1)), "정지");
+eq("상태: 순서가 뒤섞인 이력도 시각순으로", statusAt(cl("활성", [LOG[1], LOG[0]]), D(2026, 9, 9)), "정지");
+eq("상태: 깨진 줄은 버린다", statusAt(cl("활성", [{ at: "어제", from: "활성", to: "정지" }]), D(2026, 9, 9)), "활성");
+/* 사슬이 끊긴 이력(검토 2 — 옛 저장본에 시드 줄 '활성 → 정지' 만 얹히고 저장된 상태는 '활성' · 10-20 에 다시 정지): 두 줄 사이는
+   **다음 줄의 from**(그 순간 저장소의 실제 직전 상태)으로 읽는다. 앞 줄의 to 로 읽던 때는 10-08~10-20 이 '정지' 로 읽혀 9월이
+   소급해 '정지 중 마감' 이 됐다. */
+{
+  const broken = cl("정지", [{ at: "2026-10-08 16:00", from: "활성", to: "정지" }, { at: "2026-10-20 10:00", from: "활성", to: "정지" }]);
+  eq("상태: 끊긴 사슬 — 두 줄 사이는 다음 줄의 from(활성)", statusAt(broken, D(2026, 10, 10, 13)), "활성");
+  eq("상태: 끊긴 사슬 — 첫 줄 앞은 첫 줄의 from", statusAt(broken, D(2026, 10, 1)), "활성");
+  eq("상태: 끊긴 사슬 — 마지막 줄 뒤는 레코드(정지)", statusAt(broken, D(2026, 10, 21)), "정지");
+  eq("안내: 끊긴 사슬 — 9월분 마감(10-10 13:00) 때 활성 · 보류 없음",
+    noticeState({ period: "2026-09", invoiceDay: "1", client: broken }).hold, null);
+  eq("상태: from 이 빠진 깨진 줄 — 레코드 상태로", statusAt(cl("정지", [{ at: "2026-10-20 10:00", to: "정지" }]), D(2026, 10, 1)), "정지");
+}
+eq("상태: 낱말", SUSPENDED, "정지");
+
+/* ── 정산 안내 도달(noticeState) — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류(명세 3.4 '잠정 보류 두 가지' · 9.4 · 10.4 Q19·Q20·Q35)
+   귀속 2026-08 · 발급일 1일: 발급 09-01 10:00 · 수정 마감(T4) 09-09 10:00 · 다시 보내기 09-10 10:00 · 마감 09-10 13:00 ── */
+eq("다시 보내기 = 마감 당일 10:00(1일)", noticeResendAt("2026-08", 1), D(2026, 9, 10, 10));
+eq("다시 보내기 = 마감 당일 10:00(15일)", noticeResendAt("2026-08", 15), D(2026, 9, 28, 10));
+const NS = (o) => noticeState({ period: "2026-08", invoiceDay: "1", client: cl("활성"), ...o });
+const why = (n) => [n.t3.why, n.t4 && n.t4.why, n.resend && (n.resend.reached ? "REACHED" : n.resend.why), n.hold];
+eq("안내: 평소 — 모두 닿음 · 다시 보낼 일 없음 · 보류 없음", JSON.stringify(why(NS({}))), JSON.stringify([null, null, null, null]));
+eq("안내: 시각 = 발급 · 수정 마감 · 다시 보내기 · 마감", [NS({}).t3.at, NS({}).t4.at, NS({}).resendAt, NS({}).deadline].map(fmtAt).join(","),
+  "2026-09-01 10:00,2026-09-09 10:00,2026-09-10 10:00,2026-09-10 13:00");
+eq("안내: 내내 정지(이력 없음) — T3·T4 안 보냄 · 다시 보내지 않음 · 정지 중 마감",
+  JSON.stringify(why(NS({ client: cl("정지") }))), JSON.stringify(["SUSPENDED", "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]));
+eq("안내: 수정 마감 전날 정지 → 마감 다음 날 해제(싱싱마켓 시드 모양) — T3 은 나감 · 정지 중 마감",
+  JSON.stringify(why(NS({ client: cl("활성", LOG) }))), JSON.stringify([null, "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]));
+const L2 = (off, on) => cl("활성", [{ at: off, from: "활성", to: "정지" }, { at: on, from: "정지", to: "활성" }]);
+eq("안내: T4 때 정지 → 다시 보내기 전에 해제 — 마감 당일 다시 보내 닿음 · 보류 없음(Q35 ③)",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-09 15:00") }))), JSON.stringify([null, "SUSPENDED", "REACHED", null]));
+eq("안내: 다시 보내기 뒤(11:00) 해제 — 그 시각엔 정지라 못 보냄 · 마감 땐 활성 → 고지 미도달",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-10 11:00") }))), JSON.stringify([null, "SUSPENDED", "SUSPENDED", "NOTICE_UNDELIVERED"]));
+eq("안내: 해제했지만 정산 담당 연락처 없음 — 다시 보내도 닿지 않음 → 고지 미도달(데모 규칙)",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-09 15:00"), reach: false }))), JSON.stringify(["NO_RECIPIENT", "SUSPENDED", "NO_RECIPIENT", "NOTICE_UNDELIVERED"]));
+eq("안내: 발송 실패 기록(고지 미도달 대역) — T4·다시 보내기 모두 닿지 않음",
+  JSON.stringify(why(NS({ undelivered: true }))), JSON.stringify([null, "UNDELIVERED", "UNDELIVERED", "NOTICE_UNDELIVERED"]));
+eq("안내: 발송 실패 기록 + 마감 때 정지 — 정지 중 마감이 먼저",
+  NS({ undelivered: true, client: cl("정지", [{ at: "2026-09-10 12:00", from: "활성", to: "정지" }]) }).hold, "CLIENT_SUSPENDED");
+eq("안내: 수정 마감 전에 직접 동의 — T4 없음 · 다시 보낼 일 없음 · 보류 없음(발송 실패 기록이 있어도)",
+  JSON.stringify(why(NS({ undelivered: true, manualAt: "2026-09-08 11:00" }))), JSON.stringify([null, null, null, null]));
+eq("안내: 수정 마감 정각에 동의 — T4 는 그 달에 있다(진행 기록과 같은 경계)", NS({ manualAt: "2026-09-09 10:00" }).t4 !== null, true);
+eq("안내: T4 때 정지 → 해제 뒤 다시 보내기 전에 직접 동의 — 다시 보낼 일 없음 · 보류 없음",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-09 15:00"), manualAt: "2026-09-09 16:00" }))), JSON.stringify([null, "SUSPENDED", null, null]));
+eq("안내: 연락처만 없음(정지·실패 기록 없음) — T4 미도달이지만 보류로 치지 않는다(연락처 이력이 없어 소급 위험 · M52)",
+  JSON.stringify(why(NS({ reach: false }))), JSON.stringify(["NO_RECIPIENT", "NO_RECIPIENT", null, null]));
+/* 분 단위 기록의 경계(검토 5) — 줄 'HH:mm' 은 그 분의 끝. 보내는 시각(10:00:00)·마감(13:00:00)과 같은 분에 기록된 정지는 그 뒤다. */
+const susp1 = (at) => cl("정지", [{ at, from: "활성", to: "정지" }]);
+eq("안내: 수정 마감 1분 전(09:59) 정지 — T4 를 보내지 않는다", NS({ client: susp1("2026-09-09 09:59") }).t4.why, "SUSPENDED");
+eq("안내: 수정 마감과 같은 분(10:00) 정지 — T4 는 이미 나갔다", NS({ client: susp1("2026-09-09 10:00") }).t4.why, null);
+eq("안내: 발급 1분 전(09:59) 정지 — T3 를 보내지 않는다", NS({ client: susp1("2026-09-01 09:59") }).t3.why, "SUSPENDED");
+eq("안내: 발급과 같은 분(10:00) 정지 — T3 는 나갔다 · T4 는 정지라 안 보냄",
+  JSON.stringify(why(NS({ client: susp1("2026-09-01 10:00") }))), JSON.stringify([null, "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]));
+eq("안내: 마감 1분 뒤 정지 — 마감 때는 활성 · T3·T4 정상 · 보류 없음",
+  JSON.stringify(why(NS({ client: susp1("2026-09-10 13:01") }))), JSON.stringify([null, null, null, null]));
+eq("안내: 마감 1분 전(12:59) 정지 기록 — 마감 때 정지(정지 중 마감)", NS({ client: susp1("2026-09-10 12:59") }).hold, "CLIENT_SUSPENDED");
+eq("안내: 마감과 같은 분(13:00) 정지 기록 — 13:00:40 정지도 '13:00' 이다 · 마감 뒤라 보류 아님(예전엔 정지로 쳐 자동 동의를 뒤집었다)",
+  NS({ client: susp1("2026-09-10 13:00") }).hold, null);
+eq("안내: 다시 보내기 1분 전(09:59) 해제 — 마감 당일 10:00 에 다시 보내 닿음",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-10 09:59") }))), JSON.stringify([null, "SUSPENDED", "REACHED", null]));
+eq("안내: 다시 보내기와 같은 분(10:00) 해제 — 그 시각엔 아직 정지 · 고지 미도달",
+  JSON.stringify(why(NS({ client: L2("2026-09-05 09:00", "2026-09-10 10:00") }))), JSON.stringify([null, "SUSPENDED", "SUSPENDED", "NOTICE_UNDELIVERED"]));
+eq("안내: 발급 전에 정지 → T3 안 보냄, 수정 마감 전에 해제 → T4 는 나감 · 보류 없음",
+  JSON.stringify(why(NS({ client: L2("2026-08-30 10:00", "2026-09-03 10:00") }))), JSON.stringify(["SUSPENDED", null, null, null]));
+{
+  const n = noticeState({ period: "2026-08", invoiceDay: "15", client: L2("2026-09-20 10:00", "2026-09-27 15:00") });
+  eq("안내: 11~28 그룹(15일) — 수정 마감 09-27 10:00 정지 → 28일 10:00 다시 보내 닿음", JSON.stringify([fmtAt(n.t4.at), n.t4.why, fmtAt(n.resend.at), n.resend.reached, n.hold]),
+    JSON.stringify(["2026-09-27 10:00", "SUSPENDED", "2026-09-28 10:00", true, null]));
+}
+/* 보류 코드가 agreementState 에 그대로 들어간다 — 약관 보류가 먼저 · 직접 동의가 이긴다 */
+{
+  const hold = NS({ client: cl("활성", LOG) }).hold;
+  const st = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold, now: D(2026, 9, 12) });
+  eq("안내 → 동의: 정지 중 마감 → 자동 동의 보류", [st.mode, st.autoAgreeHold, st.heldAtDeadline].join(","), ",CLIENT_SUSPENDED,CLIENT_SUSPENDED");
+  const st2 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold, manualAt: "2026-09-12 09:00", now: D(2026, 9, 12, 10) });
+  eq("안내 → 동의: 해제 뒤 직접 동의 — 수동 · 마감 때 보류는 남는다", [st2.mode, st2.autoAgreeHold, st2.heldAtDeadline].join(","), "manual,,CLIENT_SUSPENDED");
+  const st3 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: null, hold, now: D(2026, 9, 12) });
+  eq("안내 → 동의: 약관 동의 전 + 정지 중 마감 → 약관이 먼저", st3.autoAgreeHold, "TERMS_NOT_AGREED");
+}
 
 /* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 버전 고정 문장이라 파생하지 않는다) ── */
 const clause2 = TERMS[0].items[1];

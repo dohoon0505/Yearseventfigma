@@ -35,7 +35,7 @@ import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
-import { bindRadioGroup } from "../util/dialog.js";
+import { bindRadioGroup, linkReason } from "../util/dialog.js";
 import { applyOrderText } from "../data/order-text.js";
 import { histEntry } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
@@ -59,6 +59,8 @@ import {
   B2B_STATUSES, b2bList, b2bUpsert, b2bRemove, b2bCancel,
   b2bSetManager, b2bNewId, b2bNextOrderNo,
 } from "../data/b2b-mock.js";
+/* 취소 수수료 규칙(B2B·B2C 공통 · import 0 — 쓰기 함수가 같은 함수로 한 번 더 막는다). */
+import { cancelFeeError, orderFeeError } from "../data/order-rules.js";
 
 const TABS = tabDefs(B2B_STATUSES);
 /* B2C 는 접수일/배송일, B2B 는 주문일/배송일 — 필드 이름이 date 라 라벨이 다르다 */
@@ -112,6 +114,9 @@ export function mount(root, { nav }) {
   const findOrder = (id) => b2bList().find((o) => o.id === id);
   /* 주문 저장 함수는 브라우저 저장 공간이 차면 실패를 돌려준다(b2b-mock) — 그때 화면이 하는 말. */
   const SAVE_FAIL = "저장하지 못했습니다 · 브라우저 저장 공간이 부족합니다";
+  /* 쓰기 함수는 취소 수수료 규칙(수수료 ≤ 금액 — 명세 5.3 · 6.4 `400 CANCEL_FEE_INVALID`)을 어겨도 같은 거짓 값을 돌려준다.
+     저장 공간 문제와 다른 말을 하려면 쓰기 전에(또는 실패한 뒤) 같은 판정을 다시 본다. */
+  const writeFail = (next, prev) => { const e = orderFeeError(next, prev); return e ? `저장하지 못했습니다 · ${e.message}` : SAVE_FAIL; };
   const closeModal = () => { const m = activeModal; activeModal = null; if (m) m.close(); };
 
   /* ══ 필터 ═══════════════════════════════════════════════ */
@@ -703,8 +708,13 @@ export function mount(root, { nav }) {
     const imp = n ? impactNow() : null;
     lastImp = imp;
     const pre = preBlockOf(imp);
+    /* 취소한 주문의 금액을 수수료보다 작게 고치면 막는다(명세 5.3 불변식 `cancel_fee ≤ amount` — 취소한 뒤에도). 칸은 그대로 두고 저장 줄이
+       이유를 말한다. 정산 잠김(pre)보다 **먼저** 말한다 — 이것은 고친 값 자체가 틀린 것(서버 400)이고 칸을 고치면 바로 풀리지만, 잠김은
+       상태 충돌(409)이다. 취소한 주문은 금액이 정산에 들지 않아(수수료만 취소한 달에) 둘이 함께 걸리는 일은 지금 규칙으로는 없다. */
+    const feeLow = n ? orderFeeError(mergedNow(), findOrder(editing.id)) : null;
     let text, cls, tip = "", ask = false;
-    if (pre) { text = lockSentence(pre, pre.isOld ? "다른 달로 옮길" : "그 달로 옮길"); cls = "is-block"; tip = pre.reason; }
+    if (feeLow) { text = feeLow.message; cls = "is-block"; }
+    else if (pre) { text = lockSentence(pre, pre.isOld ? "다른 달로 옮길" : "그 달로 옮길"); cls = "is-block"; tip = pre.reason; }
     else if (unsaved) { text = n ? `수정한 항목 ${n}개 · ${unsaved}` : unsaved; cls = "is-block"; tip = unsavedTip; }
     else if (!n) { text = savedAt ? `저장됨 · ${savedAt}` : "변경 없음"; cls = savedAt ? "is-saved" : ""; }
     else if (imp && !imp.lock && imp.confirm.length) { text = `저장 전에 확인합니다 · ${monthsLine(imp)}`; cls = "is-dirty"; ask = true; }
@@ -716,9 +726,18 @@ export function mount(root, { nav }) {
       if (tip) stat.title = tip; else stat.removeAttribute("title");
     }
     const btn = qs(p, "[data-action='save']");
-    if (btn) { btn.disabled = !n || !!pre; btn.textContent = !n ? "저장" : ask ? "변경사항 저장…" : "변경사항 저장"; }
+    if (btn) { btn.disabled = !n || !!pre || !!feeLow; btn.textContent = !n ? "저장" : ask ? "변경사항 저장…" : "변경사항 저장"; }
+    linkAmtWhy(!!feeLow);
     syncDeliv(imp);
     syncSettleRow(imp);
+  }
+  /* 금액 < 수수료로 막혔으면 그 이유(저장 줄)를 **금액 칸에 잇는다**(util/dialog.js linkReason — aria-invalid + aria-describedby).
+     저장 줄은 live 가 아니라(order-screen footerV2 — 입력마다 읽히면 시끄럽다) 칸에 있는 화면낭독기 사용자는 왜 저장이 잠겼는지
+     듣지 못했다. 풀리면 걷는다 — 칸이 원래 갖던 설명('명세서 나감' 줄)은 남는다. focusout 이 칸을 받아들인 값으로 다시 쓰며
+     aria-invalid 를 끄므로(putAmt) 거기서도 다시 잇는다. */
+  function linkAmtWhy(low = !!(editing && dirtyCount() && orderFeeError(mergedNow(), findOrder(editing.id)))) {
+    const p = panelOf(); if (!p) return;
+    linkReason(qs(p, "input[data-f='amount']"), qs(p, "[data-slot='dirty']"), low);
   }
   /* 주문정보 카드의 파생 칸 두 개 — 입력의 형제라 textContent·title 만 바꾼다(커서 보호). */
   function syncPeriod() {
@@ -1613,6 +1632,8 @@ export function mount(root, { nav }) {
     if (!editing) return;
     if (!editing.clientId || !editing.product) { toast("거래처와 주문상품은 필수입니다", "warn"); return; }
     const stored = findOrder(editing.id);
+    /* 취소한 주문의 금액 < 수수료(서버 400 대역) — 저장 줄이 이미 막지만 누르는 순간 한 번 더 본다. 정산 판정보다 먼저(syncDirty 와 같은 순서). */
+    if (orderFeeError(mergedNow(), stored)) { syncDirty(); toast(writeFail(mergedNow(), stored), "warn"); focusAfterSave(panelOf()); return; }
     const imp = stored ? settlementImpactOf(stored, mergedNow(), new Date()) : null;
     if (imp && imp.lock) {
       rejectLocked(imp.lock, stored);
@@ -1669,7 +1690,7 @@ export function mount(root, { nav }) {
     merged.history = hist;
     /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다.
        사유(note)는 명세서가 나간 달의 금액이 바뀌면 b2b-mock 이 정산 금액 변경 기록에 함께 남긴다(처리자는 currentActor). */
-    if (!b2bUpsert(merged, { note })) { toast(SAVE_FAIL, "warn"); return false; }
+    if (!b2bUpsert(merged, { note })) { toast(writeFail(merged, stored), "warn"); return false; }
     const saved = findOrder(merged.id);
     delete merged.history; // 작업본(editing)에는 저장된 레코드의 이력을 따로 붙인다(참조 공유 방지)
     refreshList();
@@ -1921,14 +1942,24 @@ export function mount(root, { nav }) {
         /* 확정하면 아래에서 머리를 다시 그려 창이 돌려줄 ··· 가 사라진다(초점이 body 로 빠졌다) — 새 ··· 로. */
         onClose: () => menu.refocus(),
         onConfirm: ({ reason, fee }) => {
+          const { history: _x, ...rec } = editing;
+          /* 수수료 상한(명세 6.4 `400 CANCEL_FEE_INVALID` — 0원부터 이 주문 금액까지). 창이 이미 '주문 취소하기' 를 잠그지만 쓰기 **전에**
+             같은 규칙(b2bCancel 과 같은 함수)으로 한 번 더 본다 — 쓰기 둘 중 앞의 것(작업본 저장)만 들어가고 취소는 막힌 채 남지 않게.
+             기준은 곧 저장될 작업본 금액이다(아래에서 먼저 저장한다 — 창에 보인 금액과 같다). 잠김(409)보다 먼저 본다(저장 줄과 같은 순서). */
+          const feeErr = cancelFeeError(rec.amount, fee);
+          if (feeErr) { toast(`취소하지 못했습니다 · ${feeErr.message}`, "warn"); return; }
           /* 사유를 적는 사이 잠겼을 수 있다 — 취소하는 순간 한 번 더 판정한다(서버 409 대역 · 적은 수수료로). */
           const h2 = cancelHit(fee);
           if (h2) { toast(lockMsg(h2, "취소할"), "warn"); return; }
           /* 작성 중인 수정은 지금 상태 그대로 먼저 저장하고, 취소는 b2bCancel 이 한 번에 남긴다(사유·수수료·
              취소 시각 canceledAt·이력). ⚠️ 예전엔 상태를 '취소'로 바꾼 레코드를 먼저 upsert 해서 뒤의
              b2bSetStatus 가 '값이 그대로'로 건너뛰어 **취소 이력이 한 줄도 남지 않았다**. */
-          const { history: _x, ...rec } = editing;
-          if (!b2bUpsert(rec) || !b2bCancel(editing.id, { reason, fee })) { toast(SAVE_FAIL, "warn"); return; }
+          if (!b2bUpsert(rec)) { toast(writeFail(rec, findOrder(editing.id)), "warn"); return; }
+          if (!b2bCancel(editing.id, { reason, fee })) {
+            const e2 = cancelFeeError((findOrder(editing.id) || rec).amount, fee);
+            toast(e2 ? `취소하지 못했습니다 · ${e2.message}` : SAVE_FAIL, "warn");
+            return;
+          }
           const stored = findOrder(editing.id);
           if (stored) {
             Object.assign(editing, {
@@ -1976,7 +2007,7 @@ export function mount(root, { nav }) {
       if (k === "ordererName") syncReqPhone(); // 연락처는 이 칸에 적힌 사람의 번호다
       syncDirty();
     });
-    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) putAmt(t, editing.amount); });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) { putAmt(t, editing.amount); linkAmtWhy(); } });
     /* 담당자 미지정(포털 자동 유입) 주문은 열자마자 지정을 받는다 */
     if (!editing.manager) openManagerModal();
   }

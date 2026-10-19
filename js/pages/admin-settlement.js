@@ -50,11 +50,13 @@ import { USAGE_CATEGORIES, DATA_NOW } from "../data/admin-mock.js";
 /* 정산 상태·청구 근거는 B2B 주문(배송일의 달)에서 파생한다(2026-10-16 — 주문과 정산 연결). 청구금액·펼친 품목·리포트가 같은 소스. */
 import {
   settlementOf, settlementsMap, usageMap, billingEntriesOf, needsAction, isUnpaid, amountChangesOf, amountChangeLine,
+  EINVOICE_MODE_WORD, holdPendingOf, overdueLateOf, OVERDUE_LATE_WORD,
 } from "../util/settlement.js";
 import { printInvoiceFor } from "../util/invoice-data.js";
 import { actorLabel } from "../util/actor.js";
 import {
   periodOf, periodLabel, shiftPeriod, fmtMd, fmtMdHm, fmtKoShort, fmtKoShortTime, HOLD_LABEL, LOCK_REASON,
+  SUSPENDED,
 } from "../data/settlement-rules.js";
 import { sharedBizKeys, normalizeBiz } from "../util/biz.js";
 import { termsPending } from "../util/client.js";
@@ -112,11 +114,62 @@ function deltaBadge(delta, suffix = "원") {
 const NONE = { kind: "none" };
 /* 자동 동의 보류 줄의 설명(⑫ — 펼침 처리 카드 · 마우스 올림이 같은 말을 한다) */
 const HOLD_WHY = "마감이 지났지만 거래처가 직접 동의할 수 있습니다. 오래 동의하지 않으면 운영이 연락합니다. 수정 마감이 지나 금액은 고칠 수 없습니다.";
-/* 마감 전인데 보류(고지 미도달 · 정지 중 마감)가 이미 잡혀 있는 달 — 데모 대역 store.holdOf(진행 기록의 '마감 하루 전 안내가
-   닿지 않았습니다' 와 같은 소스). settlementOf 는 마감이 지나야 autoAgreeHold 를 준다(보류는 마감 시각에 정해진다). 그 전에
-   '마감에 자동 동의됩니다' 라고 단정하면 같은 줄의 진행 기록과 반대말을 한다(C005·C009 9월 · 10-09 10:00~10-10 13:00 실측) —
-   그런 달은 사실(수정 마감 · 마감 시각 · 안내가 닿지 않았다)만 말한다. */
-const holdPending = (client, s) => s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold && !!store.holdOf(client.id, s.period);
+/* 마감 전인데 이대로면 보류(고지 미도달 · 정지 중 마감)가 잡힐 달 — util/settlement `holdPendingOf`(settlementOf().notice.hold — 진행
+   기록의 '마감 하루 전 안내가 닿지 않았습니다' · '정지 중이라 … 보내지 않았습니다' 와 같은 소스 · 포털 거래명세서·정산회계도 같은 판정).
+   아직 오지 않은 시각(마감 당일 10:00 · 마감 13:00)의 상태는 지금 상태로 본다 — 지금 정지 중이면 마감 때도 정지일 수 있다.
+   settlementOf 는 마감이 지나야 autoAgreeHold 를 준다(보류는 마감 시각에 정해진다). 그 전에 '마감에 자동 동의됩니다' 라고 단정하면
+   같은 줄의 진행 기록과 반대말을 한다(C005·C009 9월 · 10-09 10:00~10-10 13:00 실측) — 그런 달은 사실(수정 마감 · 마감 시각 ·
+   안내가 닿지 않았다)만 말한다. */
+const holdPending = holdPendingOf;
+/* '지금 정지 중인가' 는 레코드의 상태로 본다 — settlement-rules `statusAt` 은 이력 줄 'HH:mm' 을 그 분의 끝으로 읽어(분 단위 기록의
+   경계 · 검토 5) 방금 정지한 그 1분 동안 statusAt(now) 가 아직 '활성' 이다. 지난 시각(안내 · 마감)의 상태만 statusAt(notice) 으로. */
+const suspendedNow = (client) => !!client && client.status === SUSPENDED;
+/* ── 정산 안내(T3 명세서 발급 안내 · T4 마감 하루 전 안내 · 마감 당일 다시 보내기)를 '보냈다 / 못 보냈다' 고 말하는 판정 ──
+   진행 기록 · '기한 · 비고' 마우스 올림 · 펼침 '고칠 수 있음' 줄이 **같은 판정**을 쓴다(settlementOf().notice · 2026-10-19).
+   · 0원 달(발급 때부터 0원)은 T3 이 없다(2차 답 N20 ⓔ · Q21 잠정) — 고쳐서 0원이 된 달은 발급 때 금액이 있어 T3 이 나갔고 T4 가 없다.
+   · 정지 중에는 T3·T4 를 보내지 않는다 — '정지 중' 은 그 알림을 보내는 시각의 상태(Q35 ② 잠정 · statusLog). T6~T8 은 평소대로(① 잠정).
+   · 마감 하루 전 안내가 닿지 않은 달(발송 실패 기록 · 정지라서 보내지 않음)은 마감 당일 10:00 에 다시 보낸다(Q19 잠정 · 정지라서 못 보낸 달은 Q35 ③ — 2026-10-19 운영자 확인).
+   이유는 글자로 적는다(사용자 결정 — '알림 수신자 없음' 줄과 같은 자리 · 같은 말투). */
+const NOT_SENT = "알림 수신자 없음 · 안내를 보내지 못했습니다";
+const reachOf = (ct) => !!ct && !!String(ct.phone || "").trim();
+/** 발급 때부터 0원인 달 — 명세서만 내고 T3·동의·계산서·T4~T8 이 없다. */
+const firstZeroOf = (s) => s.zero && !s.zeroEdited;
+function t3Text(s, ct) {
+  if (firstZeroOf(s)) return "0원 달이라 발급 안내는 보내지 않습니다";
+  if (s.notice && s.notice.t3.why === "SUSPENDED") return "정지 중이라 안내를 보내지 않았습니다";
+  return reachOf(ct) ? `발급 안내 → ${ct.name} · ${won(s.issuedAmount)}` : NOT_SENT;
+}
+function t4Text(s, ct) {
+  const t4 = s.notice && s.notice.t4;
+  if (t4 && t4.why === "SUSPENDED") return "정지 중이라 마감 하루 전 안내를 보내지 않았습니다";
+  if (t4 && t4.why === "UNDELIVERED") return "마감 하루 전 안내가 닿지 않았습니다";
+  return reachOf(ct) ? `마감 하루 전 안내 → ${ct.name} · 최종 ${won(s.amount)}` : NOT_SENT;
+}
+function resendText(r, s, ct) {
+  if (r.why === "SUSPENDED") return "정지 중이라 마감 하루 전 안내를 다시 보내지 않았습니다";
+  if (r.why === "UNDELIVERED") return "마감 하루 전 안내를 다시 보냈지만 닿지 않았습니다";
+  if (r.why === "NO_RECIPIENT" || !reachOf(ct)) return NOT_SENT;
+  return `마감 하루 전 안내를 다시 보냈습니다 → ${ct.name} · 최종 ${won(s.amount)}`;
+}
+/** '기한 · 비고' 마우스 올림에 붙이는 안내 사정(수정 마감 뒤 · 동의 전 달). 닿았으면(또는 수신자 없음 — 칩이 말한다) "". */
+function noticeTip(client, s, now) {
+  const n = s.notice;
+  const t4 = n && n.t4;
+  if (!t4 || now.getTime() < t4.at.getTime() || (t4.why !== "SUSPENDED" && t4.why !== "UNDELIVERED")) return "";
+  const parts = [t4.why === "SUSPENDED" ? "정지 중이라 마감 하루 전 안내를 보내지 않았습니다" : "마감 하루 전 안내가 닿지 않았습니다"];
+  const r = n.resend;
+  if (r) {
+    /* 다시 보내기는 마감 당일 10:00 **한 번**이다 — 그 뒤(10:00~13:00)에 정지를 풀어도 다시 보내지 않고 고지 미도달로 보류된다
+       (settlement-rules noticeState). 그래서 '정지가 풀리면' 이 아니라 '10:00 전에 풀리면' 이라고 말한다(검토 7). */
+    if (now.getTime() < r.at.getTime()) parts.push(suspendedNow(client) ? "마감 당일 10:00 전에 정지가 풀리면 그 시각에 다시 보냅니다" : "마감 당일 10:00에 다시 보냅니다");
+    else if (r.reached) parts.push("마감 당일 10:00에 다시 보냈습니다");
+    /* 그 시각에도 정지라 다시 보내지 않았다 — 이 마우스 올림은 마감 전 달에만 붙으므로(agreeStage) 지금도 정지여도 말한다(예전엔
+       지금도 정지면 빼서 마감 당일 10:00~13:00 동안 다시 보내기를 건너뛴 사실이 어디에도 없었다 — 검토 6). */
+    else if (r.why === "SUSPENDED") parts.push("정지 중이라 마감 당일에도 다시 보내지 않았습니다");
+    else parts.push("마감 당일 10:00에 다시 보냈지만 닿지 않았습니다");
+  }
+  return parts.join(" · ");
+}
 function agreeStage(client, s, now) {
   if (s.status === "SCHEDULED") {
     return {
@@ -162,14 +215,16 @@ function agreeStage(client, s, now) {
     /* 13:00:00 정각은 아직 열려 있다(agreementState 와 같다) — 지난 것은 그 뒤부터 */
     if (left < 0) return { kind: "live", label: "동의대기", tone: "orange", meta: `마감 ${fmtMdHm(s.deadline)} 지남`, hot: true, tip: `마감 ${dl}` };
     const soon = left <= DAY;
-    const pending = holdPending(client, s);
-    const undelivered = pending && store.holdOf(client.id, s.period) === "NOTICE_UNDELIVERED";
+    const pending = holdPending(s);
+    const nt = noticeTip(client, s, now);
+    /* 지금 정지 중이면 마감 때도 정지일 수 있다 — 그러면 자동 동의를 보류한다(Q20). 단정하지 않고 조건으로 말한다. */
+    const susp = pending && suspendedNow(client) ? " · 마감 때도 정지면 자동 동의를 보류합니다" : "";
     return {
       kind: "live", label: "동의대기", tone: "orange", hot: soon,
       meta: soon ? `수정 마감 지남 · 동의 마감까지 ${span(left)}` : `수정 마감 지남 · 동의 마감 ${fmtMdHm(s.deadline)}`,
       tip: pending
-        ? `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk} · 마감 ${dl}${undelivered ? " · 마감 하루 전 안내가 닿지 않았습니다" : ""}`
-        : `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk} · 마감 ${dl}에 자동 동의됩니다`,
+        ? `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk} · 마감 ${dl}${nt ? ` · ${nt}` : ""}${susp}`
+        : `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk}${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
     };
   }
   if (s.mode) {
@@ -188,7 +243,8 @@ function invStage(s, now) {
   }
   if (s.einvoice) {
     const by = s.einvoice.mode !== "auto" ? actorLabel(s.einvoice.by) : "";
-    const no = `승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}${by ? ` · ${by}` : ""}`;
+    /* 방식 낱말은 한 벌(EINVOICE_MODE_WORD) — 자동 발급은 따로 적지 않는다(기본), 다시 시도·직접 입력은 적는다. */
+    const no = `승인번호 ${s.einvoice.no}${s.einvoice.mode !== "auto" ? ` · ${EINVOICE_MODE_WORD[s.einvoice.mode] || ""}` : ""}${by ? ` · ${by}` : ""}`;
     return { kind: "done", label: "발급완료", meta: `작성 ${fmtMd(s.docDate)} · ${no}` , vis: `작성 ${fmtMd(s.docDate)}` };
   }
   return NONE;
@@ -198,11 +254,18 @@ function payStage(s, now) {
     const by = actorLabel(s.paidBy);
     return { kind: "done", label: "입금완료", meta: `${fmtMd(s.paidAt)} 입금 확인`, tip: `${fmtKoShortTime(s.paidAt)} 입금 확인${by ? ` · ${by}` : ""}` };
   }
+  /* 기한 초과가 된 시각은 overdueFrom = max(정산기한 다음 날 10:00, 계산서 발급 시각) — 계산서가 정산기한 뒤에 나온 달은 발급
+     순간 기한 초과다(명세 3.4 · M39 · Q36 잠정). 'N일 지남' 도 그 시각부터 센다(입금 확인 창과 같은 값). */
   if (s.status === "OVERDUE") {
-    const days = Math.max(1, Math.floor((now.getTime() - s.overdueAt.getTime()) / DAY));
-    return { kind: "live", label: "기한 초과", tone: "red", meta: `${days}일 지남`, hot: true, tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(s.overdueAt)}부터 기한 초과` };
+    const from = s.overdueFrom || s.overdueAt;
+    const late = overdueLateOf(s);
+    const days = Math.max(1, Math.floor((now.getTime() - from.getTime()) / DAY));
+    return {
+      kind: "live", label: "기한 초과", tone: "red", meta: `${days}일 지남`, hot: true,
+      tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(from)}부터 기한 초과${late ? ` · ${OVERDUE_LATE_WORD[late]}` : ""}`,
+    };
   }
-  if (s.status === "ISSUED") return { kind: "live", label: "미입금", tone: "gray", meta: `기한 ${fmtMd(s.dueAt)}`, tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(s.overdueAt)}부터 기한 초과` };
+  if (s.status === "ISSUED") return { kind: "live", label: "미입금", tone: "gray", meta: `기한 ${fmtMd(s.dueAt)}`, tip: `정산기한 ${fmtKoShort(s.dueAt)} · ${fmtKoShortTime(s.overdueFrom || s.overdueAt)}부터 기한 초과` };
   return NONE;
 }
 /* 0원으로 닫는(닫힌) 달 — 발급 때부터 0원(zero) · 발행 뒤 고쳐서 0원(zeroEdited, 줄이 다 빠진 달 포함) */
@@ -247,7 +310,7 @@ function actOf(client, s) {
     tip: termsPending(client)
       ? `${s.lockReason} · 약관 동의 전이라 마감에 자동 동의되지 않습니다`
       /* 보류가 잡힌 달은 '자동 동의' 라고 단정하지 않는다(holdPending — 진행 기록과 반대말을 하지 않게) */
-      : holdPending(client, s)
+      : holdPending(s)
         ? `${s.lockReason} · 마감 ${fmtKoShortTime(s.deadline)}`
         : `${s.lockReason} · ${fmtKoShortTime(s.deadline)}에 자동 동의`,
   };
@@ -255,7 +318,7 @@ function actOf(client, s) {
 
 /** 펼침 '처리' 카드 첫 줄 — 이 달을 지금 고칠 수 있는지(①). settlementOf 의 editable · editLockAt · lockReason 에서 문구만 고른다.
  *  거래 없는 달(NONE)은 줄을 두지 않는다(null). 못 고치는 이유는 정본 LOCK_REASON 그대로(화면이 지어내지 않는다). */
-function editRowOf(s) {
+function editRowOf(client, s, now) {
   if (s.status === "NONE") return null;
   if (zeroClosed(s)) return { name: "0원 · 계산서 없이 닫힌 달", why: LOCK_REASON.zero, can: false };
   if (s.status === "SCHEDULED") {
@@ -269,8 +332,11 @@ function editRowOf(s) {
         : { name: "0원 · 마감에 계산서 없이 닫힘", why: s.lockReason, can: false };
     }
     if (s.editable) {
-      /* '안내를 보낸다' 는 말은 알림 수신자가 있을 때만(진행 기록 · 발급 처리 창과 같은 판정) */
-      const notice = s.noRecipient ? "알림 수신자가 없어 마감 하루 전 안내는 나가지 않습니다." : "수정 마감 시각에 마감 하루 전 안내가 최종 금액으로 나갑니다.";
+      /* '안내를 보낸다' 는 말은 진행 기록 · 발급 처리 창과 같은 판정으로 — 알림 수신자가 없거나, 지금 정지 중이면(그 시각의 상태로
+         가른다 — Q35 ② 잠정 · 아직 오지 않은 시각은 지금 상태로 본다) '나간다' 고 말하지 않는다. */
+      const notice = suspendedNow(client)
+        ? "지금 정지 중이라 수정 마감 시각에도 정지면 마감 하루 전 안내는 나가지 않습니다. 마감 당일 10:00 전에 정지를 풀면 그 시각에 다시 보냅니다."
+        : s.noRecipient ? "알림 수신자가 없어 마감 하루 전 안내는 나가지 않습니다." : "수정 마감 시각에 마감 하루 전 안내가 최종 금액으로 나갑니다.";
       return { name: `고칠 수 있음 · 수정 마감 ${lk}`, why: `동의 전 · 수정 마감 전입니다. 주문을 고치면 청구금액과 거래처가 보는 명세서가 바로 바뀝니다. ${notice}`, can: true };
     }
     return { name: "수정 마감 지남 · 금액 고정", why: s.lockReason, can: false };
@@ -286,7 +352,7 @@ function availOf(s) {
   else if (s.zeroEdited && s.status !== "PAID") issue = [false, "0원이면 마감에 계산서 없이 닫힙니다"];
   else if (s.zero || zeroClosed(s)) issue = [false, "0원 달은 계산서가 없습니다"];
   else if (s.status === "AGREED") issue = [true, `${fmtMdHm(s.agreedAt)} ${modeWord(s.mode)} 동의 · 계산서가 아직 발급되지 않았습니다`];
-  else if (s.einvoice) issue = [false, `발급완료 · 승인번호 ${s.einvoice.no}${s.einvoice.mode === "manual" ? " · 직접 입력" : ""}`];
+  else if (s.einvoice) issue = [false, `발급완료 · 승인번호 ${s.einvoice.no}${s.einvoice.mode !== "auto" ? ` · ${EINVOICE_MODE_WORD[s.einvoice.mode] || ""}` : ""}`];
   else if (s.status === "SCHEDULED") issue = [false, `명세서 발행 전입니다 — ${fmtKoShortTime(s.issueAt)}에 발급됩니다`];
   else issue = [false, "동의 전에는 계산서를 발급할 수 없습니다"];
   if (s.status === "NONE") pay = [false, "청구할 금액이 없는 달입니다"];
@@ -303,26 +369,34 @@ function availOf(s) {
  *  `lines` = amountChangesOf(…).lines(관리자 전용 — 처리자 · 전후 금액). 처리자 표기는 util/actor `actorLabel`('이름(부서)'). */
 function logOf(client, s, ct, now, lines) {
   const L = [];
-  const reach = ct && String(ct.phone || "").trim();
+  const reach = reachOf(ct);
   /* 안내(T3 발급 · T4 마감 하루 전 · T6 발급 · T8 기한 지남)는 모두 같은 판정이다 — 알림 수신자가 없으면 '보냄' 이라고 말하지 않는다
-     (같은 카드에서 발행 줄은 '보내지 못했습니다', 발급 줄은 '보냄' 이라고 갈리던 결함 — 2026-10-16 검토). */
-  const NOT_SENT = "알림 수신자 없음 · 안내를 보내지 못했습니다";
+     (같은 카드에서 발행 줄은 '보내지 못했습니다', 발급 줄은 '보냄' 이라고 갈리던 결함 — 2026-10-16 검토). T3·T4 는 거기에 0원 달 ·
+     정지 중(그 알림을 보내는 시각)을 더 본다(t3Text · t4Text — 2026-10-19). */
   if (s.status === "SCHEDULED") L.push([s.issueAt, "명세서 발행 예정", "자동"]);
   else if (s.status === "NONE") return [];
-  else L.push([s.issueAt, "명세서 발행", reach ? `발급 안내 → ${ct.name} · ${won(s.issuedAmount)}` : NOT_SENT]);
+  else L.push([s.issueAt, "명세서 발행", t3Text(s, ct)]);
   (lines || []).forEach((l) => {
     L.push([l.at, `정산 금액 변경 · ${l.orderNo}`, `${actorLabel(l.by) || "처리자 기록 없음"} · ${won(l.before)} → ${won(l.after)}`]);
   });
   /* 수정 마감(= T4 발송 시각) — 그 시각에 아직 동의 전이었던 달만(수정 마감 전에 직접 동의한 달은 T4 가 없다 · 명세 3.4).
      발급 때부터 0원인 달은 발행과 함께 닫혀 수정 마감이 없고, 고쳐서 0원이 된 달은 T4 를 보내지 않는다(명세 3.4 예외표 — T4·T5·T6 없음). */
-  const firstZero = s.zero && !s.zeroEdited;
+  const firstZero = firstZeroOf(s);
   if (s.issued && !firstZero && s.editLockAt && now.getTime() >= s.editLockAt.getTime()
       && (!s.agreedAt || s.agreedAt.getTime() >= s.editLockAt.getTime())) {
     if (s.zeroEdited) L.push([s.editLockAt, "수정 마감 · 0원 확정", "0원 달이라 마감 하루 전 안내는 보내지 않습니다"]);
     else {
-      /* 고지 미도달은 데모 대역 store.holdOf 로 본다 — 마감 전에도 같은 판정을 '기한 · 비고' 마우스 올림(holdPending)이 쓴다 */
-      const undelivered = store.holdOf(client.id, s.period) === "NOTICE_UNDELIVERED";
-      L.push([s.editLockAt, "수정 마감 · 금액 고정", undelivered ? "마감 하루 전 안내가 닿지 않았습니다" : reach ? `마감 하루 전 안내 → ${ct.name} · 최종 ${won(s.amount)}` : NOT_SENT]);
+      /* 닿지 않음(발송 실패 기록) · 정지 중이라 보내지 않음은 settlementOf().notice — '기한 · 비고' 마우스 올림(noticeTip)과 같은 판정 */
+      L.push([s.editLockAt, "수정 마감 · 금액 고정", t4Text(s, ct)]);
+      /* 마감 하루 전 안내가 닿지 않은 달은 마감 당일 10:00 에 다시 보낸다(Q19 · 정지라서 못 보낸 달 — Q35 ③, 2026-10-19 운영자 확인). 그 시각 전에
+         직접 동의한 달은 다시 보낼 일이 없다(notice.resend = null). */
+      const r = s.notice && s.notice.resend;
+      /* 그 시각에도 정지라 보내지 않았고 마감 때도 정지였으면(→ '마감 · 자동 동의 보류 · 정지 중 마감') 이 줄은 덧말이라 뺀다 —
+         마감 전에 풀렸으면 고지 미도달 보류의 까닭이라 남긴다. ⚠️ 빼는 것은 **마감이 지난 뒤**만이다 — suspendedAtDeadline 은 마감 전엔
+         '지금 정지라 마감 때도 정지일 것' 이라는 예측이라, 그것으로 빼면 마감 당일 10:00~13:00 동안 다시 보내기를 건너뛴 사실이
+         어디에도 없었다(검토 6). */
+      const quiet = r && r.why === "SUSPENDED" && s.notice.suspendedAtDeadline && now.getTime() > s.deadline.getTime();
+      if (r && !quiet && now.getTime() >= r.at.getTime()) L.push([r.at, "마감 당일 · 안내 다시 보내기", resendText(r, s, ct)]);
     }
   }
   /* 마감 때 보류였던 달 — `heldAtDeadline`(settlementOf 파생)으로 본다. autoAgreeHold 는 '지금 보류 중' 이라 거래처가 마감 뒤
@@ -337,11 +411,23 @@ function logOf(client, s, ct, now, lines) {
     const m = s.einvoice.mode;
     const how = m === "manual" ? "직접 입력" : m === "retry" ? "다시 시도" : "자동";
     const by = m !== "auto" ? actorLabel(s.einvoice.by) : "";
-    const howBy = by ? `${how} · ${by}` : how;
-    L.push([s.einvoice.at, "계산서 발급", m === "manual" ? howBy : reach ? `${howBy} · 발급 안내 보냄` : `${howBy} · ${NOT_SENT}`]);
+    /* 직접 입력은 적은 발급 시각(at)과 기록한 시각(recordedAt)이 다르다 — 발급 안내(T6)는 기록한 순간에 나간다(M39). 다른 방식과 같은
+       판정으로 T6 를 말하고(예전엔 직접 입력만 말하지 않아 창·토스트의 '계산서 발급 안내를 보냈습니다' 와 갈렸다 — 검토 10), 기록 시각이
+       다르면 함께 적는다. */
+    const rec = m === "manual" && s.einvoice.recordedAt && fmtMdHm(s.einvoice.recordedAt) !== fmtMdHm(s.einvoice.at)
+      ? ` · ${fmtMdHm(s.einvoice.recordedAt)} 기록` : "";
+    const howBy = `${how}${rec}${by ? ` · ${by}` : ""}`;
+    L.push([s.einvoice.at, "계산서 발급", reach ? `${howBy} · 발급 안내 보냄` : `${howBy} · ${NOT_SENT}`]);
   }
-  if (s.einvoice && now.getTime() >= s.overdueAt.getTime() && (s.status === "OVERDUE" || (s.paidAt && s.paidAt.getTime() >= s.overdueAt.getTime()))) {
-    L.push([s.overdueAt, "기한 초과", reach ? "입금 기한 지남 안내 보냄" : NOT_SENT]);
+  /* 기한 초과가 **된** 시각(overdueFrom = max(정산기한 다음 날 10:00, 계산서가 시스템에 생긴 시각 — 직접 입력은 기록한 시각)).
+     계산서가 정산기한 뒤에 나온 달은 발급 순간 기한 초과라 이 줄이 '계산서 발급' 줄 뒤에 선다(예전엔 기한 초과 11-01 10:00 이 계산서
+     발급 11-02 10:30 보다 앞에 섰다 — 계산서가 없는 동안에는 기한 초과가 될 수 없다 · 명세 3.4 · M39). 그때 T8 은 T6 과 함께 간다.
+     직접 입력을 기한 뒤에 기록했으면 적은 발급 시각이 그 전이어도 기록한 순간이다(overdueLateOf "record" — 검토 4). */
+  const ovf = s.overdueFrom;
+  if (s.einvoice && ovf && now.getTime() >= ovf.getTime() && (s.status === "OVERDUE" || (s.paidAt && s.paidAt.getTime() >= ovf.getTime()))) {
+    const late = overdueLateOf(s);
+    const lateWord = late === "record" ? "정산기한 뒤에 기록" : "정산기한 뒤에 발급";
+    L.push([ovf, "기한 초과", !reach ? NOT_SENT : late ? `${lateWord} · 입금 기한 지남 안내를 발급 안내와 함께 보냄` : "입금 기한 지남 안내 보냄"]);
   }
   if (s.paidAt) L.push([s.paidAt, "입금 확인", actorLabel(s.paidBy)]);
   if (zeroClosed(s)) {
@@ -632,7 +718,9 @@ export function mount(root, { nav }) {
     /* 계정 구분은 사업자번호를 공유하는 거래처에만 — 전 거래처에 부서가 있어 무조건 병기하면 전 행이 노이즈다. */
     if (r.shared && c.department) chips.push(["", c.department]);
     if (c.status === "정지") chips.push(["amber", "정지 중"]);
-    /* 정산·회계 담당자가 없거나 연락처가 비면 명세서·마감 안내(T3·T4)가 닿지 않는다 — 고지 미도달 보류로 이어진다(명세 3.4). */
+    /* 정산·회계 담당자가 없거나 연락처가 비면 명세서·마감 안내(T3·T4)가 닿지 않는다 — 명세로는 고지 미도달 보류로 이어진다(명세 3.4).
+       정산 담당 연락처는 비울 수 없어(M52) 데이터 오류 대비 칩이다. 데모는 연락처 이력이 없어 이것만으로는 보류로 치지 않는다
+       (지금 연락처로 가르면 지난 달 자동 동의가 소급해 풀린다 — settlement-rules `noticeState`). */
     if (s.noRecipient) chips.push(["red", "알림 수신자 없음"]);
     const nameTip = ct && String(ct.phone || "").trim()
       ? `정산·회계 ${ct.name}${ct.role ? ` · ${ct.role}` : ""} · ${ct.phone}`
@@ -688,7 +776,7 @@ export function mount(root, { nav }) {
     const rest = products.slice(TOP_ITEMS);
     const restSum = rest.reduce((a, it) => ({ count: a.count + it.count, amount: a.amount + it.amount }), { count: 0, amount: 0 });
     const av = availOf(s);
-    const ed = editRowOf(s);
+    const ed = editRowOf(c, s, now);
     /* 정산 금액 변경 기록(③ — 관리자 전용 · 시간순). 카드는 **기록 줄이 있으면** 보인다 — 고쳤다가 되돌려 순변동 0 인 달도
        증빙으로 남긴다(DATA.md 6절 Q4 · SCREENS2 자동 결정 — '바뀜' 칩과 머리 오른쪽 '발급 때 → 지금' 줄은 금액이 다를 때만). */
     const lines = amountChangesOf(c, state.ym, now).lines;

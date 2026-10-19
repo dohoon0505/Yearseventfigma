@@ -45,6 +45,9 @@ import { formatDateLabel, mockDates } from "../util/date.js";
 import { contributionDiff, causeOf, normAt, entriesOfOrder } from "./billing-entries.js";
 import { SEED_ACTOR } from "./staff-mock.js";
 import { currentActor } from "../util/actor.js";
+/* 취소 수수료 규칙(B2B·B2C 공통 — 명세 5.3 `cancel_fee ≤ amount` · 6.4 `400 CANCEL_FEE_INVALID`)은 import 0 중립 모듈 order-rules.js 에 있다.
+   예전엔 b2c-mock 에 있어 이 모듈이 B2C 시드까지 띄웠다(포털 주문 화면·정산 시험). 화면은 order-rules.js 에서 직접 가져간다. */
+import { cancelFeeError, orderFeeError } from "./order-rules.js";
 
 const D = mockDates(DATA_NOW);
 /* 배송 희망일시 — datetime-local 포맷("YYYY-MM-DDTHH:mm").
@@ -532,7 +535,9 @@ function seedGenerated(now) {
       (이력 한 줄도 b2bPushHistory).
    ⚠️ **저장은 실패할 수 있다**(브라우저 저장 공간 한도). 쓰기 함수는 실패하면 캐시를 바꾸기 전으로 되돌리고
       실패를 돌려준다(b2bUpsert → null, 나머지 → false · 값이 그대로인 no-op 은 true). 호출부는 그때 '저장하지 못했다' 고 말해야 한다 —
-      예전엔 실패를 삼켜 '저장했습니다' 토스트가 뜬 채 새로고침에 사라졌다. */
+      예전엔 실패를 삼켜 '저장했습니다' 토스트가 뜬 채 새로고침에 사라졌다.
+      취소 수수료 규칙(수수료 ≤ 금액 — order-rules `cancelFeeError`·`orderFeeError`)을 어긴 쓰기도 같은 거짓 값으로 막는다(서버 400 대역).
+      두 이유를 가르려면 호출부가 쓰기 전에 그 두 함수로 판정한다 — 그러고도 거짓이면 저장 공간 문제다. */
 let cache = null;
 let seedIds = new Set();
 let version = 0;
@@ -699,10 +704,13 @@ export function b2bNextOrderNo(now = new Date()) { return `B2B-${nextNewNo(list(
  *  ⚠️ 화면은 이걸 직접 읽지 말 것 — 사용자 줄(store.amountLog)과 합치는 것은 util/settlement `amountChangesOf` 다. */
 export function b2bSeedAmountChanges() { list(); return clone(seedLines); }
 /** 저장한 레코드를 돌려준다. **저장에 실패하면 null**(캐시는 바꾸기 전 그대로 · 정산 금액 변경 기록도 남지 않는다).
- *  `ctx = { note, actor, now }`(선택) — 명세서가 나간 달의 금액이 바뀌면 남는 기록의 사유(저장 전 확인 창 '사유(선택)')·처리자·시각. */
+ *  `ctx = { note, actor, now }`(선택) — 명세서가 나간 달의 금액이 바뀌면 남는 기록의 사유(저장 전 확인 창 '사유(선택)')·처리자·시각.
+ *  불변식(취소 수수료 ≤ 금액 — 취소한 주문의 금액을 수수료보다 작게 고침 등)을 깨도 쓰지 않고 null 이다(서버 400 의 데모 대역 ·
+ *  order-rules `orderFeeError` — 금액·수수료를 바꾸지 않은 저장은 보지 않는다). 이유를 말하려면 호출부가 쓰기 전에 같은 함수로 판정한다. */
 export function b2bUpsert(rec, ctx = {}) {
   const arr = list();
   const i = arr.findIndex((o) => o.id === rec.id);
+  if (orderFeeError(rec, i < 0 ? null : arr[i])) return null;
   if (i < 0) { // 신규는 최상단
     const o = { ...rec, history: rec.history || [] };
     arr.unshift(o);
@@ -756,11 +764,15 @@ export function b2bRemove(id, ctx = {}) {
 }
 /** 주문취소 — 사유·수수료와 **취소한 시각**(canceledAt)을 함께 남긴다. 수수료는 취소한 날의 달 정산에 붙는다.
  *  `note`·`actor`(선택) — 정산 금액 변경 기록(명세서가 나간 달의 금액이 빠질 때)의 사유·처리자. 취소 사유(`reason`)와는
- *  따로 받는다(명세 6.4 — cancelReason 과 settlementNote 는 다른 칸이다). */
+ *  따로 받는다(명세 6.4 — cancelReason 과 settlementNote 는 다른 칸이다).
+ *  수수료는 0원부터 **지금 저장된** 주문금액까지의 정수만 받는다(명세 5.3 · 6.4 `400 CANCEL_FEE_INVALID` — order-rules `cancelFeeError`).
+ *  어기면 취소하지 않고 false — 저장 실패와 같은 값이라(예전 호출부가 성공으로 읽지 않게) 이유를 말하려면 호출부가 먼저 판정한다.
+ *  ⚠️ 예전엔 `Number(fee) || 0` 뿐이라 50,000원 주문에 수수료 500,000원이 저장돼 취소한 달 정산에 그대로 붙었다(2026-10-19 실측). */
 export function b2bCancel(id, { reason = "", fee = 0, note = "", actor = null } = {}, now = new Date()) {
   const o = b2bFind(id);
   if (!o) return false;
   if (o.status === "취소") return true; // 이미 취소 — 할 일 없음(실패가 아니다)
+  if (cancelFeeError(o.amount, fee)) return false;
   const before = clone(o);
   o.status = "취소";
   o.cancelReason = reason;

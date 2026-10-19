@@ -4,6 +4,7 @@
 import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
+import { contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
 import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
@@ -374,6 +375,12 @@ export function mount(root, { nav }) {
       next.passwordConfirm = "비밀번호가 일치하지 않습니다";
     if (!next.email && state.step === 3 && state.form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.form.email))
       next.email = "올바른 이메일 형식으로 입력해주세요";
+    /* 2단계 담당자가 이 거래처의 첫 정산·회계 담당이 된다 — 연락처가 맞지 않으면 명세서·마감 알림(T3·T4)이 갈 곳이 없다
+       (2026-10-19 사용자 결정 '정산 담당 연락처는 비울 수 없음'). 판정은 담당자 연락처 기준(util/phone.js contactPhoneOk — 숫자
+       10~12자리 · 010 번호는 정확히 11자리 · 숫자·하이픈·공백 밖의 글자 거부 · 결정 ⓔ)으로 관리자 신규 등록의 정산 담당 칸·담당자
+       등록 창과 같다. 예전엔 비어 있지 않기만 하면 'abc' 도, 그다음엔 숫자 10자리 이상이면 13자리(0101234567890)도 넘어갔다. */
+    if (!next.contact && state.step === 2 && !contactPhoneOk(state.form.contact))
+      next.contact = `올바른 연락처를 입력해주세요 (${contactPhoneNeed(state.form.contact)})`;
     /* 접속 아이디는 유일해야 한다 — 로그인이 아이디 하나로 거래처를 가린다(2026-09-25 · 명세 5.2 UNIQUE).
        예전엔 검사가 없어 이관 계정과 같은 아이디로 가입하면 그 계정은 영영 로그인할 수 없었다. */
     if (!next.userId && state.step === 1 && store.accountIdTaken(state.form.userId))
@@ -415,7 +422,9 @@ export function mount(root, { nav }) {
     store.addClient({
       id, accountId: f.userId.trim(), password: f.password, // 로그인이 아이디를 trim 해 비교한다
       companyName: f.companyName, bizNumber: f.bizNumber, ceoName: f.ceoName,
-      managerName: f.managerName, department: f.department, contact: f.contact,
+      /* 담당자 저장공간 줄(아래 setContactsOf)과 같은 모양으로 앞뒤 공백을 덜어 남긴다 — 예전엔 레코드에만 ' 검토자 '·'010-4321-8765 ' 가
+         그대로 남아(실측) 정산 명세서·주문 화면의 거래처 대표 연락처(managerName·contact)가 담당자 줄과 글자가 달랐다. */
+      managerName: f.managerName.trim(), department: f.department.trim(), contact: f.contact.trim(),
       email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: f.invoiceDay, clientNote: "",
       bizLicense: f.bizLicense,
       termsAgreedAt: stamp, termsFirstAgreedAt: stamp, termsVersion: TERMS_VERSION,
@@ -426,7 +435,7 @@ export function mount(root, { nav }) {
        ⚠️ 담당자는 거래처별이다 — 로그인 거래처가 아니라 **방금 만든 거래처(id)** 버킷에 넣는다.
        버킷의 첫 담당자라 setContactsOf 의 불변식이 자동으로 정산담당으로 지정한다. */
     store.setContactsOf(id, [{
-      id: newContactId(), name: f.managerName, role: f.department, phone: f.contact,
+      id: newContactId(), name: f.managerName.trim(), role: f.department.trim(), phone: f.contact.trim(),
       message: MSG_RECEIVE, isBilling: true,
     }]);
   }

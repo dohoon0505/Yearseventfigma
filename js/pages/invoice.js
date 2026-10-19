@@ -58,7 +58,7 @@ import { sheetToXlsx } from "../util/xlsx.js";
    (invoice-mock)를 읽어 주문을 고쳐도 명세서가 그대로였다. */
 import {
   INVOICE_YM_KEY, settlementsFor, monthsOf, invoiceMonth, latestInvoiceKey, agreeSettlement,
-  settlementOf, amountChangeLine,
+  settlementOf, amountChangeLine, holdPendingOf,
 } from "../util/settlement.js";
 /* 문서 데이터의 단일 빌더 — 미리보기 · PDF · EXCEL 이 같은 값을 본다(예전 이 파일의 docData 와 관리자 buildDoc 두 벌). */
 import { invoiceDocData, invoiceDocElement } from "../util/invoice-data.js";
@@ -242,7 +242,8 @@ export function mount(root) {
   function writtenOf(s, now) {
     if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송한 달 말일`;
     if (s.agreedAt) return `${fmtKoShortY(s.agreedAt, now)} · 동의한 날`;
-    if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
+    /* 마감 전이어도 이대로면 보류가 잡힐 달(holdPendingOf — 관리자 정산회계와 같은 예측)은 '자동이면 …' 을 단정하지 않는다(검토 9) */
+    if (s.autoAgreeHold || holdPendingOf(s)) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
     return `동의한 날 · 자동이면 ${fmtKoShortY(s.deadline, now)}`;
   }
   /** 정산 상태 → 카드 갈래. btn: "on"(동의 가능) · "off"(잠금 — 이유는 제목·설명이 말한다) · "none"(버튼 없음).
@@ -295,7 +296,10 @@ export function mount(root) {
       const left = s.deadline.getTime() - now.getTime();
       /* 마감 24시간 전부터 남은 시간을 빨갛게(시안 · S-01·S-03 과 같은 기준). */
       const due = ["동의 마감", `${fmtKoShortTimeY(s.deadline, now)} · ${spanText(left)} 남음`, left <= DAY];
-      const auto = ["마감까지 동의가 없으면", "그 시각에 자동 동의"];
+      /* '마감까지 동의가 없으면 · 그 시각에 자동 동의' 는 이대로면 보류가 잡힐 달(고지 미도달 예정 — 마감 하루 전 안내가 닿지 않았다)에
+         거짓이다 — 관리자 정산회계가 같은 달에 '자동 동의됩니다' 를 피하는 판정(holdPendingOf)으로 그 줄을 뺀다(새 문장은 짓지 않는다 ·
+         보류 사정은 마감이 지나 보류가 잡히면 보류 갈래가 말한다 · 2026-10-19 검토 9). */
+      const auto = holdPendingOf(s) ? null : ["마감까지 동의가 없으면", "그 시각에 자동 동의"];
       const written = ["작성일자", writtenOf(s, now)];
       const lock = fmtKoShortTimeY(s.editLockAt, now);
       if (s.changed) {
@@ -305,7 +309,7 @@ export function mount(root) {
           body: `발급 뒤 내역이 고쳐졌습니다. 지금 금액으로 계산서(면세)가 발급되며, ${s.editable
             ? `수정 마감(${lock}) 뒤에는 금액이 더 바뀌지 않습니다.`
             : `수정 마감(${lock})이 지나 금액이 더 바뀌지 않습니다.`}`,
-          facts: [["발급 때 금액", won(s.issuedAmount)], due, auto, written],
+          facts: [["발급 때 금액", won(s.issuedAmount)], due, auto, written].filter(Boolean),
           btn: "on", help: HELP_DIFF,
         };
       }
@@ -313,7 +317,7 @@ export function mount(root) {
         badge: ["동의 필요", "orange"], title: "금액을 확인하고 동의해 주세요",
         /* 수정 마감 전이면 직원이 아직 금액을 고칠 수 있다는 사실을 덧붙인다(editable = now < editLockAt — 시안 lockLeft > 0). */
         body: `동의하면 이 금액으로 계산서(면세)가 발급됩니다. 동의 후에는 내용을 바꿀 수 없습니다.${s.editable ? ` 수정 마감(${lock})까지는 금액이 바뀔 수 있습니다.` : ""}`,
-        facts: [due, auto, written],
+        facts: [due, auto, written].filter(Boolean),
         btn: "on",
       };
     }
@@ -653,8 +657,10 @@ export function mount(root) {
     const HINT_OFF = "확인에 체크해야 발급됩니다";
     const HINT_ERR = "새 금액에 다시 체크해야 발급됩니다";
     const HINT_ON = "동의하면 바로 발급을 시작합니다";
+    /* 이대로면 보류가 잡힐 달(holdPendingOf)은 '자동 동의' 안내 상자를 두지 않는다 — 카드와 같은 판정(검토 9) */
     const line = s0.autoAgreeHold
       ? ["자동 동의되지 않은 명세서", "마감이 지나 자동 동의되지 않은 명세서입니다. 지금 동의하시면 계산서가 발급됩니다."]
+      : holdPendingOf(s0) ? null
       : ["자동 동의", `${fmtKoShortTimeY(s0.deadline, now)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`];
     /* 창의 작성일자는 **지금 동의하면 실제로 찍힐 날짜**다(2026-10-16 결정) — 11~25일 그룹은 동의한 날 = 오늘.
        카드는 시안 문장 그대로('동의한 날 · 자동이면 …')지만, 동의 버튼을 누르기 직전의 창이 '자동이면 10월 28일' 이라고
@@ -688,7 +694,7 @@ export function mount(root) {
         <p class="dlg-desc"><b>동의 후에는 되돌릴 수 없습니다.</b> 이 금액 그대로 계산서(면세)가 발급되고,
           명세서 내용은 더 이상 바뀌지 않습니다.</p>
         <div class="iv-recap" data-slot="recap">${recapBody(s0)}</div>
-        <div class="iv-line"><b>${line[0]}</b>${line[1]}</div>
+        ${line ? html`<div class="iv-line"><b>${line[0]}</b>${line[1]}</div>` : ""}
         <button type="button" class="dlg-check" data-action="ack" role="checkbox" aria-checked="false">
           <span class="dlg-check__box" aria-hidden="true"></span>
           <span data-slot="acklabel">${ackLabel()}</span>

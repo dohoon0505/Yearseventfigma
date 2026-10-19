@@ -9,7 +9,7 @@
    always have current data regardless of when the demo is viewed.
    ============================================================ */
 
-import { INVOICE_DAYS, invoiceDayOf, periodOf } from "./settlement-rules.js";
+import { INVOICE_DAYS, invoiceDayOf, periodOf, fmtAt, editLockAt, agreeDeadline } from "./settlement-rules.js";
 import { TERMS_VERSION } from "./terms.js";
 export { INVOICE_DAYS, invoiceDayOf };
 
@@ -59,14 +59,16 @@ export const SEED_BILLING = {
   C017: ["유건우", "구매팀", "010-0000-0117"],
   C018: ["문가람", "총무팀", "010-0000-0118"],
   C019: ["김하나", "총무팀", "010-0000-0119"],
-  /* 관리자가 등록한 가상 거래처(아래 seedPending) — C026 온새미로는 연락처를 비웠다('알림 수신자 없음' 시연). */
+  /* 관리자가 등록한 가상 거래처(아래 seedPending). 정산·회계 담당 연락처는 비울 수 없다(2026-10-19 사용자 결정 · 명세 M52) —
+     예전엔 C026 온새미로의 연락처를 비워 '알림 수신자 없음' 을 시연했는데 이제 이웃과 같은 가상 번호다. 화면의 '알림 수신자 없음' ·
+     '연락처 미등록' 갈래는 데이터 오류 대비로 코드에 남아 있다. */
   C020: ["배수아", "경영지원팀", "010-0000-0120"],
   C021: ["남궁연", "디자인팀", "010-0000-0121"],
   C022: ["차민호", "총무팀", "010-0000-0122"],
   C023: ["염다솜", "재무팀", "010-0000-0123"],
   C024: ["표소담", "운영팀", "010-0000-0124"],
   C025: ["기윤서", "경영지원팀", "010-0000-0125"],
-  C026: ["설하람", "총무팀", ""],
+  C026: ["설하람", "총무팀", "010-0000-0126"],
   C027: ["서도현", "연구지원팀", "010-0000-0127"],
 };
 /* 매출을 별도 KPI 로 떼어 보는 거래처 채널.
@@ -96,6 +98,46 @@ const seedPending = (c) => {
   return { status: "활성", password: DEMO_PASSWORD, managerName: name, contact: phone, ...c };
 };
 
+/* ── 상태 이력 시드(2026-10-19 사용자 결정 '정지 이력을 남긴다' — store.updateClient 가 쌓는 `statusLog` 와 같은 모양) ──
+   보류 판정(마감 때 정지 → CLIENT_SUSPENDED · 정지 중엔 T3·T4 를 보내지 않음)은 이 이력에서 파생한다(settlement-rules `statusAt`).
+   시각은 **정산 일정**(settlement-rules)에서 DATA_NOW 상대로 만든다 — 절대 날짜를 적으면 달이 바뀌는 순간 모양이 갈린다.
+   ⚠️ 아직 오지 않은 시각의 줄은 넣지 않는다 — 이력과 레코드의 지금 상태(로그인 차단 · '정지 중' 칩)가 갈리면 안 된다.
+   ⚠️ **정지 줄과 해제 줄은 늘 함께** 넣는다(레코드는 늘 '활성'). 예전엔 해제 시각(이번 달 11일 10:00)이 아직 안 온 날(8일 16:00 ~
+      11일 10:00)에 열면 정지 줄 하나와 '정지' 레코드가 생겼고, 그 사이 무엇이든 저장하면 저장값이 시드를 이겨 싱싱마켓이 **영영
+      정지**로 굳었다(로그인 막힘 · 다음 달도 정지 중 마감 — 2026-10-19 검토 3). */
+const hoursAfter = (d, h) => new Date(d.getTime() + h * 3600e3);
+/** '정지 중 마감' 이야기 한 달분의 상태 이력 두 줄 — 그 귀속월의 수정 마감(= 마감 하루 전 안내 시각) **18시간 전**(전날 오후)에 정지 →
+ *  동의 마감 **21시간 뒤**(다음 날 아침)에 해제. 명세서 발급 안내(T3)는 나가고, 마감 하루 전 안내(T4)·마감 당일 다시 보내기는 정지 중이라
+ *  나가지 않고, 마감 때 정지라 자동 동의를 보류한다(Q20). 싱싱마켓 시드와 **옛 저장본 옮기기**(store `hydrateClient` — holds 의 옛 값
+ *  'CLIENT_SUSPENDED' 를 이 두 줄로)가 같은 일정을 쓴다 — 한쪽만 고치면 옛 브라우저의 보류가 다른 달로 옮겨 간다. */
+export function suspendStoryLines(ym, day) {
+  return [
+    { at: fmtAt(hoursAfter(editLockAt(ym, day), -18)), from: "활성", to: "정지" },
+    { at: fmtAt(hoursAfter(agreeDeadline(ym, day), 21)), from: "정지", to: "활성" },
+  ];
+}
+/** (주)싱싱마켓 이야기의 귀속월 — **해제 시각이 이미 지난 가장 최근 달**(지난달 → 그 전 달). 해제 줄 'HH:mm' 은 그 분의 끝에 일어난
+ *  것으로 읽히므로(settlement-rules statusLineTime) 1분을 더 기다린다. 지난달분 해제는 이번 달 11일 10:00 이라 그 전에는 두 달 전분이다
+ *  (두 달 전분 해제 = 지난달 11일 — 늘 지났다). */
+function storyYm() {
+  for (let k = 1; k <= 2; k++) {
+    const ym = periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - k, 1));
+    if (hoursAfter(agreeDeadline(ym, 1), 21).getTime() + 60e3 <= NOW.getTime()) return ym;
+  }
+  return periodOf(new Date(NOW.getFullYear(), NOW.getMonth() - 2, 1));
+}
+const STORY_YM = storyYm();
+const STATUS_LOG_SEED = {
+  /* (주)싱싱마켓 — 그 달분(보통 지난달분) 수정 마감(= 마감 하루 전 안내 시각 · 발급월 9일 10:00) 전날 오후에 정지 → 마감(10일 13:00)
+     다음 날 아침에 해제(지금 활성). 명세서 발급 안내(T3 · 1일)는 나갔고, 마감 하루 전 안내(T4)·마감 당일 다시 보내기는 정지 중이라
+     나가지 않았고, 마감 때 정지라 그 달은 자동 동의를 보류했다(Q20). 예전 holds 시드 'CLIENT_SUSPENDED'(지난달분) 와 화면 결과가
+     같다(11일 10:01 이후). 그 전(이번 달 1일 ~ 11일 10:00)에 열면 같은 이야기가 **두 달 전분**에 있다(지난달분은 평소대로). */
+  C009: suspendStoryLines(STORY_YM, 1),
+  /* (주)다솜물산 — 가입(지난달 4일) 뒤 지난달 28일에 정지(지금도 정지). 지난달분 명세서(이번 달 3일)부터 T3·T4 를 보내지 않는다.
+     약관 동의 전이라 마감 보류의 이유는 약관이 먼저다(TERMS_NOT_AGREED). */
+  C023: [{ at: `${relDate(1, 28)} 10:00`, from: "활성", to: "정지" }],
+};
+
 export const INITIAL_CLIENTS = [
   seed({ id: "C001", accountId: "hanbit", companyName: "한빛과학(주)", bizNumber: "000-00-00001", ceoName: "김민준", department: "", email: "c001@example.com", address: "서울특별시 강남구 예시로 101 한빛빌딩", joinDate: "2024-12-11", invoiceDay: "1", clientNote: "화환 6만" }),
   seed({ id: "C002", accountId: "saebom", companyName: "새봄푸드(주)", bizNumber: "000-00-00002", ceoName: "이서연", department: "", email: "c002@example.com", address: "서울특별시 송파구 예시로 202", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" }),
@@ -105,7 +147,7 @@ export const INITIAL_CLIENTS = [
   seed({ id: "C006", accountId: "matkkal", companyName: "(주)맛깔채", bizNumber: "000-00-00006", ceoName: "강하은", department: "", email: "c006@example.com", address: "서울특별시 송파구 예시로 606", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" }),
   seed({ id: "C007", accountId: "goimemorial", companyName: "고이메모리얼", bizNumber: "000-00-00007", ceoName: "조민재", department: "", email: "c007@example.com", address: "서울특별시 관악구 예시로 707, 2층", joinDate: "2025-02-19", invoiceDay: "1", clientNote: "", channel: "고이" }),
   seed({ id: "C008", accountId: "hangyeol-jms", companyName: "법무법인 한결", bizNumber: "000-00-00008", ceoName: "윤서아", department: "정민수 변호사", email: "c008@example.com", address: "서울특별시 종로구 예시로 808 한결빌딩", joinDate: "2025-06-09", invoiceDay: "1", clientNote: "정민수 변호사님" }),
-  seed({ id: "C009", accountId: "singsing", companyName: "(주)싱싱마켓", bizNumber: "000-00-00009", ceoName: "장현우", department: "", email: "c009@example.com", address: "경기도 이천시 예시로 909", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "" }),
+  seed({ id: "C009", accountId: "singsing", companyName: "(주)싱싱마켓", bizNumber: "000-00-00009", ceoName: "장현우", department: "", email: "c009@example.com", address: "경기도 이천시 예시로 909", joinDate: "2026-01-08", invoiceDay: "1", clientNote: "", statusLog: STATUS_LOG_SEED.C009 }),
   seed({ id: "C010", accountId: "daesung", companyName: "(주)대성금속", bizNumber: "000-00-00010", ceoName: "임수빈", department: "", email: "c010@example.com", address: "충청남도 아산시 예시로 110", joinDate: "2025-09-24", invoiceDay: "1", clientNote: "★ 기본상품 50\n필요 시 특대 75로 진행" }),
   seed({ id: "C011", accountId: "onnuri", companyName: "(주)온누리헬스", bizNumber: "000-00-00011", ceoName: "서준호", department: "", email: "c011@example.com", address: "서울특별시 송파구 예시로 111", joinDate: "2025-12-03", invoiceDay: "15", clientNote: "3단(50,000원) 또는 4단(90,000원) 중 선택\n화분 80,000원 · 동서양란 80,000원 고정\n배송지연 이슈 또는 배송완료 시 빠른 소통 요망\n총담당자: 이하늘 대리" }),
   seed({ id: "C012", accountId: "bareun", companyName: "법무법인 바른길", bizNumber: "000-00-00012", ceoName: "신예린", department: "", email: "c012@example.com", address: "서울특별시 서초구 예시로 112, 14층", joinDate: "2024-12-11", invoiceDay: "1", clientNote: "화환 5만원 / 담당 변호사에게 배송사진 전송" }),
@@ -122,7 +164,7 @@ export const INITIAL_CLIENTS = [
   seedPending({ id: "C020", accountId: "saesol", companyName: "(주)새솔테크", bizNumber: "000-00-00020", ceoName: "고은결", department: "", email: "c020@example.com", address: "서울특별시 마포구 예시로 120", joinDate: relDate(1, 2), invoiceDay: "1", clientNote: "" }),
   seedPending({ id: "C021", accountId: "hanbyeol", companyName: "(주)한별디자인", bizNumber: "000-00-00021", ceoName: "류하진", department: "", email: "c021@example.com", address: "서울특별시 성동구 예시로 121, 5층", joinDate: relDate(1, 3), invoiceDay: "15", clientNote: "" }),
   seedPending({ id: "C022", accountId: "nurisol", companyName: "누리솔루션", bizNumber: "000-00-00022", ceoName: "변지호", department: "", email: "c022@example.com", address: "경기도 성남시 예시로 122", joinDate: relDate(0, 1), invoiceDay: "5", clientNote: "" }),
-  seedPending({ id: "C023", accountId: "dasom", companyName: "(주)다솜물산", bizNumber: "000-00-00023", ceoName: "엄태윤", department: "", email: "c023@example.com", address: "인천광역시 남동구 예시로 123", joinDate: relDate(1, 4), invoiceDay: "3", clientNote: "", status: "정지" }),
+  seedPending({ id: "C023", accountId: "dasom", companyName: "(주)다솜물산", bizNumber: "000-00-00023", ceoName: "엄태윤", department: "", email: "c023@example.com", address: "인천광역시 남동구 예시로 123", joinDate: relDate(1, 4), invoiceDay: "3", clientNote: "", status: "정지", statusLog: STATUS_LOG_SEED.C023 }),
   seedPending({ id: "C024", accountId: "sodam", companyName: "소담케이터링", bizNumber: "000-00-00024", ceoName: "편서우", department: "", email: "c024@example.com", address: "서울특별시 용산구 예시로 124", joinDate: relDate(1, 5), invoiceDay: "20", clientNote: "" }),
   seedPending({ id: "C025", accountId: "ieum", companyName: "이음테크", bizNumber: "000-00-00025", ceoName: "육민결", department: "", email: "c025@example.com", address: "대전광역시 유성구 예시로 125", joinDate: relDate(0, 1), invoiceDay: "1", clientNote: "" }),
   seedPending({ id: "C026", accountId: "onsaemiro", companyName: "온새미로", bizNumber: "000-00-00026", ceoName: "탁하늘", department: "", email: "c026@example.com", address: "광주광역시 서구 예시로 126", joinDate: relDate(1, 2), invoiceDay: "7", clientNote: "" }),

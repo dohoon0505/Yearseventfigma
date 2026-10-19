@@ -252,3 +252,99 @@ export const HOLD_LABEL = {
   CLIENT_SUSPENDED: "정지 중 마감 · 자동 동의 보류",
 };
 export const HOLD_CODES = Object.keys(HOLD_LABEL);
+
+/* ── 거래처 상태 이력 · 정산 안내(T3·T4)의 도달 (2026-10-19 사용자 결정 '정지 이력을 남긴다' · 명세 3.4 '잠정 보류 두 가지' ·
+      9.4 T3·T4 · 10.4 Q19·Q20·Q35) ──────────────────────────────────────────────────────────────────────────── */
+/** 이용 정지 상태 낱말(거래처 레코드 `status`). */
+export const SUSPENDED = "정지";
+/** 마감 당일 다시 보내는 시각 — 동의 마감 **날짜의 10:00**(마감 13:00 의 세 시간 전). T4 가 닿지 않은 달은 이 시각에 그때의
+ *  정산·회계 담당자에게 한 번 더 보낸다(명세 3.4 '잠정 보류' 1 · 2차 답 N20 ① — 운영자 확인). */
+export function noticeResendAt(period, day) {
+  const d = agreeDeadline(period, day);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), ISSUE_HOUR, 0, 0, 0);
+}
+/** 상태 이력 한 줄이 **일어난 시각** — 'YYYY-MM-DD HH:mm' 은 초를 버린 기록이라 **그 분의 끝**(HH:mm:59.999)에 일어난 것으로 본다
+ *  (2026-10-19 검토). 13:00:40 에 정지하면 '13:00' 으로 남는데, 13:00:00 마감(자동 동의)과 10:00:00 안내(T3·T4)는 그 전에 이미
+ *  지났다 — 분의 처음으로 보면 마감 직후 정지가 이미 자동 동의·발급된 달을 소급해 '정지 중 마감' 으로 뒤집었다(실측). */
+const STATUS_LINE_END_MS = 59999;
+export const statusLineTime = (e) => {
+  const d = e && parseAt(e.at);
+  return d ? d.getTime() + STATUS_LINE_END_MS : null;
+};
+/**
+ * 그 시각의 거래처 상태("활성"·"정지"·"승인대기"·"반려"). 이력은 `client.statusLog = [{ at: "YYYY-MM-DD HH:mm", from, to }]`
+ * (store.updateClient 가 상태가 바뀔 때마다 쌓는다 — invoiceDayLog 와 같은 자리).
+ *   → **`date` 보다 뒤에 일어난 첫 이력 줄의 from**, 그런 줄이 없으면 **레코드의 지금 상태**.
+ * from 으로 읽는 까닭: 새 줄의 from 은 늘 그 순간 저장소의 실제 직전 상태다(store `withStatusLog`). 앞 줄의 to 로 읽으면 사슬이
+ * 끊긴 이력(옛 저장본에 시드 이력이 얹힌 경우 — 시드 줄은 '정지' 로 끝나는데 저장된 상태는 '활성')에서 두 줄 사이가 통째로
+ * '정지' 로 읽혀, 다음 상태 변경 때 지난 달이 소급해 '정지 중 마감' 으로 바뀌었다(2026-10-19 검토 실측 — 9월 발급완료 → 동의대기).
+ * **이력이 없으면 지금 상태가 내내 이어진 것**으로 본다 — 그래서 저장소는 이력 없이 '활성' 이 아닌 레코드에 hydrate 때 한 줄
+ * ('그 순간까지 활성')을 붙인다(store `hydrateClient` — 붙이지 않으면 이력 없는 '정지' 거래처의 지난 달이 모두 소급해 보류된다).
+ * 줄 시각은 그 분의 끝이다(`statusLineTime`) — **같은 분 안의 `date` 는 바뀌기 전 상태**를 돌려준다. 그래서 '지금 정지 중인가' 는
+ * 이 함수가 아니라 레코드의 `status` 로 볼 것(방금 정지한 그 1분 동안 statusAt(now) 는 아직 '활성' 이다).
+ * ⚠️ 정지 판정(마감 때 정지 · 안내를 보내는 시각에 정지)은 이 함수 하나를 지난다 — `client.status` 로 과거 달을 가르면 정지를
+ *    풀거나 거는 순간 지난 달의 보류·안내 기록이 소급해 바뀐다(발급일 이력과 같은 함정).
+ */
+export function statusAt(client, date) {
+  const cur = (client && client.status) || "활성";
+  if (!(date instanceof Date)) return cur;
+  const raw = client && Array.isArray(client.statusLog) ? client.statusLog : [];
+  const t = date.getTime();
+  const next = raw.map((e, i) => ({ e, i, t: statusLineTime(e) })).filter((x) => x.t != null && x.t > t)
+    .sort((a, b) => a.t - b.t || a.i - b.i)[0];
+  return next ? next.e.from || cur : cur;
+}
+/**
+ * 한 (거래처, 귀속월)의 정산 안내 도달 — 명세서 발급 안내(T3) · 마감 하루 전 안내(T4) · 마감 당일 다시 보내기 — 와 그 결과로
+ * **마감에 잡힐 자동 동의 보류**. 시각은 고정이라(발급일 10:00 · 수정 마감 = 마감 전날 10:00 · 마감 당일 10:00 · 마감 13:00)
+ * `now` 를 받지 않는다 — 화면은 `at ≤ now` 인 것만 보인다.
+ *   · 정지 중에는 T3·T4 를 보내지 않는다 — '정지 중' 은 **그 알림을 보내는 시각**의 상태(Q35 ② 잠정). T6~T8 은 평소대로(① 잠정).
+ *     보내는 시각(10:00:00)과 같은 분에 기록된 정지·해제는 그 뒤에 일어난 것으로 친다(statusLineTime — 09:59 정지면 못 보내고
+ *     10:00 정지면 보낸다 · 마감도 같다: 12:59 정지면 정지 중 마감, 13:00 정지면 아니다).
+ *   · T4 가 닿지 않은 달(고지 미도달 기록 `undelivered` — 발송 실패의 데모 대역 · 정지라서 보내지 않음)은 마감 당일 10:00 에
+ *     다시 보낸다(Q19 잠정 · 정지라서 못 보낸 달은 Q35 ③ — 2026-10-19 운영자 확인). 그 시각에 정지가 아니고 정산 담당 연락처가 있으면 닿은 것(데모 규칙), 아니면 고지 미도달.
+ *   · 마감 13:00 에 정지면 CLIENT_SUSPENDED(Q20) — 고지 미도달보다 먼저다. 약관 보류는 agreementState 가 더 먼저 본다.
+ *   · ⚠️ **의도한 데모 차이**(명세 3.4 예외표는 '받을 사람 없음 → 다시 보내고 보류' 다 — 이 차이는 같은 예외표에 '데모 차이' 로 적어 두었다 · 2026-10-19 검토 8):
+ *     연락처가 비어 T4 가 닿지 않은 달(정지도 발송 실패 기록도 없음)은 다시 보내지 않고 **보류로 치지 않는다** — 데모에는 담당자
+ *     연락처 이력이 없어 지금 연락처로 가르면 지난 달 자동 동의가 소급해 풀린다(정산 담당 연락처는 비울 수 없다 — M52 · 생기면
+ *     데이터 오류). 반대로 정지·발송 실패로 T4 가 빠진 달의 **마감 당일 다시 보내기는 지금 연락처로** 닿는지 가른다(reach) —
+ *     그 시각이 지나면 결과가 굳어야 하는데 연락처를 나중에 비우면 그 달이 NOTICE_UNDELIVERED 로 바뀐다(같은 데이터 오류 대비 · 소급 위험은 받아들였다).
+ *   · 0원 달(T3·T4 없음 — N20 ⓔ · Q21)은 금액을 아는 쪽(util/settlement)이 가린다. 여기는 금액을 모른다.
+ * @param {{ period, invoiceDay, client, reach?: boolean, undelivered?: boolean, manualAt?: Date|string|null }} o
+ *   reach = 정산·회계 담당자가 있고 연락처가 있다 · undelivered = 고지 미도달(발송 실패) 기록이 있는 달 · manualAt = 직접 동의 시각
+ * @returns {{ issueAt, editLockAt, resendAt, deadline,
+ *   t3: { at, sent, why: null|"SUSPENDED"|"NO_RECIPIENT" },
+ *   t4: null|{ at, sent, why: null|"SUSPENDED"|"UNDELIVERED"|"NO_RECIPIENT" },      // null = 수정 마감 전에 직접 동의해 T4 가 없다
+ *   resend: null|{ at, reached, why: null|"SUSPENDED"|"UNDELIVERED"|"NO_RECIPIENT" }, // null = 다시 보낼 일이 없다
+ *   suspendedAtDeadline: boolean, hold: null|"CLIENT_SUSPENDED"|"NOTICE_UNDELIVERED" }}
+ */
+export function noticeState({ period, invoiceDay, client, reach = true, undelivered = false, manualAt = null }) {
+  const day = invoiceDayOf({ invoiceDay });
+  const issueAt = issueDate(period, day);
+  const lockAt = editLockAt(period, day);
+  const resendAt = noticeResendAt(period, day);
+  const deadline = agreeDeadline(period, day);
+  const manual = manualAt instanceof Date ? manualAt : parseAt(manualAt);
+  const susp = (d) => statusAt(client, d) === SUSPENDED;
+  const t3 = susp(issueAt) ? { at: issueAt, sent: false, why: "SUSPENDED" }
+    : !reach ? { at: issueAt, sent: false, why: "NO_RECIPIENT" }
+    : { at: issueAt, sent: true, why: null };
+  /* T4 는 수정 마감 시각에 아직 동의 전인 달에만(정각 포함 — 그 시각에 동의했으면 이미 늦다 · admin 진행 기록과 같은 경계) */
+  let t4 = null;
+  if (!manual || manual.getTime() >= lockAt.getTime()) {
+    t4 = susp(lockAt) ? { at: lockAt, sent: false, why: "SUSPENDED" }
+      : undelivered ? { at: lockAt, sent: false, why: "UNDELIVERED" }
+      : !reach ? { at: lockAt, sent: false, why: "NO_RECIPIENT" }
+      : { at: lockAt, sent: true, why: null };
+  }
+  let resend = null;
+  if (t4 && (t4.why === "SUSPENDED" || t4.why === "UNDELIVERED") && (!manual || manual.getTime() >= resendAt.getTime())) {
+    resend = susp(resendAt) ? { at: resendAt, reached: false, why: "SUSPENDED" }
+      : undelivered ? { at: resendAt, reached: false, why: "UNDELIVERED" }
+      : !reach ? { at: resendAt, reached: false, why: "NO_RECIPIENT" }
+      : { at: resendAt, reached: true, why: null };
+  }
+  const suspendedAtDeadline = susp(deadline);
+  const hold = suspendedAtDeadline ? "CLIENT_SUSPENDED" : resend && !resend.reached ? "NOTICE_UNDELIVERED" : null;
+  return { issueAt, editLockAt: lockAt, resendAt, deadline, t3, t4, resend, suspendedAtDeadline, hold };
+}

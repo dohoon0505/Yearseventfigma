@@ -7,6 +7,7 @@ import { ALL_PRODUCTS, priceNum } from "../store.js";
 import { staffNames, staffOptions } from "./staff-mock.js";
 import { DATA_NOW } from "./admin-mock.js";
 import { seedHistory, pushHistory } from "./order-history.js";
+import { cancelFeeError, orderFeeError } from "./order-rules.js";
 import { formatDateLabel, mockDates } from "../util/date.js";
 
 /* 날짜는 DATA_NOW 기준 상대 생성 — 절대값으로 박아두면 시간이 흐르면서
@@ -119,6 +120,12 @@ export const B2C_ORDERS = [
   },
 ];
 
+/* ── 취소 수수료 규칙 — data/order-rules.js 로 옮겼다(B2B·B2C 공통 · import 0) ─────────────────
+   아래 쓰기 함수(b2cUpsert·b2cCancel)가 서버 400 의 데모 대역으로 같은 함수로 막는다. 여기서 다시 내보내는 것은 예전 호출부 호환뿐이다
+   (tools/test-billing.mjs ⑧ 이 `B2C.cancelFeeError`·`B2C.orderFeeError` 를 부른다) — **새 코드는 order-rules.js 에서 가져갈 것.** */
+export { cancelFeeError, orderFeeError, CANCEL_FEE_INVALID } from "./order-rules.js";
+const wonText = (n) => `${Number(n || 0).toLocaleString("ko-KR")}원`; // 취소 이력 한 줄의 금액 표기(b2bCancel 과 같은 낱말)
+
 /* ── CRUD 헬퍼 (모듈 상태 직접 변경) ───────────────────── */
 let idSeq = B2C_ORDERS.length;
 let noSeq = B2C_ORDERS.length; // 최신 주문번호 시퀀스 — 시드가 늘면 따라온다(하드코딩 금지)
@@ -126,12 +133,32 @@ let noSeq = B2C_ORDERS.length; // 최신 주문번호 시퀀스 — 시드가 �
 export function b2cList() { return B2C_ORDERS; }
 export function b2cNewId() { return "b" + String(++idSeq) + "_" + Date.now().toString(36); }
 export function b2cNextOrderNo() { return `${NO_PREFIX}-${String(++noSeq).padStart(4, "0")}`; }
+/** 저장한 레코드를 돌려준다. 불변식(취소 수수료 ≤ 금액)을 깨면 저장하지 않고 **null**(위 orderFeeError — 호출부가 먼저 판정한다). */
 export function b2cUpsert(rec) {
   const i = B2C_ORDERS.findIndex((o) => o.id === rec.id);
-  if (i < 0) { B2C_ORDERS.unshift({ ...rec, history: rec.history || [] }); return; } // 신규는 최상단
+  if (orderFeeError(rec, i < 0 ? null : B2C_ORDERS[i])) return null;
+  if (i < 0) { B2C_ORDERS.unshift({ ...rec, history: rec.history || [] }); return B2C_ORDERS[0]; } // 신규는 최상단
   /* ⚠️ 모달 draft 는 history 를 싣지 않는다(얕은 복사로 배열 참조가 공유되면
      편집 취소가 이력을 되돌린다). rec 에 없으면 기존 것을 지킨다. */
   B2C_ORDERS[i] = { ...rec, history: rec.history || B2C_ORDERS[i].history || [] };
+  return B2C_ORDERS[i];
+}
+/** 주문취소 — 사유·수수료와 이력 한 줄을 함께 남긴다(b2bCancel 과 같은 모양 · 같은 낱말). 수수료가 규칙을 어기면 취소하지 않고 false
+ *  (cancelFeeError — 기준은 지금 저장된 금액), 이미 취소면 true(할 일 없음).
+ *  ⚠️ 상태를 '취소' 로 바꾼 레코드를 b2cUpsert 한 뒤 b2cSetStatus 를 부르면 '값이 그대로' 로 건너뛰어 **취소 이력이 남지 않는다**
+ *     (예전 B2C 상세의 길 — B2B 가 먼저 겪은 함정). 작성 중인 수정은 상태를 바꾸지 않은 채 먼저 저장하고 이 함수를 부를 것. */
+export function b2cCancel(id, { reason = "", fee = 0 } = {}) {
+  const o = B2C_ORDERS.find((x) => x.id === id);
+  if (!o) return false;
+  if (o.status === "취소") return true;
+  if (cancelFeeError(o.amount, fee)) return false;
+  o.status = "취소";
+  o.cancelReason = reason;
+  o.cancelFee = Number(fee) || 0;
+  const why = reason ? ` · ${reason}` : "";
+  const f = o.cancelFee ? ` · 수수료 ${wonText(o.cancelFee)}` : "";
+  pushHistory(o, "cancel", `주문취소${why}${f}`);
+  return true;
 }
 export function b2cRemove(id) {
   const i = B2C_ORDERS.findIndex((o) => o.id === id);

@@ -339,3 +339,23 @@ export function bindRadioGroup(root, { item, selClass = "is-sel", onPick } = {})
   });
   return { sync, off: () => { offClick(); offKey(); } };
 }
+
+/* ── 막힌 이유를 칸에 잇는다 ────────────────────────────────────────────
+   주 버튼이 잠긴 이유는 푸터(작은 창의 `.dlg-ft__hint` · 큰 모달의 저장 줄 `.ord-ft__stat`)가 말한다. 그런데 그 자리는 live 가
+   아니고(모든 창이 입력마다 떠들게 된다 — 일부러 두지 않는다) 칸과도 이어져 있지 않아, 화면낭독기로 칸에 있는 사람은 왜 막혔는지
+   듣지 못했다. 그래서 **틀린 값이 원인인 칸**에 `aria-invalid="true"` 와 `aria-describedby`(그 이유 자리의 id)를 단다 — 칸에
+   초점이 가면 이유를 읽는다(담당자 관리 창 인라인 칸 · 주문취소 창 수수료 · 두 상세 창의 금액 < 수수료).
+   풀리면 그 id 만 걷는다 — 칸이 원래 갖던 설명(B2B 금액 칸의 '명세서 나감' 줄 등)은 그대로 둔다. aria-invalid 는 칸이 다른
+   이유로 이미 틀렸으면(거부된 글자 `.is-bad` — order-fields readWonInput) 남긴다. 이유 자리에 id 가 없으면 하나 준다.
+   ⚠️ 모양은 바꾸지 않는다(클래스를 칠하지 않는다) — 보이는 이유는 푸터가 이미 막는 색으로 말한다. */
+let whySeq = 0;
+export function linkReason(field, reasonEl, blocked) {
+  if (!field || !reasonEl) return;
+  if (!reasonEl.id) reasonEl.id = `why-${++whySeq}`;
+  const ids = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((x) => x && x !== reasonEl.id);
+  if (blocked) ids.push(reasonEl.id);
+  if (ids.length) field.setAttribute("aria-describedby", ids.join(" "));
+  else field.removeAttribute("aria-describedby");
+  if (blocked) field.setAttribute("aria-invalid", "true");
+  else if (!field.classList.contains("is-bad")) field.setAttribute("aria-invalid", "false");
+}

@@ -11,14 +11,16 @@
       진입점은 `js/util/contacts-modal.js` 이고, 불변식 둘은 양쪽이 반드시 같아야 한다:
       · 담당자가 1명 이상이면 정산·회계 담당은 **정확히 1명**(store.fixBilling 이 보장)
       · **정산담당은 직접 삭제할 수 없다** — 다른 사람을 먼저 지정해야 한다
+      담당자 등록·수정 창은 관리자 '담당자 추가' 와 **같은 창**이다(js/util/contact-dialog.js — 성함·연락처 필수).
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { icon } from "../icons.js";
-import { store, MSG_RECEIVE, MSG_NONE, newContactId, newProfileId } from "../store.js";
+import { store, MSG_RECEIVE, newProfileId } from "../store.js";
 import { currentClientName } from "../util/client.js";
 import { pageHead, tableGrid } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions, openDeleteConfirm } from "../util/dialog.js";
-import { onPhoneInput } from "../util/phone.js";
+import { openContactForm } from "../util/contact-dialog.js";
+import { onPhoneInput, contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
 import { makeToast } from "../toast.js";
 import { takeFocusSection } from "../session.js";
 
@@ -187,28 +189,37 @@ export function mount(root) {
   }
 
   /* ── 등록 · 수정 다이얼로그 ────────────────────────────
-     한 셸로 프로필·담당자 둘 다 그린다 — 다른 것은 **필드 서술자와 둘째 구역**뿐이다. */
+     담당자는 공용 다이얼로그다(util/contact-dialog.js — 관리자 담당자 관리 창의 '담당자 추가' 와 같은 창).
+     예전엔 이 함수 한 셸이 프로필·담당자 둘 다 그렸는데, 관리자 화면이 같은 담당자 창을 써야 해서(명세 4.5a · M52)
+     담당자 쪽을 꺼냈다. 여기 남은 것은 발송인 프로필뿐이다. */
   function openForm(kind, row) {
     closeDlg();
-    const isProfile = kind === "profile";
+    if (kind === "contact") {
+      dlg = openContactForm({
+        row,
+        onClose: () => { dlg = null; },
+        onSaved: (next, { isNew }) => {
+          /* 창은 이미 닫혔고 표는 아직 그대로다 — 다시 그리기 전 순번을 잰다(수정이면 그 줄의 새 '수정' 버튼으로 · focusCol). */
+          const idx = isNew ? -1 : rowIndexOf("contact", next.id);
+          refresh();
+          /* 등록 = 창이 돌려준 '담당자 등록' 이 그대로 남는다(아래 프로필 저장의 주석과 같다). */
+          if (isNew) { if (lostFocus()) focusAdd("contact"); }
+          else focusCol("contact", "edit", idx);
+          toast(isNew ? "등록했습니다" : "저장했습니다");
+        },
+      });
+      return;
+    }
     const isNew = !row;
-    const form = isNew
-      ? (isProfile
-        ? { id: newProfileId(), name: "", role: "", phone: "", greeting: "" }
-        : { id: newContactId(), name: "", role: "", phone: "", message: MSG_RECEIVE, isBilling: false })
-      : { ...row };
+    const form = isNew ? { id: newProfileId(), name: "", role: "", phone: "", greeting: "" } : { ...row };
 
     /* 필수 항목 — 프로필은 고정문구까지 받는다. 비워 두면 리본에 찍을 글자가 없어서,
        빈 값을 저장하느니 등록을 막는다(2026-09-17 사용자 결정). 자동생성은 하지 않는다. */
-    const REQUIRED = isProfile
-      ? [["name", "성함"], ["phone", "수신번호"], ["greeting", "고정문구"]]
-      : [["name", "성함"], ["phone", "연락처"]];
+    const REQUIRED = [["name", "성함"], ["phone", "수신번호"], ["greeting", "고정문구"]];
     const missing = () => REQUIRED.filter(([k]) => !trim(form[k])).map(([, label]) => label);
     const ok = () => missing().length === 0;
 
-    const HINT_OK = isProfile
-      ? "주문 화면에서 문구는 다시 고칠 수 있습니다"
-      : "정산담당을 옮기려면 다른 담당자를 지정하세요";
+    const HINT_OK = "주문 화면에서 문구는 다시 고칠 수 있습니다";
     /* ⚠️ 버튼만 흐려 두지 않는다 — **무엇이** 남았는지 그 자리에서 말한다(규약).
        시안의 고정 문구("성함과 연락처는 필수입니다")를 그대로 쓰면 고정문구가 빠졌을 때
        막힌 이유를 거짓으로 말하게 된다. */
@@ -220,58 +231,31 @@ export function mount(root) {
     `;
 
     const body = html`
-      ${dlgRule({
-        t: isProfile ? "발송인 정보" : "기본 정보",
-        cap: isProfile ? "리본과 배송완료 알림에 쓰입니다" : "주문 요청자 목록에 함께 뜹니다",
-      })}
+      ${dlgRule({ t: "발송인 정보", cap: "리본과 배송완료 알림에 쓰입니다" })}
       ${dlgRow({
         k: "성함", req: true, htmlFor: "pf-name",
         v: html`<input class="ord-in" id="pf-name" data-f="name" value="${form.name ?? ""}" placeholder="예) 홍길동" />`,
       })}
       ${dlgRow({
-        k: isProfile ? "직위" : "부서 · 직위", htmlFor: "pf-role",
-        v: html`<input class="ord-in" id="pf-role" data-f="role" value="${form.role ?? ""}" placeholder="${isProfile ? "예) 대표이사" : "예) 재경부"}" />`,
+        k: "직위", htmlFor: "pf-role",
+        v: html`<input class="ord-in" id="pf-role" data-f="role" value="${form.role ?? ""}" placeholder="예) 대표이사" />`,
       })}
       ${dlgRow({
-        k: isProfile ? "수신번호" : "연락처", req: true, htmlFor: "pf-phone",
+        k: "수신번호", req: true, htmlFor: "pf-phone",
         v: html`<input class="ord-in ord-in--num" id="pf-phone" data-f="phone" value="${form.phone ?? ""}" placeholder="010-0000-0000" inputmode="numeric" />`,
       })}
 
-      ${isProfile
-        ? html`
-            ${dlgRule({ t: "리본 문구", cap: "리본에 그대로 인쇄됩니다" })}
-            ${dlgRow({
-              k: "고정문구", req: true, htmlFor: "pf-greeting",
-              v: html`<input class="ord-in" id="pf-greeting" data-f="greeting" value="${form.greeting ?? ""}" placeholder="예) ${currentClientName()} 대표이사 홍길동" />`,
-            })}
-            <div class="pf-pv" data-slot="pv">${previewBody()}</div>
-          `
-        : html`
-            ${dlgRule({ t: "알림 · 정산", cap: "정산 · 회계 담당은 항상 1명" })}
-            <div class="pf-set">
-              <span class="pf-set__l">
-                <b>배송완료 알림톡</b>
-                <span>주문마다 배송완료 알림을 받습니다</span>
-              </span>
-              <button type="button" class="toggle" role="switch" data-action="msg"
-                      aria-checked="${form.message === MSG_RECEIVE ? "true" : "false"}"
-                      aria-label="배송완료 알림톡 수신"><span class="toggle__knob"></span></button>
-            </div>
-            <div class="pf-set">
-              <span class="pf-set__l">
-                <b>정산 · 회계 담당</b>
-                <span>거래명세서 · 입금요청 알림톡을 받습니다</span>
-              </span>
-              <span data-slot="bill">${billBody(form)}</span>
-            </div>
-          `}
+      ${dlgRule({ t: "리본 문구", cap: "리본에 그대로 인쇄됩니다" })}
+      ${dlgRow({
+        k: "고정문구", req: true, htmlFor: "pf-greeting",
+        v: html`<input class="ord-in" id="pf-greeting" data-f="greeting" value="${form.greeting ?? ""}" placeholder="예) ${currentClientName()} 대표이사 홍길동" />`,
+      })}
+      <div class="pf-pv" data-slot="pv">${previewBody()}</div>
     `;
 
     dlg = openDialog({
-      eyebrow: isProfile ? "발송인 프로필관리" : "담당자 저장공간",
-      title: isNew
-        ? (isProfile ? "새 발송인 프로필을 등록합니다" : "새 담당자를 등록합니다")
-        : (isProfile ? `${row.name} 프로필 수정` : `${row.name} 담당자 수정`),
+      eyebrow: "발송인 프로필관리",
+      title: isNew ? "새 발송인 프로필을 등록합니다" : `${row.name} 프로필 수정`,
       width: 560,
       body,
       hint: ok() ? HINT_OK : hintNo(),
@@ -294,44 +278,16 @@ export function mount(root) {
     on(p, "input", "[data-f]", (e, t) => {
       const k = t.dataset.f;
       form[k] = k === "phone" ? onPhoneInput(t) : t.value;
-      if (isProfile) {
-        const pv = qs(p, "[data-slot='pv']");
-        if (pv) setHTML(pv, previewBody());
-      }
+      const pv = qs(p, "[data-slot='pv']");
+      if (pv) setHTML(pv, previewBody());
       syncFooter();
     });
-
-    if (!isProfile) {
-      on(p, "click", "[data-action='msg']", (e, t) => {
-        form.message = form.message === MSG_RECEIVE ? MSG_NONE : MSG_RECEIVE;
-        t.setAttribute("aria-checked", form.message === MSG_RECEIVE ? "true" : "false");
-      });
-      /* 정산담당 지정은 **저장할 때** 반영한다. 여기서 바로 store 를 건드리면 아직
-         명단에 없는 신규 id 로 모두의 isBilling 을 끄게 되고, fixBilling 이 엉뚱한
-         사람을 다시 정산담당으로 올린다. */
-      on(p, "click", "[data-action='setbill']", () => {
-        form.isBilling = true;
-        const slot = qs(p, "[data-slot='bill']");
-        if (slot) setHTML(slot, billBody(form));
-        /* 누른 '지정' 이 '지정됨' 표지로 바뀌며 DOM 에서 떨어져 초점이 body 로 빠졌다 — 다음 Tab 이 창 맨 앞 ✕ 로 튀었다(실측).
-           그 자리의 표지(tabindex=-1 · 탭 순서 밖)에 둔다: 다음 Tab 은 푸터 '취소', Shift+Tab 은 바로 위 알림톡 스위치다.
-           명세서 동의 직후 카드 제목에 초점을 두는 것과 같은 수법이다. 초점을 잃었을 때만. */
-        const chip = slot && qs(slot, ".pf-billon");
-        if (chip && lostFocus()) chip.focus();
-      });
-    }
 
     on(p, "click", "[data-action='ok']", () => {
       if (!ok()) return;
       const idx = isNew ? -1 : rowIndexOf(kind, form.id); // 다시 그리기 전 순번 — 수정이면 그 줄의 새 '수정' 버튼으로(focusCol)
-      if (isProfile) {
-        const next = { ...form, name: trim(form.name), role: trim(form.role), phone: trim(form.phone), greeting: trim(form.greeting) };
-        store.setProfiles((prev) => (isNew ? [...prev, next] : prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))));
-      } else {
-        const next = { ...form, name: trim(form.name), role: trim(form.role), phone: trim(form.phone) };
-        store.setContacts((prev) => (isNew ? [...prev, next] : prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))));
-        if (next.isBilling) store.setBillingContactOf(null, next.id);
-      }
+      const next = { ...form, name: trim(form.name), role: trim(form.role), phone: trim(form.phone), greeting: trim(form.greeting) };
+      store.setProfiles((prev) => (isNew ? [...prev, next] : prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))));
       closeDlg();
       refresh();
       /* 수정 = 그 줄의 '수정'(줄이 다시 그려졌으니 같은 줄의 새 버튼) · 등록 = 창이 돌려준 '… 등록' 이 그대로 남는다
@@ -342,12 +298,6 @@ export function mount(root) {
       toast(isNew ? "등록했습니다" : "저장했습니다");
     });
   }
-
-  /* '지정됨' 표지의 tabindex=-1 은 '지정' 을 누른 직후 초점이 머무를 자리다(위 setbill — 탭 순서에는 끼지 않는다). */
-  const billBody = (form) =>
-    form.isBilling
-      ? html`<span class="pf-billon pf-billon--sm" tabindex="-1">${icon("check", { size: 13 })}지정됨</span>`
-      : html`<button type="button" class="pf-billset" data-action="setbill">지정</button>`;
 
   /* ── 삭제 ─────────────────────────────────────────────── */
   function openDel(kind, row) {
@@ -420,6 +370,15 @@ export function mount(root) {
     if (a === "new-contact") return openForm("contact", null);
     if (a === "set-billing") {
       const c = contacts().find((x) => x.id === t.dataset.id);
+      /* 연락처가 없거나 담당자 연락처 기준(util/phone.js contactPhoneOk — 숫자 10~12자리 · 010 번호는 11자리 · 2026-10-19 사용자
+         결정 ⓔ)에 맞지 않는 사람은 정산 · 회계 담당으로 지정하지 않는다 — 정산 알림이 갈 곳이 없어진다('정산 담당 연락처는 비울 수
+         없음'). 지금 등록·수정 창은 그런 번호를 받지 않으므로 예전에 저장된 줄만 해당한다. 초점은 누른 '지정' 그대로다(다시 그리지 않는다). */
+      if (c && !contactPhoneOk(c.phone)) {
+        toast(trim(c.phone)
+          ? `${who(c.name)}님은 연락처가 맞지 않아(${contactPhoneNeed(c.phone)}) 정산 · 회계 담당으로 지정할 수 없습니다 — 수정에서 연락처를 먼저 고치세요`
+          : `${who(c.name)}님은 연락처가 없어 정산 · 회계 담당으로 지정할 수 없습니다 — 수정에서 연락처를 먼저 입력하세요`, "warn");
+        return;
+      }
       const idx = rowIndexOf("contact", t.dataset.id); // 다시 그리기 전 순번 — 그 줄의 칸은 '담당' 표지가 된다(focusCol)
       store.setBillingContactOf(null, t.dataset.id);
       refresh();

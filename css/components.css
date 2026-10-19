@@ -2473,6 +2473,74 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ctc-note { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.6; color: var(--c-text-muted); }
 .ctc-note b { color: var(--c-text-3); font-weight: var(--fw-semibold); }
 
+/* ── 담당자 등록 · 수정 창 (util/contact-dialog.js) ──────────
+   포털 담당자 저장공간과 관리자 담당자 관리 창('담당자 추가' — 위 창에 스택)이 같은 창을 쓴다(2026-10-19 — profile.css 에서
+   옮겼다 · 이름의 pf- 는 처음 쓴 화면(프로필 저장공간)의 흔적이다). 값은 옮기기 전과 같다(포털 창 계산값 실측 일치).
+   ⚠️ `.modal-panel--dlg` 아래로 스코프한다 — 창은 document.body 에 붙어 페이지 스코프가 닿지 않는다.
+      표의 '지정' 버튼(.page-profile .pf-billset)은 profile.css 에 따로 있다. */
+.modal-panel--dlg .pf-set {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  width: 100%;
+  margin-top: var(--sp-3);
+  padding: 12px 14px;
+  border-radius: var(--r-xl);
+  background: var(--c-surface-2);
+}
+.modal-panel--dlg .pf-set__l b {
+  display: block;
+  font-size: var(--fs-15);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-strong);
+}
+.modal-panel--dlg .pf-set__l span {
+  display: block;
+  font-size: var(--fs-14);
+  letter-spacing: -0.01em;
+  color: var(--c-text-3);
+}
+.modal-panel--dlg .pf-billon--sm {
+  height: 26px;
+  padding: 0 11px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  font-size: var(--fs-14);
+}
+.modal-panel--dlg .pf-billset {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-3);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.modal-panel--dlg .pf-billset:hover {
+  border-color: var(--c-orange);
+  color: var(--c-orange-ink);
+}
+/* '지정됨' 표지는 '지정' 을 누른 직후 초점이 머무르는 자리다(tabindex=-1 · contact-dialog.js setbill) — 방금 누른 버튼과
+   같은 자리 · 같은 링으로 그려 키보드 사용자가 초점이 어디 있는지 본다(마우스로 누르면 :focus-visible 이 아니라 링이 없다). */
+.modal-panel--dlg .pf-billset:focus-visible,
+.modal-panel--dlg .pf-billon--sm:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+/* 배송완료 알림톡 토글 — **바깥(2px)** 이다. 안쪽이면 켜진 트랙(`--c-blue`) 위 인디고라 1.3:1 로 안 보인다(관리자 담당자 관리 창
+   `.ctc-list .toggle` 과 같은 처방 · 그때 전역 링은 1.11:1 이었다 — 2026-10-19 실측). 본문(`.dlg-body`)이 스크롤 칸이라 짧은 화면에서
+   Tab 이 끝에 맞춰 굴리면 바깥 링이 잘린다 — `scroll-margin` 이 자리를 낸다.
+   ⚠️ `.pf-set` 스코프를 지킬 것 — `.toggle` 은 담당자 설정·담당자 관리 창·포털 주문 4단계·주문 등록 레일도 쓴다. */
+.modal-panel--dlg .pf-set .toggle { scroll-margin: 6px; }
+.modal-panel--dlg .pf-set .toggle:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 1180px) { .cli-rows { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1000px) { .cli-grid { grid-template-columns: minmax(0, 1fr); } }

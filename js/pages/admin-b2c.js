@@ -5,7 +5,7 @@
    - 기존 주문은 읽기 모드로 열림 → [내용 수정]으로 편집 폼 전환.
      수정 취소 시 폼은 저장본으로 되돌리되 레일 값(사진·인수자·메모)은 유지.
    - 우측 처리 레일(현장사진 3:4·인수자·처리 메모)은 모드와 무관하게 항상 활성.
-   - 주문접수 처리·주문취소 = 즉시 반영(b2cSetStatus + 슬롯 재렌더).
+   - 주문접수 처리 = 즉시 반영(b2cSetStatus + 슬롯 재렌더) · 주문취소 = 즉시 반영(작업본 저장 → b2cCancel · 수수료는 주문금액까지).
      저장 = 반영 후 모달 유지(읽기 복귀). 닫기/X/ESC 만 모달을 닫는다.
    - 자동 배송완료: 주문접수 상태 + 사진 + 인수자 → 저장 시 배송완료·알림톡 자동.
    - 신규 등록: 같은 모달, 레일·상태 액션 숨김, 강제 편집 모드, 등록 시 닫힘.
@@ -24,7 +24,7 @@ import { onPhoneInput } from "../util/phone.js";
 import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openAutofill } from "../util/order-dialogs.js";
-import { bindRadioGroup } from "../util/dialog.js";
+import { bindRadioGroup, linkReason } from "../util/dialog.js";
 import { applyOrderText } from "../data/order-text.js";
 import { pushHistory } from "../data/order-history.js";
 import {
@@ -36,9 +36,11 @@ import {
 } from "../util/order-screen.js";
 import {
   staffOptions, B2C_CHANNELS, B2C_CHANNEL_META, B2C_PAY_STATES, B2C_STATUSES, B2C_PRODUCTS,
-  productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus,
+  productPrice, b2cList, b2cUpsert, b2cRemove, b2cSetStatus, b2cCancel,
   b2cSetManager, b2cNewId, b2cNextOrderNo,
 } from "../data/b2c-mock.js";
+/* 취소 수수료 규칙(B2B·B2C 공통 · import 0 — 쓰기 함수가 같은 함수로 한 번 더 막는다). */
+import { cancelFeeError, orderFeeError } from "../data/order-rules.js";
 
 /* 표기·상태배지·필터 마크업은 거래처 주문관리와 100% 공유 — util/order-screen.js */
 const TABS = tabDefs(B2C_STATUSES);
@@ -324,17 +326,29 @@ export function mount(root, { nav }) {
       histScrollEnd(el);
     }
   }
-  /* 입력마다 호출된다 — textContent 만 바꾼다(재렌더 금지) */
+  /* 지금 작업본을 저장하면 들어갈 레코드(이력 제외 — 판정용 · saveOrder 와 같은 금액 정규화). */
+  const mergedNow = () => { const { history: _h, ...rec } = editing; return { ...rec, amount: Number(editing.amount) || 0 }; };
+  /* 입력마다 호출된다 — textContent 만 바꾼다(재렌더 금지).
+     취소한 주문의 금액을 수수료보다 작게 고치면 저장을 막고 이 자리가 이유를 말한다(명세 5.3 불변식 `cancel_fee ≤ amount` — 취소한
+     뒤에도 · data/order-rules `orderFeeError`). 칸은 그대로 둔다(B2B 상세의 저장 줄과 같은 말 · 같은 판정). */
   function syncDirty() {
     const p = panelOf(); if (!p) return;
     const n = dirtyCount();
+    const feeLow = n ? orderFeeError(mergedNow(), findOrder(editing.id)) : null;
     const stat = qs(p, "[data-slot='dirty']");
     if (stat) {
-      stat.textContent = n ? `수정한 항목 ${n}개` : savedAt ? `저장됨 · ${savedAt}` : "변경 없음";
-      stat.className = `ord-ft__stat ${n ? "is-dirty" : savedAt ? "is-saved" : ""}`;
+      stat.textContent = feeLow ? feeLow.message : n ? `수정한 항목 ${n}개` : savedAt ? `저장됨 · ${savedAt}` : "변경 없음";
+      stat.className = `ord-ft__stat ${feeLow ? "is-block" : n ? "is-dirty" : savedAt ? "is-saved" : ""}`;
     }
     const btn = qs(p, "[data-action='save']");
-    if (btn) { btn.disabled = !n; btn.textContent = n ? "변경사항 저장" : "저장"; }
+    if (btn) { btn.disabled = !n || !!feeLow; btn.textContent = n ? "변경사항 저장" : "저장"; }
+    linkAmtWhy(!!feeLow);
+  }
+  /* 금액 < 수수료로 막혔으면 그 이유(저장 줄)를 금액 칸에 잇는다 — B2B 상세와 같은 수법(util/dialog.js linkReason · 저장 줄은 live 가
+     아니다). focusout 이 칸을 다시 쓰며 aria-invalid 를 끄므로(settleWonInput) 거기서도 다시 잇는다. */
+  function linkAmtWhy(low = !!(editing && dirtyCount() && orderFeeError(mergedNow(), findOrder(editing.id)))) {
+    const p = panelOf(); if (!p) return;
+    linkReason(qs(p, "input[data-f='amount']"), qs(p, "[data-slot='dirty']"), low);
   }
 
 
@@ -648,6 +662,9 @@ export function mount(root, { nav }) {
     }
     const n = dirtyCount();
     const merged = { ...editing, amount: Number(editing.amount) || 0 };
+    /* 취소한 주문의 금액 < 수수료(서버 400 대역) — 푸터가 이미 막지만 누르는 순간 한 번 더 본다(b2cUpsert 도 같은 판정으로 막는다). */
+    const feeLow = orderFeeError(merged, findOrder(merged.id));
+    if (feeLow) { syncDirty(); toast(`저장하지 못했습니다 · ${feeLow.message}`, "warn"); focusAfterSave(panelOf()); return; }
     let autoDone = false;
     /* 자동 배송완료 — 주문접수 + 사진 + 인수자 */
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
@@ -656,7 +673,7 @@ export function mount(root, { nav }) {
       autoDone = true;
     }
     delete merged.history; // ⚠️ draft 의 history 는 넘기지 않는다(참조 공유 방지)
-    b2cUpsert(merged);
+    if (!b2cUpsert(merged)) { toast("저장하지 못했습니다", "warn"); syncDirty(); return; } // 위 판정을 지났으면 닿지 않는다
     const stored = findOrder(merged.id);
     if (stored && n) pushHistory(stored, "edit", `주문 정보 수정 ${n}건`);
     if (stored && autoDone) pushHistory(stored, "delivered", "배송완료 · 알림톡 발송");
@@ -765,16 +782,24 @@ export function mount(root, { nav }) {
         /* 확정하면 아래에서 머리를 다시 그려 창이 돌려줄 ··· 가 사라진다(초점이 body 로 빠졌다) — 새 ··· 로. */
         onClose: () => menu.refocus(),
         onConfirm: ({ reason, fee }) => {
-          editing.status = "취소";
-          editing.cancelReason = reason;
-          editing.cancelFee = fee;
           const { history: _x, ...rec } = editing;
-          b2cUpsert(rec);
-          b2cSetStatus(editing.id, "취소");
+          /* 수수료 상한(명세 6.4 `400 CANCEL_FEE_INVALID` — 0원부터 이 주문 금액까지 · B2B 와 같은 규칙). 창이 이미 막지만 쓰기 전에 한 번 더 —
+             기준은 곧 저장될 작업본 금액(창에 보인 금액)이다. */
+          const feeErr = cancelFeeError(rec.amount, fee);
+          if (feeErr) { toast(`취소하지 못했습니다 · ${feeErr.message}`, "warn"); return; }
+          /* 작성 중인 수정은 상태를 바꾸지 않은 채 먼저 저장하고, 취소는 b2cCancel 이 사유·수수료·이력을 한 번에 남긴다(B2B 와 같은 순서).
+             ⚠️ 예전엔 상태를 '취소' 로 바꾼 작업본을 b2cUpsert 한 뒤 b2cSetStatus 를 불러 '값이 그대로' 로 건너뛰어 **취소 이력이 한 줄도
+             남지 않았다**(2026-10-19 실측 — B2B 가 먼저 고친 함정). */
+          if (!b2cUpsert(rec) || !b2cCancel(editing.id, { reason, fee })) { toast("주문을 취소하지 못했습니다", "warn"); return; }
           const stored = findOrder(editing.id);
-          if (stored) editing.history = stored.history;
+          if (stored) {
+            Object.assign(editing, {
+              status: stored.status, cancelReason: stored.cancelReason, cancelFee: stored.cancelFee, history: stored.history,
+            });
+          }
+          baseline = { ...editing }; // 작성 중이던 수정도 방금 함께 저장됐다(예전엔 '수정한 항목 N개' 가 남았다)
           refreshList();
-          renderHd(); renderHist();
+          syncDirty(); renderHd(); renderSum(); renderHist();
           toast("주문을 취소 처리했습니다", "warn");
         },
       });
@@ -798,7 +823,7 @@ export function mount(root, { nav }) {
       if (k === "receiver" || k === "image") renderHd(); // 배송완료 조건이 바뀐다
       syncDirty();
     });
-    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) settleWonInput(t, editing.amount); });
+    on(panel, "focusout", "input[data-f='amount']", (e, t) => { if (editing) { settleWonInput(t, editing.amount); linkAmtWhy(); } });
     /* API 자동등록(담당자 미지정) 주문을 열면 담당자 지정을 우선 노출 */
     if (!editing.manager) openManagerModal();
   }

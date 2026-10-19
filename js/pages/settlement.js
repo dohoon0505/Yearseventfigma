@@ -35,7 +35,7 @@ import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { dayPickerMarkup, makeDayPicker } from "../util/day-picker.js";
 import { store } from "../store.js";
 /* 정산 행은 B2B 주문(배송일시의 달)에서 파생한 금액 + store 의 정산 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
-import { settlementsFor, amountChangeLine, INVOICE_YM_KEY } from "../util/settlement.js";
+import { settlementsFor, amountChangeLine, holdPendingOf, INVOICE_YM_KEY } from "../util/settlement.js";
 import {
   INVOICE_DAYS, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, editLockDayOf,
   issueDate, agreeDeadline, shiftPeriod, periodLabel, ISSUE_HOUR, DEADLINE_HOUR,
@@ -146,12 +146,15 @@ function invStage(s, now) {
       };
     }
     const hot = s.deadline.getTime() - now.getTime() <= DAY;
+    /* 이대로면 보류가 잡힐 달(holdPendingOf — 관리자 정산회계 · 거래명세서 동의 카드와 같은 예측)은 '…까지 동의가 없으면 자동 동의됩니다' 를
+       단정하지 않는다(검토 9 — 새 문장은 짓지 않고 그 말만 뺀다). */
+    const pend = holdPendingOf(s);
     /* 금액이 바뀐 달(②) — 동의 전에는 안내 칸이 '발급 때 → 지금' 을 말한다(동의한 뒤에는 지금 단계를 말하고 칩만 남는다). */
     const chg = amountChangeLine(s);
     if (chg) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", hot, chg: true, meta: chg,
-        title: `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
+        title: pend ? `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}` : `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
       };
     }
     /* 수정 마감 전(①) — 아직 금액이 바뀔 수 있다. 판정은 settlementOf 의 editable(명세 6.6 — 날짜로 짐작하지 않는다). */
@@ -160,7 +163,7 @@ function invStage(s, now) {
       meta: s.editable
         ? `마감 ${fmtMdHm(s.deadline)} · 수정 마감 ${fmtMdHm(s.editLockAt)}까지 금액 바뀔 수 있음`
         : `마감 ${fmtMdHm(s.deadline)}`,
-      title: "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
+      title: pend ? "" : "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
     };
   }
   /* AGREED — 동의는 됐지만 계산서가 아직(발급 실패 뒤 다시 시도·직접 입력 대기). '발급완료' 라고 말하지 않는다. */
@@ -186,12 +189,14 @@ function payStage(s, now) {
     };
   }
   if (s.status === "PAID") return { kind: "done", label: "정산완료", tone: "green", meta: s.paidAt ? `${fmtMd(s.paidAt)} 입금 확인` : "입금 확인" };
-  /* 기한 초과 = 정산기한 다음 날 10:00 부터(M44) — 그 시각은 settlementOf 의 overdueAt 이 말한다 */
+  /* 기한 초과 = 정산기한 다음 날 10:00 부터(M44) — 계산서가 그 뒤에 나왔으면 발급 순간부터(M39 · Q36 잠정). 그 시각은 settlementOf 의
+     overdueFrom 이 말한다(관리자 정산회계 · 입금 확인 창과 같은 값 — 예전 overdueAt 은 계산서가 나오기 전 시각을 '…부터' 라고 했다). */
   if (s.status === "OVERDUE") {
-    const days = Math.max(1, Math.floor((now.getTime() - s.overdueAt.getTime()) / DAY));
+    const from = s.overdueFrom || s.overdueAt;
+    const days = Math.max(1, Math.floor((now.getTime() - from.getTime()) / DAY));
     return {
       kind: "live", label: "기한 초과", tone: "red", hot: true,
-      meta: `${days}일 지남 · ${fmtMd(s.overdueAt)}부터`, title: `${fmtMdHm(s.overdueAt)}부터 기한 초과 · 정산기한 ${fmtMd(s.dueAt)}`,
+      meta: `${days}일 지남 · ${fmtMd(from)}부터`, title: `${fmtMdHm(from)}부터 기한 초과 · 정산기한 ${fmtMd(s.dueAt)}`,
     };
   }
   if (s.status === "ISSUED") return { kind: "live", label: "정산필요", tone: "gray", meta: `기한 ${fmtMd(s.dueAt)}까지`, title: "" };
