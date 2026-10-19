@@ -331,13 +331,31 @@ export function mount(root, { nav }) {
   function summaryBody() {
     return html`조회 <strong>${filtered().length}</strong>개 거래처`;
   }
-  function tabsBody() {
+  const tabCount = (v) => {
     const clients = store.get().clients;
+    return v === "all" ? clients.length : clients.filter((c) => c.status === v).length;
+  };
+  function tabsBody() {
     return TABS.map((t) => {
-      const count = t.value === "all" ? clients.length : clients.filter((c) => c.status === t.value).length;
+      const count = tabCount(t.value);
       const active = state.tab === t.value;
       const alert = t.value === "승인대기" && count > 0;
-      return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}">${t.label}<span class="bf-tab__cnt ${alert ? "bf-tab__cnt--alert" : ""}">${count}</span></button>`;
+      return html`<button class="bf-tab ${active ? "is-active" : ""}" data-action="tab" data-v="${t.value}" aria-pressed="${active ? "true" : "false"}">${t.label}<span class="bf-tab__cnt ${alert ? "bf-tab__cnt--alert" : ""}">${count}</span></button>`;
+    });
+  }
+  /** 탭은 다시 그리지 않고 선택·건수만 갈아 끼운다 — 다시 그리면 Enter 로 누른 탭이 DOM 에서 떨어져 초점이 body 로 빠졌다
+   *  (2026-10-19 실측 · 관리자 정산회계 `syncFilters` 와 같은 수법). 탭 목록(TABS)은 고정이라 버튼 수가 바뀌지 않는다. */
+  function syncTabs() {
+    qsa(root, "[data-action='tab']").forEach((b) => {
+      const v = b.dataset.v;
+      const active = state.tab === v;
+      b.classList.toggle("is-active", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+      const c = qs(b, ".bf-tab__cnt");
+      if (!c) return;
+      const count = tabCount(v);
+      c.textContent = String(count);
+      c.classList.toggle("bf-tab__cnt--alert", v === "승인대기" && count > 0);
     });
   }
   /* '약관 동의 전만 보기' — 상태 탭을 늘리지 않고 탭 줄 오른쪽에 칩으로 둔다(시안 · 공용 `.bf-chip`).
@@ -391,8 +409,7 @@ export function mount(root, { nav }) {
     if (tbl) setHTML(tbl, tableBody());
   };
   const refreshList = () => {
-    const tabs = qs(root, "[data-slot='tabs']");
-    if (tabs) setHTML(tabs, tabsBody());
+    syncTabs();
     /* 마지막 '약관 동의 전' 거래처가 사라지면(삭제 등) 칩이 숨으므로 필터도 함께 푼다 — 안 그러면 빈 표만 남는다. */
     if (state.termsOnly && !termsCount()) state.termsOnly = false;
     const chip = qs(root, "[data-slot='termschip']");
@@ -1245,7 +1262,7 @@ export function mount(root, { nav }) {
   const findClient = (id) => store.get().clients.find((c) => c.id === id);
   const offClick = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
-    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
+    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; } // 탭은 syncTabs 로 제자리 갱신 — 누른 탭에 초점이 남는다
     if (a === "terms-only") {
       state.termsOnly = !state.termsOnly;
       /* 켜면 '약관 동의 전' 계정이 든 묶음을 펼친다(시안) — 접힌 채면 걸러 낸 자식이 묶음 줄 뒤에 숨는다.
@@ -1269,7 +1286,14 @@ export function mount(root, { nav }) {
     if (a === "grp") {
       const k = t.dataset.k;
       if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k);
-      refreshList();
+      /* 펼침은 줄 수를 바꿔 표를 다시 그린다 — Enter 로 누른 묶음 줄이 DOM 에서 떨어져 초점이 body 로 빠졌다(2026-10-19 실측 ·
+         다음 Tab 이 표 첫 줄로). 초점을 잃었을 때만 **같은 묶음의 새 줄**로 — 새 버튼의 aria-expanded 가 바뀐 상태를 말한다.
+         탭 건수·칩은 펼침과 무관해 표만 그린다. */
+      refreshTableOnly();
+      if (focusLost()) {
+        const g = qsa(root, "[data-action='grp']").find((b) => b.dataset.k === k);
+        if (g) g.focus();
+      }
       return;
     }
     const c = findClient(t.dataset.id);
@@ -1286,6 +1310,12 @@ export function mount(root, { nav }) {
     state.search = t.value;
     refreshTableOnly();
   });
+  /* ⚠️ 묶음 줄은 펼치고 접은 뒤에도 초점을 지키므로 Enter 를 누른 채로 두면 자동 반복 keydown 마다 펼침·접힘이 뒤집혀
+     반복 횟수에 따라 결과가 갈렸다(실측: 첫 + 반복 7 = 8번 → 그대로). 반복 keydown 의 Enter 를 버린다 — 한 번 누를 때 한 번
+     (담당자 관리 창 · 포털 담당자 저장공간과 같은 처리). Space 는 뗄 때 한 번만 눌려 해당 없다. */
+  const offKey = on(root, "keydown", "[data-action='grp']", (e) => {
+    if (e.repeat && e.key === "Enter") e.preventDefault();
+  });
 
   /* 단가 화면의 '승인하러 가기'로 돌아왔으면 그 거래처 창을 바로 연다 — 승인 배너가 거기 있다. */
   const back = takeFocusClient("clients");
@@ -1294,6 +1324,7 @@ export function mount(root, { nav }) {
   return () => {
     offClick();
     offSearch();
+    offKey();
     closeModal();
     toast.destroy();
   };

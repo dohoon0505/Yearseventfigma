@@ -63,9 +63,9 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
      ⚠️ 숨김을 행에 직접 걸 수 있는 것은 `.dlg-row[hidden] { display: none }` 을
         못박아 뒀기 때문이다 — 그 규칙이 없으면 `display: grid` 가 UA 의
         `[hidden]` 을 이겨 그대로 보인다(`.ordnew-req__man` 과 같은 함정).
-     ⚠️ `hidden` 과 함께 입력에 `disabled` 도 건다 — openModal 의 포커스 트랩이
-        `qsa(panel, FOCUSABLE)` 로 훑어 숨은 칸까지 잡는데, 그 쿼리가
-        `:not([disabled])` 로만 거른다(Tab 이 보이지 않는 칸으로 빠진다). */
+     `hidden` 과 함께 입력에 `disabled` 도 건다. 처음엔 openModal 의 트랩이 `qsa(panel, FOCUSABLE)` 로 숨은 칸까지 잡아
+     (`:not([disabled])` 로만 걸렀다) Tab 이 보이지 않는 칸으로 빠졌기 때문이다. 2026-10-17 부터 트랩(ui.js `tabbables()`)이
+     보이지 않는 칸을 스스로 빼므로 지금은 겹치는 안전장치다. */
   const etcRow = dlgRow({
     k: "사유 입력",
     req: true,

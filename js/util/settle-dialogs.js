@@ -250,7 +250,8 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     lockClose(p, busy);
     qsa(p, "[data-pickrow]").forEach((b) => { b.disabled = locked; });
 
-    /* 방식 — 직접 입력 칸은 숨길 때 disabled 도 건다(포커스 트랩이 hidden 을 모른다) */
+    /* 방식 — 직접 입력 칸은 숨길 때 disabled 도 건다. 처음엔 openModal 트랩이 hidden 을 몰라서였고 지금은(2026-10-17 `tabbables()`)
+       트랩이 숨은 칸을 스스로 빼 겹치는 안전장치다. 성공(done) 뒤 보이는 칸을 잠그는 것은 이 줄의 본래 일이다. */
     const manual = st.mode === "manual";
     const mSec = qs(p, "[data-slot='manual']");
     mSec.hidden = !manual;
@@ -329,12 +330,12 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     }
   }
 
-  /* ⚠️ 진행 중(busy)에는 Tab·Shift+Tab 을 창 안에 붙잡는다. 그동안 창 안의 조작이 전부 disabled 라 초점은 패널에 있는데,
-     openModal 의 트랩은 선택된 방식 행(tabindex=0 · disabled — FOCUSABLE 이 [tabindex] 로 잡는다)을 처음이자 마지막으로 보고
-     '초점이 그 행일 때만' 막는다 — 패널에 있는 초점은 그대로 지나가 뒤 화면(주문 고치기·PDF 버튼 등)으로 나갔다(실측).
-     트랩(ui.js · 문서 capture)이 먼저 등록돼 먼저 돌고 이 리스너가 뒤에 기본 동작을 막는다. 패널이 아니라 **문서**에 거는
-     것은 진행 중 배경(오버레이 — 바깥 클릭을 막느라 backdrop 이 클릭을 흘려보낸다)을 누르면 초점이 body 로 빠지기 때문이다 —
-     패널 리스너는 그 뒤의 Tab 을 듣지 못해 다시 창 밖으로 나갔다(실측). 창이 닫히면 onClose 가 뗀다. */
+  /* 진행 중(busy)에는 Tab·Shift+Tab 을 창 안(패널)에 붙잡는다. 그동안 창 안의 조작이 전부 disabled 다.
+     ⚠️ 지금은 openModal 트랩과 **겹친다**(해는 없다 — 둘 다 패널에 둔다). 2026-10-17 1차에 이 리스너를 둘 때는 트랩이 선택된
+     방식 행(tabindex=0 · disabled — 옛 FOCUSABLE 이 [tabindex] 로 잡았다)을 처음이자 마지막으로 보고 '초점이 그 행일 때만' 막아,
+     패널·body 에 있는 초점이 뒤 화면(주문 고치기·PDF 버튼 등)으로 나갔다(실측). 같은 날 2차에 트랩(ui.js `trapTab`)이 disabled·
+     tabindex=-1 을 빼고 닿을 곳이 없으면 패널에 붙잡게 되어(배경을 눌러 body 로 빠진 초점도 — 문서 capture) 같은 일을 한다.
+     트랩이 먼저 등록돼 먼저 돌고 이 리스너는 뒤에서 한 번 더 막는다. 창이 닫히면 onClose 가 뗀다. */
   document.addEventListener("keydown", trapBusy, true);
 
   bindPick(p, (v) => {

@@ -264,6 +264,9 @@
   box-shadow: var(--sh-modal);
   animation: hmPop 0.18s ease;
 }
+/* 패널 자체(tabindex=-1)는 조작이 아니라 초점을 붙잡아 두는 자리다(발급 처리 '다시 시도' 진행 중 · 닿을 곳이 없을 때 —
+   ui.js trapTab · settle-dialogs.js). 전역 인디고 링(base.css, 2026-10-19)을 그대로 두면 그동안 창 전체에 테두리가 섰다. */
+.modal-panel:focus-visible { outline: none; }
 @keyframes hmPop {
   from { opacity: 0; transform: scale(0.97) translateY(4px); }
   to { opacity: 1; transform: none; }
@@ -859,6 +862,9 @@
 }
 .bf-seg__btn:hover { color: var(--c-text-2); }
 .bf-seg__btn.is-sel { background: var(--c-surface); color: var(--c-text-strong); font-weight: var(--fw-bold); box-shadow: var(--sh-seg); }
+/* 키보드 초점 링(base.css 전역 · 바깥 4px)은 칸 사이(2px)를 넘는다. flex 칸은 하나씩 통째로 칠해져, 바로 뒤의 고른 칸(흰 면)이
+   앞 칸 링의 오른쪽 변을 덮었다(2026-10-19 실측 — 포털 주문내역 '내일' · 정산회계 '저번달') — 사이드바 링크와 같은 처방. */
+.bf-seg__btn:focus-visible { position: relative; z-index: 1; }
 
 /* 인라인 라벨형 검색창 (아이콘 · 볼드 라벨 · 세로 구분선 · 입력) */
 .bf-srch {
@@ -1133,6 +1139,12 @@
 .ord-dtp .cal-day.sel {
   background: var(--c-text-strong); color: var(--c-surface); font-weight: var(--fw-bold);
 }
+/* 키보드 초점 링(base.css 전역 · 바깥 4px)은 칸 사이 간격(2px)을 넘는다. 격자 칸은 하나씩 통째로 칠해져 옆의 고른 날(검정·파랑 면)이
+   링 한 변을 덮었다(2026-10-19 실측 — 오늘 칸 오른쪽) — 초점 간 칸을 이웃 위로 올린다(목록 화면 필터 달력도 같은 격자).
+   ⚠️ 올려도 그 변은 이웃 면 위에 그려진다 — 검정 위 인디고는 보이지만 **파랑(고른 날 · 필터 달력·포털 주문 달력) 위는 1.3:1** 이라
+   거의 안 보인다(나머지 세 변은 흰 면 6.29:1). 고른 날 색·칸 간격은 디자인 몫이다(검토 실측). */
+.ord-dtp .cal-day:focus-visible,
+.page-ordscr .cal-day:focus-visible { position: relative; z-index: 1; }
 
 /* 배송 시간 — 시/분 드롭다운. 여는 **방향은 파일 끝**에서 한 번에 정하고
    여기서는 크기만 잡는다(두 곳에서 방향을 쓰면 반드시 어긋난다). */
@@ -2550,7 +2562,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   flex: 1; min-width: 0; border: 0; background: none; outline: none;
   font-size: var(--fs-14); color: var(--c-text);
 }
-/* 컨테이너가 포커스를 표시하므로 내부 링은 끈다 — 전역 :focus-visible 은 box-shadow 다 */
+/* 컨테이너가 포커스를 표시하므로 내부 링은 끈다 — 전역 :focus-visible 은 2026-10-19 부터 outline(인디고)이고 글자칸은
+   base.css 가 이미 뺀다. 이 줄은 그 위에 두는 안전판이다(box-shadow 는 예전 전역 링의 흔적). */
 .ordnew-clisrch input:focus-visible { box-shadow: none; outline: none; }
 .ordnew-clisrch input::placeholder { color: var(--c-text-faint); }
 /* 요청자·담당자를 카드로 떼어낸 뒤로 이 목록에 규칙이 둘 붙었다.

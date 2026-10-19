@@ -368,6 +368,9 @@
 }
 /* 월 목록은 자체 스크롤 컨테이너라 바깥 아웃라인이 잘린다 — 안쪽으로 그린다. */
 .page-invoice .iv-month:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+/* 미리보기 스크롤 칸 — 안에 조작이 없어 크롬이 칸 자체를 Tab 정거장으로 삼는다. 카드(overflow:hidden)를 좌우·아래로
+   가득 채워 전역 바깥 링이 세 변에서 잘렸다(2026-10-19 실측) — 안쪽으로 그린다(회색 면 위 인디고). */
+.page-invoice .iv-doc__view:focus-visible { outline-offset: -2px; }
 
 /* ── 동의 다이얼로그 본문 ────────────────────────────────
    ⚠️ 다이얼로그는 document.body 에 붙어 `.page-invoice` 스코프가 닿지 않는다.

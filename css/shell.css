@@ -114,6 +114,12 @@
 .shell__link.is-active span {
   color: var(--c-sidebar-active-fg);
 }
+/* 키보드 초점 링(base.css 전역 인디고 · 바깥 4px)은 링크 사이 간격(2px)을 넘는다. 메뉴는 flex 줄이라 항목이 하나씩 통째로
+   칠해져, 바로 아래 활성 링크의 분홍 면이 위 링크 링의 아랫변을 덮었다(2026-10-19 실측) — 초점 간 링크를 이웃 위로 올린다. */
+.shell__link:focus-visible {
+  position: relative;
+  z-index: 1;
+}
 
 .shell__logout-wrap {
   padding: var(--sp-4);

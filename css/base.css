@@ -87,11 +87,24 @@ ol {
   border: 0;
 }
 
-/* Keyboard focus ring (brand). Mouse clicks don't trigger :focus-visible. */
+/* 키보드 초점 링 — 인디고 2px · 바깥 2px(2026-10-19 사용자 결정 · 버튼은 마우스로 누르면 :focus-visible 이 서지 않는다).
+   예전 `box-shadow: var(--ring)`(주황 9% 알파)은 흰 면에서 1.1:1 이라 없는 것과 같았고, 같은 특이도의 자기 그림자
+   (주 버튼 `--sh-btn` 등)가 뒤에 오면 통째로 덮였다. outline 은 그림자·레이아웃을 건드리지 않고 요소 자기 모서리를 따른다 —
+   그래서 예전의 `border-radius: var(--r-md)`(초점이 갈 때마다 모서리 없는 요소의 모양을 바꾸던 부작용)는 뺐다.
+   `scroll-margin` 은 링 자리(바깥 4px) + 2px — Tab 이 화면 밖 요소를 스크롤 칸 끝에 맞춰 굴리면 바깥 링이 4px 잘렸다
+   (실측: 정산회계·주문 목록·가입 단계의 맨 아래 줄 · 위로 갈 때 맨 위 줄). 초점 스크롤만 6px 더 굴릴 뿐 배치는 그대로다.
+   ⚠️ 스크롤 칸·overflow:hidden 안에서 바깥 링이 잘리면(칸을 가로로 꽉 채운 줄 등) 그 화면 스코프에서 안쪽(-2px)으로
+   고친다(components.css 등의 화면별 인디고 규칙들 — 지우지 말 것). */
 :focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+  scroll-margin: 6px;
+}
+/* 글자 입력칸은 제 테두리(인디고 테두리 + `--ring-field`)나 감싼 칸(:focus-within)이 초점을 말한다. 이 칸들은 마우스로 눌러도
+   :focus-visible 이 서므로 링을 또 씌우면 이중 테두리가 된다 — 그래서 뺀다. `:where()` 라 특이도가 위 규칙과 같아(0,1,0)
+   제 테두리가 없는 칸은 화면 규칙이 언제든 다시 그릴 수 있다. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select, [contenteditable]:not([contenteditable="false"])):focus-visible {
   outline: none;
-  box-shadow: var(--ring);
-  border-radius: var(--r-md);
 }
 
 /* ── Icons (lucide-style stroke icons via <use>) ────────── */

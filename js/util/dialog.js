@@ -108,7 +108,9 @@ export const dlgRule = ({ t, cap } = {}) => html`
 /** 무테 필드 한 줄. `v` 는 입력 Html(보통 `.ord-in`).
  *  조건부 행은 `hidden`/`slot` 으로 접는다 — `.dlg-row[hidden]` 규칙이 있어
  *  행에 직접 걸어도 듣는다(래퍼로 감싸면 그 행이 :last-child 가 되어 구분선이 빠진다).
- *  ⚠️ 숨길 때 안쪽 입력에 `disabled` 도 함께 걸 것(포커스 트랩이 hidden 을 모른다). */
+ *  숨긴 행의 칸에는 Tab 이 닿지 않는다 — 브라우저도, openModal 트랩(ui.js `tabbables()` · 2026-10-17 부터 보이지 않는 칸을 뺀다)도
+ *  건너뛴다. 안쪽 입력에 `disabled` 를 함께 거는 호출부(주문취소 '기타' 칸 등)는 그 전에 트랩이 hidden 을 몰라 둔 것이고,
+ *  지금은 겹치는 안전장치다(지우지 않아도 해가 없다). */
 export const dlgRow = ({ k, req, v, top, hidden, slot, htmlFor } = {}) => {
   /* ⚠️ `for` 가 없는 `<label>` 은 라벨이 아니다 — 눌러도 포커스가 옮겨가지 않고
      접근성 이름도 주지 않는다. 묶을 컨트롤 id 가 오면 진짜 label, 아니면 span 이다
@@ -256,6 +258,9 @@ export function bindPick(panel, onPick) {
   const offClick = on(panel, "click", "[data-pickrow]", (e, t) => pick(t));
   const STEP = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
   const offKey = on(panel, "keydown", "[data-pickrow]", (e, t) => {
+    /* Alt/Ctrl/Meta 조합은 건드리지 않는다(bindRadioGroup 과 같은 약속 · 2026-10-19) — 예전엔 Alt+↓·Ctrl+Home 도 선택을 옮기고
+       기본 동작을 막아 브라우저·보조기기 단축키를 빼앗았다(담당자 지정·발송 프로필·취소 사유·발급 처리 방식 실측). */
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const rows = rowsOf(t);
     if (rows.length < 2) return;
     let next = null;

@@ -124,8 +124,8 @@
 }
 .prc-side__srch input::placeholder { color: var(--c-text-faint); }
 /* 컨테이너가 포커스를 표시하므로 내부 input 의 전역 링은 끈다.
-   base.css 전역 `:focus-visible` 은 outline 이 아니라 **box-shadow** 로 링을 그린다 —
-   `outline:none` 만 쓰면 이중 테두리가 남는다(이 프로젝트에서 반복된 함정). */
+   base.css 전역 `:focus-visible` 은 2026-10-19 부터 **outline**(인디고 2px)이고 글자칸은 거기서 이미 빠진다 —
+   예전엔 box-shadow 링이라 `outline:none` 만 쓰면 이중 테두리가 남았다(이 프로젝트에서 반복된 함정). 둘 다 끄는 이 줄은 안전판이다. */
 .prc-side__srch input:focus-visible { box-shadow: none; outline: none; }
 .prc-side__list { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; }
 .prc-side__empty { padding: 20px 10px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); }
@@ -198,6 +198,10 @@
   padding: 11px 18px; background: none; border: 0; text-align: left;
 }
 .prc-cat__hd:hover { background: var(--c-surface-hover); }
+/* 키보드 초점 — 거래처 줄은 목록(`.prc-side__list` 자체 스크롤)을, 분류 머리는 원장(`.prc-main` overflow:hidden)을
+   가로로 가득 채워 전역 바깥 링의 좌우(4px)가 잘렸다(2026-10-19 실측) — 안쪽으로 그린다. */
+.prc-cli:focus-visible,
+.prc-cat__hd:focus-visible { outline-offset: -2px; }
 .prc-cat__chev { color: var(--c-text-faint); transition: transform 0.15s; flex: 0 0 auto; }
 .prc-cat.is-open .prc-cat__chev { transform: rotate(180deg); }
 .prc-cat__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }

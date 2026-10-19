@@ -8,7 +8,7 @@
    - 여기서 추가/삭제한 담당자는 B2C 담당자 지정 피커(staffNames 파생)에도 반영된다.
    페이지 규약: mount(root, { nav }) → cleanup.
    ============================================================ */
-import { html, setHTML, on, qs } from "../dom.js";
+import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { pageTitle, tableGrid, makeDropdown } from "../ui.js";
@@ -42,16 +42,43 @@ export function mount(root, { nav }) {
       return true;
     });
   }
-  function tabsBody() {
+  function tabCount(v) {
     const all = staffList();
+    return v === "all" ? all.length
+      : v === "account" ? all.filter((s) => !!s.accountId).length
+      : all.filter((s) => (v === "on" ? s.notify : !s.notify)).length;
+  }
+  function tabsBody() {
     return TABS.map((t) => {
-      const count =
-        t.v === "all" ? all.length
-        : t.v === "account" ? all.filter((s) => !!s.accountId).length
-        : all.filter((s) => (t.v === "on" ? s.notify : !s.notify)).length;
-      return html`<button class="bf-tab ${state.tab === t.v ? "is-active" : ""}" data-action="tab" data-v="${t.v}">${t.label}<span class="bf-tab__cnt">${count}</span></button>`;
+      const on_ = state.tab === t.v;
+      return html`<button class="bf-tab ${on_ ? "is-active" : ""}" data-action="tab" data-v="${t.v}" aria-pressed="${on_ ? "true" : "false"}">${t.label}<span class="bf-tab__cnt">${tabCount(t.v)}</span></button>`;
     });
   }
+  /** 탭은 다시 그리지 않고 선택·건수만 갈아 끼운다 — 다시 그리면 Enter 로 누른 탭이 DOM 에서 떨어져 초점이 body 로 빠졌다
+   *  (2026-10-19 실측 · 관리자 정산회계 `syncFilters` 와 같은 수법). 탭 목록(TABS)은 고정이라 버튼 수가 바뀌지 않는다. */
+  function syncTabs() {
+    qsa(root, "[data-action='tab']").forEach((b) => {
+      const on_ = b.dataset.v === state.tab;
+      b.classList.toggle("is-active", on_);
+      b.setAttribute("aria-pressed", on_ ? "true" : "false");
+      const c = qs(b, ".bf-tab__cnt");
+      if (c) c.textContent = String(tabCount(b.dataset.v));
+    });
+  }
+  /* ── 표를 다시 그린 뒤의 초점 ─────────────────────────────
+     표는 쓰기마다 다시 그려진다 — 누른(또는 창을 연) 표 버튼이 DOM 에서 떨어지면 브라우저가 초점을 body 로 돌려,
+     다음 Tab 이 표 첫 줄로 가 하던 자리를 잃는다(실측: 수정 저장 · 삭제 · '알림 수신/거부' 탭에서 토글).
+     **초점을 잃었을 때만** 그 자리를 대신하는 버튼으로 옮긴다(거래처 목록 `focusRowBtn`·`focusAfterDelete` 와 같은 규칙):
+     같은 사람 줄의 같은 버튼 → 그 줄이 빠졌으면 그 자리에 올라온 줄(마지막이었으면 새 마지막 줄)의 같은 버튼 → 표가 비면 fallback.
+     순번은 다시 그리기 **전에** `rowIndex` 로 잰다. */
+  const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !a.isConnected; };
+  const rowIndex = (id, action) => qsa(root, `[data-action='${action}']`).findIndex((b) => b.dataset.id === id);
+  const focusRow = (id, action, idx, fallback) => {
+    if (!focusLost()) return;
+    const btns = qsa(root, `[data-action='${action}']`);
+    const b = btns.find((x) => x.dataset.id === id) || (idx >= 0 && btns[Math.min(idx, btns.length - 1)]) || qs(root, fallback);
+    if (b) b.focus();
+  };
   function summaryBody() { return html`조회 <strong>${filtered().length}</strong>명`; }
 
   const columns = [
@@ -116,10 +143,9 @@ export function mount(root, { nav }) {
     `);
   }
   const refreshList = () => {
-    const tabs = qs(root, "[data-slot='tabs']");
     const sum = qs(root, "[data-slot='summary']");
     const tbl = qs(root, "[data-slot='table']");
-    if (tabs) setHTML(tabs, tabsBody());
+    syncTabs();
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   };
@@ -236,9 +262,13 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='ok']", () => {
       if (!isValid()) return;
       const rec = { ...form, name: form.name.trim(), dept: form.dept.trim(), phone: form.phone.trim(), accountId: form.accountId.trim() };
+      const idx = rowIndex(rec.id, "edit");
       if (isEdit) staffUpdate(rec); else staffAdd(rec);
       closeModal();
       refreshList();
+      /* 수정이면 창이 돌려준 연필이 방금 다시 그려졌다 — 같은 사람 줄의 새 연필로(아이디를 지워 '로그인 계정' 탭에서
+         빠졌으면 그 자리에 올라온 줄). 등록은 창을 연 '담당자 등록' 이 표 밖이라 그대로 남는다. */
+      focusRow(rec.id, "edit", idx, "[data-action='new']");
       toast(isEdit ? "담당자 정보를 저장했습니다" : `${rec.name} 담당자를 등록했습니다`);
     });
   }
@@ -258,9 +288,11 @@ export function mount(root, { nav }) {
     });
     activeModal = dlg;
     on(dlg.panel, "click", "[data-action='ok']", () => {
+      const idx = rowIndex(staff.id, "edit");
       staffRemove(staff.id);
       closeModal();
       refreshList();
+      focusRow(staff.id, "edit", idx, "[data-action='new']"); // 그 자리에 올라온 줄의 연필 · 표가 비면 '담당자 등록'
       toast(`${staff.name} 담당자를 삭제했습니다`, "warn");
     });
   }
@@ -271,13 +303,25 @@ export function mount(root, { nav }) {
   const findStaff = (id) => staffList().find((s) => s.id === id);
   const offClick = on(root, "click", "[data-action]", (e, t) => {
     const a = t.dataset.action;
-    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; }
+    if (a === "tab") { state.tab = t.dataset.v; refreshList(); return; } // 탭은 syncTabs 로 제자리 갱신 — 누른 탭에 초점이 남는다
     if (a === "new") return openStaffModal(null);
     if (a === "toggle-notify") {
       const s = findStaff(t.dataset.id);
       if (!s) return;
+      const idx = rowIndex(s.id, "toggle-notify");
       staffSetNotify(s.id, !s.notify);
-      refreshList();
+      if (state.tab === "on" || state.tab === "off") {
+        /* '알림 수신/거부' 탭이면 이 줄이 조건에서 빠진다 — 표를 다시 그리고 그 자리에 올라온 줄의 토글로(표가 비면 지금 탭) */
+        refreshList();
+        focusRow(s.id, "toggle-notify", idx, ".bf-tab.is-active");
+      } else {
+        /* 줄이 남는 탭이면 표를 다시 그리지 않고 **그 토글 하나만** 바꾼다 — 다시 그리면 누른 토글이 DOM 에서 떨어져
+           초점이 body 로 빠졌다(2026-10-19 실측 · 다음 Tab 은 첫 줄 토글). 줄에서 알림 수신에 매인 것은 이 토글뿐이고
+           '조회 N명' 도 그대로다 — 탭 건수만 맞춘다. */
+        t.setAttribute("aria-checked", s.notify ? "true" : "false");
+        t.setAttribute("aria-label", `${s.name} 알림 수신 ${s.notify ? "켜짐" : "꺼짐"}`);
+        syncTabs();
+      }
       toast(`${s.name} 알림 수신을 ${s.notify ? "켰습니다" : "껐습니다"}`);
       return;
     }
@@ -293,9 +337,16 @@ export function mount(root, { nav }) {
     if (sum) setHTML(sum, summaryBody());
     if (tbl) setHTML(tbl, tableBody());
   });
+  /* ⚠️ Enter 를 누른 채로 두면 자동 반복 keydown 마다 **초점이 있는 버튼**이 다시 눌린다. 토글은 이제 초점을 지키므로
+     (같은 토글 · '알림 수신/거부' 탭에서는 그 자리에 올라온 줄의 토글) 꾹 누른 Enter 한 번이 '알림 수신' 탭의 모든 사람을
+     차례로 끄거나(실측: 5명 → 0명) '전체' 탭에서 같은 토글을 반복 횟수만큼 뒤집었다. 반복 keydown 의 Enter 를 버린다 —
+     떼었다 다시 누르면 그대로 눌린다(담당자 관리 창 · 포털 담당자 저장공간과 같은 처리). Space 는 뗄 때 한 번만 눌려 해당 없다. */
+  const offKey = on(root, "keydown", "[data-action='toggle-notify']", (e) => {
+    if (e.repeat && e.key === "Enter") e.preventDefault();
+  });
 
   return () => {
-    offClick(); offSearch();
+    offClick(); offSearch(); offKey();
     closeModal();
     toast.destroy();
   };

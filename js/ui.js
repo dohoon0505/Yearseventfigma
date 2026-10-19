@@ -354,14 +354,35 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
   }
 
   let closed = false;
+  /* ── 창을 연 키·닫은 키의 자동 반복 버리기(openModal 과 같은 장치 · 2026-10-19) ──
+     확대 버튼에서 Enter 를 누른 채로 두면 반복 keydown 이 라이트박스의 유일한 초점인 닫기 버튼을 눌러 열리자마자 닫히고,
+     초점이 돌아간 확대 버튼을 다음 반복이 다시 눌러 열렸다 닫혔다 했다(포털 상품 규격 안내 실측: 꾹 1 닫힘 · 2 열림 · 3 닫힘 ·
+     8 열림(5번 열림) — 주문 창 안 사진도 같다). 닫기 버튼을 꾹 누르면 반대로 닫혔다 다시 열렸다. openModal 의 `dropHeldRepeat` 와
+     같은 규칙으로, 연 뒤 그 키를 **새로 누르거나 뗄 때까지** 라이트박스 안 반복 Enter·Space 를 버리고(`settled` — 키마다),
+     닫는 순간 눌린 채인 키(`down`)는 모듈의 `swallowHeldRepeat` 에 넘겨 돌아간 여는 버튼이 다시 눌리지 않게 한다. */
+  const HELD = ["Enter", " "];
+  const settled = new Set();
+  const down = new Set();
+  function onKeyUp(e) {
+    if (HELD.includes(e.key)) { settled.add(e.key); down.delete(e.key); }
+  }
   function close() {
     if (closed) return;
     closed = true;
     document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("keyup", onKeyUp, true);
+    down.forEach(swallowHeldRepeat);
     el.remove();
     if (prevFocus && prevFocus.focus) prevFocus.focus();
   }
   function onKey(e) {
+    if (HELD.includes(e.key)) {
+      down.add(e.key);
+      if (!settled.has(e.key)) {
+        if (!e.repeat) settled.add(e.key); /* 연 뒤 새로 누른 키 — 예전 그대로(닫기) */
+        else if (el.contains(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      }
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation(); /* 아래 모달의 ESC 핸들러보다 먼저 소비 */
@@ -378,6 +399,7 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
     if (e.target === el || e.target.closest(".lightbox__close")) close();
   });
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("keyup", onKeyUp, true);
   document.body.appendChild(el);
   btn.focus();
 

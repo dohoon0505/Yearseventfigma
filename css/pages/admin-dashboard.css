@@ -81,6 +81,8 @@
   cursor: pointer; font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-text-2);
 }
 .dsh-tab.is-on { border-bottom-color: var(--c-orange); color: var(--c-text-strong); font-weight: var(--fw-bold); }
+/* 키보드 초점 — 탭이 카드(overflow:hidden) 맨 위에 붙어 전역 바깥 링의 윗변(4px)이 잘렸다(2026-10-19 실측) — 안쪽으로. */
+.dsh-tab:focus-visible { outline-offset: -2px; }
 .dsh-tab__n { font-size: var(--fs-13); font-weight: var(--fw-bold); color: var(--c-text-5); }
 .dsh-tab__n.is-hot { color: var(--c-danger-ink); }
 .dsh-hint { font-size: var(--fs-12); color: var(--c-text-5); white-space: nowrap; }

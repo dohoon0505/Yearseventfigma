@@ -449,8 +449,10 @@ export function mount(root, { nav }) {
       autofill: true,
       toast,
       steps: [
+        /* entryFocus — 셸 '이전' 으로 돌아오면 고른 주문경로 카드에(없으면 첫 카드). 예전엔 셸 기본값이라 늘 첫 카드였다(2026-10-19). */
         { key: "s1", title: "주문경로 · 결제", cap: "주문의 성격을 정합니다",
           render: step1Body, bind: () => [], required: missing1,
+          entryFocus: (el) => qs(el, "[data-cchan][aria-pressed='true']") || qs(el, "[data-cchan]"),
           hint: () => [cDraft.channel, cDraft.payStatus].filter(Boolean).join(" · ") },
         { key: "s2", title: "주문서 작성", cap: "화원에 전달되는 내용",
           render: step2Body, bind: bindCreateControls, required: missing2,

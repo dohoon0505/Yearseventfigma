@@ -25,6 +25,9 @@ import { openModal } from "../ui.js";
  *                            required() → string[] , hint() → string, block?() → string }
  *                          block(선택 · B2B 2단계만) — 필수는 다 찼는데도 넘어갈 수 없는 이유(발행이 지난 거래 없는 달 ·
  *                          잠긴 달로 드는 등록 — 사용자 답 3). 비어 있지 않으면 푸터가 그 말을 빨간 글자로 하고 버튼을 잠근다.
+ *                          entryFocus?(stepEl) → Element|null (선택) — '이전'·'다음' 으로 이 스텝이 다시 보일 때 초점을 둘 요소.
+ *                          없거나 null 이면 셸 기본값(스텝의 첫 조작 가능 요소)이다. 셸은 무엇을 고르는지 모른다 — 고른 칸을
+ *                          아는 것은 스펙이다(B2C 1단계 = 고른 주문경로 카드 · B2B 1단계는 기본값이 접힌 줄의 '다른 거래처 선택').
  *  - rail(stepIdx)         288px 레일 본문(마크업만)
  *  - submitLabel           마지막 버튼 문구
  *  - onSubmit()            등록. 채번·upsert·이력·목록 갱신은 호출부 책임
@@ -127,7 +130,8 @@ export function openOrderCreate(spec) {
     bindStep(i);
     /* ⚠️ 보이지 않는 스텝은 **다시 막아야 한다.** 예전엔 `i === step` 일 때만 열었을 뿐
        아닐 때 닫지 않아, 숨은 스텝을 재렌더하면 그 칸들이 살아난 채 Tab 순서에 남았다
-       (거래처를 바꾸면 s2 가 재렌더된다 — 실제로 그 경로로 새는 중이었다). */
+       (거래처를 바꾸면 s2 가 재렌더된다 — 실제로 그 경로로 새는 중이었다). 지금은 트랩도 숨은 칸을 빼므로 겹치는 막음이다
+       (아래 setDisabled 주석). */
     setDisabled(i, i !== step);
     syncFooter();
   };
@@ -146,9 +150,9 @@ export function openOrderCreate(spec) {
   }
   function dispose() { steps.forEach((_, i) => disposeStep(i)); }
 
-  /* 숨긴 스텝의 컨트롤은 `disabled` 로 막는다 — `openModal` 의 포커스 트랩이
-     `hidden` 요소도 모으기 때문에, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다.
-     (`inert` 는 그 쿼리가 모른다.)
+  /* 숨긴 스텝의 컨트롤은 `disabled` 로 막는다. 처음 이유는 `openModal` 의 포커스 트랩이 `hidden` 요소도 모아 Tab 이
+     보이지 않는 스텝으로 빠졌기 때문이다. 2026-10-17 부터 트랩(ui.js `tabbables()`)이 보이지 않는 칸·`inert` 안·disabled 를
+     스스로 빼므로 지금은 겹치는 안전장치다(브라우저도 `hidden` 스텝을 건너뛴다) — 지워도 Tab 은 그대로지만 둔다.
 
      ⚠️ **셸이 끈 것만 셸이 켠다.** 예전엔 무조건 `c.disabled = off` 였는데, 호출부가
         자기 사정으로 꺼 둔 칸(주문 요청자의 숨은 '직접 입력' 두 칸 — 목록에서 고른
@@ -181,7 +185,12 @@ export function openOrderCreate(spec) {
     setDisabled(step, false);
     rerenderRail();
     syncFooter();
-    const first = qs(el, "input:not([disabled]),textarea,.dd-trigger,button:not([disabled])");
+    /* 초점 자리 — 스펙이 정하면 그것(돌아온 1단계에서 고른 카드 · 예전엔 늘 첫 카드라 '이전' 한 번에 하던 자리를 잃었다),
+       아니면 첫 조작 가능 요소. 스펙이 돌려준 요소가 그사이 잠겼거나 떨어졌으면 기본값으로 간다. */
+    const want = steps[step].entryFocus ? steps[step].entryFocus(el) : null;
+    const first = want && want.isConnected && !want.disabled
+      ? want
+      : qs(el, "input:not([disabled]),textarea,.dd-trigger,button:not([disabled])");
     if (first) first.focus();
   }
 

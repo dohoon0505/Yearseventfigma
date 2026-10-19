@@ -122,6 +122,9 @@
 .page-order .seg button.sel { background: var(--c-surface); color: var(--c-text-strong); box-shadow: 0 1px 4px rgba(17, 17, 24, 0.1); }
 .page-order .seg button:disabled { color: var(--c-text-faint); cursor: not-allowed; }
 .page-order .seg button:disabled.sel { background: transparent; box-shadow: none; }
+/* 키보드 초점 링(base.css 전역 · 바깥 4px)이 칸 사이(2px)를 넘어, 뒤의 고른 칸(흰 면)이 앞 칸 링의 오른쪽 둥근 변을 덮었다
+   ('즉시배송' 을 고른 뒤 '날짜 · 시간 지정' — 2026-10-19 실측) — 공용 세그먼트(.bf-seg__btn)와 같은 처방. */
+.page-order .seg button:focus-visible { position: relative; z-index: 1; }
 @media (max-width: 620px) {
   .page-order .seg--deliv { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border-radius: var(--r-lg); gap: 4px; }
   .page-order .seg--deliv button { border-radius: var(--r-md); }

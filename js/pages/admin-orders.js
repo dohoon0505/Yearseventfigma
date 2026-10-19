@@ -1236,8 +1236,9 @@ export function mount(root, { nav }) {
     /* 주문 요청자 행 — 담당자 프로필에서 고르거나 '직접 입력'으로 내려간다.
        ⚠️ **재렌더하지 않는다.** 직접 입력 칸에 커서가 있는 채로 카드를 다시 그리면
           입력이 끊긴다 — openRowPicker 가 쓰는 것과 같은 수법(클래스·aria·disabled 토글)이다.
-       ⚠️ 숨긴 칸은 `disabled` 로 막는다 — openModal 의 포커스 트랩이 hidden 요소도
-          모으므로, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다.
+       숨긴 칸은 `disabled` 로도 막는다 — openModal 의 포커스 트랩이 hidden 요소도 모아 Tab 이 보이지 않는 칸으로 빠지던 때의
+          처방이고, 2026-10-17 부터 트랩(ui.js `tabbables()`)이 숨은 칸을 스스로 빼 지금은 겹치는 안전장치다(셸 setDisabled 가
+          이 표시를 보고 '호출부가 끈 칸' 으로 남겨 두는 일은 그대로 한다).
        `role="radio"` 라 화살표로 옮긴다(공용 `bindRadioGroup` — 예전엔 선언만 있고 키가 없어 행마다 Tab 정거장이었다).
        표시(is-sel·aria-checked·tabindex)는 그쪽이 바꾸고, onPick 은 값이 바뀔 때만 온다(같은 행을 다시 눌러도 no-op — 예전 가드).
        ⚠️ 화살표('key')로 '직접 입력' 에 닿을 때는 이름 칸으로 초점을 옮기지 않는다 — 옮기면 화살표로 지나가는 순간 초점이 칸으로
@@ -1291,8 +1292,9 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='cpick-pf']", () => openProfilePicker());
     function openProfilePicker() {
       /* 시안 #7 은 '명의 한 줄'이다 — `${role} ${name}` 은 명의 문자열에 이미 들어 있어
-         보조줄이 같은 말을 두 번 한다. 대신 연락처는 배지로 남긴다: 명의가 똑같은
-         프로필이 실제로 여럿이라(임직원 일동) 그것 말고는 구분할 단서가 없다. */
+         보조줄이 같은 말을 두 번 한다. 대신 연락처는 배지로 남긴다: 거래처가 포털 발송인 프로필에
+         같은 명의를 여러 번 등록할 수 있어(막지 않는다) 그때는 연락처 말고는 구분할 단서가 없다.
+         (시드의 같은 명의 셋은 2026-10-19 에 서로 다른 가상 값으로 바꿨다.) */
       const rows = cProfiles().map((p2) => ({
         v: p2.id, name: profileText(p2), meta: p2.phone || "",
       }));

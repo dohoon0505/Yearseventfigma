@@ -142,9 +142,9 @@ export function openRowPicker(o) {
      `bindPick` 이 `is-sel`/`aria-checked` 만 토글한다. */
   bindPick(panel, (v) => {
     pick = v;
-    /* 직접 입력 칸은 그 행을 골랐을 때만 산다 — 숨은 채로 Tab 순서에 남으면
-       포커스가 보이지 않는 칸으로 빠진다(openModal 의 트랩이 hidden 도 잡는다).
-       그래서 `hidden` 과 `disabled` 를 **둘 다** 토글한다. */
+    /* 직접 입력 칸은 그 행을 골랐을 때만 산다 — `hidden` 과 `disabled` 를 **둘 다** 토글한다.
+       disabled 는 openModal 의 트랩이 hidden 을 몰라 Tab 이 보이지 않는 칸으로 빠지던 때의 처방이고, 2026-10-17 부터 트랩
+       (ui.js `tabbables()`)이 숨은 칸을 스스로 빼 지금은 겹치는 안전장치다. */
     const box = qs(panel, "[data-slot='manf']");
     if (box) {
       const live = pick === MANUAL;
@@ -295,8 +295,8 @@ export function openAutofill({ toast, onApply }) {
     const link = qs(panel, "[data-au='link']");
     const text = qs(panel, "[data-au='text']");
     const useText = mode === "text";
-    /* 숨은 칸은 `disabled` 까지 꺼야 한다 — openModal 의 포커스 트랩이 hidden 요소도
-       훑는다(FOCUSABLE 이 `:not([disabled])` 로만 거른다). */
+    /* 숨은 칸은 `disabled` 까지 끈다 — 옛 트랩(FOCUSABLE 이 `:not([disabled])` 로만 걸렀다)이 hidden 요소도 훑던 때의 처방이고,
+       2026-10-17 부터 트랩(ui.js `tabbables()`)이 숨은 칸을 스스로 빼 지금은 겹치는 안전장치다. */
     if (link) {
       link.value = useText ? "" : carried;
       link.hidden = useText;
