@@ -269,3 +269,68 @@ export function bindPick(panel, onPick) {
   });
   return () => { offClick(); offKey(); };
 }
+
+/** 라디오 그룹 위임 — `bindPick` 과 **같은 약속**을, 칸 선택자와 칠하는 클래스를 받아 준다(2026-10-19).
+ *
+ *  bindPick 은 `dlgPick` 행(`data-pickrow` · `is-sel`) 전용이다. 같은 약속이 필요한 다른 칸 — 등록 위저드(B2B·B2C)의
+ *  주문 담당자 칩(`.ordnew-mgr__chip` · is-sel) · B2B 주문 요청자 행(`.ordnew-req__row` · is-sel) · `.seg-pill`(is-on — B2C 결제
+ *  상태 · 거래처 창 매출 채널) — 은 `role="radio"` 를 선언해 놓고 화살표가 듣지 않아 칸마다 Tab 정거장이었다(거짓 선언 —
+ *  칩 6개면 Tab 6번). B2C 결제 상태만 화면에서 손으로 짜 두었었다. 세 번째 사본을 만들지 않고 여기 하나로 모았다.
+ *
+ *  약속: roving tabindex(그룹마다 고른 칸, 없으면 첫 칸만 0 — Tab 은 그룹을 한 정거장으로 지난다) · ←→↑↓ 로 옮기면 그 칸이
+ *  골라진다(끝에서 감긴다) · Home·End · Alt/Ctrl/Meta 조합은 건드리지 않는다(Alt+← 뒤로 가기 같은 브라우저 단축키).
+ *  고를 때 **다시 그리지 않는다** — selClass · aria-checked · tabIndex 만 바꾼다(직접 입력 칸의 커서 · 누른 칸의 초점이 산다).
+ *
+ *  @param root            위임을 걸 요소(창 패널) — 1회. 칸을 나중에 다시 그려도 위임은 산다.
+ *  @param o.item          칸 선택자(예 "[data-cmgr]") — 그룹은 칸의 가장 가까운 `[role='radiogroup']`
+ *  @param o.selClass      고른 칸에 칠할 클래스(기본 "is-sel")
+ *  @param o.onPick(el, how)  **값이 바뀔 때만** 부른다(이미 고른 칸을 다시 눌러도 부르지 않는다 — 호출부마다 두던 동일값 가드).
+ *                         how = "click"(누름 · Enter · Space) | "key"(화살표 · Home · End).
+ *                         ⚠️ "key" 일 때 입력 칸으로 초점을 끌어가지 말 것 — 화살표로 '직접 입력' 칸을 지나가는 순간 초점이 칸으로
+ *                            끌려가 그룹 안에서 되돌아갈 수 없다(관리자 발급 처리 창의 방식 고르기가 겪었다).
+ *  @returns {{ sync(scope?), off() }}  칸을 **다시 그린 뒤** sync() 로 roving 을 다시 세운다 — 새 마크업에는 tabindex 가 없어
+ *                         모든 칸이 다시 정거장이 된다.
+ */
+export function bindRadioGroup(root, { item, selClass = "is-sel", onPick } = {}) {
+  const groupOf = (el) => el.closest("[role='radiogroup']") || root;
+  const itemsOf = (g) => [...g.querySelectorAll(item)];
+  const isSel = (el) => el.getAttribute("aria-checked") === "true";
+
+  const sync = (scope = root) => {
+    const groups = new Set();
+    scope.querySelectorAll(item).forEach((el) => groups.add(groupOf(el)));
+    groups.forEach((g) => {
+      const all = itemsOf(g);
+      const sel = all.find((el) => isSel(el) && !el.disabled) || all.find((el) => !el.disabled) || all[0];
+      all.forEach((el) => { el.tabIndex = el === sel ? 0 : -1; });
+    });
+  };
+  sync();
+
+  const select = (t, how) => {
+    const was = isSel(t);
+    itemsOf(groupOf(t)).forEach((el) => {
+      const it = el === t;
+      el.classList.toggle(selClass, it);
+      el.setAttribute("aria-checked", it ? "true" : "false");
+      el.tabIndex = it ? 0 : -1; /* 그룹 전체가 Tab 한 정거장 — 고른 칸이 그 정거장이다 */
+    });
+    if (!was && onPick) onPick(t, how);
+  };
+  const offClick = on(root, "click", item, (e, t) => select(t, "click"));
+  const STEP = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+  const offKey = on(root, "keydown", item, (e, t) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const all = itemsOf(groupOf(t)).filter((el) => !el.disabled);
+    if (all.length < 2) return;
+    const i = all.indexOf(t);
+    const to = e.key === "Home" ? all[0]
+      : e.key === "End" ? all[all.length - 1]
+      : STEP[e.key] ? all[(i + STEP[e.key] + all.length) % all.length] : null;
+    if (!to) return;
+    e.preventDefault(); /* 창 스크롤이 아니라 선택을 옮긴다 */
+    to.focus();
+    select(to, "key");
+  });
+  return { sync, off: () => { offClick(); offKey(); } };
+}

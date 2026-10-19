@@ -11,7 +11,7 @@ import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { onPhoneInput, phoneOk } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
-import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
+import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup } from "../util/dialog.js";
 import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
@@ -354,7 +354,7 @@ export function mount(root, { nav }) {
     setHTML(
       root,
       html`
-        <div class="page-admin">
+        <div class="page-admin page-clients">
           <div class="admin-inner">
             ${pageTitle({
               imgSrc: "./assets/nav-profile.png",
@@ -942,15 +942,13 @@ export function mount(root, { nav }) {
       touched[`bill.${k}`] = 1;
       renderFt();
     });
-    on(panel, "click", "[data-seg]", (e, t) => {
-      form[t.dataset.seg] = t.dataset.v;
-      touched[t.dataset.seg] = 1;
-      qsa(panel, `[data-seg='${t.dataset.seg}']`).forEach((b) => {
-        const on_ = b.dataset.v === t.dataset.v;
-        b.classList.toggle("is-on", on_);
-        b.setAttribute("aria-checked", on_ ? "true" : "false");
-      });
-      renderFt();
+    /* 세그먼트(매출 채널) — `role="radio"` 의 약속을 공용 `bindRadioGroup`(util/dialog.js)이 지킨다: 화살표·Home·End 로 옮기면
+       그 칸이 골라지고(끝에서 감긴다) Tab 은 그룹을 한 정거장으로 지난다. 예전엔 선언만 있고 화살표가 듣지 않아 칸마다 Tab
+       정거장이었다. 표시(is-on·aria-checked·tabindex)는 그쪽이 바꾸고 다시 그리지 않는다.
+       onPick 은 **값이 바뀔 때만** 온다 — 예전엔 이미 고른 '일반' 을 다시 눌러도 '수정한 항목 1개' 가 됐다(바뀐 것이 없는데). */
+    bindRadioGroup(panel, {
+      item: "[data-seg]", selClass: "is-on",
+      onPick: (t) => { form[t.dataset.seg] = t.dataset.v; touched[t.dataset.seg] = 1; renderFt(); },
     });
 
     /* 상태 전환은 **즉시 반영**한다 — 지금 동작이 그렇고 토스트 문구도 즉시 통보를 전제한다.

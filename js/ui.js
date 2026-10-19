@@ -133,6 +133,33 @@ function tabbables(root) {
    지금의 드롭다운·배송일시 피커·날짜 칸 피커는 모두 창 안에 살아 이 가드에 걸리지 않는다(창 안이면 창 순서대로 돈다). */
 const OUTSIDE_POPOVER = ".dd, .ord-dtp, .dpk";
 
+/* 창을 **닫은** 키를 누른 채로 두면 — 그 키를 뗄(또는 새로 누를) 때까지 문서 전체에서 자동 반복을 버린다.
+   ✕·닫기·'지정' 같은 버튼에서 Enter 를 꾹 누르면 첫 keydown 이 창을 닫고 초점이 여는 버튼으로 돌아가는데, 다음 반복이
+   그 버튼을 다시 눌러 창이 다시 열렸다(2026-10-19 검토 실측 — 여는 쪽 반복 버리기만 있으면 다시 열린 창이 나머지 반복을
+   모두 버려 **늘 열린 채** 끝났다: ✕ 꾹 1·2·3·8번 · 푸터 '닫기' · 스택 위 ✕ · 담당자 지정 '지정' 모두. 그 전엔 반복 수에 따라
+   열렸다 닫혔다 했다). 창이 사라진 뒤라 창별 리스너로는 못 막아 모듈 하나가 키마다 한 벌만 건다. */
+const SWALLOWING = new Set();
+function swallowHeldRepeat(key) {
+  if (SWALLOWING.has(key)) return;
+  SWALLOWING.add(key);
+  const onDown = (e) => {
+    if (e.key !== key) return;
+    if (!e.repeat) { off(); return; } /* 새로 누른 키 — 예전 그대로 동작한다 */
+    e.preventDefault(); /* keypress 가 안 생겨 버튼 click 이 일어나지 않는다 */
+    e.stopImmediatePropagation();
+  };
+  const onUp = (e) => { if (e.key === key) off(); };
+  function off() {
+    SWALLOWING.delete(key);
+    document.removeEventListener("keydown", onDown, true);
+    document.removeEventListener("keyup", onUp, true);
+    window.removeEventListener("blur", off);
+  }
+  document.addEventListener("keydown", onDown, true);
+  document.addEventListener("keyup", onUp, true);
+  window.addEventListener("blur", off); /* 창 밖에서 떼면 keyup 이 오지 않는다 */
+}
+
 /**
  * openModal({ panelClass, body, labelledBy, onClose }) → { panel, close, render }
  * - body: Html|string for the panel inner content
@@ -156,12 +183,40 @@ export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } 
   let closed = false;
   let tabBack = null; /* 브라우저에 맡긴 Tab 의 방향(true = Shift) — 그 이동이 끝날 때까지만 산다(아래 trapTab) */
   let tabTimer = 0;
+  /* ── 창을 연 키의 자동 반복 버리기 ──
+     창을 여는 버튼에서 Enter 를 누른 채로 두면 자동 반복 keydown 이 **창의 첫 초점**(작은 창은 ✕)을 누른다 —
+     창이 열리자마자 닫히고, 초점이 돌아간 여는 버튼을 다음 반복이 다시 눌러 열고 닫기를 되풀이했다(2026-10-19 실측:
+     반복 1·3번이면 닫힌 채, 8·20번이면 4·10번 닫혔다 다시 열린 채 끝났다 · 거래처 창 위 담당자 관리(스택)도 같다).
+     첫 초점이 ✕ 가 아닌 창은 더 나쁘다 — 입금 확인 창은 '되돌릴 수 없음' 체크가 반복마다 켜졌다 꺼졌고, 담당자 미지정
+     주문의 연필을 꾹 누르면 저절로 뜬 담당자 지정 창이 닫힌 뒤 머리 스테퍼가 눌려 접수대기가 '주문접수' 로 **저장됐다**
+     (반복 3번이면 충분했다). 그래서 창을 연 뒤 **그 키를 새로 누르거나 뗄 때까지** 창 안으로 들어오는 반복 Enter·Space 를
+     버린다(`settled` — 키마다). 반복은 늘 같은 키의 첫 keydown 뒤에만 오므로, 창을 연 뒤 새로 누른 키(마우스로 연 창에서
+     누른 Enter 등)는 첫 keydown 에 `settled` 가 되어 예전 그대로다 — 버리는 것은 '창을 열 때 이미 눌려 있던 키' 의 반복뿐이다.
+     ⚠️ 행 버튼의 반복 막기(contacts-modal.js · profile.js)는 다른 문제(초점이 다음 줄로 옮겨 가는 연쇄)라 그대로 둔다.
+     닫는 쪽(창을 닫은 키의 반복)은 `down` — 닫는 순간 눌린 채인 키를 `swallowHeldRepeat` 에 넘긴다. */
+  const HELD_KEYS = ["Enter", " "];
+  const settled = new Set();
+  const down = new Set();
+  function dropHeldRepeat(e) {
+    if (HELD_KEYS.includes(e.key)) down.add(e.key);
+    if (!HELD_KEYS.includes(e.key) || settled.has(e.key)) return false;
+    if (!e.repeat) { settled.add(e.key); return false; }
+    if (!overlay.contains(e.target)) return false;
+    e.preventDefault(); /* 버튼의 click 활성화 · 입력칸의 글자 · 스크롤을 막는다 */
+    e.stopImmediatePropagation(); /* 창 안 keydown 위임(Enter 로 고르기 등)에도 닿지 않게 — 문서 capture 라 대상보다 먼저다 */
+    return true;
+  }
+  function onKeyUp(e) {
+    if (HELD_KEYS.includes(e.key)) { settled.add(e.key); down.delete(e.key); }
+  }
   function close() {
     if (closed) return;
     closed = true;
     OPEN_MODALS.delete(close);
     document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("keyup", onKeyUp, true);
     document.removeEventListener("focusin", onFocusIn, true);
+    down.forEach(swallowHeldRepeat); /* Space 는 keyup 에 누르므로 여기 오지 않는다 — 닫은 Enter 의 반복만 */
     clearTimeout(tabTimer);
     overlay.remove();
     if (prevFocus && prevFocus.focus) prevFocus.focus();
@@ -171,6 +226,7 @@ export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } 
     (tabbables(panel)[0] || panel).focus();
   }
   function onKey(e) {
+    if (dropHeldRepeat(e)) return; /* 맨 앞 — 스택된 아래 창이 이 창보다 먼저 듣지만 대상이 이 창 안이라 거기서는 지나간다 */
     if (document.querySelector(".lightbox")) return; /* 라이트박스 우선 */
     /* 스택된 모달 지원: 최상위(마지막에 열린) 오버레이만 ESC/Tab 처리 —
        오버레이가 1개뿐인 기존 사용처는 항상 최상위라 무영향. */
@@ -243,6 +299,7 @@ export function openModal({ panelClass = "", body, labelledBy, onClose, onEsc } 
     if (e.target.closest("[data-modal-close]")) close();
   });
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("keyup", onKeyUp, true);
   document.addEventListener("focusin", onFocusIn, true);
   focusFirst();
 

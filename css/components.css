@@ -2169,6 +2169,12 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--cli .rail-card__btn:focus-visible,
 .modal-panel--cli .cli-minibtn:focus-visible,
 .modal-panel--cli .cli-attachbtn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+/* 매출 채널 세그먼트 — 원장(스크롤 칸) 안이지만 **바깥(2px)** 이다. 고른 칸은 면이 `--c-text-strong` 이라 안쪽 인디고가 3.0:1 로
+   묻힌다(켜진 토글과 같은 이유 · 흰 면 바깥이면 6.29:1). 2026-10-19 화살표로 옮기는 라디오 그룹이 되면서(dialog.js `bindRadioGroup`)
+   초점이 곧 선택이라 보여야 한다 — 전역 링은 1.11:1 이었다(실측). 바깥 링이 원장 끝에 걸리지 않게 `scroll-margin` 을 둔다.
+   주문서 등록 창의 같은 세그먼트(B2C 결제 상태)는 아래 `.modal-panel--ordnew` 목록이 그린다. */
+.modal-panel--cli .seg-pill__btn { scroll-margin: 6px; }
+.modal-panel--cli .seg-pill__btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none; }
 
 /* ── 레일 카드 ─────────────────────────────────────────────── */
 /* 다크 레일 위 정보 카드 · 세그먼트 — `--cli` 전용이 아니라 **공용**이다.
@@ -2634,9 +2640,29 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-req__row:focus-visible,
 .ordnew-mgr__chip:focus-visible,
 .ordnew-clipick__btn:focus-visible,
-.ordnew-cli:focus-visible {
+.ordnew-cli:focus-visible,
+/* 2026-10-19 — 같은 1.1:1 이 남아 있던 위저드 조작(B2B·B2C 공용 셸). 주문경로 카드(B2C 1단계) · 결제 상태 칸 ·
+   머리의 자동작성 · ✕. 결제 상태 칸은 켜진 칸이 검정 면이라 안쪽 링(검정 위 인디고 3.0:1)보다 바깥이 보인다.
+   ⚠️ `.seg-pill` 은 거래처 정보 창(매출 채널)도 쓴다 — 패널로 스코프한다(`.hm__x` 도 큰 모달 공용이라 같다). */
+.ordnew-chan__card:focus-visible,
+.modal-panel--ordnew .seg-pill__btn:focus-visible,
+.ordnew-auto:focus-visible,
+.modal-panel--ordnew .hm__x:focus-visible {
   outline: 2px solid var(--c-indigo); outline-offset: 2px; box-shadow: none;
 }
+/* 거래처 목록·요청자 목록은 자체 스크롤이라 Tab 이 맨 아래 줄을 끝에 맞춰 굴리면 바깥 링 아랫변(4px)이 잘렸다
+   (2026-10-19 실측 3.5~4px). `scroll-margin` 이 초점 스크롤에 링 자리 + 2px 를 더 내게 한다(담당자 관리 창 토글과 같은 수법). */
+.ordnew-cli,
+.ordnew-req__row { scroll-margin: 6px; }
+/* 2단계 본문(`.ord-pane` 이 스크롤 칸)의 배송일시 트리거(칸을 가득 채운다) · 보내는분 '선택' — 안쪽(-2px).
+   바깥이면 칸 끝에서 잘린다(1280x720 실측 '선택' 아랫변 3px). */
+.modal-panel--ordnew .ord-dtp__trigger:focus-visible,
+.modal-panel--ordnew .ord-pick__btn:focus-visible {
+  outline: 2px solid var(--c-indigo); outline-offset: -2px; box-shadow: none;
+}
+/* 푸터 취소·이전·다음·등록 — 거래처 정보 창(`.modal-panel--cli .ord-ft .hm-btn`)과 같은 처방. 주 버튼은 자기 그림자가
+   전역 링을 덮어 초점 표시가 아예 없었다(1.4:1 은 그 그림자다) — 그림자는 그대로 두고 바깥 링만 더한다. */
+.modal-panel--ordnew .ord-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 /* 확정된 요청자 한 줄 — '연락처가 없으면 배송완료 알림을 못 보낸다'는 사실이 1단계에
    보이는 유일한 자리다(레일의 알림 명단은 2단계에서만 그려진다). */
 .ordnew-req__sum {

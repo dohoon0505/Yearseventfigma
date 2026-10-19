@@ -35,6 +35,7 @@ import { openCancelModal } from "../util/cancel-modal.js";
 import { onPhoneInput } from "../util/phone.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openRowPicker, openAutofill, MANUAL } from "../util/order-dialogs.js";
+import { bindRadioGroup } from "../util/dialog.js";
 import { applyOrderText } from "../data/order-text.js";
 import { histEntry } from "../data/order-history.js";
 import { sharedBizKeys, displayName } from "../util/biz.js";
@@ -777,6 +778,9 @@ export function mount(root, { nav }) {
   let cRenderList = null;
   let cRenderCli = null;
   let cRenderSum = null;
+  /* 주문 요청자 행의 라디오 그룹 위임(util/dialog.js `bindRadioGroup`) — 거래처를 바꾸면 요청자 카드를 다시 그리므로
+     그 뒤 `sync()` 로 roving tabindex 를 다시 세운다(새 마크업은 tabindex 가 없어 행마다 Tab 정거장이 된다). */
+  let cReqRadios = null;
   /* 거래처를 이미 골랐는데도 목록을 **다시 펼쳐 둔** 상태인가('다른 거래처 선택'). */
   let cCliOpen = false;
   const cDds = [];
@@ -876,6 +880,7 @@ export function mount(root, { nav }) {
     cCliOpen = false;
     if (cRenderCli) cPut("cli", cRenderCli());
     if (cRenderReq) cPut("creq", cRenderReq());   /* 새 마크업이라 요약 한 줄도 같이 갱신된다 */
+    if (cReqRadios) cReqRadios.sync();            /* 새 행들 — 그룹을 다시 Tab 한 정거장으로 */
     createModal.rerenderStep("s2");
     createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
     focusCliPick(); // 위 슬롯 갈이로 누른 줄이 사라졌다 — 그 자리의 '다른 거래처 선택' 으로
@@ -1187,7 +1192,7 @@ export function mount(root, { nav }) {
       onClose: () => {
         cDestroy();
         createModal = null; cDraft = null;
-        cRenderReq = null; cRenderList = null; cRenderCli = null; cRenderSum = null;
+        cRenderReq = null; cRenderList = null; cRenderCli = null; cRenderSum = null; cReqRadios = null;
       },
     });
     bindCreateDelegates(createModal.panel);
@@ -1220,25 +1225,25 @@ export function mount(root, { nav }) {
         createModal.syncFooter(); createModal.markTouched();
       } });
     });
-    /* 주문 담당자 칩 — 값이 그대로면 no-op(이력·토스트가 중복으로 쌓이지 않게).
-       카드를 다시 그리지 않고 클래스·aria 만 바꾼다(요청자 입력 칸의 커서 보호). */
-    on(panel, "click", "[data-cmgr]", (e, t) => {
-      const v = t.dataset.cmgr;
-      if ((cDraft.manager || "") === v) return;
-      cDraft.manager = v;
-      qsa(panel, "[data-cmgr]").forEach((b) => {
-        const on2 = b.dataset.cmgr === v;
-        b.classList.toggle("is-sel", on2);
-        b.setAttribute("aria-checked", on2 ? "true" : "false");
-      });
-      createModal.syncFooter(); createModal.markTouched();
+    /* 주문 담당자 칩 — 값이 그대로면 no-op(이력·토스트가 중복으로 쌓이지 않게 — onPick 은 값이 바뀔 때만 온다).
+       카드를 다시 그리지 않고 클래스·aria 만 바꾼다(요청자 입력 칸의 커서 보호). `role="radio"` 라 화살표로 옮긴다
+       (공용 `bindRadioGroup` — 예전엔 선언만 있고 키가 없어 칩 6개가 Tab 6정거장이었다). 화살표로 골라도 ESC 이중 확인이
+       켜지게 markTouched 를 여기서 부른다(셸은 클릭만 센다). */
+    bindRadioGroup(panel, {
+      item: "[data-cmgr]", selClass: "is-sel",
+      onPick: (t) => { cDraft.manager = t.dataset.cmgr; createModal.syncFooter(); createModal.markTouched(); },
     });
     /* 주문 요청자 행 — 담당자 프로필에서 고르거나 '직접 입력'으로 내려간다.
        ⚠️ **재렌더하지 않는다.** 직접 입력 칸에 커서가 있는 채로 카드를 다시 그리면
           입력이 끊긴다 — openRowPicker 가 쓰는 것과 같은 수법(클래스·aria·disabled 토글)이다.
        ⚠️ 숨긴 칸은 `disabled` 로 막는다 — openModal 의 포커스 트랩이 hidden 요소도
-          모으므로, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다. */
-    on(panel, "click", "[data-creq-pick]", (e, t) => {
+          모으므로, 안 그러면 Tab 이 보이지 않는 칸으로 빠진다.
+       `role="radio"` 라 화살표로 옮긴다(공용 `bindRadioGroup` — 예전엔 선언만 있고 키가 없어 행마다 Tab 정거장이었다).
+       표시(is-sel·aria-checked·tabindex)는 그쪽이 바꾸고, onPick 은 값이 바뀔 때만 온다(같은 행을 다시 눌러도 no-op — 예전 가드).
+       ⚠️ 화살표('key')로 '직접 입력' 에 닿을 때는 이름 칸으로 초점을 옮기지 않는다 — 옮기면 화살표로 지나가는 순간 초점이 칸으로
+          끌려가 그룹 안에서 되돌아갈 수 없다(관리자 발급 처리 창의 방식 고르기가 겪었다). 칸은 열리고 바로 다음 Tab 이 그 칸이다.
+          누르거나 Enter·Space 로 고를 때('click')만 예전처럼 이름 칸으로 간다. */
+    cReqRadios = bindRadioGroup(panel, { item: "[data-creq-pick]", selClass: "is-sel", onPick: (t, how) => {
       const v = t.dataset.creqPick;
       const was = cReqManualOn();
       if (v === MANUAL) {
@@ -1259,11 +1264,6 @@ export function mount(root, { nav }) {
         cDraft.requesterName = c ? c.name : ""; cDraft.requesterPhone = c ? (c.phone || "") : "";
       }
       const man = cReqManualOn();
-      qsa(panel, "[data-creq-pick]").forEach((b) => {
-        const on2 = b.dataset.creqPick === (man ? MANUAL : v);
-        b.classList.toggle("is-sel", on2);
-        b.setAttribute("aria-checked", on2 ? "true" : "false");
-      });
       const box = qs(panel, "[data-slot='creqman']");
       if (box) {
         box.hidden = !man;
@@ -1271,11 +1271,11 @@ export function mount(root, { nav }) {
           el.disabled = !man;
           if (!was && man) el.value = el.dataset.creq === "requesterPhone" ? cDraft.requesterPhone : cDraft.requesterName;
         });
-        if (man && !was) { const n = qs(box, "[data-creq='requesterName']"); if (n) n.focus(); }
+        if (man && !was && how === "click") { const n = qs(box, "[data-creq='requesterName']"); if (n) n.focus(); }
       }
       syncReqSum();
       createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
-    });
+    } });
     /* 직접 입력 — write-through 만 한다. 푸터 카운터는 셸이 오버레이에서(이 위임이
        끝난 뒤에) 다시 세므로 여기서 건드리지 않는다. */
     on(panel, "input", "[data-creq]", (e, t) => {

@@ -24,6 +24,7 @@ import { onPhoneInput } from "../util/phone.js";
 import { readWonInput, settleWonInput, DELIVER_AT_OK } from "../util/order-fields.js";
 import { openOrderCreate } from "../util/order-create.js";
 import { openAutofill } from "../util/order-dialogs.js";
+import { bindRadioGroup } from "../util/dialog.js";
 import { applyOrderText } from "../data/order-text.js";
 import { pushHistory } from "../data/order-history.js";
 import {
@@ -368,9 +369,9 @@ export function mount(root, { nav }) {
 
     /* ── step1: 주문경로 · 결제 ──
        주문경로 카드는 **누름 버튼**(`aria-pressed`)이라 Tab 으로 하나씩 지난다(화살표 약속이 없다 — 6장이 두 줄이라 화살표로
-       옮기면 위아래가 모호하다). 결제 상태는 **라디오 그룹**이라 화살표로 옮기고 Tab 은 그룹을 한 정거장으로 지난다
-       (roving tabindex — 고른 칸, 없으면 첫 칸만 0 · 키는 아래 bindCreateDelegates). 둘 다 고를 때 다시 그리지 않는다. */
-    const payTab = (v) => (cDraft.payStatus ? cDraft.payStatus === v : v === B2C_PAY_STATES[0]) ? "0" : "-1";
+       옮기면 위아래가 모호하다). 결제 상태·주문 담당자 칩은 **라디오 그룹**이라 화살표로 옮기고 Tab 은 그룹을 한 정거장으로
+       지난다(roving tabindex — 고른 칸, 없으면 첫 칸만 0 · 키와 tabindex 는 아래 bindCreateDelegates 의 공용 `bindRadioGroup`).
+       셋 다 고를 때 다시 그리지 않는다. */
     const step1Body = () => html`
       <section class="ord-card">
         <div class="ord-card__head">
@@ -391,8 +392,7 @@ export function mount(root, { nav }) {
           <div class="seg-pill" role="radiogroup" aria-label="결제 상태" data-slot="cpay">
             ${B2C_PAY_STATES.map((v) => html`
               <button type="button" class="seg-pill__btn ${cDraft.payStatus === v ? "is-on" : ""}"
-                data-cpay="${v}" role="radio" aria-checked="${cDraft.payStatus === v ? "true" : "false"}"
-                tabindex="${payTab(v)}">${v}</button>`)}
+                data-cpay="${v}" role="radio" aria-checked="${cDraft.payStatus === v ? "true" : "false"}">${v}</button>`)}
           </div>
           ${/* 이 칸은 id 가 있으니 `for` 로 묶는다 — 예전엔 for 가 없어 라벨을 눌러도 칸으로 가지 않았고, Tab 으로 닿으면 이름 없이
                값('2026-10-19 10:00')만 읽혔다(검토 실측). 등록 창은 한 번에 하나라 id 가 겹치지 않는다(openCreate 의 가드). */ ""}
@@ -488,33 +488,12 @@ export function mount(root, { nav }) {
       });
       afterPick();
     });
-    const pickPay = (t) => {
-      const v = t.dataset.cpay;
-      qsa(panel, "[data-cpay]").forEach((b) => {
-        const on2 = b === t;
-        b.classList.toggle("is-on", on2);
-        b.setAttribute("aria-checked", on2 ? "true" : "false");
-        b.tabIndex = on2 ? 0 : -1; /* 그룹 전체가 Tab 한 정거장 — 고른 칸이 그 정거장이다 */
-      });
-      if (cDraft.payStatus === v) return;
-      cDraft.payStatus = v;
-      afterPick();
-    };
-    on(panel, "click", "[data-cpay]", (e, t) => pickPay(t));
-    /* `role="radio"` 의 약속 — 화살표·Home·End 로 옮기면 그 칸이 골라진다(dialog.js `bindPick` 과 같은 키 · 끝에서 감긴다).
-       bindPick 을 그대로 쓰지 않는 까닭: 그쪽은 `is-sel`·`data-pickrow` 를 칠하고, 이 세그먼트(`.seg-pill`)는 `is-on` 으로 칠한다. */
-    const PAY_STEP = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
-    on(panel, "keydown", "[data-cpay]", (e, t) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return; /* Alt+← (뒤로 가기) 같은 브라우저 단축키는 그대로 둔다 */
-      const all = qsa(panel, "[data-cpay]");
-      const i = all.indexOf(t);
-      const to = e.key === "Home" ? all[0]
-        : e.key === "End" ? all[all.length - 1]
-        : PAY_STEP[e.key] ? all[(i + PAY_STEP[e.key] + all.length) % all.length] : null;
-      if (!to) return;
-      e.preventDefault(); /* 패널 스크롤이 아니라 선택을 옮긴다 */
-      to.focus();
-      pickPay(to);
+    /* 결제 상태 — `role="radio"` 의 약속(화살표·Home·End 로 옮기면 그 칸이 골라진다 · 끝에서 감긴다 · Tab 은 그룹 한 정거장)은
+       공용 `bindRadioGroup`(util/dialog.js)이 지킨다. 예전엔 여기서 손으로 짰다(2026-10-19 4차) — 담당자 칩·거래처 창 매출 채널도
+       같은 약속이 필요해 한 벌로 모았다. 이 세그먼트(`.seg-pill`)는 `is-on` 으로 칠한다. onPick 은 값이 바뀔 때만 온다. */
+    bindRadioGroup(panel, {
+      item: "[data-cpay]", selClass: "is-on",
+      onPick: (t) => { cDraft.payStatus = t.dataset.cpay; afterPick(); },
     });
     /* 자동작성 — 채우는 대상은 **발주정보**(step2)다. 1단계에서 눌러도 값은 들어가고
        레일·푸터가 따라오므로, 스텝을 강제로 넘기지 않는다(사용자의 자리를 뺏지 않는다). */
@@ -528,17 +507,12 @@ export function mount(root, { nav }) {
         createModal.syncFooter(); createModal.markTouched();
       } });
     });
-    /* 담당자 칩 — 카드를 다시 그리지 않고 클래스·aria 만 바꾼다(접수일시 칸의 커서 보호). */
-    on(panel, "click", "[data-cmgr]", (e, t) => {
-      const v = t.dataset.cmgr;
-      if ((cDraft.manager || "") === v) return;
-      cDraft.manager = v;
-      qsa(panel, "[data-cmgr]").forEach((b) => {
-        const on2 = b.dataset.cmgr === v;
-        b.classList.toggle("is-sel", on2);
-        b.setAttribute("aria-checked", on2 ? "true" : "false");
-      });
-      createModal.syncFooter(); createModal.markTouched();
+    /* 담당자 칩 — 카드를 다시 그리지 않고 클래스·aria 만 바꾼다(접수일시 칸의 커서 보호). `role="radio"` 라 화살표로 옮긴다
+       (공용 `bindRadioGroup` — 예전엔 선언만 있고 키가 없어 칩 6개가 Tab 6정거장이었다). 화살표로 골라도 ESC 이중 확인이
+       켜지게 markTouched 를 여기서 부른다(셸은 클릭만 센다). 값이 그대로면 onPick 이 오지 않는다. */
+    bindRadioGroup(panel, {
+      item: "[data-cmgr]", selClass: "is-sel",
+      onPick: (t) => { cDraft.manager = t.dataset.cmgr; createModal.syncFooter(); createModal.markTouched(); },
     });
     /* 값 입력은 draft 로 write-through — 행을 다시 그리지 않는다(커서 유지). */
     on(panel, "input", "[data-cf]", (e, t) => { cDraft[t.dataset.cf] = t.value; });

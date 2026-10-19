@@ -99,6 +99,9 @@
   outline: 2px solid var(--c-indigo);
   outline-offset: 2px;
 }
+/* 표 '지정' 의 바깥 링은 Tab 이 그 줄을 화면 끝에 맞춰 굴리면 아랫변이 잘렸다(2026-10-19 1440x900 실측 3.5px) —
+   `scroll-margin` 이 초점 스크롤에 링 자리 + 2px 를 더 낸다. */
+.page-profile .pf-billset { scroll-margin: 6px; }
 
 /* ── 표 — 공용 tableGrid 를 계속 쓰고 면만 벗긴다(.ctc-list 와 같은 수법) ── */
 .page-profile .pf-table .table-grid {
@@ -273,6 +276,16 @@
 .modal-panel--dlg .pf-billon--sm:focus-visible {
   outline: 2px solid var(--c-indigo);
   outline-offset: 2px;
+}
+/* 담당자 수정·등록 창의 배송완료 알림톡 토글 — 전역 링(1.11:1)뿐이었다(2026-10-19 실측). **바깥(2px)** 이다 — 안쪽이면
+   켜진 트랙(`--c-blue`) 위 인디고라 1.3:1 로 다시 안 보인다(관리자 담당자 관리 창 `.ctc-list .toggle` 과 같은 처방).
+   본문(`.dlg-body`)이 스크롤 칸이라 짧은 화면에서 Tab 이 끝에 맞춰 굴리면 바깥 링이 잘린다 — `scroll-margin` 이 자리를 낸다.
+   ⚠️ `.pf-set` 스코프를 지킬 것 — `.toggle` 은 담당자 설정·담당자 관리 창·포털 주문 4단계·주문 등록 레일도 쓴다. */
+.modal-panel--dlg .pf-set .toggle { scroll-margin: 6px; }
+.modal-panel--dlg .pf-set .toggle:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 /* ── 반응형 — 시안은 1600px 기준이다. 레포 관례 브레이크포인트(1400/1240). ──
