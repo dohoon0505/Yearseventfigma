@@ -841,12 +841,29 @@ export function mount(root, { nav }) {
     e.classList.toggle("is-warn", cRenderSum.warn());
   };
 
+  /* 거래처를 고르면 목록이 한 줄로 접히며(`cPut("cli")`) 누른 줄이 DOM 에서 떨어진다 — 초점이 body 로 빠져 다음 Tab 이
+     창 맨 앞('자동작성')부터 다시 시작했다(실측 · Enter·Space·마우스 모두 · 같은 거래처를 다시 골라 접힐 때도).
+     그 자리를 대신하는 **'다른 거래처 선택'** 으로 옮긴다:
+     ① 접힌 줄의 유일한 조작이고 펴기와 짝이다 — 펴면 검색칸으로, 접으면 이 버튼으로(여닫는 단추가 초점을 쥐는 WAI 디스클로저 관례).
+     ② 다음 할 일(요청자)은 바로 다음 Tab 이다 — 한 번 더 누르면 간다.
+     ③ 요청자 카드로 끌고 가지 않는다 — 같은 거래처를 다시 골라 접힐 때는 요청자가 그대로라 엉뚱하고, 카드의 첫 칸도
+        거래처마다 다르다(담당자 줄 / 담당자 0명이면 직접 입력 칸 — 고르자마자 입력 칸에 떨어지면 무엇을 골랐는지 듣지 못한다).
+     버튼의 `aria-describedby` 가 고른 거래처 이름·번호를 읽어 준다. 셸의 '이전'(goStep) 도 1단계에 돌아올 때 (접혀 있으면) 이 버튼에 둔다.
+     초점을 잃었을 때만 옮긴다(order-screen `focusAfterStep` 과 같은 규칙 — 사람이 이미 둔 초점은 건드리지 않는다).
+     마우스로 고른 경우도 옮기지만 `:focus-visible` 이 아니라 링은 서지 않는다. */
+  const focusCliPick = () => {
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const b = createModal && qs(createModal.panel, "[data-action='ccli-reopen']");
+    if (b) b.focus();
+  };
+
   function cPickClient(id) {
     if (cDraft.clientId === id) {
       /* 동일값 재선택은 채워둔 값을 날리지 않는다 — 다만 '다른 거래처 선택'으로 펼쳐
          둔 목록에서 **같은 거래처를 다시 골랐다면** 접어 줘야 한다. 안 그러면 목록이
          영영 펼쳐진 채 남아 아래 두 카드가 폴드 밖으로 밀린다. */
-      if (cCliOpen) { cCliOpen = false; if (cRenderCli) cPut("cli", cRenderCli()); }
+      if (cCliOpen) { cCliOpen = false; if (cRenderCli) cPut("cli", cRenderCli()); focusCliPick(); }
       return;
     }
     cDraft.clientId = id;
@@ -861,6 +878,7 @@ export function mount(root, { nav }) {
     if (cRenderReq) cPut("creq", cRenderReq());   /* 새 마크업이라 요약 한 줄도 같이 갱신된다 */
     createModal.rerenderStep("s2");
     createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
+    focusCliPick(); // 위 슬롯 갈이로 누른 줄이 사라졌다 — 그 자리의 '다른 거래처 선택' 으로
   }
 
   /* 계약단가 판정 — 규칙은 store.contractPrice 단일 소스를 쓴다(복제 금지). */
@@ -1038,12 +1056,15 @@ export function mount(root, { nav }) {
           </div>
           <div class="ordnew-clilist" data-slot="clilist">${cliListBody()}</div>`;
       }
+      /* 고른 뒤 초점은 '다른 거래처 선택' 에 온다(focusCliPick) — 그 버튼이 고른 거래처를 읽어 주게 이름·번호 줄을 설명으로 잇는다
+         (등록 창은 한 번에 하나라 id 가 겹치지 않는다 · openCreate 의 가드). */
       return html`
         <div class="ordnew-clipick">
-          <span class="ordnew-clipick__nm">${displayName(c, sharedBizKeys(clients()))}</span>
-          <span class="ordnew-clipick__sub">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`].filter(Boolean).join(" · ")}</span>
+          <span class="ordnew-clipick__nm" id="ccli-picked-nm">${displayName(c, sharedBizKeys(clients()))}</span>
+          <span class="ordnew-clipick__sub" id="ccli-picked-sub">${[c.bizNumber, c.department, `${c.channel || "일반"} 채널`].filter(Boolean).join(" · ")}</span>
           ${c.clientNote ? html`<span class="ordnew-cli__badge">거래 조건</span>` : ""}
-          <button type="button" class="ordnew-clipick__btn" data-action="ccli-reopen">다른 거래처 선택</button>
+          <button type="button" class="ordnew-clipick__btn" data-action="ccli-reopen"
+            aria-describedby="ccli-picked-nm ccli-picked-sub">다른 거래처 선택</button>
         </div>`;
     };
 

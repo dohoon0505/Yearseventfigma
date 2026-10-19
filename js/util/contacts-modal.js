@@ -43,6 +43,14 @@ export function openContactsModal(o) {
   const toast = o.toast || (() => {});
   const changed = () => { o.onChange && o.onChange(); };
 
+  /* 줄 버튼의 이름은 **그 줄의 사람**을 부른다. 삭제·지정 뒤 초점이 다른 줄의 같은 버튼으로 옮겨 가므로(아래 focusCol)
+     '삭제' 만으로는 화면낭독기가 누구를 지우는 버튼인지 말하지 못한다 — 확인 창 없이 바로 지우는 버튼이다.
+     이름 칸을 고치면 그 줄의 이름 셋만 손본다(행을 다시 그리면 커서가 날아간다 — 아래 input 위임). */
+  const who = (name) => String(name || "").trim() || "담당자";
+  const msgLabel = (name) => `${who(name)} 배송완료 알림톡 수신`;
+  const billLabel = (name) => `${who(name)} 정산담당 지정`;
+  const delLabel = (name) => `${who(name)} 삭제`;
+
   /* 열 폭은 시안 값 — 연락처 184px 는 '010-0000-0000' 이 잘리지 않는 최소치다
      (150px 이던 시절 실제로 잘렸다). 이름·부서는 남는 폭을 1 : 1.2 로 나눈다. */
   const cols = [
@@ -59,20 +67,20 @@ export function openContactsModal(o) {
         return html`<button type="button" class="toggle" role="switch" data-mc-msg="${r.id}"
           aria-checked="${on ? "true" : "false"}" ${noPhone ? "disabled" : ""}
           title="${noPhone ? "연락처를 먼저 입력하세요" : "배송완료 알림톡 수신"}"
-          aria-label="${r.name || "담당자"} 배송완료 알림톡 수신"><span class="toggle__knob"></span></button>`;
+          aria-label="${msgLabel(r.name)}"><span class="toggle__knob"></span></button>`;
       },
     },
     {
       label: "정산 · 회계", width: "124px", align: "center",
       render: (r) => (r.isBilling
         ? html`<span class="pill pill--blue tbl-billing">${icon("check-circle", { size: 12 })} 정산담당</span>`
-        : html`<button class="tbl-setbilling" data-mc-bill="${r.id}">지정</button>`),
+        : html`<button class="tbl-setbilling" data-mc-bill="${r.id}" aria-label="${billLabel(r.name)}">지정</button>`),
     },
     {
       label: "삭제", width: "44px", align: "center",
       render: (r) => (r.isBilling
         ? html`<span class="tbl-lock" title="정산담당은 바로 삭제할 수 없습니다 — 다른 담당자를 먼저 지정하세요">${icon("trash2", { size: 14 })}</span>`
-        : html`<button class="tbl-del" data-mc-del="${r.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`),
+        : html`<button class="tbl-del" data-mc-del="${r.id}" aria-label="${delLabel(r.name)}">${icon("trash2", { size: 14 })}</button>`),
     },
   ];
 
@@ -122,6 +130,38 @@ export function openContactsModal(o) {
   const patch = (id, p) =>
     store.setContactsOf(cid, (prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x)));
 
+  /* ── 다시 그린 뒤 초점 ─────────────────────────────────────
+     삭제·정산담당 지정은 표를 다시 그린다 — 누른 버튼이 DOM 에서 떨어져 초점이 body 로 빠졌다(실측: 다음 Tab 이 창 맨 앞 ✕,
+     Shift+Tab 이 푸터 '닫기' 부터 다시 — 줄을 하나씩 지우던 사람이 매번 표를 처음부터 다시 훑었다). 거래처·주문 목록의
+     focusAfterDelete 와 같은 생각으로 **하던 자리**에 둔다: 누른 열의 버튼을 **그 줄 → 아래 줄 → 위 줄** 순으로 찾는다.
+     삭제면 '그 줄' 이 그 자리에 올라온 줄이고, 마지막 줄을 지웠으면 위 줄부터다. 정산담당 줄의 삭제 칸은 잠긴 표지
+     (`.tbl-lock` — 버튼이 아니라 초점을 못 받는다)라 그 줄은 건너뛴다. 지정이면 누른 줄의 칸이 정산담당 표지로 바뀌므로
+     다음 '지정' 으로 간다. 그 열에 버튼이 하나도 없으면(남은 사람이 정산담당뿐 — 정산담당은 지울 수 없어 표가 비는 일은
+     없지만 그때도 같다) 다음 조작 '담당자 추가' 로. 순번은 다시 그리기 **전에** 잰다.
+     초점을 잃었을 때만 옮긴다 — 사람이 이미 다른 곳에 둔 초점은 건드리지 않는다. */
+  const rowEls = () => qsa(m.panel, "[data-slot='list'] .table-grid__row");
+  const rowIndexOf = (id) => rowEls().findIndex((r) => r.dataset.rowkey === id);
+  function focusCol(attr, idx) {
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) return;
+    const list = rowEls();
+    const start = Math.min(Math.max(idx, 0), list.length - 1);
+    const order = [...list.slice(start), ...list.slice(0, Math.max(start, 0)).reverse()];
+    for (const r of order) {
+      const b = qs(r, `[${attr}]`);
+      if (b && !b.disabled) { b.focus(); return; }
+    }
+    const add = qs(m.panel, "[data-action='add']");
+    if (add) add.focus();
+  }
+  /* ⚠️ Enter 를 누른 채로 두면 자동 반복 keydown 마다 **초점이 있는 버튼**이 다시 눌린다. focusCol 이 초점을 다음 줄의 같은 버튼에
+     두므로, 확인 창 없이 바로 지우는 이 창에서는 길게 누른 Enter 한 번이 지울 수 있는 줄을 전부 지우고 '담당자 추가' 로 빈 줄까지
+     만들었다(실측: 6명 → 정산담당 + 빈 줄 · 지정은 두 사람 사이를 오가다 엉뚱한 사람에서 멈췄다). focusCol 이 초점을 옮기는 세 버튼에서는
+     **반복 keydown 의 Enter 를 버린다** — 떼었다 다시 누르면 그대로 눌린다(한 번 누를 때 한 줄). Space 는 뗄 때 한 번만 눌려 해당 없다. */
+  on(m.panel, "keydown", "[data-mc-del], [data-mc-bill], [data-action='add']", (e) => {
+    if (e.repeat && e.key === "Enter") e.preventDefault();
+  });
+
   /* 닫기 위임은 openDialog 가 이미 건다([data-action='close']) — 여기서 또 걸지 않는다. */
 
   on(m.panel, "click", "[data-action='add']", () => {
@@ -138,6 +178,14 @@ export function openContactsModal(o) {
     const k = t.dataset.mc;
     const v = k === "phone" ? onPhoneInput(t) : t.value;
     patch(t.dataset.id, { [k]: v });
+    /* 이름을 고치면 그 줄 버튼들의 이름만 바꾼다(위 who — 다시 그리지 않는다). */
+    if (k === "name") {
+      const id = t.dataset.id;
+      const set = (sel, label) => { const b = qs(m.panel, sel); if (b) b.setAttribute("aria-label", label); };
+      set(`[data-mc-msg="${id}"]`, msgLabel(v));
+      set(`[data-mc-bill="${id}"]`, billLabel(v));
+      set(`[data-mc-del="${id}"]`, delLabel(v));
+    }
     /* 연락처를 채우면 그 줄의 알림톡 토글이 살아난다 — 행을 다시 그리면 커서가
        날아가므로 **그 버튼 하나만** 손본다. */
     if (k === "phone") {
@@ -163,17 +211,21 @@ export function openContactsModal(o) {
   });
 
   on(m.panel, "click", "[data-mc-bill]", (e, t) => {
+    const idx = rowIndexOf(t.dataset.mcBill); // 다시 그리기 전 순번 — 그 줄의 칸은 정산담당 표지가 된다(focusCol)
     store.setBillingContactOf(cid, t.dataset.mcBill);
     const c = rows().find((x) => x.id === t.dataset.mcBill);
     renderList(); changed();
+    focusCol("data-mc-bill", idx);
     toast(`정산·회계 담당자를 ${c && c.name ? c.name : "선택한 담당자"}(으)로 변경했습니다`, "ok");
   });
 
   on(m.panel, "click", "[data-mc-del]", (e, t) => {
     const id = t.dataset.mcDel;
+    const idx = rowIndexOf(id); // 지우기 전 순번 — 그 자리에 올라온 줄로(focusCol)
     const c = rows().find((x) => x.id === id);
     store.setContactsOf(cid, (prev) => prev.filter((x) => x.id !== id));
     renderList(); renderCap(); changed();
+    focusCol("data-mc-del", idx);
     toast(`${c && c.name ? c.name + " " : ""}담당자를 삭제했습니다`, "warn");
   });
 
