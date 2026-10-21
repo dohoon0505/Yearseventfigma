@@ -9,7 +9,7 @@ import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
-import { onContactPhoneInput, contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
+import { onContactPhoneInput, contactPhoneOk, contactPhoneNeed, contactPhoneOdd, contactPhoneLong } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
 import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup } from "../util/dialog.js";
 import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
@@ -533,11 +533,20 @@ export function mount(root, { nav }) {
       const out = REQUIRED.filter(([k]) => !String(form[k] ?? "").trim()).map(([, l]) => l);
       if (isEdit ? false : !String(form.accountId ?? "").trim()) out.unshift("접속 아이디");
       if (!isEdit && !bill.name.trim()) out.push("정산담당자 이름");
-      /* 정산 담당 연락처는 담당자 연락처 기준(util/phone.js contactPhoneOk — 숫자 10~12자리 · 010 번호는 11자리 · 2026-10-19 사용자
-         결정 ⓔ — 담당자 등록 창·담당자 관리 창·가입 2단계와 같은 판정)이다. 적다 만 번호면 무엇이 모자란지 함께 말한다. */
-      if (!isEdit && !contactPhoneOk(bill.phone)) out.push(bill.phone.trim() ? `정산담당자 연락처(${contactPhoneNeed(bill.phone)})` : "정산담당자 연락처");
+      /* 정산 담당 연락처가 **빈 칸**일 때만 여기서 센다 — 적다 만 번호는 아래 billPhoneBad 가 따로 말한다. */
+      if (!isEdit && !bill.phone.trim()) out.push("정산담당자 연락처");
       if (dupes().length && !String(form.department ?? "").trim()) out.push("계정 구분");
       return out;
+    };
+    /* 정산 담당 연락처는 담당자 연락처 기준(util/phone.js contactPhoneOk — 숫자 10~12자리 · 010 번호는 11자리 · 2026-10-19 사용자
+       결정 ⓔ — 담당자 등록 창·담당자 관리 창·가입 2단계와 같은 판정)이다. 칸에 글자가 있는데 맞지 않으면 '비어 있음' 으로 세지 않고
+       담당자 등록 창(util/contact-dialog.js)과 같은 말로 **무엇이 모자란지** 따로 말한다(2026-10-21 사용자 결정 — 예전엔 '필수 1개 비어
+       있음 · 정산담당자 연락처(010 번호는 숫자 11자리)' 라고 칸이 찬 것을 빈 것으로 셌다). 앞말은 contactPhoneOdd/Long 이 고른다. */
+    const billPhoneBad = () => !isEdit && !!bill.phone.trim() && !contactPhoneOk(bill.phone);
+    const billPhoneWhy = () => {
+      const lead = contactPhoneOdd(bill.phone) ? "정산담당자 연락처에 다른 글자가 섞였습니다"
+        : contactPhoneLong(bill.phone) ? "정산담당자 연락처 숫자가 너무 많습니다" : "정산담당자 연락처를 끝까지 입력하세요";
+      return `${lead} — ${contactPhoneNeed(bill.phone)}`;
     };
     /* 접속 아이디는 유일해야 한다(2026-09-25 — 로그인이 아이디 하나로 거래처를 가린다 · 명세 5.2 UNIQUE).
        신규만 본다 — 등록한 뒤에는 아이디를 바꿀 수 없다(레일에서 읽기 전용). */
@@ -697,16 +706,18 @@ export function mount(root, { nav }) {
     /* ── 푸터 ── */
     const ftBody = () => {
       const m = missing();
+      const bad = billPhoneBad();
       const taken = idTaken();
-      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}`
+      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}`
+        : bad ? billPhoneWhy()
         : taken ? `접속 아이디 '${String(form.accountId).trim()}' 는 이미 쓰고 있습니다`
         : savedAt && !dirty() ? `저장됨 · ${savedAt}`
         : dirty() ? `수정한 항목 ${dirty()}개` : "변경 없음";
-      const cls = m.length || taken ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
+      const cls = m.length || bad || taken ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
       return html`
         <span class="ord-ft__stat ${cls}" data-slot="stat">${stat}</span>
         <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length || taken ? "disabled" : ""}>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length || bad || taken ? "disabled" : ""}>
           ${!isEdit ? "등록" : dirty() ? "변경사항 저장" : "저장"}</button>`;
     };
 
@@ -1116,6 +1127,7 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='close']", () => closeModal());
     on(panel, "click", "[data-action='save']", () => {
       if (missing().length) { toast("필수 항목을 채워야 저장됩니다", "warn"); return; }
+      if (billPhoneBad()) { toast(billPhoneWhy(), "warn"); return; }
       if (idTaken()) { toast("이미 쓰고 있는 접속 아이디입니다", "warn"); return; }
       const created = !isEdit;
       if (created) {
