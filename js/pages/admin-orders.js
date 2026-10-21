@@ -16,7 +16,8 @@
      상태(`settlementOf(...).editable === false`)면 주문금액·주문상품을 잠그고 이유(짧은 말 `lockShort` + 정본 `lockReason` 은
      title·보조기술용 글)를 금액 칸 옆에 둔다. 명세서가 나갔는데 아직 고칠 수 있는 달이면 칸이 호박색이 되고 수정 마감 시각을
      말한다(2차 시안 S-06 ①). 저장·삭제·주문취소·배송일 이동·등록의 판정은 **`settlementImpactOf` 하나**다(util/settlement —
-     옛 lockHit·removeHit·cancelHit 를 대신한다). 명세서가 나간 달의 금액이 실제로 바뀌는 저장·등록은 '저장 전 금액 변경 확인'
+     옛 lockHit·removeHit·cancelHit 를 대신한다 · 상세 창은 탈퇴한 거래처의 잠금을 더한 util/withdraw.js `orderImpactOf` —
+     탈퇴한 거래처의 주문은 금액·상품·다른 달로 옮기기·취소·삭제를 막는다). 명세서가 나간 달의 금액이 실제로 바뀌는 저장·등록은 '저장 전 금액 변경 확인'
      창(util/order-settle-dialog.js · 사유(선택) → b2b 쓰기 ctx.note → 정산 금액 변경 기록)을 지난다(⑦)
    - clientNote(거래 조건)는 최상단 배너가 아니라 **요약 레일 맨 아래 카드**다.
      메모가 아니라 거래 조건이고((주)홈박스: "무조건 특대상품 발송") 빠지면 주문마다 사고가 난다
@@ -43,6 +44,9 @@ import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEI
 import { invoiceDayOf, periodOf, periodLabel, fmtKoShortTime, fmtAt } from "../data/settlement-rules.js";
 import { readWonInput, settleWonInput, DELIVER_AT_OK, dtpMarkup } from "../util/order-fields.js";
 import { settlementOf, settlementImpactOf, intakeBlockOf } from "../util/settlement.js";
+/* 상세 창의 저장·주문취소·삭제는 settlementImpactOf 에 **탈퇴한 거래처의 잠금**을 더한 판정을 쓴다(2026-10-22 운영자 답 A — 탈퇴한
+   뒤 주문을 고쳐 정산이 새로 생기면 로그인할 수 없는 거래처에 명세서·자동 동의가 걸린다). 등록 위저드는 활성 거래처만 고른다. */
+import { orderImpactOf, withdrawnOrderMsg } from "../util/withdraw.js";
 import { openSettleConfirm, sdlgMonths, sdlgNote, sdlgErr } from "../util/order-settle-dialog.js";
 import { setFocusClient, setFocusSection, takeFocusClient, takeFocusSection } from "../session.js";
 import { staffOptions } from "../data/staff-mock.js";
@@ -337,7 +341,7 @@ export function mount(root, { nav }) {
   /** 지금 작업본을 저장하면 정산에 주는 영향(서버 409 의 데모 대역 · 저장 전 확인 창의 근거) — 저장된 레코드가 없으면 null. */
   const impactNow = (now = new Date()) => {
     const st = editing && findOrder(editing.id);
-    return st ? settlementImpactOf(st, mergedNow(), now) : null;
+    return st ? orderImpactOf(st, mergedNow(), now) : null;
   };
   /** 누르기 전부터 막는 잠김 — 배송일시를 옮기는 저장(옛 달이 잠김)과 잠긴 달·발행이 지난 거래 없는 달로 들어가는 저장(시안 —
    *  저장 줄이 어느 달 때문인지 말하고 저장 버튼이 잠긴다). 같은 달 안에서 금액·상품만 바꾸다 잠긴 경우(창을 열어 둔 사이 수정 마감)는
@@ -348,16 +352,19 @@ export function mount(root, { nav }) {
   /** 막힌 달 문장 — '9월은 수정 마감이 지난 달이라 이 주문을 다른 달로 옮길 수 없습니다 — 금액 조정은 동의 뒤 수정계산서로'.
    *  발행이 지난 거래 없는 달은 규칙 모듈의 이유 그대로(issuedEmptyReason — 사용자 답 3). `verb` 는 '다른 달로 옮길' 등. */
   function lockSentence(lock, verb) {
+    /* 탈퇴한 거래처의 주문(util/withdraw.js orderImpactOf) — 달이 아니라 거래처 때문이라 그 이유 그대로. */
+    if (lock.withdrawn) return lock.reason;
     if (lock.s.status === "NONE" && !lock.isOld) return lock.reason;
-    const kind = lock.s.zero || lock.s.zeroEdited ? "0원으로 닫는 달"
+    const kind = lock.s.zeroEdited ? "0원으로 닫는 달"
       : lock.s.status === "AWAITING_AGREEMENT" ? "수정 마감이 지난 달" : "동의를 마친 달";
     return `${monthNo(lock.ym)}월은 ${kind}이라 이 주문을 ${verb} 수 없습니다 — ${tailOf(lock.s.lockReason)}`;
   }
   /** 저장 순간 막혔을 때의 제목 — 확인 창 안의 빨간 안내 · 토스트. */
   function lockTitle(lock) {
+    if (lock.withdrawn) return "저장하지 못했습니다 — 탈퇴한 거래처의 주문입니다";
     if (lock.s.status === "NONE" && !lock.isOld) return `저장하지 못했습니다 — ${lock.reason}`;
     if (lock.s.status === "AWAITING_AGREEMENT") return `저장하지 못했습니다 — 그사이 수정 마감(${fmtKoShortTime(lock.s.editLockAt)})이 지났습니다`;
-    if (lock.s.zero || lock.s.zeroEdited) return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월이 0원으로 닫혔습니다`;
+    if (lock.s.zeroEdited) return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월이 0원으로 닫혔습니다`;
     return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월 정산의 동의가 끝났습니다`;
   }
   /** 금액·상품 중 저장되지 않을 값('3단화환(고급형) 130,000원') — 바꾸지 않았으면 "". */
@@ -502,7 +509,11 @@ export function mount(root, { nav }) {
     if (!box || !why) return;
     const st = findOrder(editing.id);
     const moved = !!st && editing.status !== "취소" && ymOf(st.deliverAt) !== ymOf(editing.deliverAt);
-    const lock = preBlockOf(imp);
+    /* 금액·상품 칸이 원인인 잠금 둘은 배송일시를 다른 달로 옮길 때만 이 줄에서 말한다 — 탈퇴한 거래처의 잠금(orderImpactOf ·
+       금액·상품만 고쳐도 선다)과 0원 주문만 있던 달의 금액 올림(settlementImpactOf `raise` — 2026-10-22 결정 B · isOld 가 false 라
+       '들어오는 달' 처럼 보이지만 배송일시는 그대로다). 칠하면 고치지 않은 칸을 가리킨다 — 이유는 저장 줄이 말하고 금액 칸에 잇는다(linkAmtWhy). */
+    const lock0 = preBlockOf(imp);
+    const lock = lock0 && (lock0.withdrawn || lock0.raise) && !moved ? null : lock0;
     let text = "", tip = "귀속월은 배송일시의 달입니다", tone = "";
     if (isSheet(s0) && editing.status !== "취소") {
       if (!s0.editable) {
@@ -516,7 +527,8 @@ export function mount(root, { nav }) {
       }
     }
     /* 들어가는 달이 막혔으면(잠긴 달 · 발행이 지난 거래 없는 달) 그 달의 짧은 말을 쓴다 — 옛 달 안내가 거기서는 틀린 말이다. */
-    if (lock && !lock.isOld) { text = `${monthNo(lock.ym)}월 · ${lock.short}`; tip = lock.reason; }
+    if (lock && lock.withdrawn) { text = lock.short; tip = lock.reason; }
+    else if (lock && !lock.isOld) { text = `${monthNo(lock.ym)}월 · ${lock.short}`; tip = lock.reason; }
     box.classList.toggle("is-moved", moved && !lock);
     box.classList.toggle("is-blocked", !!lock);
     why.textContent = text;
@@ -576,10 +588,11 @@ export function mount(root, { nav }) {
   function chipOf(s) {
     if (s.status === "SCHEDULED") return ["발급 전", "gray", `명세서 발행 전 · ${fmtKoShortTime(s.issueAt)} 발행`];
     if (s.status === "NONE") return SETTLE_CHIP.NONE.concat("");
-    if (s.zero || s.zeroEdited) return ["0원 · 계산서 없음", "gray", ""];
+    if (s.zeroEdited) return ["0원 · 계산서 없음", "gray", ""]; // 발급 뒤 고쳐서 0원 — 0원 주문만 있는 달은 위 NONE(2026-10-22)
     if (s.status === "AWAITING_AGREEMENT") {
-      /* 잠정 보류 둘(Q19·Q20)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다). */
-      const held = s.autoAgreeHold === "NOTICE_UNDELIVERED" || s.autoAgreeHold === "CLIENT_SUSPENDED";
+      /* 잠정 보류(Q19 고지 미도달)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다 · 정지 중 마감 보류(Q20)는
+         2026-10-22 운영자 답 A 로 '정지' 가 없어지며 함께 없어졌다). */
+      const held = s.autoAgreeHold === "NOTICE_UNDELIVERED";
       return [`${held ? "동의 보류" : "동의대기"} · ${s.editable ? "고칠 수 있음" : "금액 고정"}`, "warn", s.editable ? "" : s.lockReason];
     }
     const [l, t] = SETTLE_CHIP[s.status] || [s.status, "gray"];
@@ -671,8 +684,9 @@ export function mount(root, { nav }) {
     if (!menuOpen || !editing) return null;
     const saved = findOrder(editing.id);
     if (!saved) return null;
-    const l = settlementImpactOf(saved, null, new Date()).lock;
+    const l = orderImpactOf(saved, null, new Date()).lock;
     if (!l) return null;
+    if (l.withdrawn) return withdrawnOrderMsg("지울"); // 탈퇴한 거래처의 주문 — 달이 아니라 거래처 때문이다
     return l.ym !== ymOf(saved.deliverAt) ? `${periodLabel(l.ym)} 정산이 잠겨 지울 수 없습니다 · ${l.reason}` : l.reason;
   }
   function renderHd() {
@@ -727,17 +741,30 @@ export function mount(root, { nav }) {
     }
     const btn = qs(p, "[data-action='save']");
     if (btn) { btn.disabled = !n || !!pre || !!feeLow; btn.textContent = !n ? "저장" : ask ? "변경사항 저장…" : "변경사항 저장"; }
-    linkAmtWhy(!!feeLow);
+    linkAmtWhy(amtBlocked(pre, feeLow));
     syncDeliv(imp);
     syncSettleRow(imp);
   }
-  /* 금액 < 수수료로 막혔으면 그 이유(저장 줄)를 **금액 칸에 잇는다**(util/dialog.js linkReason — aria-invalid + aria-describedby).
+  /** 저장을 막는 원인이 금액 칸인가 — 금액 < 수수료(feeLow) · 또는 금액을 바꿔 선 잠금(`pre`): 탈퇴한 거래처의 주문(orderImpactOf ·
+   *  상품을 바꿔 금액이 따라 바뀐 경우 포함)과 0원 주문만 있던 달의 금액 올림(settlementImpactOf `raise` — 2026-10-22 결정 B).
+   *  배송일시만 옮겨 선 잠금은 금액 칸이 아니라 배송일시 줄이 말한다(syncDeliv). */
+  function amtBlocked(pre, feeLow) {
+    if (feeLow) return true;
+    if (!pre || !(pre.raise || pre.withdrawn) || !editing) return false;
+    const st = findOrder(editing.id);
+    return !!st && (Number(editing.amount) || 0) !== (Number(st.amount) || 0);
+  }
+  /* 금액 칸 때문에 막혔으면 그 이유(저장 줄)를 **금액 칸에 잇는다**(util/dialog.js linkReason — aria-invalid + aria-describedby).
      저장 줄은 live 가 아니라(order-screen footerV2 — 입력마다 읽히면 시끄럽다) 칸에 있는 화면낭독기 사용자는 왜 저장이 잠겼는지
      듣지 못했다. 풀리면 걷는다 — 칸이 원래 갖던 설명('명세서 나감' 줄)은 남는다. focusout 이 칸을 받아들인 값으로 다시 쓰며
-     aria-invalid 를 끄므로(putAmt) 거기서도 다시 잇는다. */
-  function linkAmtWhy(low = !!(editing && dirtyCount() && orderFeeError(mergedNow(), findOrder(editing.id)))) {
+     aria-invalid 를 끄므로(putAmt) 거기서도 다시 잇는다(인자 없이 — 그 자리에서 다시 판정한다). 원인은 amtBlocked 한 곳이다. */
+  function linkAmtWhy(low) {
     const p = panelOf(); if (!p) return;
-    linkReason(qs(p, "input[data-f='amount']"), qs(p, "[data-slot='dirty']"), low);
+    if (low === undefined) {
+      low = !!editing && dirtyCount() > 0
+        && amtBlocked(preBlockOf(impactNow()), orderFeeError(mergedNow(), findOrder(editing.id)));
+    }
+    linkReason(qs(p, "input[data-f='amount']"), qs(p, "[data-slot='dirty']"), !!low);
   }
   /* 주문정보 카드의 파생 칸 두 개 — 입력의 형제라 textContent·title 만 바꾼다(커서 보호). */
   function syncPeriod() {
@@ -950,7 +977,8 @@ export function mount(root, { nav }) {
     const cliRows = () => {
       const shared = sharedBizKeys(clients());
       const q = cQuery.trim().toLowerCase();
-      /* 정지·반려 거래처의 주문이 그 달 청구에 들어가면 안 된다 — 활성만 노출. */
+      /* 승인대기·반려·탈퇴 거래처에는 새 주문을 받지 않는다 — 활성만 노출(탈퇴는 2026-10-22 결정 A: 끝나지 않은 정산이 없을 때만
+         탈퇴할 수 있으므로, 탈퇴 뒤 주문이 생기면 로그인할 수 없는 거래처에 새 명세서가 나간다). 지난 주문 상세는 그대로 열린다(기록). */
       return clients().filter((c) => c.status === "활성").filter((c) => {
         if (!q) return true;
         return [displayName(c, shared), c.accountId, c.bizNumber, c.department]
@@ -962,7 +990,7 @@ export function mount(root, { nav }) {
       const rows = cliRows();
       if (!rows.length) {
         return html`<p class="ordnew-cli__empty">'${cQuery}' 로 찾은 활성 거래처가 없습니다.
-          <br />정지·반려 상태의 거래처에는 주문을 등록할 수 없습니다.</p>`;
+          <br />승인대기·반려·탈퇴 상태의 거래처에는 주문을 등록할 수 없습니다.</p>`;
       }
       return html`${rows.map((c) => html`
         <button type="button" class="ordnew-cli ${cDraft.clientId === c.id ? "is-on" : ""}"
@@ -1543,7 +1571,7 @@ export function mount(root, { nav }) {
 
   /* 잠긴 달 때문에 막힌 삭제·취소가 하는 말(토스트). 이유는 settlementImpactOf 의 lock.reason — 명세 6.4 정본(lockReason) 또는
      발행이 지난 거래 없는 달의 이유(issuedEmptyReason · 사용자 답 3)다. 어느 달 때문인지를 앞에 붙인다. */
-  const lockMsg = (hit, what) => (hit.moved
+  const lockMsg = (hit, what) => (hit.withdrawn ? withdrawnOrderMsg(what) : hit.moved
     ? `배송일시를 ${periodLabel(hit.ym)}${hit.isOld ? "에서" : "로"} 옮길 수 없습니다 · ${hit.reason}`
     : `${periodLabel(hit.ym)} 정산이 잠겨 ${what} 수 없습니다 · ${hit.reason}`);
 
@@ -1604,7 +1632,7 @@ export function mount(root, { nav }) {
   /** 확인 창 안 빨간 안내(서버 409 대역) — 제목 + [고정된 금액 · 적은 값이 어디 남는지, 정본 이유]. */
   function lockErr(lock, stored, { what = "저장" } = {}) {
     const vals = lock.isOld ? unsavedVals(stored) : "";
-    const fixed = isSheet(lock.s) ? `${monthNo(lock.ym)}월 명세서 금액은 ${won(lock.s.amount)}으로 고정되었습니다.` : "";
+    const fixed = !lock.withdrawn && isSheet(lock.s) ? `${monthNo(lock.ym)}월 명세서 금액은 ${won(lock.s.amount)}으로 고정되었습니다.` : "";
     const keep = vals ? ` 적은 값 ${vals}은 창을 닫으면 저장 줄에 남습니다.` : "";
     return {
       title: what === "저장" ? lockTitle(lock) : lockTitle(lock).replace("저장하지", `${what}하지`),
@@ -1634,7 +1662,7 @@ export function mount(root, { nav }) {
     const stored = findOrder(editing.id);
     /* 취소한 주문의 금액 < 수수료(서버 400 대역) — 저장 줄이 이미 막지만 누르는 순간 한 번 더 본다. 정산 판정보다 먼저(syncDirty 와 같은 순서). */
     if (orderFeeError(mergedNow(), stored)) { syncDirty(); toast(writeFail(mergedNow(), stored), "warn"); focusAfterSave(panelOf()); return; }
-    const imp = stored ? settlementImpactOf(stored, mergedNow(), new Date()) : null;
+    const imp = stored ? orderImpactOf(stored, mergedNow(), new Date()) : null;
     if (imp && imp.lock) {
       rejectLocked(imp.lock, stored);
       toast(lockTitle(imp.lock), "warn");
@@ -1659,7 +1687,7 @@ export function mount(root, { nav }) {
       recheck: () => {
         if (!editing) return null;
         const st = findOrder(editing.id) || stored;
-        const imp2 = settlementImpactOf(st, mergedNow(), new Date());
+        const imp2 = orderImpactOf(st, mergedNow(), new Date());
         if (!imp2.lock) { pending = imp2; return null; }
         lockSeen = imp2.lock;
         return lockErr(imp2.lock, st);
@@ -1822,7 +1850,7 @@ export function mount(root, { nav }) {
        빠지는 것은 저장돼 있던 달·금액이다(귀속월 = 배송일의 달). */
     on(panel, "click", "[data-action='delete']", () => {
       const saved = findOrder(editing.id) || baseline || editing;
-      const imp = settlementImpactOf(saved, null, new Date());
+      const imp = orderImpactOf(saved, null, new Date());
       /* 메뉴를 연 사이 잠겼다 — 메뉴를 다시 그려 잠긴 항목 + 이유를 보이고 초점을 그 항목에 둔다(다시 그리면 누른 항목이 사라진다). */
       if (imp.lock) { renderHd(); qs(panel, "[data-action='delete-locked']")?.focus(); toast(lockMsg(imp.lock, "지울"), "warn"); return; }
       menu.close(); // 확인 창이 닫히면 초점이 ··· 로 돌아온다
@@ -1867,7 +1895,7 @@ export function mount(root, { nav }) {
           /* 지우는 순간 한 번 더 판정한다(서버 409 대역) — 막히면 창 안에 빨간 안내를 띄우고 버튼을 잠근다(저장 409 와 같은 모양). */
           guard: (d) => {
             const st = findOrder(editing.id) || saved;
-            const again = settlementImpactOf(st, null, new Date());
+            const again = orderImpactOf(st, null, new Date());
             if (!again.lock) { imp2 = again; return true; }
             const p = d.panel;
             const al = qs(p, "[data-slot='alert']");
@@ -1907,7 +1935,7 @@ export function mount(root, { nav }) {
         /* 확인 창을 띄워 둔 사이 잠겼을 수 있다 — 지우는 순간 한 번 더 판정한다(서버 409 대역). 이 창은 예전 규격(440)이라
            창을 닫고 토스트로 말한다. 그사이 명세서가 나갔으면(발행 시각이 지남) 바뀐 금액을 같은 판정으로 다시 센다. */
         guard: (d) => {
-          const again = settlementImpactOf(findOrder(editing.id) || saved, null, new Date());
+          const again = orderImpactOf(findOrder(editing.id) || saved, null, new Date());
           if (!again.lock) { impB = again; return true; }
           /* 창이 닫히며 ··· 로 돌아간 초점은 머리를 다시 그리면 사라진다(body) — 잠긴 항목에 둬 이유를 읽게 한다(위 메뉴 경로와 같다). */
           d.close(); menuOpen = true; renderHd(); qs(panel, "[data-action='delete-locked']")?.focus();
@@ -1924,9 +1952,9 @@ export function mount(root, { nav }) {
       const st = findOrder(editing.id);
       if (!st) return null;
       const rec = mergedNow();
-      const a = settlementImpactOf(st, rec, now);
+      const a = orderImpactOf(st, rec, now);
       if (a.lock) return a.lock;
-      return settlementImpactOf(rec, { ...rec, status: "취소", cancelFee: Number(fee) || 0, canceledAt: fmtAt(now) }, now).lock;
+      return orderImpactOf(rec, { ...rec, status: "취소", cancelFee: Number(fee) || 0, canceledAt: fmtAt(now) }, now).lock;
     };
     on(panel, "click", "[data-action='order-cancel']", () => {
       menu.close(); // 주문취소 창이 닫히면 초점이 ··· 로 돌아온다

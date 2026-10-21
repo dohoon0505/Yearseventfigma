@@ -2160,7 +2160,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: var(--r-pill);
   background: var(--c-surface-2); font-size: var(--fs-14); color: var(--c-text-4); white-space: nowrap;
 }
-/* 상태 pill — 주문 스테퍼와 달리 **양방향**이다(정지했다 다시 활성으로 되돌릴 수 있어야 한다) */
+/* 상태 pill — 주문 스테퍼와 달리 활성·승인대기·반려 사이는 **양방향**이다. 단 **탈퇴는 되돌리지 않는다**(2026-10-22 결정 A —
+   다시 쓰려면 새로 가입): 탈퇴한 거래처는 칸이 모두 잠기고, '탈퇴' 칸은 끝나지 않은 정산이 있으면 잠긴다(admin-clients.js stLock). */
 .cli-st { display: inline-flex; align-items: center; gap: 6px; }
 .cli-st__btn {
   display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
@@ -2175,6 +2176,17 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   color: var(--c-surface); font-weight: var(--fw-semibold);
 }
 .cli-st__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
+/* 잠긴 상태 칸 — 주문 스테퍼의 잠긴 단계(`.ord-step__btn.is-locked`)와 같은 모습이다(흐리게 두되 누르면 이유 토스트 · 새 모양 없음).
+   초점이 갈 수 있는 버튼이라(aria-disabled) 초점이 있을 때만 opacity 대신 색 섞기로 같은 모습을 그린다 — opacity 는 링까지 흐린다
+   (스테퍼 줄과 같은 이유 · 흰 면 위 45% 와 같은 색). 점은 칸마다 색이 인라인이라 점만 45% 로 둔다. */
+.cli-st__btn.is-locked { opacity: 0.45; }
+.cli-st__btn.is-locked:hover { background: var(--c-surface); }
+.modal-panel--cli .cli-st__btn.is-locked:focus-visible {
+  opacity: 1;
+  color: color-mix(in srgb, var(--c-text-4) 45%, var(--c-surface));
+  border-color: color-mix(in srgb, var(--c-border) 45%, var(--c-surface));
+}
+.modal-panel--cli .cli-st__btn.is-locked:focus-visible .cli-st__dot { opacity: 0.45; }
 /* 키보드 초점 — 이 창은 누른 버튼을 다시 그린 뒤 그 자리로 포커스를 되돌린다(admin-clients.js `refocus`). 그런데 그때의 전역 링
    (`--ring`, 주황 9% 알파)은 흰 면에서 사실상 안 보여 **돌아온 초점이 보이지 않았다**(실측: 상태 pill·⋯·저장·담당자 관리 모두 표시 없음).
    그래서 인디고 2px 를 직접 그렸다 — 머리·푸터는 스크롤 컨테이너가 아니라 바깥에(첫 묶음 — 2026-10-19 부터 전역 링과 같은 값이다,

@@ -7,11 +7,12 @@
    목데이터 기준 시각(DATA_NOW)이 import 순간의 new Date() 라서다.
    다루는 것:
      ① data/billing-entries — 주문 한 건의 기여 · 저장 전후 차이 · 원인(8가지 경우)
-     ② 시드 예시 A~G — issuedAmount · changed · zeroEdited · zeroCloseAt · docStamp · termsWatchOf.firstZero · 수수료 줄 순서
+     ② 시드 예시 A~G — issuedAmount · changed · zeroEdited · zeroCloseAt · docStamp · termsWatchOf · 수수료 줄 순서
      ③ settlementImpactOf — 확인 창 달 · 잠긴 달 · 발행 시각이 지난 거래 없는 달로 들어오는 주문 막기(사용자 답 3)
      ④ agreeSettlement — 금액 불일치를 먼저 본다 · 저장 실패
      ⑤ b2b-mock 쓰기 — 변경 기록 줄 · 사유 · 처리자 · 저장 실패 때 주문과 기록을 함께 되돌림 · hydrate
      ⑥ 계산서 다시 시도 · 입금 확인의 처리자와 저장 실패 · 문서 빌더(동의 전 표기 · 수수료 줄) · 공개 링크 레코드
+     ⑧ 2026-10-22 운영자 결정 — '정지' 장치 걷어내기(고지 미도달은 그대로) · 0원 주문만 있는 달 = NONE · 탈퇴 거래처 · 옛 저장본
    ============================================================ */
 process.env.TZ = "Asia/Seoul";
 /* ⑦ 이 파일을 **다른 시각으로** 다시 띄워 본다(목데이터 기준 시각은 import 순간에 굳어 한 프로세스에서 옮길 수 없다).
@@ -67,13 +68,30 @@ if (PROBE) { // ⑦ 의 자식 프로세스 — 9월 상태만 찍고 끝낸다
   if (process.env.BILLING_STORE) store.hydrate(); // 새로고침처럼 — 주문 목록을 만들기 전에 저장소를 읽는다
   if (process.env.BILLING_ACT === "ribbon") { const o = order("g-C011-202609-02"); B2B.b2bUpsert({ ...o, ribbonPhrase: "근조(시험)" }); }
   if (process.env.BILLING_ACT === "touch") store.updateClient({ ...client("C001") }); // 아무 쓰기 — 저장소가 생긴다
+  if (process.env.BILLING_ACT === "withdraw") store.updateClient({ ...client("C019"), status: "탈퇴" }); // 화면의 탈퇴 처리와 같은 쓰기
+  if (process.env.BILLING_ACT === "noC028") { // C028 이 생기기 전에 저장한 옛 브라우저 — 저장소 목록에 그 거래처가 없다
+    const raw = JSON.parse(localStorage.getItem("yeop.store.v5"));
+    raw.clients = raw.clients.filter((c) => c.id !== "C028");
+    localStorage.setItem("yeop.store.v5", JSON.stringify(raw));
+    store.hydrate();
+  }
   const pick = (id) => { const s = so(id, LAST); return [s.status, s.amount, s.issuedAmount, s.changed, s.changeCount]; };
-  /* 싱싱마켓(C009) — 상태 · 이력 시각 · 지난달분 / 두 달 전분의 [상태, 보류] (검토 3 — 어느 날 열어도 '정지' 로 굳지 않는다) */
-  const c9 = client("C009");
-  const hold = (ym) => { const s = so("C009", ym); return [s.status, s.autoAgreeHold || s.heldAtDeadline || s.notice.hold || null]; };
-  const C009 = { st: c9.status, log: (c9.statusLog || []).map((l) => `${l.at} ${l.to}`), last: hold(LAST), prev: hold(PREV) };
+  /* 탈퇴 거래처 — 상태 · 탈퇴한 달부터의 주문 수 · 그 전 주문 수 · 끝나지 않은 정산 달(PAID·NONE 이 아닌 달) · 마지막 입금이 탈퇴 전인가 */
+  const AM = await import(R + "data/admin-mock.js");
+  const wd = (id) => {
+    const c = client(id) || AM.INITIAL_CLIENTS.find((x) => x.id === id); // 저장소에 없는 시드 거래처(옛 브라우저)는 시드 레코드로
+    const w = String(c.withdrawnAt || "").slice(0, 7);
+    const os = B2B.b2bList().filter((o) => o.clientId === id);
+    const ymOf = (o) => String(o.deliverAt).slice(0, 7);
+    const yms = [...new Set(os.flatMap((o) => BE.entriesOfOrder(o).map((e) => e.ym)))].sort();
+    const pays = Object.values(store.get().payments[id] || {}).map((p) => p.at).sort();
+    return {
+      st: c.status, after: os.filter((o) => ymOf(o) >= w).length, before: os.filter((o) => ymOf(o) < w).length,
+      open: client(id) ? yms.filter((ym) => !["PAID", "NONE"].includes(so(id, ym).status)) : null, paidBefore: !pays.length || pays[pays.length - 1] < c.withdrawnAt,
+    };
+  };
   if (process.env.BILLING_DUMP) fs.writeFileSync(process.env.BILLING_DUMP, JSON.stringify(Object.fromEntries(localStorage._m)));
-  console.log(JSON.stringify({ C001: pick("C001"), C011: pick("C011"), C019: pick("C019"), C009 }));
+  console.log(JSON.stringify({ C001: pick("C001"), C011: pick("C011"), C019: pick("C019"), W: { C028: wd("C028"), C019: wd("C019") } }));
   process.exit(0);
 }
 
@@ -156,7 +174,7 @@ eq("발행 지난 빈 달 이유", RULES.issuedEmptyReason("2026-09"), "9월은 
 }
 {
   const s = so("C019", LAST); // D
-  eq("D 고쳐서 0원 · 1일 그룹 — 마감에 닫힘", [s.status, s.zero, s.zeroEdited, s.amount, s.issuedAmount, s.count], ["PAID", true, true, 0, 60000, 1]);
+  eq("D 고쳐서 0원 · 1일 그룹 — 마감에 닫힘(줄이 남아 empty 아님)", [s.status, s.empty, s.zeroEdited, s.amount, s.issuedAmount, s.count], ["PAID", false, true, 0, 60000, 1]);
   eq("D 닫힌 시각 = 마감", s.zeroCloseAt, D(2026, 10, 10, 13, 0));
   eq("D 동의·계산서·입금 칸 비움", [s.mode, s.agreedAt, s.einvoice, s.paidAt], [null, null, null, null]);
   eq("D 잠긴 이유 = 0원", [s.lockReason, s.lockShort], [RULES.LOCK_REASON.zero, null]);
@@ -182,11 +200,10 @@ eq("발행 지난 빈 달 이유", RULES.issuedEmptyReason("2026-09"), "9월은 
   eq("E 약관 경고 — 0원 달은 건너뛰고 다음 달", [w.next && w.next.ym, w.held.length, w.firstZero], [CUR, 0, null]);
 }
 {
-  const s = so("C020", LAST); // F
-  eq("F 처음부터 0원 — 발행과 함께 닫힘 · 줄 없음", [s.status, s.zero, s.zeroEdited, s.changeCount, s.issuedAmount], ["PAID", true, false, 0, 0]);
-  eq("F 닫힌 시각 = 발행", s.zeroCloseAt, D(2026, 10, 1, 10));
+  const s = so("C020", LAST); // F — 2026-10-22 결정 B: 0원 주문만 있는 달은 내역서가 없다(거래 없는 달 NONE · 자세히는 ⑧)
+  eq("F 처음부터 0원 — 내역서 없음(NONE) · 줄 없음 · 닫힌 시각 없음", [s.status, s.empty, s.zeroEdited, s.changeCount, s.issuedAmount, s.zeroCloseAt], ["NONE", true, false, 0, null, null]);
   const w = S.termsWatchOf(client("C020"), NOW);
-  eq("F 첫 달이 0원으로 닫힌 약관 전 거래처", [w.firstZero && w.firstZero.ym, w.held.length, w.next && w.next.ym, w.next && w.next.first], [LAST, 0, CUR, false]);
+  eq("F 약관 전 거래처 — 0원 달은 명세서로 세지 않아 이번 달분이 첫 명세서", [w.firstZero, w.held.length, w.next && w.next.ym, w.next && w.next.first], [null, 0, CUR, true]);
   eq("F 다른 보류 거래처는 그대로(C023·C026)", ["C023", "C026"].map((id) => S.termsWatchOf(client(id), NOW).held.length), [1, 1]);
 }
 {
@@ -405,85 +422,97 @@ sessionStorage.setItem("yeop.session.v1", "admin");
   eq("시드와 같은 (거래처, 귀속월) — 시드 토큰을 그대로 쓴다", t3, "FP9S0QA8YA");
 }
 
-/* ══ ⑧ 정지 이력(statusLog) · 파생 보류 · 정산 안내 도달 · 기한 뒤 발급 (2026-10-19) ══════════════════
-   보류(정지 중 마감 Q20 · 고지 미도달 Q19)와 T3·T4 를 '보냈다' 고 말하는 판정이 거래처 상태 이력에서 나온다. */
+/* ══ ⑧ '정지' 장치 걷어내기 · 고지 미도달 · 0원 주문만 있는 달 · 탈퇴 · 기한 뒤 발급 (2026-10-22 운영자 결정 A·B) ══════════════════
+   A — 거래처 상태는 활성 · 승인대기 · 반려 · 탈퇴. '정지' 와 그 장치(statusLog · 정지 중 T3·T4 빼기 · 정지 중 마감 보류)는 없다.
+       고지 미도달(발송 실패 — 바다향 C005 시드)의 마감 당일 다시 보내기와 보류는 남는다.
+   B — 0원 주문만 있는 달은 내역서를 내지 않는다(거래 없는 달 NONE 과 같다). 발급 뒤 고쳐서 0원은 그대로. */
 const fa = (d) => (d ? RULES.fmtAt(d) : null);
 const nw = (s) => [s.notice.t3.why, s.notice.t4 && s.notice.t4.why, s.notice.resend && (s.notice.resend.reached ? "REACHED" : s.notice.resend.why), s.notice.hold];
 {
-  /* 시드 — 싱싱마켓(C009)은 holds 기록이 아니라 상태 이력에서 보류가 나온다(화면 결과는 예전 'CLIENT_SUSPENDED' 시드와 같다) */
+  /* 예전 '정지' 시드 둘 — 싱싱마켓(C009 · 정지·해제 이야기)과 다솜물산(C023 · 정지) — 은 평소 거래처가 됐다 */
   const c9 = client("C009");
-  eq("⑧ 싱싱마켓 시드 이력 — 수정 마감 전날 16:00 정지 → 마감 다음 날 10:00 해제 · 지금 활성",
-    [c9.status, (c9.statusLog || []).map((l) => [l.at, l.from, l.to])], ["활성", [["2026-10-08 16:00", "활성", "정지"], ["2026-10-11 10:00", "정지", "활성"]]]);
+  eq("⑧ 싱싱마켓 — 활성 · 상태 이력 칸 없음", [c9.status, "statusLog" in c9], ["활성", false]);
   const s9 = so("C009", LAST);
-  eq("⑧ 싱싱마켓 9월 — 정지 중 마감 보류(파생) · 보류 기록은 없다", [s9.status, s9.autoAgreeHold, s9.heldAtDeadline, store.holdOf("C009", LAST)],
-    ["AWAITING_AGREEMENT", "CLIENT_SUSPENDED", "CLIENT_SUSPENDED", null]);
-  eq("⑧ 싱싱마켓 9월 — T3 나감 · T4·다시 보내기는 정지라 안 보냄", nw(s9), [null, "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]);
-  eq("⑧ 싱싱마켓 조치 필요(보류) 그대로", S.needsAction(s9), true);
-  const s5 = so("C005", LAST);
-  eq("⑧ 바다향 9월 — 발송 실패 기록 → T4·다시 보내기 닿지 않음 · 고지 미도달", [s5.autoAgreeHold, ...nw(s5)], ["NOTICE_UNDELIVERED", null, "UNDELIVERED", "UNDELIVERED", "NOTICE_UNDELIVERED"]);
+  eq("⑧ 싱싱마켓 9월 — 평소처럼 마감에 자동 동의 · 발급(보류 없음)", [s9.status, s9.mode, s9.autoAgreeHold, s9.heldAtDeadline], ["ISSUED", "auto", null, null]);
+  eq("⑧ 싱싱마켓 9월 — T3·T4 닿음 · 다시 보낼 일 없음", nw(s9), [null, null, null, null]);
+  const c23 = client("C023");
   const s23 = so("C023", LAST);
-  eq("⑧ 다솜물산 — 지난달 28일부터 정지 · 9월분 T3 부터 안 보냄 · 보류 이유는 약관이 먼저",
-    [client("C023").status, client("C023").statusLog.length, s23.autoAgreeHold, ...nw(s23)], ["정지", 1, "TERMS_NOT_AGREED", "SUSPENDED", "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]);
+  eq("⑧ 다솜물산 — 활성(약관 동의 전은 그대로) · 9월분 T3·T4 나감 · 보류 이유는 약관",
+    [c23.status, "statusLog" in c23, s23.autoAgreeHold, ...nw(s23)], ["활성", false, "TERMS_NOT_AGREED", null, null, null, null]);
+  eq("⑧ 다솜물산 — 약관 경고는 남는다(마감 지난 달)", S.termsWatchOf(c23, NOW).held.length, 1);
+  /* 고지 미도달은 남는다(Q19 잠정 — 정지와 상관없다) */
+  const s5 = so("C005", LAST);
+  eq("⑧ 바다향 9월 — 발송 실패 기록 → T4·다시 보내기 닿지 않음 · 고지 미도달 보류(그대로)", [s5.autoAgreeHold, ...nw(s5)], ["NOTICE_UNDELIVERED", null, "UNDELIVERED", "UNDELIVERED", "NOTICE_UNDELIVERED"]);
+  eq("⑧ 바다향 9월 — 다시 보내기 = 마감 당일 10:00 · 조치 필요", [fa(s5.notice.resend.at), S.needsAction(s5)], ["2026-10-10 10:00", true]);
+  eq("⑧ 바다향 9월 — 마감 전(10-10 11:00)엔 보류가 잡힐 달(예측)", S.holdPendingOf(so("C005", LAST, D(2026, 10, 10, 11))), true);
   eq("⑧ 온새미로 정산 담당 연락처 채움 — 알림 수신자 있음", [so("C026", LAST).noRecipient, store.getBillingContactOf("C026").phone], [false, "010-0000-0126"]);
-  eq("⑧ 이력 없는 거래처 — 평소대로 닿음", nw(so("C011", LAST)), [null, null, null, null]);
+  eq("⑧ 아무 거래처 — 평소대로 닿음", nw(so("C011", LAST)), [null, null, null, null]);
+  eq("⑧ 안내 도달에 '정지 중 마감' 칸이 없다", "suspendedAtDeadline" in so("C011", LAST).notice, false);
 }
 {
-  /* 소급 금지 — 오늘 정지해도 지난 달(이미 자동 동의·발급)은 그대로. 이번 달(발행 전)은 이대로면 T3 을 못 보낸다고 예측한다. */
-  const before = so("C010", LAST);
-  store.updateClient({ ...client("C010"), status: "정지" });
-  const c = client("C010");
-  eq("⑧ 상태를 바꾸면 이력 한 줄", c.statusLog.map((l) => [l.at, l.from, l.to]), [["2026-10-16 09:30", "활성", "정지"]]);
-  const after = so("C010", LAST);
-  eq("⑧ 정지해도 지난 달은 소급해 바뀌지 않는다", [after.status, after.mode, after.autoAgreeHold, after.notice.t4.why], [before.status, before.mode, null, null]);
-  eq("⑧ 이번 달(발행 전) — 지금 정지면 T3 을 못 보낸다고 본다", so("C010", CUR).notice.t3.why, "SUSPENDED");
-  /* 창이 들고 있던 낡은 사본(statusLog 없음 · 더 짧음)으로 써도 이력은 지워지지 않는다(admin-clients writeForm 과 같은 길) */
-  const stale = { ...c };
-  delete stale.statusLog;
-  store.updateClient({ ...stale, ceoName: "임수빈(시험)" });
-  eq("⑧ statusLog 없는 사본으로 저장 — 이력 유지", client("C010").statusLog.length, 1);
-  store.updateClient({ ...c, statusLog: [], ceoName: "임수빈" });
-  eq("⑧ 더 짧은 이력을 실은 사본 — 저장소 이력 유지", client("C010").statusLog.length, 1);
-  store.updateClient({ ...client("C010"), status: "정지" });
-  eq("⑧ 같은 상태로 다시 저장 — 줄이 생기지 않는다", client("C010").statusLog.length, 1);
-  /* 상태 칸을 뺀 레코드 = 활성(앱 전체가 그렇게 읽는다 — updateClient 는 레코드를 통째로 바꾼다) → 정지 → 활성 줄 */
-  const { status: _s, ...noStatus } = client("C010");
-  store.updateClient(noStatus);
-  /* 줄 시각 'HH:mm' 은 그 분의 끝이라(검토 5) 같은 분(09:30) 안의 statusAt 은 바뀌기 전 상태다 — 지금 상태는 그 분이 지난 뒤(09:31)로 본다 */
-  const AFTER_MIN = D(2026, 10, 16, 9, 31);
-  eq("⑧ 상태 칸이 빠진 레코드 — 활성으로 바꾼 것과 같다(줄이 남는다)", [client("C010").statusLog.length, client("C010").statusLog[1].to, RULES.statusAt(client("C010"), AFTER_MIN)], [2, "활성", "활성"]);
-  store.updateClient({ ...client("C010"), status: "정지" });
-  eq("⑧ 다시 정지 — 같은 분이어도 줄이 쌓이고 마지막 줄이 지금 상태(그 분이 지난 뒤)", [client("C010").statusLog.length, RULES.statusAt(client("C010"), AFTER_MIN), client("C010").status], [3, "정지", "정지"]);
-  eq("⑧ 같은 분 안의 statusAt 은 바뀌기 전(분의 끝 규칙) — '지금 정지 중' 은 레코드 상태로 본다", RULES.statusAt(client("C010"), NOW), "활성");
-  /* 이번 달 마감(11-10 13:00)까지 정지면 정지 중 마감 → 해제해도 그 달 보류는 남는다(마감 때 사실) */
-  const atDl = so("C010", CUR, D(2026, 11, 10, 13, 30));
-  eq("⑧ 정지 그대로 마감 — T3·T4 안 보냄 · 정지 중 마감", [atDl.autoAgreeHold, ...nw(atDl)], ["CLIENT_SUSPENDED", "SUSPENDED", "SUSPENDED", "SUSPENDED", "CLIENT_SUSPENDED"]);
-  store.updateClient({ ...client("C010"), status: "활성" }, D(2026, 11, 12, 10));
-  const re = so("C010", CUR, D(2026, 11, 12, 11));
-  eq("⑧ 마감 뒤 해제 — 이력 네 줄 · 보류는 남는다", [client("C010").statusLog.length, re.autoAgreeHold, re.heldAtDeadline], [4, "CLIENT_SUSPENDED", "CLIENT_SUSPENDED"]);
-  eq("⑧ 해제 뒤에도 지난 달은 그대로", so("C010", LAST).status, before.status);
+  /* B — 0원 주문만 있는 달(가입 혜택 '1회 무료')은 내역서가 없다: 고이메모리얼(C007) 3달 전 · 새솔테크(C020) 지난달(F) */
+  const ZM = "2026-07";
+  const z = so("C007", ZM);
+  eq("⑧ 0원 주문만 있는 달 — NONE · 내역서 없음(발급 때 금액 없음 · 동의·계산서·입금 칸 비움)",
+    [z.status, z.empty, z.zeroEdited, z.amount, z.count, z.issuedAmount, z.mode, z.einvoice, z.paidAt], ["NONE", true, false, 0, 2, null, null, null, null]);
+  eq("⑧ 0원 달 — '0원' 칸은 없어졌다(zero) · 닫힌 시각 없음 · 잠금 없음", ["zero" in z, z.zeroCloseAt, z.editable, z.lockReason], [false, null, true, null]);
+  eq("⑧ 0원 달 — 미입금·조치 필요·정산 진행 아님", [S.isUnpaid(z), S.needsAction(z), S.inSettlementFlow(z)], [false, false, false]);
+  eq("⑧ 0원 달 — 문서 '계산서 발행' 칸 = 거래 없는 달과 같은 '해당 없음'", S.invoiceDocNoteOf(z), LINKS.INVOICE_NOTE.none);
+  const row = S.settlementsFor(client("C007"), NOW).find((r) => r.ym === ZM);
+  eq("⑧ 0원 달 — 옛 문자열 칸 '거래없음'(리포트·대쉬보드)", [row.거래명세서동의, row.계산서발급, row.입금완료], ["거래없음", "거래없음", "거래없음"]);
+  const doc = invoiceDocData(client("C007"), ZM, NOW);
+  eq("⑧ 0원 달 문서 — 거래 없는 달 모양(줄 없음 · 발행일 '-')", [doc.items.length, doc.items[0].address, doc.buyer.issueDate, doc.total], [1, "해당 월의 거래 내역이 없습니다", "-", "0원"]);
+  const im = S.invoiceMonth(client("C007"), ZM, NOW);
+  eq("⑧ 0원 달 — 포털 월 목록 칸도 거래 없는 달(빈 껍데기)", [im.empty, im.count, im.rows.length, im.issue], [true, 0, 0, ""]);
+  eq("⑧ 0원 달 — 늦은 등록은 발행이 지난 거래 없는 달처럼 막는다", S.intakeBlockOf(client("C007"), `${ZM}-25T10:00`, NOW).reason, RULES.issuedEmptyReason(ZM));
+  const zo = B2B.b2bList().find((o) => o.clientId === "C007" && String(o.deliverAt).startsWith(ZM));
+  const up = S.settlementImpactOf(zo, { ...zo, amount: 50000 }, NOW);
+  eq("⑧ 0원 달의 0원 주문 금액을 올리기 — 막힘(내역서·T3 없이 금액이 생기지 않게 · 들어오는 쪽으로 다룬다)",
+    [up.lock && up.lock.ym, up.lock && up.lock.reason, up.lock && up.lock.short, up.lock && up.lock.isOld, up.confirm.length],
+    [ZM, "7월은 0원 주문만 있어 명세서를 내지 않은 달입니다 — 금액을 올릴 수 없습니다", RULES.ISSUED_ZERO_SHORT, false, 0]);
+  /* 검증 2026-10-22 — 위 막힘은 들어오는 쪽(isOld false)이지만 원인은 금액 칸이다: raise 표지로 가른다(배송일시 줄을 칠하지 않게) */
+  const inNone = S.settlementImpactOf(null, { id: "", clientId: "C007", deliverAt: `${ZM}-25T10:00`, amount: 50000, status: "접수대기", product: "3단화환(기본형)" }, NOW);
+  eq("⑧ 0원 달 금액 올리기 막힘 — raise 표지 · 옮긴 것 아님 / 그 달로 들어오는 등록 막힘은 raise 아님",
+    [up.lock && up.lock.raise, up.lock && up.lock.moved, inNone.lock && inNone.lock.raise, inNone.lock && inNone.lock.isOld], [true, false, false, false]);
+  const pr = S.settlementImpactOf(zo, { ...zo, product: "근조오브제(1단형)" }, NOW);
+  eq("⑧ 0원 달의 0원 주문 상품만 바꾸기 — 받는다(금액이 그대로)", pr.lock, null);
+  const mv = S.settlementImpactOf(zo, { ...zo, deliverAt: "2026-10-25T10:00" }, NOW);
+  eq("⑧ 0원 달에서 발행 전 달로 옮기기 — 받는다", mv.lock, null);
+  eq("⑧ 0원 달의 0원 주문 지우기 — 받는다", S.settlementImpactOf(zo, null, NOW).lock, null);
+  /* F — 새솔테크(C020) 첫 달(지난달)은 0원 1건뿐이다 → 내역서가 없고, 첫 명세서는 이번 달분이다 */
+  const f = so("C020", LAST);
+  eq("⑧ F 0원 1건뿐인 첫 달 — NONE", [f.status, f.empty, f.zeroEdited, f.issuedAmount, f.count], ["NONE", true, false, null, 1]);
+  eq("⑧ F 발행 전(10-01 09:00)엔 거래 없는 발행 전 달(SCHEDULED · empty)", [so("C020", LAST, D(2026, 10, 1, 9)).status, so("C020", LAST, D(2026, 10, 1, 9)).empty], ["SCHEDULED", true]);
+  const w = S.termsWatchOf(client("C020"), NOW);
+  eq("⑧ F 약관 경고 — 0원 달은 명세서로 세지 않는다 · 이번 달분이 '첫 명세서' · '첫 달 0원' 문장 없음",
+    [w.next && w.next.ym, w.next && w.next.first, w.held.length, w.firstZero], [CUR, true, 0, null]);
+  eq("⑧ F 포털 기본 달 — 0원 달이 아니라 이번 달(명세서가 나간 달이 아직 없다)", S.latestInvoiceKey(client("C020"), NOW), CUR);
+  /* 발급 뒤 고쳐서 0원(zeroEdited)은 그대로 — D(C019 9월 · 마감에 닫힘) · E(C027 9월 · 마감 전) */
+  const d9 = so("C019", LAST), e9 = so("C027", LAST);
+  eq("⑧ 고쳐서 0원 — 그대로(D 닫힘 · E 마감 전 동의대기 · 문서 '해당 없음(0원)')",
+    [d9.status, d9.zeroEdited, e9.status, e9.zeroEdited, S.invoiceDocNoteOf(d9), d9.zeroCloseAt && fa(d9.zeroCloseAt)],
+    ["PAID", true, "AWAITING_AGREEMENT", true, LINKS.INVOICE_NOTE.zero, "2026-10-10 13:00"]);
+  eq("⑧ 고쳐서 0원 — 미입금 아님 · 정산 진행 아님(줄이 남아도)", [S.isUnpaid(e9), S.inSettlementFlow(e9), S.isUnpaid(d9)], [false, false, false]);
+  const d9doc = invoiceDocData(client("C019"), LAST, NOW);
+  eq("⑧ 고쳐서 0원 문서 — 남은 줄을 그대로 싣는다", [d9doc.items.length, d9doc.items[0].amount], [1, "0원"]);
 }
 {
-  /* Q35 ③ 잠정 — 정지라 T4 를 못 보낸 달: 마감 당일 10:00 에 정지가 아니면 다시 보내 닿는다 → 평소대로 자동 동의 */
-  store.updateClient({ ...client("C012"), status: "정지" }, D(2026, 11, 5, 9));
-  store.updateClient({ ...client("C012"), status: "활성" }, D(2026, 11, 9, 15));
-  const pre = so("C012", CUR, D(2026, 11, 9, 16));
-  eq("⑧ 해제 뒤 · 다시 보내기 전 — T4 정지라 안 보냄 · 보류 예상 없음", [pre.status, pre.notice.t4.why, pre.notice.hold], ["AWAITING_AGREEMENT", "SUSPENDED", null]);
-  const s = so("C012", CUR, D(2026, 11, 10, 13, 1));
-  eq("⑧ 마감 당일 10:00 다시 보내 닿음 → 자동 동의", [s.mode, s.autoAgreeHold, nw(s)[2], fa(s.notice.resend.at)], ["auto", null, "REACHED", "2026-11-10 10:00"]);
-  /* 다시 보내기(10:00) 뒤 · 마감(13:00) 전에 해제 — 그 시각엔 정지라 못 보냈다 → 고지 미도달 */
-  store.updateClient({ ...client("C013"), status: "정지" }, D(2026, 11, 5, 9));
-  store.updateClient({ ...client("C013"), status: "활성" }, D(2026, 11, 10, 11));
-  const u = so("C013", CUR, D(2026, 11, 10, 13, 1));
-  eq("⑧ 10:00 뒤 해제 — 다시 보내지 못함 · 마감 땐 활성 → 고지 미도달", [u.autoAgreeHold, ...nw(u)], ["NOTICE_UNDELIVERED", null, "SUSPENDED", "SUSPENDED", "NOTICE_UNDELIVERED"]);
-  eq("⑧ 고지 미도달(파생)도 조치 필요", S.needsAction(u), true);
+  /* A — 탈퇴한 가상 거래처 (주)해마루상사(C028): 주문은 두 달 전까지만 · 그 달들은 모두 입금 완료 · 탈퇴 시각은 마지막 입금 뒤 */
+  const c28 = client("C028");
+  eq("⑧ 탈퇴 거래처 — 상태 · 탈퇴한 시각(지난달 말일 15:00)", [c28.status, c28.withdrawnAt], ["탈퇴", "2026-09-30 15:00"]);
+  const os = B2B.b2bList().filter((o) => o.clientId === "C028");
+  const yms = [...new Set(os.map((o) => String(o.deliverAt).slice(0, 7)))].sort();
+  eq("⑧ 탈퇴 거래처 — 탈퇴한 달(9월)부터는 시드 주문이 없다 · 그 전 넉 달은 있다", [yms.every((ym) => ym < "2026-09"), yms.join(",")], [true, "2026-05,2026-06,2026-07,2026-08"]);
+  eq("⑧ 탈퇴 거래처 — 배송 전 주문 없음", os.some((o) => o.status === "접수대기" || o.status === "주문접수"), false);
+  const sts = ["2026-05", "2026-06", "2026-07", "2026-08", LAST, CUR].map((ym) => so("C028", ym).status);
+  eq("⑧ 탈퇴 거래처 — 지난 달들은 입금 완료 · 탈퇴 뒤 달은 거래 없음/발행 전(끝나지 않은 정산 없음)", sts, ["PAID", "PAID", "PAID", "PAID", "NONE", "SCHEDULED"]);
+  /* 주문이 있는 달의 입금만 센다 — 입금 시드는 가입한 달부터 2년 전 달까지 넣어(2026-10-22) 주문 없는 달에도 기록이 생긴다(그 달은 NONE 이라 읽지 않는다) */
+  const pays = Object.entries(store.get().payments.C028 || {}).filter(([ym]) => yms.includes(ym)).map(([, p]) => p.at).sort();
+  eq("⑧ 탈퇴 거래처 — 탈퇴 시각은 마지막 입금 뒤", [pays.length, pays[pays.length - 1] < c28.withdrawnAt], [4, true]);
+  eq("⑧ 탈퇴 거래처 — 약관 경고 · 조치 필요 없음", [S.termsWatchOf(c28, NOW), S.settlementsFor(c28, NOW).some(S.needsAction)], [null, false]);
 }
 {
-  /* 0원 달 — 발급 때부터 0원(새솔테크 9월)은 T3 이 없다(N20 ⓔ). 화면은 zero 로 가린다 — 판정 재료는 그대로 */
-  const z = so("C020", LAST);
-  eq("⑧ 발급 때부터 0원 — 화면이 T3 을 가릴 재료(zero · !zeroEdited · issuedAmount 0)", [z.zero, z.zeroEdited, z.issuedAmount], [true, false, 0]);
-}
-{
-  /* 기한 뒤 발급(N01 · M39 · Q36 잠정) — 기한 초과가 된 시각 = max(정산기한 다음 날 10:00, 계산서 발급 시각) */
+  /* 기한 뒤 발급(N01 · M39 · Q36 — 2026-10-22 운영자 답 ③ '지금 동작 그대로') — 기한 초과가 된 시각 = max(정산기한 다음 날 10:00, 계산서 발급 시각) */
   const s4 = so("C004", LAST); // ⑥ 에서 10-16 09:30 에 다시 시도로 발급 — 기한 전 발급
   eq("⑧ 기한 전 발급 — overdueFrom = 정산기한 다음 날 10:00", [fa(s4.overdueFrom), fa(s4.overdueAt)], ["2026-11-01 10:00", "2026-11-01 10:00"]);
   eq("⑧ 기한 다음 날 — OVERDUE · 같은 시각부터", [so("C004", LAST, D(2026, 11, 2)).status, fa(so("C004", LAST, D(2026, 11, 2)).overdueFrom)], ["OVERDUE", "2026-11-01 10:00"]);
@@ -500,31 +529,20 @@ const nw = (s) => [s.notice.t3.why, s.notice.t4 && s.notice.t4.why, s.notice.res
   eq("⑧ 방식 낱말 셋", [S.EINVOICE_MODE_WORD.auto, S.EINVOICE_MODE_WORD.retry, S.EINVOICE_MODE_WORD.manual, S.EINVOICE_MODE_WORD[s.einvoice.mode]], ["자동 발급", "다시 시도", "직접 입력", "다시 시도"]);
 }
 {
-  /* 옛 저장본의 'CLIENT_SUSPENDED' 보류 기록 — holds 에서는 버리고(정지 중 마감은 statusLog 에서 파생 — 남기면 그 브라우저를 처음 연 달의
-     보류가 따로 논다) **그 달**을 상태 이력 두 줄로 옮긴다(1차 후속 검증 — 그냥 버리면 시드 이력(지금 기준 달)이 들어와 보류가 다른 달로
-     옮겨 갔다: 10-05 저장본의 입금 끝난 8월이 보류로 · 9월 보류는 사라짐). 일정은 싱싱마켓 시드와 같다(admin-mock suspendStoryLines). */
+  /* 옛 저장본(2026-10-19 ~ 10-21 코드) — '정지' 레코드 · 상태 이력 칸 · holds 의 'CLIENT_SUSPENDED' 를 읽으면: 정지 → 활성 · 이력 칸은 버림 ·
+     정지 중 마감 기록은 버림(그 달은 평소처럼 마감에 자동 동의된 달). 고지 미도달 기록만 남는다. */
   const raw = JSON.parse(localStorage.getItem("yeop.store.v5"));
-  raw.holds = { C005: { [LAST]: "NOTICE_UNDELIVERED" }, C012: { [PREV]: "CLIENT_SUSPENDED" }, C013: { [LAST]: "CLIENT_SUSPENDED" }, C015: { [PREV]: "CLIENT_SUSPENDED" } };
-  /* statusLog 이전 코드의 레코드 — 이력 없음(위 시험들이 남긴 줄은 걷는다) · 한결 윤지아(C015)는 그 코드로 정지해 두었다 */
-  const OLD = { C012: "활성", C013: "활성", C015: "정지" };
-  raw.clients = raw.clients.map((c) => { if (!(c.id in OLD)) return c; const { statusLog: _l, ...r } = c; return { ...r, status: OLD[c.id] }; });
+  raw.holds = { C005: { [LAST]: "NOTICE_UNDELIVERED" }, C012: { [PREV]: "CLIENT_SUSPENDED" }, C013: { [LAST]: "CLIENT_SUSPENDED" } };
+  raw.clients = raw.clients.map((c) => (c.id === "C015"
+    ? { ...c, status: "정지", statusLog: [{ at: "2026-09-08 16:00", from: "활성", to: "정지" }] }
+    : c.id === "C012" ? { ...c, statusLog: [{ at: "2026-09-08 16:00", from: "활성", to: "정지" }, { at: "2026-09-11 10:00", from: "정지", to: "활성" }] } : c));
   localStorage.setItem("yeop.store.v5", JSON.stringify(raw));
   store.hydrate();
-  const lg = (id) => (client(id).statusLog || []).map((l) => [l.at, l.from, l.to]);
-  eq("⑧ hydrate — 고지 미도달만 받는다", JSON.stringify(store.get().holds), JSON.stringify({ C005: { [LAST]: "NOTICE_UNDELIVERED" } }));
-  eq("⑧ 옛 정지 보류(바른길 8월) — 그 달의 두 줄(수정 마감 18시간 전 정지 · 마감 21시간 뒤 해제) · 레코드는 활성 그대로",
-    [client("C012").status, lg("C012")], ["활성", [["2026-09-08 16:00", "활성", "정지"], ["2026-09-11 10:00", "정지", "활성"]]]);
-  eq("⑧ 바른길 — 그 달만 정지 중 마감 · 다음 달은 평소(자동 동의)", [so("C012", PREV).autoAgreeHold, so("C012", LAST).mode, so("C012", LAST).autoAgreeHold], ["CLIENT_SUSPENDED", "auto", null]);
-  eq("⑧ 다온 9월 — 10-08 정지 · 10-11 해제 · 9월 보류 · 8월 평소",
-    [lg("C013"), so("C013", LAST).autoAgreeHold, so("C013", PREV).mode], [[["2026-10-08 16:00", "활성", "정지"], ["2026-10-11 10:00", "정지", "활성"]], "CLIENT_SUSPENDED", "auto"]);
-  eq("⑧ 지금 정지인 레코드(한결 윤지아 8월) — 두 줄 뒤 '지금 · 활성 → 정지' 로 사슬 끝을 저장된 상태에 맞춘다",
-    lg("C015"), [["2026-09-08 16:00", "활성", "정지"], ["2026-09-11 10:00", "정지", "활성"], ["2026-10-16 09:30", "활성", "정지"]]);
-  eq("⑧ 윤지아 — 8월 보류 · 9월 마감 때는 활성이었다(자동 동의)", [so("C015", PREV).autoAgreeHold, so("C015", LAST).mode], ["CLIENT_SUSPENDED", "auto"]);
-  const saved = JSON.parse(localStorage.getItem("yeop.store.v5"));
-  eq("⑧ 옮긴 이력은 바로 저장된다(옛 값과 함께 굳는다)", [(saved.clients.find((c) => c.id === "C013").statusLog || []).length, JSON.stringify(saved.holds).includes("CLIENT_SUSPENDED")], [2, false]);
-  store.hydrate();
-  eq("⑧ 다시 읽어도 같은 줄(시드 이력 · 지금 시각으로 다시 만들지 않는다)", [lg("C012").length, lg("C013").length, lg("C015").length, so("C013", LAST).autoAgreeHold], [2, 2, 3, "CLIENT_SUSPENDED"]);
-  eq("⑧ hydrate — 상태 이력은 거래처 레코드와 함께 남는다", client("C010").statusLog.length, 4);
+  eq("⑧ hydrate — 고지 미도달만 받는다(정지 중 마감 기록은 버림)", JSON.stringify(store.get().holds), JSON.stringify({ C005: { [LAST]: "NOTICE_UNDELIVERED" } }));
+  eq("⑧ hydrate — 옛 '정지' 레코드는 '활성' · 상태 이력 칸은 버림", [client("C015").status, "statusLog" in client("C015"), "statusLog" in client("C012")], ["활성", false, false]);
+  eq("⑧ 옛 정지 중 마감 달 — 평소처럼 자동 동의(바른길 8월 · 다온 9월 · 윤지아 8월·9월)",
+    [so("C012", PREV).mode, so("C012", PREV).autoAgreeHold, so("C013", LAST).mode, so("C015", PREV).mode, so("C015", LAST).mode], ["auto", null, "auto", "auto", "auto"]);
+  eq("⑧ 옛 정지 레코드 — 이번 달(발행 전) 안내도 평소대로", nw(so("C015", CUR)), [null, null, null, null]);
 }
 
 /* ══ ⑦ 시드 줄 시각 전후 · 그 전에 사용자가 고친 시드 주문 (다른 시각으로 이 파일을 다시 띄운다) ══
@@ -573,48 +591,81 @@ const nw = (s) => [s.notice.t3.why, s.notice.t4 && s.notice.t4.why, s.notice.res
   eq("⑧ b2cCancel — 취소 이력 한 줄", [B2C.b2cCancel("b2", { reason: "중복 주문", fee: 10000 }), b2.status, b2.history.length - h, b2.history.at(-1).label], [true, "취소", 1, "주문취소 · 중복 주문 · 수수료 10,000원"]);
 }
 
-/* ══ ⑨ 정산 독립 검토(2026-10-19) 회귀 — 상태 이력 사슬 · 싱싱마켓 시드 · 직접 입력 기록 시각 · 분 단위 경계 · 보류 예측 · 순번 ══
-   옛 저장본은 지금 저장소(JSON)를 고쳐 다시 hydrate 하는 수법(⑤·⑧과 같다)이고, 다른 날짜는 ⑦처럼 이 파일을 다시 띄운다. */
+/* ══ ⑨ 정산 독립 검토(2026-10-19) 회귀 — 직접 입력 기록 시각 · 보류 예측 · 순번 · 정산담당 자동 지정 · 옛 '정지' 저장본 · 탈퇴 ══
+   옛 저장본은 지금 저장소(JSON)를 고쳐 다시 hydrate 하는 수법(⑤·⑧과 같다)이고, 다른 날짜는 ⑦처럼 이 파일을 다시 띄운다.
+   (2026-10-19 의 상태 이력 사슬 · 싱싱마켓 정지 이야기 · 분 단위 정지 경계 회귀는 2026-10-22 결정 A — '정지' 체계를 없앤다 — 로
+   지웠다. 그 자리에 '옛 정지 저장본은 활성으로' · '탈퇴 거래처 시드 주문 없음' 회귀를 둔다.) */
 const SKEY = "yeop.store.v5";
 const rawStore = () => JSON.parse(localStorage.getItem(SKEY));
 const putStore = (raw) => { localStorage.setItem(SKEY, JSON.stringify(raw)); store.hydrate(); };
-const noLog = (raw, id, status) => {
-  raw.clients = raw.clients.map((c) => { if (c.id !== id) return c; const { statusLog: _l, ...r } = c; return { ...r, status }; });
-  return raw;
-};
 {
-  /* 검토 1 — statusLog 이전 코드로 '정지' 저장된 레코드(이력 없음): 예전엔 지난 모든 달이 소급해 '정지 중 마감' 으로 보류됐다(5~9월 PAID → 동의대기) */
+  /* 옛 저장본 1 — 2026-10-19 이전 코드로 '정지' 저장된 레코드(이력 없음): 정지 → 활성으로 읽고, 지난 다섯 달은 그대로(자동 동의 · 발급 · 입금) */
   const YMS = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"];
   const before = YMS.map((ym) => [so("C003", ym).status, so("C003", ym).mode]);
-  putStore(noLog(rawStore(), "C003", "정지"));
-  eq("⑨-1 이력 없는 정지 — 지난 다섯 달 그대로(자동 동의 · 발급 · 입금)", YMS.map((ym) => [so("C003", ym).status, so("C003", ym).mode]), before);
-  eq("⑨-1 hydrate 가 한 줄 — 지금 · 활성 → 정지", (client("C003").statusLog || []).map((l) => [l.at, l.from, l.to]), [["2026-10-16 09:30", "활성", "정지"]]);
-  eq("⑨-1 그 줄은 바로 저장된다(새로고침마다 시각이 밀리지 않게)", (rawStore().clients.find((c) => c.id === "C003").statusLog || []).length, 1);
-  store.hydrate();
-  eq("⑨-1 다시 읽어도 한 줄 · 이번 달(발행 전)은 지금 정지라 안내를 못 보낸다고 본다", [(client("C003").statusLog || []).length, so("C003", CUR).notice.t3.why], [1, "SUSPENDED"]);
-  eq("⑨-1 활성 레코드에는 줄을 붙이지 않는다", "statusLog" in client("C002"), false);
+  const raw = rawStore();
+  raw.clients = raw.clients.map((c) => (c.id === "C003" ? { ...c, status: "정지" } : c));
+  putStore(raw);
+  eq("⑨-1 옛 '정지' 레코드 — '활성' 으로 읽는다", client("C003").status, "활성");
+  eq("⑨-1 지난 다섯 달 그대로(자동 동의 · 발급 · 입금)", YMS.map((ym) => [so("C003", ym).status, so("C003", ym).mode]), before);
+  eq("⑨-1 이번 달(발행 전) 안내도 평소대로", nw(so("C003", CUR)), [null, null, null, null]);
+  /* 읽기만으로는 저장하지 않는다(같은 답이 매번 나온다) — 다른 쓰기가 생기면 그때 '활성' 으로 함께 저장된다 */
+  eq("⑨-1 읽기만으로는 저장하지 않는다", rawStore().clients.find((c) => c.id === "C003").status, "정지");
+  store.updateClient({ ...client("C003"), ceoName: "박지호(시험)" });
+  eq("⑨-1 다른 쓰기와 함께 '활성' 으로 저장된다", rawStore().clients.find((c) => c.id === "C003").status, "활성");
 }
 {
-  /* 검토 2 — 끊긴 사슬(옛 저장본을 10-09 12:00 에 열어 시드 줄 '활성 → 정지' 하나 + 저장 상태 '활성'): 10-20 에 정지하면 예전엔
-     10-08~10-20 이 '정지' 로 읽혀 9월이 ISSUED(자동) → 동의대기 · 정지 중 마감으로 소급해 바뀌었다 */
+  /* 옛 저장본 2 — 2026-10-19 코드의 상태 이력 칸(statusLog · 끊긴 사슬 포함)은 버리고, 쓰기에 실어 와도 저장하지 않는다 */
   const raw = rawStore();
   raw.clients = raw.clients.map((c) => (c.id === "C014" ? { ...c, status: "활성", statusLog: [{ at: "2026-10-08 16:00", from: "활성", to: "정지" }] } : c));
   putStore(raw);
-  const b = so("C014", LAST, D(2026, 10, 19, 10));
-  eq("⑨-2 끊긴 사슬 — 9월 자동 동의 · 발급(마감 때 활성)", [b.status, b.mode, b.autoAgreeHold], ["ISSUED", "auto", null]);
-  store.updateClient({ ...client("C014"), status: "정지" }, D(2026, 10, 20, 10));
-  const a = so("C014", LAST, D(2026, 10, 20, 11));
-  eq("⑨-2 10-20 정지 뒤에도 9월 그대로(소급 없음)", [a.status, a.mode, a.autoAgreeHold, a.heldAtDeadline, a.notice.t4.why], ["ISSUED", "auto", null, null, null]);
-  /* 시드 백필 — 저장본에 이력이 없을 때 시드 이력은 사슬 끝이 저장 상태와 같을 때만 받는다 */
-  putStore(noLog(rawStore(), "C009", "활성"));
-  eq("⑨-2 옛 저장본(싱싱마켓 활성) — 시드 이력(정지 → 해제)을 받는다 · 9월 정지 중 마감", [(client("C009").statusLog || []).length, so("C009", LAST).autoAgreeHold], [2, "CLIENT_SUSPENDED"]);
-  putStore(noLog(rawStore(), "C009", "정지"));
-  eq("⑨-2 옛 저장본(싱싱마켓 정지) — 시드 사슬 끝(활성)과 달라 버리고 '지금부터 정지' 한 줄", (client("C009").statusLog || []).map((l) => [l.at, l.from, l.to]), [["2026-10-16 09:30", "활성", "정지"]]);
-  eq("⑨-2 그때 지난 시각은 활성(statusLog 이전 코드와 같다) — 9월 자동 동의", so("C009", LAST).mode, "auto");
+  eq("⑨-2 상태 이력 칸 버림 · 9월 자동 동의 · 발급", ["statusLog" in client("C014"), so("C014", LAST).status, so("C014", LAST).mode], [false, "ISSUED", "auto"]);
+  store.updateClient({ ...client("C014"), statusLog: [{ at: "2026-10-16 09:00", from: "활성", to: "정지" }] });
+  eq("⑨-2 쓰기에 상태 이력 칸을 실어 와도 저장하지 않는다", ["statusLog" in client("C014"), "statusLog" in rawStore().clients.find((c) => c.id === "C014")], [false, false]);
 }
 {
-  /* 검토 3 — 싱싱마켓 시드는 어느 날 열어도 정지·해제 두 줄 + '활성'. 예전엔 8일 16:00 ~ 11일 10:00 에 열고 무엇이든 저장하면
-     정지 한 줄과 '정지' 레코드가 저장값으로 굳었다(로그인 막힘 · 다음 달도 정지 중 마감). */
+  /* 탈퇴는 되돌리지 않는다 — 저장소가 마지막으로 지킨다(화면은 상태 칸을 잠근다 · admin-clients). 탈퇴로 바뀌면 탈퇴한 시각을 남긴다. */
+  const w0 = { ...client("C028") };
+  store.updateClient({ ...w0, status: "활성", withdrawnAt: "" });
+  eq("⑨-6 탈퇴 → 활성으로 쓰려 해도 탈퇴 그대로 · 탈퇴한 시각 그대로", [client("C028").status, client("C028").withdrawnAt], ["탈퇴", w0.withdrawnAt]);
+  store.updateClient({ ...client("C022"), status: "탈퇴" }, D(2026, 10, 16, 9, 40));
+  eq("⑨-6 탈퇴로 바꾸면서 시각이 없으면 지금으로 채운다", [client("C022").status, client("C022").withdrawnAt], ["탈퇴", "2026-10-16 09:40"]);
+  store.updateClient({ ...client("C022"), status: "활성" });
+  eq("⑨-6 다시 활성으로 — 막힘", client("C022").status, "탈퇴");
+  eq("⑨-6 탈퇴한 거래처의 접속 아이디는 그대로 '쓰는 중'", store.accountIdTaken("nurisol"), true);
+}
+{
+  /* 검증 2026-10-22 — 탈퇴한 거래처에 끝나지 않은 정산이 다시 생기는 길(0원 주문을 거쳐). 위에서 C022 를 탈퇴 처리했다.
+     ① 새 주문(등록 위저드 · 포털 접수)은 intakeBlockOf 가 어느 달로도 받지 않는다(화면은 활성 거래처만 고르고 · 탈퇴 계정은 로그인 못 함 —
+        이 판정은 그 문이 바뀌어도 지키는 마지막 문).
+     ② 이미 있는 0원 주문의 금액 올리기 · 다른 달로 옮기기는 주문 상세가 쓰는 판정(util/withdraw.js orderImpactOf)이 막는다 —
+        검증자 탐침은 settlementImpactOf 를 바로 불러 막히지 않는다고 봤다. 정산과 무관한 저장(리본 문구)은 받는다. */
+  const W = await import(R + "util/withdraw.js");
+  const wi = S.intakeBlockOf(client("C022"), `${CUR}-25T10:00`, NOW);
+  eq("⑨-6b 탈퇴한 거래처(C022 · 화면에서 탈퇴) — 발행 전 달로도 새 주문을 받지 않는다",
+    [wi && wi.reason, wi && wi.short, wi && wi.withdrawn, wi && wi.isOld, wi && wi.ym], [RULES.WITHDRAWN_INTAKE_REASON, RULES.WITHDRAWN_INTAKE_SHORT, true, false, CUR]);
+  eq("⑨-6b 시드 탈퇴 거래처(C028)도 · id 로 넘겨도 같다", [S.intakeBlockOf(client("C028"), `${CUR}-25T10:00`, NOW).reason, S.intakeBlockOf("C028", "2026/11/02 10:00", NOW).reason],
+    [RULES.WITHDRAWN_INTAKE_REASON, RULES.WITHDRAWN_INTAKE_REASON]);
+  eq("⑨-6b 활성 거래처는 그대로(발행 전 달은 받는다)", S.intakeBlockOf("C001", `${CUR}-25T10:00`, NOW), null);
+  const base = B2B.b2bList().find((o) => o.clientId === "C001");
+  const mk = (id, no, at) => B2B.b2bUpsert({ ...base, id, orderNo: no, clientId: "C022", deliverAt: at, date: at, amount: 0, status: "배송완료", history: [], cancelFee: 0, canceledAt: "" });
+  mk("nwd1", "B2B-26109991", "2026/10/12 10:00"); // 이번 달 0원(발행 전)
+  mk("nwd2", "B2B-26099992", "2026/09/20 10:00"); // 지난달 0원(발행 지남 — 거래 없는 달)
+  const a = B2B.b2bFind("nwd1"), b = B2B.b2bFind("nwd2");
+  const lk = (imp) => (imp.lock ? [imp.lock.withdrawn || false, imp.lock.reason] : null);
+  eq("⑨-6b 탈퇴 뒤 이번 달 0원 주문 금액 올리기 — 주문 상세 판정이 막는다(settlementImpactOf 만으로는 발행 전 달이라 열림)",
+    [lk(W.orderImpactOf(a, { ...a, amount: 50000 }, NOW)), S.settlementImpactOf(a, { ...a, amount: 50000 }, NOW).lock], [[true, W.WITHDRAWN_ORDER_LOCK], null]);
+  eq("⑨-6b 탈퇴 뒤 지난달 0원 주문을 이번 달로 옮기기 — 막힘(금액 0원이어도 줄이 옮겨 간다)",
+    lk(W.orderImpactOf(b, { ...b, deliverAt: "2026/10/25 10:00" }, NOW)), [true, W.WITHDRAWN_ORDER_LOCK]);
+  eq("⑨-6b 탈퇴 뒤 지난달 0원 주문 금액 올리기 — 막힘(0원 달 막힘이 먼저 · 그 이유도 맞다)",
+    lk(W.orderImpactOf(b, { ...b, amount: 60000 }, NOW)), [false, RULES.issuedZeroReason(LAST)]);
+  eq("⑨-6b 탈퇴 뒤 정산과 무관한 저장(리본 문구) — 받는다", W.orderImpactOf(b, { ...b, ribbon: "삼가 고인의 명복을 빕니다(시험)" }, NOW).lock, null);
+  B2B.b2bRemove("nwd1"); B2B.b2bRemove("nwd2");
+  eq("⑨-6b (시험 주문 지움)", B2B.b2bList().filter((o) => o.clientId === "C022").length, 0);
+}
+{
+  /* 탈퇴한 거래처의 시드 주문은 **오늘 기준으로 움직여도** 탈퇴한 달부터 생기지 않는다 — 이 파일을 다른 날짜로 다시 띄운다(⑦ 수법).
+     ① 시드 탈퇴 거래처(C028 — 탈퇴 시각이 DATA_NOW 상대라 늘 지난달 말일) ② 화면에서 탈퇴 처리해 저장한 거래처(C019 — 10-16 탈퇴 →
+     11-19 에 다시 열면 시드는 11월 주문을 만들려 하지만 저장소 레코드가 탈퇴라 만들지 않는다). */
   const { execFileSync } = await import("node:child_process");
   const { fileURLToPath } = await import("node:url");
   const os = await import("node:os");
@@ -622,53 +673,22 @@ const noLog = (raw, id, status) => {
   const self = fileURLToPath(import.meta.url);
   const probe = (at, extra = {}) => JSON.parse(execFileSync(process.execPath, [self], {
     env: { ...process.env, BILLING_PROBE: at, ...extra }, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
-  }).trim().split("\n").pop()).C009;
-  /* 해제 줄 '10-11 10:00' 은 그 분의 끝이라 10:01 부터 지난달분 이야기다 — 그 전에는 두 달 전분(8월분)에 같은 이야기가 있다 */
-  [["2026-10-07T12:00", "prev"], ["2026-10-08T16:30", "prev"], ["2026-10-09T12:00", "prev"], ["2026-10-10T11:00", "prev"],
-    ["2026-10-11T10:00", "prev"], ["2026-10-11T10:01", "last"], ["2026-10-12T09:00", "last"]].forEach(([at, which]) => {
+  }).trim().split("\n").pop()).W;
+  ["2026-10-01T09:00", "2026-11-19T10:00", "2027-01-05T12:00"].forEach((at) => {
     const r = probe(at);
-    const held = which === "last" ? r.last[1] : r.prev[1];
-    const other = which === "last" ? r.prev[1] : r.last[1];
-    eq(`⑨-3 ${at} — 활성 · 두 줄 · ${which === "last" ? "지난달분" : "두 달 전분"} 정지 중 마감 · 다른 달은 평소`,
-      [r.st, r.log.length, r.log[1] && r.log[1].endsWith("활성"), held, other], ["활성", 2, true, "CLIENT_SUSPENDED", null]);
+    eq(`⑨-7 ${at} — C028 탈퇴(지난달 말일) · 탈퇴한 달부터 주문 없음 · 끝나지 않은 정산 없음`,
+      [r.C028.st, r.C028.after, r.C028.open, r.C028.paidBefore], ["탈퇴", 0, [], true]);
   });
-  const dump = path.join(os.tmpdir(), `test-billing-c9-${process.pid}.json`);
+  const dump = path.join(os.tmpdir(), `test-billing-wd-${process.pid}.json`);
   try {
-    probe("2026-10-09T12:00", { BILLING_ACT: "touch", BILLING_DUMP: dump }); // 예전 시드 창 안에서 저장소를 만든다
-    const a = probe("2026-10-19T10:00", { BILLING_STORE: dump });
-    const b = probe("2026-11-19T10:00", { BILLING_STORE: dump });
-    eq("⑨-3 10-09 12:00 에 저장한 브라우저를 10-19 · 11-19 에 다시 열어도 활성(정지로 굳지 않는다)", [a.st, b.st, a.log.length], ["활성", "활성", 2]);
+    probe("2026-10-16T09:30", { BILLING_ACT: "withdraw", BILLING_DUMP: dump }); // C019 를 탈퇴 처리해 저장한다
+    const a = probe("2026-11-19T10:00", { BILLING_STORE: dump });
+    eq("⑨-7 화면에서 탈퇴 처리한 C019 — 11-19 에 다시 열어도 탈퇴한 달(10월)부터 시드 주문이 없다 · 그 전 달은 남는다",
+      [a.C019.st, a.C019.after, a.C019.before > 0], ["탈퇴", 0, true]);
+    probe("2026-10-16T09:30", { BILLING_ACT: "touch", BILLING_DUMP: dump }); // 저장소를 만든다
+    const b = probe("2026-10-16T09:30", { BILLING_STORE: dump, BILLING_ACT: "noC028" });
+    eq("⑨-7 C028 이 없는 옛 저장본 — 목록에 없어도 시드 레코드로 탈퇴를 보고 탈퇴 뒤 달 주문을 만들지 않는다", [b.C028.after, b.C028.before > 0], [0, true]);
   } finally { try { fs.unlinkSync(dump); } catch { /* 없으면 그만 */ } }
-  /* 1차 후속 — statusLog 이전 코드(HEAD)로 저장한 브라우저: 싱싱마켓은 '활성' · 이력 없음 · holds 에 그 브라우저가 처음 저장한 날의 지난달분
-     'CLIENT_SUSPENDED'. 예전 고침은 그 값을 버리고 **지금** 기준 시드 이력을 받아 보류가 다른 달로 옮겨 갔다(실측 — 10-05 저장본을 13:00 에
-     열면 입금까지 끝난 8월이 '정지 중 마감' · 09-20 저장본을 10-19 에 열면 8월이 자동 동의로 거슬러 올라가 기한 초과 · 9월 발급완료가 보류). */
-  const oldStore = (ym, dropPay, status = "활성") => {
-    const raw = noLog(rawStore(), "C009", status);
-    raw.holds = { ...raw.holds, C009: { [ym]: "CLIENT_SUSPENDED" } };
-    if (dropPay && raw.payments.C009) delete raw.payments.C009[dropPay]; // 그 브라우저에서는 보류 달이라 입금 기록이 없었다
-    return { "yeop.store.v5": JSON.stringify(raw) };
-  };
-  const fA = path.join(os.tmpdir(), `test-billing-old-a-${process.pid}.json`);
-  const fA2 = path.join(os.tmpdir(), `test-billing-old-a2-${process.pid}.json`);
-  const fB = path.join(os.tmpdir(), `test-billing-old-b-${process.pid}.json`);
-  const fC = path.join(os.tmpdir(), `test-billing-old-c-${process.pid}.json`);
-  try {
-    fs.writeFileSync(fA, JSON.stringify(oldStore(LAST)));
-    const a = probe("2026-10-05T13:00", { BILLING_STORE: fA, BILLING_DUMP: fA2 });
-    eq("⑨-10 10-05 저장본을 13:00 에 — 9월분 두 줄(10-08 정지 · 10-11 해제) · 활성 · 8월 입금완료 그대로 · 9월은 보류가 잡힐 달",
-      [a.st, a.log, a.prev, a.last], ["활성", ["2026-10-08 16:00 정지", "2026-10-11 10:00 활성"], ["PAID", null], ["AWAITING_AGREEMENT", "CLIENT_SUSPENDED"]]);
-    const a2 = probe("2026-10-12T09:00", { BILLING_STORE: fA2 });
-    eq("⑨-10 그 브라우저를 10-12 에 — 같은 두 줄(밀리지 않는다) · 9월 정지 중 마감 · 8월 그대로", [a2.log, a2.prev, a2.last],
-      [["2026-10-08 16:00 정지", "2026-10-11 10:00 활성"], ["PAID", null], ["AWAITING_AGREEMENT", "CLIENT_SUSPENDED"]]);
-    fs.writeFileSync(fB, JSON.stringify(oldStore(PREV, PREV)));
-    const b = probe("2026-10-19T10:00", { BILLING_STORE: fB });
-    eq("⑨-10 09-20 저장본(8월분 보류)을 10-19 에 — 8월 그대로 보류 · 9월 자동 동의 · 발급(시드 이력의 9월 이야기를 받지 않는다)",
-      [b.st, b.log, b.prev, b.last], ["활성", ["2026-09-08 16:00 정지", "2026-09-11 10:00 활성"], ["AWAITING_AGREEMENT", "CLIENT_SUSPENDED"], ["ISSUED", null]]);
-    fs.writeFileSync(fC, JSON.stringify(oldStore(LAST, null, "정지")));
-    const c = probe("2026-10-05T13:00", { BILLING_STORE: fC });
-    eq("⑨-10 지금 정지인 옛 레코드 · 그 달 줄이 아직 오지 않음 — 미래 줄은 넣지 않고 '지금 · 활성 → 정지' 한 줄(사슬 끝 = 저장된 상태) · 8월 그대로",
-      [c.st, c.log, c.prev], ["정지", ["2026-10-05 13:00 정지"], ["PAID", null]]);
-  } finally { [fA, fA2, fB, fC].forEach((f) => { try { fs.unlinkSync(f); } catch { /* 없으면 그만 */ } }); }
 }
 {
   /* 검토 4 — 직접 입력 계산서는 적은 발급 시각(at)과 기록한 시각(recordedAt)이 다르다. 기한 초과는 기록한 순간부터(M39 — T8 은
@@ -695,19 +715,6 @@ const noLog = (raw, id, status) => {
   const s18 = so("C018", PREV);
   eq("⑨-4 옛 직접 입력 기록(recordedAt 없음) — 적은 시각으로", [s18.status, fa(s18.overdueFrom), S.overdueLateOf(s18)], ["OVERDUE", "2026-10-05 10:00", "issue"]);
   eq("⑨-4 다시 시도로 기한 뒤 발급(C001 8월 · ⑧) — 까닭 'issue'", S.overdueLateOf(so("C001", PREV)), "issue");
-}
-{
-  /* 검토 5 — 분 단위 기록: 13:00:40 정지는 '13:00' 으로 남지만 13:00:00 마감 뒤다(예전엔 자동 동의된 10월을 정지 중 마감으로 뒤집었다) */
-  store.updateClient({ ...client("C016"), status: "정지" }, new Date(2026, 10, 10, 13, 0, 40));
-  const s = so("C016", CUR, D(2026, 11, 10, 13, 5));
-  eq("⑨-5 마감 40초 뒤 정지 — 기록 '13:00' · 10월은 자동 동의 그대로", [client("C016").statusLog.at(-1).at, s.mode, s.autoAgreeHold, s.heldAtDeadline], ["2026-11-10 13:00", "auto", null, null]);
-  eq("⑨-5 그 1분 안의 statusAt 은 아직 활성 · 레코드는 정지", [RULES.statusAt(client("C016"), new Date(2026, 10, 10, 13, 0, 50)), client("C016").status], ["활성", "정지"]);
-  store.updateClient({ ...client("C017"), status: "정지" }, new Date(2026, 10, 10, 12, 59, 30));
-  const s2 = so("C017", CUR, D(2026, 11, 10, 13, 5));
-  eq("⑨-5 마감 30초 전(12:59:30) 정지 — 정지 중 마감", [s2.mode, s2.autoAgreeHold], [null, "CLIENT_SUSPENDED"]);
-  store.updateClient({ ...client("C018"), status: "정지" }, new Date(2026, 10, 9, 10, 0, 20));
-  const s3 = so("C018", CUR, D(2026, 11, 9, 11));
-  eq("⑨-5 수정 마감과 같은 분(10:00:20) 정지 — T4 는 이미 나갔다 · 다시 보낼 일 없음", [s3.notice.t4.why, s3.notice.resend], [null, null]);
 }
 {
   /* 검토 9 — 보류 예측(holdPendingOf): 관리자 정산회계 · 포털 거래명세서 · 포털 정산회계가 같은 판정으로 '자동 동의됩니다' 를 피한다 */
@@ -785,6 +792,134 @@ const noLog = (raw, id, status) => {
   const src = (f) => fs.readFileSync(new URL(R + f), "utf8");
   eq("⑩ order-rules.js 는 import 0", /^\s*import\s/m.test(src("data/order-rules.js")), false);
   eq("⑩ b2b-mock 은 b2c-mock 을 import 하지 않는다", /from\s+["']\.\/b2c-mock\.js["']/.test(src("data/b2b-mock.js")), false);
+}
+
+/* ══ ⑩ 탈퇴 판정(util/withdraw.js withdrawBlockOf · orderImpactOf — 2026-10-22 운영자 답 A·B) ═══════════════════════
+   끝나지 않은 정산(PAID·NONE 이 아닌 달 · 배송 전 주문)이 있으면 막고 이유를 말한다 · 모두 끝났으면 null.
+   주문 없는 시험 거래처 WT 를 새로 만들어 쓴다(앞 구역이 C022 를 탈퇴시켜도 흔들리지 않게 · 맨 끝에서 지운다). */
+const W = await import(R + "util/withdraw.js");
+const WT = "C9W1";
+store.addClient({ ...client("C022"), id: WT, accountId: "wdtest1", companyName: "시험탈퇴(주)", status: "활성", withdrawnAt: "" });
+const sw = (id, ym) => S.settlementOf(client(id), ym, NOW);
+{
+  // 입금 전 달 + 이번 달 주문(발행 전) — 시드로는 C002(9월분 10월 1일 발행 · 10일 13:00 자동 동의 · 계산서 발급 · 입금 전). 앞 구역이 입금
+  // 처리했을 수 있어 지금 그런 활성 거래처를 고른다.
+  const pc = store.get().clients.find((c) => c.status === "활성" && ["ISSUED", "OVERDUE"].includes(sw(c.id, LAST).status)
+    && sw(c.id, CUR).status === "SCHEDULED" && !sw(c.id, CUR).empty);
+  eq("⑩ 탈퇴 · 입금 전 달 + 이번 달 주문이 있는 거래처(전제)", !!pc, true);
+  const b2 = pc && W.withdrawBlockOf(pc, NOW);
+  eq("⑩ 탈퇴 · 입금 전 달", b2 && b2.months.find((m) => m.ym === LAST)?.word, "입금 전");
+  eq("⑩ 탈퇴 · 이번 달 주문(발행 전)", b2 && b2.months.find((m) => m.ym === CUR)?.status, "SCHEDULED");
+  eq("⑩ 탈퇴 · 문장 앞말", b2 && b2.text.startsWith(`${W.WITHDRAW_BLOCK_LEAD} · `), true);
+  eq("⑩ 탈퇴 · 문장 — 달 · 명세서 날짜", b2 && /9월분 입금 전/.test(b2.reason)
+    && b2.reason.includes(`10월 주문 `) && b2.reason.includes(`건 정산 전 — 11월 ${RULES.invoiceDayOf(pc)}일 명세서`), true);
+  // 동의 전 달 — 시드로는 C011(발급일 15일 · 9월분 10월 15일 10:00 발행 · 마감 28일 13:00 · 지금 동의 전)
+  const ac = store.get().clients.find((c) => c.status === "활성" && sw(c.id, LAST).status === "AWAITING_AGREEMENT" && !sw(c.id, LAST).zeroEdited
+    && sw(c.id, CUR).status === "SCHEDULED" && !sw(c.id, CUR).empty);
+  eq("⑩ 탈퇴 · 동의 전 달이 있는 거래처(전제)", !!ac, true);
+  const b11 = ac && W.withdrawBlockOf(ac, NOW);
+  eq("⑩ 탈퇴 · 동의 전 달", b11 && b11.months.find((m) => m.ym === LAST)?.word, "동의 전");
+  eq("⑩ 탈퇴 · 이번 달 명세서 날짜는 그 거래처 발급일", b11 && b11.reason.includes(`— 11월 ${RULES.invoiceDayOf(ac)}일 명세서`), true);
+  // 주문이 없는 거래처는 탈퇴할 수 있다 · 이미 탈퇴한 거래처는 null(호출부가 isWithdrawn 을 먼저 본다)
+  eq("⑩ 탈퇴 · 주문 없음 → null", W.withdrawBlockOf(client(WT), NOW), null);
+  eq("⑩ 탈퇴 · 이미 탈퇴 → null", W.withdrawBlockOf({ ...client(WT), status: W.WITHDRAWN }, NOW), null);
+  eq("⑩ 탈퇴 · isWithdrawn", [W.isWithdrawn({ status: "탈퇴" }), W.isWithdrawn({ status: "활성" }), W.isWithdrawn(null)], [true, false, false]);
+  // 접수대기 주문 한 건(이번 달 배송) → 그 달 발행 전 + 배송 전 주문 1건
+  B2B.b2bUpsert({ id: "wd-t1", orderNo: "B2B-WD1", clientId: WT, status: "접수대기", deliverAt: "2026/10/28 14:00", amount: 50000,
+    product: "3단화환(기본형)", ordererName: "시험", address: "예시로 1", receiver: "", manager: "", history: [] });
+  const b22 = W.withdrawBlockOf(client(WT), NOW);
+  eq("⑩ 탈퇴 · 접수대기 주문", b22 && [b22.open, b22.months.map((m) => `${m.ym}:${m.status}`), b22.reason],
+    [1, [`${CUR}:SCHEDULED`], `10월 주문 1건 정산 전 — 11월 ${RULES.invoiceDayOf(client(WT))}일 명세서 · 배송 전 주문 1건`]);
+  // 배송완료로 바꿔도 이번 달 주문은 다음 달 명세서 · 입금이 끝나야 풀린다(배송 전 주문만 빠진다)
+  B2B.b2bUpsert({ ...B2B.b2bFind("wd-t1"), status: "배송완료" });
+  const b22b = W.withdrawBlockOf(client(WT), NOW);
+  eq("⑩ 탈퇴 · 배송완료여도 이번 달 주문은 막는다", b22b && [b22b.open, b22b.months.length], [0, 1]);
+  B2B.b2bRemove("wd-t1");
+  eq("⑩ 탈퇴 · 주문을 지우면 다시 null", W.withdrawBlockOf(client(WT), NOW), null);
+  // 모두 PAID/NONE 이면 null — C001 의 입금 전 달을 입금 처리하고, 이번 달 이후 주문은 지우고, 지난 달의 배송 전 주문은 배송완료로
+  // (상태만 바뀌어 그 달 금액은 그대로다 — 잠긴 달 기록 경고가 나지 않는다)
+  const pre = W.withdrawBlockOf(client("C001"), NOW);
+  eq("⑩ 탈퇴 · C001 은 막혀 있다(전제)", !!pre && pre.open > 0, true);
+  pre.months.forEach((m) => { if (m.status === "ISSUED" || m.status === "OVERDUE") S.confirmPaymentFor(client("C001"), m.ym, undefined, NOW); });
+  B2B.b2bList().filter((o) => o.clientId === "C001").forEach((o) => {
+    const e = BE.entriesOfOrder(o)[0]; // 정산 줄의 달(취소 수수료는 취소한 달)로 가른다
+    if (e && e.ym >= CUR) B2B.b2bRemove(o.id);
+    else if (["접수대기", "주문접수"].includes(o.status)) B2B.b2bUpsert({ ...o, status: "배송완료" });
+  });
+  eq("⑩ 탈퇴 · 모두 PAID/NONE → null", W.withdrawBlockOf(client("C001"), NOW), null);
+  // 지난 달(이미 입금까지 끝난 달)이라도 배송 전 주문이 남아 있으면 막는다 — 배송 전 주문만 말한다
+  const past = B2B.b2bList().find((o) => o.clientId === "C001" && o.status === "배송완료" && BE.normAt(o.deliverAt).slice(0, 7) < CUR);
+  B2B.b2bUpsert({ ...past, status: "주문접수" });
+  const bp = W.withdrawBlockOf(client("C001"), NOW);
+  eq("⑩ 탈퇴 · 닫힌 달의 배송 전 주문", bp && [bp.months.length, bp.open, bp.reason], [0, 1, "배송 전 주문 1건"]);
+}
+
+/* ── ⑩-2 0원 주문만 있는 달(운영자 답 B) · 탈퇴한 거래처의 주문 잠금(orderImpactOf) — 2026-10-22 1차 후속 ─────────────
+   0원 주문만 있는 달은 내역서를 내지 않으므로(거래 없는 달처럼) 탈퇴를 막지 않는다 — 대신 탈퇴한 뒤 그 주문을 고쳐 정산을 새로
+   만드는 저장 · 다른 달로 옮기기 · 취소 · 삭제는 orderImpactOf 가 막는다. 정산과 무관한 저장은 그대로 받는다. */
+{
+  const zero = { id: "wd-z1", orderNo: "B2B-WDZ1", clientId: WT, status: "배송완료", date: "2026/10/13 10:00", deliverAt: "2026/10/14 14:00", amount: 0,
+    product: "3단화환(기본형)", ordererName: "시험", address: "예시로 1", receiver: "예시", manager: "", history: [] };
+  B2B.b2bUpsert(zero);
+  const sz = S.settlementOf(client(WT), CUR, NOW);
+  eq("⑩ 0원만 · 그 달은 발행 전 · 내역서 없음(empty)", [sz.status, sz.empty, sz.count], ["SCHEDULED", true, 1]);
+  eq("⑩ 0원만 · 배송완료면 탈퇴를 막지 않는다(결정 B)", W.withdrawBlockOf(client(WT), NOW), null);
+  // 같은 0원 주문이 배송 전이면 막는다(배송 전 주문은 0원이어도 막는다)
+  B2B.b2bUpsert({ ...B2B.b2bFind("wd-z1"), status: "주문접수" });
+  const bz = W.withdrawBlockOf(client(WT), NOW);
+  eq("⑩ 0원만 · 배송 전이면 막는다", bz && [bz.months.length, bz.open, bz.reason], [0, 1, "배송 전 주문 1건"]);
+  B2B.b2bUpsert({ ...B2B.b2bFind("wd-z1"), status: "배송완료" });
+  // 0원 주문 + 돈 있는 주문이 같은 달이면 막는다
+  B2B.b2bUpsert({ ...zero, id: "wd-z2", orderNo: "B2B-WDZ2", amount: 50000 });
+  const bz2 = W.withdrawBlockOf(client(WT), NOW);
+  eq("⑩ 0원 + 돈 있는 주문 · 막는다", bz2 && bz2.months.map((m) => `${m.ym}:${m.status}`), [`${CUR}:SCHEDULED`]);
+  B2B.b2bRemove("wd-z2");
+  eq("⑩ 0원만으로 되돌리면 다시 null", W.withdrawBlockOf(client(WT), NOW), null);
+
+  // 탈퇴 처리(저장소가 withdrawnAt 을 채운다)
+  store.updateClient({ ...client(WT), status: W.WITHDRAWN });
+  eq("⑩ 탈퇴 처리됨", [client(WT).status, /^2026-10-16 09:30$/.test(client(WT).withdrawnAt)], ["탈퇴", true]);
+  const st = B2B.b2bFind("wd-z1");
+  const lockOf = (a, b) => W.orderImpactOf(a, b, NOW).lock;
+  const plain = (a, b) => S.settlementImpactOf(a, b, NOW).lock;
+  // 금액을 올리는 저장 — 정산 판정만으로는 열린 달(발행 전)이라 받는다 · 탈퇴 잠금이 막는다(검증자 (가))
+  eq("⑩ 탈퇴 · 금액 올림 · 정산 판정은 열림(전제)", plain(st, { ...st, amount: 50000 }), null);
+  const lr = lockOf(st, { ...st, amount: 50000 });
+  eq("⑩ 탈퇴 · 금액 올림 → 탈퇴 잠금", lr && [lr.withdrawn, lr.isOld, lr.ym, lr.reason], [true, false, CUR, W.WITHDRAWN_ORDER_LOCK]);
+  // 상품만 바꿔도(명세서 줄의 품목) 막는다
+  eq("⑩ 탈퇴 · 상품 변경 → 잠금", !!(lockOf(st, { ...st, product: "근조바구니" }) || {}).withdrawn, true);
+  // 다른 달로 옮기며 금액을 올림(검증자 (나)) — 이동 표시도 함께
+  const lm = lockOf(st, { ...st, deliverAt: "2026/11/20 14:00", amount: 50000 });
+  eq("⑩ 탈퇴 · 다른 달로 옮김 + 금액 → 잠금(moved)", lm && [lm.withdrawn, lm.moved], [true, true]);
+  // 같은 달 안의 시각 · 리본 문구 · 요청사항 · 담당자 — 정산과 무관하면 받는다
+  eq("⑩ 탈퇴 · 같은 달 안의 시각 → 받음", lockOf(st, { ...st, deliverAt: "2026/10/14 17:00" }), null);
+  eq("⑩ 탈퇴 · 리본 문구 · 요청사항 · 담당자 → 받음", lockOf(st, { ...st, ribbonPhrase: "근조(謹弔)", request: "시험", manager: "김총무" }), null);
+  // 취소 · 삭제 — 기록이 바뀐다
+  eq("⑩ 탈퇴 · 주문취소 → 잠금", !!(lockOf(st, { ...st, status: "취소", cancelFee: 0, canceledAt: "2026-10-16 09:30" }) || {}).withdrawn, true);
+  eq("⑩ 탈퇴 · 삭제 → 잠금", !!(lockOf(st, null) || {}).withdrawn, true);
+  eq("⑩ 탈퇴 · 토스트 문장", W.withdrawnOrderMsg("지울"), "탈퇴한 거래처의 주문이라 지울 수 없습니다 — 지난 기록은 그대로 남깁니다");
+  // 탈퇴하지 않은 거래처는 settlementImpactOf 와 같다
+  const c2 = B2B.b2bList().find((o) => o.clientId === "C002" && o.status !== "취소" && BE.normAt(o.deliverAt).slice(0, 7) === CUR);
+  eq("⑩ 활성 거래처 · 판정이 그대로", JSON.stringify(W.orderImpactOf(c2, { ...c2, amount: 99000 }, NOW)), JSON.stringify(S.settlementImpactOf(c2, { ...c2, amount: 99000 }, NOW)));
+  // 이미 잠긴 달(입금까지 끝난 달)이면 그 이유가 먼저 — 탈퇴 예시 C028 의 지난 주문을 이번 달로 옮김
+  const c28 = B2B.b2bList().find((o) => o.clientId === "C028" && o.status === "배송완료");
+  const l28 = c28 && lockOf(c28, { ...c28, deliverAt: "2026/10/20 14:00" });
+  eq("⑩ 탈퇴 · 이미 잠긴 달은 그 이유가 먼저", l28 && [!!l28.withdrawn, l28.isOld, l28.moved], [false, true, true]);
+  eq("⑩ 탈퇴 · C028 지난 주문 · 판정 결과가 settlementImpactOf 와 같다", JSON.stringify(W.orderImpactOf(c28, { ...c28, deliverAt: "2026/10/20 14:00" }, NOW)),
+    JSON.stringify(S.settlementImpactOf(c28, { ...c28, deliverAt: "2026/10/20 14:00" }, NOW)));
+  // 0원 주문만 있어 명세서를 내지 않은 지난 달(NONE · 결정 B)의 금액 올림 — 정산 판정의 raise 잠금이 먼저다(탈퇴 잠금이 덮지 않는다)
+  //  · 주문 상세는 두 잠금 모두 '금액 칸이 원인' 으로 보고 이유를 금액 칸에 잇고 배송일시 줄은 칠하지 않는다(admin-orders amtBlocked · syncDeliv)
+  B2B.b2bUpsert({ ...zero, id: "wd-z3", orderNo: "B2B-WDZ3", deliverAt: "2026/09/20 14:00", date: "2026/09/19 10:00" });
+  const s9 = S.settlementOf(client(WT), LAST, NOW);
+  eq("⑩ 탈퇴 · 0원만 있던 지난 달은 거래 없음(전제)", [s9.status, s9.empty], ["NONE", true]);
+  const z3 = B2B.b2bFind("wd-z3");
+  const lz = lockOf(z3, { ...z3, amount: 50000 });
+  eq("⑩ 탈퇴 · 0원 달 금액 올림 → raise 잠금이 먼저", lz && [!!lz.raise, !!lz.withdrawn, lz.isOld, lz.moved, lz.reason], [true, false, false, false, RULES.issuedZeroReason(LAST)]);
+  eq("⑩ 탈퇴 · 0원 달 · 금액 그대로 상품만 → 탈퇴 잠금", !!(lockOf(z3, { ...z3, product: "근조바구니" }) || {}).withdrawn, true);
+  // 뒷정리 — 시험 주문(쓰기 함수를 바로 부른다 · 화면 판정을 지나지 않는다)과 시험 거래처
+  ["wd-z1", "wd-z3"].forEach((id) => B2B.b2bRemove(id));
+  store.removeClient(WT);
+  eq("⑩ 뒷정리 — 시험 거래처 · 주문이 남지 않는다", [!!client(WT), B2B.b2bList().some((o) => o.clientId === WT)], [false, false]);
 }
 
 console.log(`billing: ${pass} passed, ${fail} failed`);

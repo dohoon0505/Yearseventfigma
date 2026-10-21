@@ -23,10 +23,11 @@
 
    ── 정산 상태(settlementOf)는 서버 대역 한 곳 ──
    SCHEDULED(발행 전) → AWAITING_AGREEMENT(동의대기) → AGREED(동의 · 계산서 발급 전) → ISSUED → PAID / OVERDUE.
-   0원 달(명세 3.4 예외표 · '마감 전 수정' 9 · 10.4 Q21 잠정 ①) — 2026-10-16 발급 때 금액(issuedAmount)이 생겨 두 갈래로 가른다:
-     · 발급 때부터 0원 → 발행과 함께 PAID(동의·계산서·입금 없음).
+   0원 달(명세 3.4 예외표 · '마감 전 수정' 9 · 10.4 Q21) — 발급 때 금액(issuedAmount)으로 두 갈래:
+     · 0원 주문만 있는 달(발급 때 0원) → **내역서를 내지 않는다** — 거래 없는 달과 같다(발행 전 SCHEDULED · 발행 뒤 NONE · T3 없음 ·
+       2026-10-22 운영자 결정 B). 예전엔 발행과 함께 PAID 로 닫았다.
      · 발행 뒤 고쳐서 0원(zeroEdited — 줄이 남은 달도 · 취소·삭제로 줄이 다 빠진 달도) → 마감까지 AWAITING_AGREEMENT
-       (open:false — 동의를 받지 않는다 · 보류 없음 · 수정 마감 전엔 다시 고칠 수 있다), 마감(13:00) 뒤 PAID.
+       (open:false — 동의를 받지 않는다 · 보류 없음 · 수정 마감 전엔 다시 고칠 수 있다), 마감(13:00) 뒤 PAID. 이미 내역서가 나갔으므로 그대로다.
    화면은 이 결과를 그대로 쓰고 날짜로 상태를 추정하지 않는다(명세 6.6 — editLockAt·editable 도 그렇다).
 
    ── 정산 금액 변경 기록 (2026-10-16 DATA.md 1.5 · 명세 5.4 issued_amount · amount_changed_at · 8.4) ──
@@ -41,11 +42,12 @@
    ============================================================ */
 import { store, einvoiceNoFor } from "../store.js";
 import { b2bList, b2bVersion, b2bSeedAmountChanges } from "../data/b2b-mock.js";
-import { DATA_NOW } from "../data/admin-mock.js";
+import { DATA_NOW, WITHDRAWN } from "../data/admin-mock.js";
 import {
   invoiceDayOf, invoiceDayFor, issueDate, fmtKo, fmtKoShortY, parseAt,
   periodOf, periodLabel, editLockAt, overdueAt, isPastOverdue, LOCK_REASON, LOCK_SHORT,
-  issuedEmptyReason, ISSUED_EMPTY_SHORT,
+  issuedEmptyReason, ISSUED_EMPTY_SHORT, issuedZeroReason, ISSUED_ZERO_SHORT,
+  WITHDRAWN_INTAKE_REASON, WITHDRAWN_INTAKE_SHORT,
 } from "../data/settlement-rules.js";
 import { entriesOfOrder, compareEntries, contributionDiff, causeOf, normAt } from "../data/billing-entries.js";
 import { termsPending } from "./client.js";
@@ -196,9 +198,9 @@ export function noRecipientOf(client) {
 /**
  * 한 (거래처, 귀속월)의 정산 상태(명세 5.4 · 6.6 응답의 데모 대역).
  * @returns {{ id, period, status: "SCHEDULED"|"AWAITING_AGREEMENT"|"AGREED"|"ISSUED"|"OVERDUE"|"PAID"|"NONE",
- *   autoAgreeHold: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED",
- *   heldAtDeadline: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED"|"CLIENT_SUSPENDED",
- *   amount: number, count: number, feeCount: number, empty: boolean, zero: boolean, group: "early"|"late",
+ *   autoAgreeHold: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED",
+ *   heldAtDeadline: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED",
+ *   amount: number, count: number, feeCount: number, empty: boolean, group: "early"|"late",
  *   issued: boolean, open: boolean, issueAt: Date, deadline: Date, dueAt: Date, overdueAt: Date,
  *   editLockAt: Date|null, editable: boolean, lockReason: string|null, lockShort: string|null,
  *   agreedAt: Date|null, mode: null|"manual"|"auto", docDate: Date|null,
@@ -206,11 +208,13 @@ export function noRecipientOf(client) {
  *   paidAt: Date|null, paidBy: object|null, termsHold: boolean, noRecipient: boolean,
  *   issuedAmount: number|null, amountChangedAt: Date|null, changed: boolean, changeCount: number,
  *   zeroEdited: boolean, zeroCloseAt: Date|null, docStamp: boolean, overdueFrom: Date|null, notice: object }}
- * - 0원 달(zero — 줄은 있고 합이 0원): 발급 때부터 0원이면 발행 전 SCHEDULED, 발행 뒤 PAID(동의·계산서·입금 칸은 비운다).
+ * - 내역서가 없는 달(empty — 줄이 0개이거나 **0원 주문만** 있다 · 고쳐서 0원이 아님 · 2026-10-22 운영자 결정 B): 발행 전 SCHEDULED,
+ *   발행 뒤 NONE(정산이 없다 — 완료·미완료 어느 쪽에도 세지 않는다 · 서버에 Settlement 가 없다 · T3 없음). 0원 주문만 있는 달은 줄이 있어
+ *   count 는 그 건수 그대로지만 화면은 거래 없는 달과 똑같이 그린다(구별되지 않는 것은 운영자가 받아들였다).
+ *   ⚠️ 예전 `zero` 칸(줄은 있고 합이 0원 — 발행과 함께 PAID)은 없앴다. 화면의 '0원' 표시는 이제 고쳐서 0원(zeroEdited)뿐이다.
  * - 고쳐서 0원(zeroEdited — 발행 뒤 금액이 0이 됐다 · issuedAmount > 0): 마감까지 AWAITING_AGREEMENT(open:false · 보류 없음),
  *   마감(13:00) 뒤 PAID. 줄이 다 빠진 달(취소·삭제)도 이 갈래다 — NONE 이 아니다(서버엔 그 달 Settlement 가 있다).
- *   그때 `empty` 는 true 그대로(줄이 없다는 사실), `zero` 는 false(줄이 없다).
- * - 거래 없는 달(empty — 줄이 0개 · 고쳐서 0원이 아님): 발행 전 SCHEDULED, 발행 뒤 NONE(정산이 없다 — 완료·미완료 어느 쪽에도 세지 않는다).
+ *   그때 `empty` 는 true(줄이 없다는 사실 — 그래서 화면은 '거래 없음' 판정을 `empty && !zeroEdited` 로 한다).
  * - 계산서: 동의(수동·자동)된 달은 동의 시각에 자동 발급된 것으로 파생(승인번호도 결정적 — 예시 꼴, 미확정 M62 · by: null = '자동').
  *   store.einvoiceFail 에 든 달만 AGREED 에 머물고, 다시 시도·직접 입력(store.einvoice)이 성공하면 ISSUED.
  * - OVERDUE: 계산서가 나간 미입금 달이 정산기한 다음 날 10:00 을 지났다(정각 포함 · 발급이 그 뒤면 발급 순간부터).
@@ -219,15 +223,15 @@ export function noRecipientOf(client) {
  *   '시스템에 생긴 시각' = 직접 입력이면 **기록한 시각**(einvoice.recordedAt — 적은 발급 시각 at 은 바로빌 콘솔에서 낸 과거일 수 있다 ·
  *   T6·T8 은 기록한 순간에 나간다 · M39 · 2026-10-19 검토 4 · 옛 기록은 at), 그 밖은 발급 시각(at). 까닭은 `overdueLateOf`.
  *   진행 기록의 '기한 초과' 줄 · 표의 '…부터 기한 초과' · 입금 확인 창 · 포털 정산회계가 이 값을 쓴다(overdueAt 은 규칙상의 시각 그대로).
- * - notice: 정산 안내 도달(settlement-rules `noticeState` — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류). 0원 달은 가리지
- *   않은 날것이다 — 0원 달에는 T3·T4 가 없다(N20 ⓔ · Q21)는 것은 화면이 zero·zeroEdited 로 가린다.
+ * - notice: 정산 안내 도달(settlement-rules `noticeState` — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류). 가리지 않은 날것이다 —
+ *   내역서가 없는 달(NONE)에는 T3 이 없고, 고쳐서 0원이 된 달에는 T4 가 없다는 것은 화면이 status · zeroEdited 로 가린다.
  * - editable: SCHEDULED · NONE 이거나 (AWAITING_AGREEMENT 이고 now < editLockAt). lockReason 은 명세 6.4 세 문구 중 하나,
  *   lockShort 는 그 짧은 말(settlement-rules LOCK_SHORT — 0원 달은 null).
  *   ⚠️ NONE 이 editable 인 것은 '잠글 정산이 없다' 는 뜻이다 — 그 달로 **들어오는** 주문은 settlementImpactOf 가 막는다(사용자 답 3).
  * - issuedAmount: 명세서 발행 순간 금액(발행 전·NONE 은 null) · amountChangedAt: 발행 뒤 마지막 변경 시각 ·
  *   changed: issuedAmount 가 있고 지금 금액과 다르다(동의·발급·입금 뒤에도 남는다) · changeCount: 발행 뒤 기록 줄 수
- *   (되돌려 순변동 0이어도 센다) · zeroCloseAt: 0원 달이 닫히는(닫힌) 시각 — 처음부터 0원 = issueAt, 고쳐서 0원 = deadline
- *   (닫혔는지는 status === "PAID") · docStamp: 문서에 '동의 전 — 금액이 바뀔 수 있습니다' + 출력 시각을 찍는 달 =
+ *   (되돌려 순변동 0이어도 센다) · zeroCloseAt: 고쳐서 0원이 된 달이 닫히는(닫힌) 시각 = deadline(그 밖은 null ·
+ *   닫혔는지는 status === "PAID") · docStamp: 문서에 '동의 전 — 금액이 바뀔 수 있습니다' + 출력 시각을 찍는 달 =
  *   명세서가 나갔고 동의 전이고 수정 마감 전(2026-10-16 사용자 답 1 — 수정 마감 뒤·보류 달은 찍지 않는다).
  * ⚠️ 변경 기록의 by·reason 은 여기 싣지 않는다 — 관리자 전용 정보라 `amountChangesOf` 로만 읽는다(포털 화면은 부르지 않는다).
  */
@@ -235,29 +239,26 @@ export function settlementOf(client, ym, now = new Date()) {
   const st = store.agreementOf(client.id, ym, now);
   const list = entriesOf(client.id, ym);
   const amount = list.reduce((a, e) => a + e.amount, 0);
-  /* ⚠️ 줄이 하나도 없는 달(empty)과 줄은 있는데 합이 0원인 달(zero)은 **다른 달**이다. 0원 달은 '0원 주문만 있는 달'
-     (명세 3.4 예외표 · 10.4 Q21)이고, 거래도 금액도 없는 달은 명세서·T3 자체가 없다(M05). 둘을 한 판정으로 묶으면
-     가입 전 달·주문 0건 거래처의 달이 발행 시각에 '0원 · 계산서 없음 · 입금완료' 로 닫혀 정산완료 건수에 섞였다. */
-  const empty = !list.length;
-  const zero = !empty && amount === 0;
   /* 발급 때 금액 — 발행 뒤 기록 줄의 순변동을 지금 금액에서 뺀다(DATA.md 1.5). 기록이 없으면 지금 금액 그대로. */
   const lines = st.issued ? linesOf(client.id, ym, st.issueDate) : [];
   let issuedAmount = st.issued ? amount - lines.reduce((a, l) => a + (Number(l.after) - Number(l.before)), 0) : null;
   const zeroEdited = st.issued && amount === 0 && issuedAmount > 0;
-  /* 거래가 없고 발급 때도 0원이었던 달(NONE)은 서버에 Settlement 가 없다 — 발급 때 금액도 없다. */
+  /* 내역서가 없는 달(empty) — 줄이 하나도 없거나 **0원 주문만** 있는 달(2026-10-22 운영자 결정 B — 0원 주문만 있는 달은 내역서를 내지
+     않는다 · 거래 없는 달처럼). 발급 뒤 고쳐서 0원이 된 달은 이미 내역서가 나갔으므로 아니다 — 그 달의 empty 는 '줄이 없다' 는 사실이다.
+     내역서가 없는 달은 서버에 Settlement 가 없으니 발급 때 금액도 없다.
+     ⚠️ 예전엔 '줄은 있는데 합이 0원인 달(zero)' 을 발행과 함께 PAID 로 닫았다 — 그 갈래는 없어졌다(화면의 '0원' 은 고쳐서 0원뿐). */
+  const empty = zeroEdited ? !list.length : amount === 0;
   if (empty && !zeroEdited) issuedAmount = null;
   const day = invoiceDayFor(client, ym);
   let status, mode = null, agreedAt = null, einvoice = null, paidAt = null, paidBy = null;
   const fail = store.einvoiceFailOf(client.id, ym);
   const pastDeadline = now.getTime() > st.deadline.getTime(); // 13:00:00.000 정각은 아직 열려 있다(agreementState 와 같다)
-  /* NONE — 발행 시각이 지났는데 거래가 없는 달. 서버에는 Settlement 가 없는 달이다(프런트 표시용 상태 — 명세 6.6 에 없다).
-     발행 전이면 아직 거래가 들어올 수 있어 SCHEDULED('발급예정'·'청구 전')로 둔다. */
+  /* NONE — 발행 시각이 지났는데 거래가 없는(또는 0원 주문만 있는) 달. 서버에는 Settlement 가 없는 달이다(프런트 표시용 상태 — 명세 6.6 에
+     없다). 발행 전이면 아직 거래가 들어올 수 있어 SCHEDULED('발급예정'·'청구 전')로 둔다. */
   if (empty && !zeroEdited) status = st.issued ? "NONE" : "SCHEDULED";
   /* 발행 뒤 고쳐서 0원 — 마감까지 동의대기(동의는 받지 않는다 · open:false), 마감에 계산서 없이 닫힌다(명세 3.4 '마감 전 수정' 9).
-     동의·계산서·입금 칸은 비운다(명세 6.6 — 발급 때부터 0원인 달과 같은 모양). */
+     동의·계산서·입금 칸은 비운다(명세 6.6). */
   else if (zeroEdited) status = pastDeadline ? "PAID" : "AWAITING_AGREEMENT";
-  /* 발급 때부터 0원 — 발행과 함께 닫는다(명세 3.4 예외표 '발급 때 0원'). */
-  else if (zero) status = st.issued ? "PAID" : "SCHEDULED";
   else if (!st.mode) status = st.issued ? "AWAITING_AGREEMENT" : "SCHEDULED";
   else {
     mode = st.mode;
@@ -274,12 +275,11 @@ export function settlementOf(client, ym, now = new Date()) {
   const lockAt = st.issued ? editLockAt(ym, day) : null;
   /* NONE 은 잠글 정산이 없다(그 달로 들어오는 주문은 settlementImpactOf 가 막는다 — 사용자 답 3). */
   const editable = status === "SCHEDULED" || status === "NONE" || (status === "AWAITING_AGREEMENT" && now.getTime() < lockAt.getTime());
-  const zeroish = zero || zeroEdited;
   const lockReason = editable ? null
-    : zeroish ? LOCK_REASON.zero
+    : zeroEdited ? LOCK_REASON.zero
     : status === "AWAITING_AGREEMENT" ? LOCK_REASON.editLock
     : LOCK_REASON.agreed;
-  const lockShort = editable || zeroish ? null
+  const lockShort = editable || zeroEdited ? null
     : status === "AWAITING_AGREEMENT" ? LOCK_SHORT.editLock
     : LOCK_SHORT.agreed;
   const waiting = status === "AWAITING_AGREEMENT";
@@ -288,14 +288,14 @@ export function settlementOf(client, ym, now = new Date()) {
     period: ym, status,
     autoAgreeHold: waiting && !zeroEdited ? st.autoAgreeHold || null : null,
     /* 마감 때 보류였던 이유 — 마감 뒤 직접 동의해도 남는다(settlement-rules agreementState · 진행 기록용). 동의를 받지 않는
-       0원 달(두 갈래)·거래 없는 달은 null. 동의 전이면 autoAgreeHold 와 같다. */
-    heldAtDeadline: !zero && !zeroEdited && !empty ? st.heldAtDeadline || null : null,
+       고쳐서 0원인 달·내역서가 없는 달(NONE)은 null. 동의 전이면 autoAgreeHold 와 같다. */
+    heldAtDeadline: !zeroEdited && !empty ? st.heldAtDeadline || null : null,
     amount, count: list.filter((e) => e.kind === "order").length, feeCount: list.filter((e) => e.kind === "cancelFee").length,
-    empty, zero, group: st.group,
+    empty, group: st.group,
     issued: st.issued, open: waiting && !zeroEdited,
     issueAt: st.issueDate, deadline: st.deadline, dueAt: st.dueDate, overdueAt: overdueAt(ym),
     editLockAt: lockAt, editable, lockReason, lockShort,
-    agreedAt, mode, docDate: zeroish ? null : st.docDate,
+    agreedAt, mode, docDate: zeroEdited ? null : st.docDate,
     einvoice, einvoiceFail: mode && !einvoice ? fail : null,
     paidAt, paidBy,
     overdueFrom: einvoice && einvoice.at ? new Date(Math.max(overdueAt(ym).getTime(), (einvoice.recordedAt || einvoice.at).getTime())) : null,
@@ -307,7 +307,7 @@ export function settlementOf(client, ym, now = new Date()) {
     changed: issuedAmount != null && issuedAmount !== amount,
     changeCount: lines.length,
     zeroEdited,
-    zeroCloseAt: zeroEdited ? st.deadline : zero && st.issued ? st.issueDate : null,
+    zeroCloseAt: zeroEdited ? st.deadline : null,
     docStamp: waiting && st.issued && now.getTime() < lockAt.getTime(),
   };
 }
@@ -354,9 +354,12 @@ const ymOfAt = (s) => normAt(s).slice(0, 7);
  *           // orderBefore/orderAfter = 이 주문이 그 달에 보태는 금액 전 → 후. s = 지금(저장 전) settlementOf.
  *           // 취소한 주문의 삭제는 귀속월(배송일시의 달)도 delta 0 으로 들어간다 — 잠금 검사만 한다(명세 6.4).
  *   confirm: months[],   // 저장 전 확인 창을 띄울 달 — 명세서가 나갔고(issued) · 고칠 수 있고(editable) · 금액이 실제로 바뀐다(delta ≠ 0)
- *   lock: { ym, label, s, moved, isOld, reason, short } | null,
+ *   lock: { ym, label, s, moved, isOld, raise, reason, short } | null,
  *           // 막힌 달 — 잠긴 달(!editable · reason = lockReason) 또는 발행 시각이 지난 거래 없는 달로 들어옴
- *           // (NONE · reason = issuedEmptyReason — 사용자 답 3). 이동이면 옛 달 먼저, 삭제는 앞선 달(명세 6.4).
+ *           // (NONE · reason = issuedEmptyReason — 사용자 답 3) 또는 0원 주문만 있어 명세서를 내지 않은 달의 0원 주문 금액을 올림
+ *           // (NONE · reason = issuedZeroReason · isOld false · **raise true** — 2026-10-22 결정 B). 이동이면 옛 달 먼저, 삭제는 앞선 달(명세 6.4).
+ *           // raise = 배송일시는 그대로이고 금액만 그 달로 들어오는 막힘(위 셋째) — isOld 가 false 라 '들어오는 쪽' 으로 미리 막히지만
+ *           // 원인은 배송일시가 아니라 금액 칸이다. 배송일시 줄을 칠하는 화면은 moved 이거나 raise 가 아닐 때만 칠한다(admin-orders syncDeliv).
  *   cause: "create"|"remove"|"feeRemove"|"cancel"|"move"|"product"|"amount"|null,   // data/billing-entries causeOf
  *   moved: boolean,   // 배송일시가 다른 달로
  * }}
@@ -395,13 +398,19 @@ export function settlementImpactOf(stored, next, now = new Date()) {
   const confirm = months.filter((m) => m.s.issued && m.s.editable && m.s.status !== "NONE" && m.delta !== 0);
   let lock = null;
   for (const m of months) {
-    /* 거래 없는 달(NONE)은 그 달로 **들어오는** 주문만 막는다(사용자 답 3) — 나가는 쪽(옛 달)은 잠글 정산이 없다. */
+    /* 거래 없는 달(NONE)은 그 달로 **들어오는** 주문을 막는다(사용자 답 3) — 나가는 쪽(옛 달)은 잠글 정산이 없다. */
     const closedEmpty = m.s.status === "NONE" && !m.isOld;
-    if (closedEmpty || !m.s.editable) {
+    /* 0원 주문만 있던 달도 NONE 이라(2026-10-22 결정 B) 그 달에 있던 0원 주문의 **금액을 올리는** 저장도 막는다 — 받으면 내역서도 발급
+       안내(T3)도 없이 '발급 때 0원 → 지금 X원' 이 되고, 마감이 지났으면 그 시각에 자동 동의·발급된 꼴이 된다. 상품만 바꾸거나 다른 달로
+       옮기거나 지우는 것은 받는다(delta ≤ 0). 금액이 그 달로 **들어오는** 쪽이라 들어오는 주문처럼 다룬다(lock.isOld = false — 화면은
+       누르기 전부터 막고 이유를 그대로 말한다 · admin-orders preBlockOf · lockSentence). 단 원인은 금액 칸이라 `raise: true` 를 함께
+       단다 — 배송일시 줄이 '7월 · 명세서를 내지 않은 달' 로 빨갛게 칠해지면 고치지 않은 칸을 가리킨다(검증 2026-10-22). */
+    const zeroRaise = m.s.status === "NONE" && m.isOld && m.delta > 0;
+    if (closedEmpty || zeroRaise || !m.s.editable) {
       lock = {
-        ym: m.ym, label: m.label, s: m.s, moved, isOld: m.isOld,
-        reason: closedEmpty ? issuedEmptyReason(m.ym) : m.s.lockReason,
-        short: closedEmpty ? ISSUED_EMPTY_SHORT : m.s.lockShort || m.s.lockReason,
+        ym: m.ym, label: m.label, s: m.s, moved, isOld: zeroRaise ? false : m.isOld, raise: zeroRaise,
+        reason: closedEmpty ? issuedEmptyReason(m.ym) : zeroRaise ? issuedZeroReason(m.ym) : m.s.lockReason,
+        short: closedEmpty ? ISSUED_EMPTY_SHORT : zeroRaise ? ISSUED_ZERO_SHORT : m.s.lockShort || m.s.lockReason,
       };
       break;
     }
@@ -414,26 +423,39 @@ function entriesInclude(o, d) {
 }
 /**
  * 등록(B2B 등록 위저드 · 포털 접수)이 그 배송일시의 달로 주문을 넣을 수 있는가 — 막히면 settlementImpactOf 의 lock, 아니면 null.
- * 발행 시각이 지난 거래 없는 달(NONE)과 잠긴 달(동의된 달 · 수정 마감 지난 달 · 0원으로 닫는 달)을 막는다. 발행 전 달은 받는다.
+ * 발행 시각이 지난 거래 없는 달(NONE — 0원 주문만 있던 달도 · 2026-10-22 결정 B)과 잠긴 달(동의된 달 · 수정 마감 지난 달 · 고쳐서
+ * 0원으로 닫는 달)을 막는다. 발행 전 달은 받는다.
+ * **탈퇴한 거래처는 어느 달로도 받지 않는다**(2026-10-22 운영자 결정 A — 이유 WITHDRAWN_INTAKE_REASON · `withdrawn: true` ·
+ * `isOld: false` — 모양은 util/withdraw.js orderImpactOf 의 잠금과 같다: 화면은 `lock.reason` 을 그대로 쓴다). 화면은 이미 막는다
+ * (등록 위저드는 활성 거래처만 고르고 · 탈퇴 계정은 로그인할 수 없다) — 이 판정은 그 문이 바뀌어도 지키는 마지막 문이다.
  * `client` 는 거래처 레코드(또는 id), `deliverAt` 은 주문의 배송일시 문자열(어느 포맷이든).
  */
 export function intakeBlockOf(client, deliverAt, now = new Date()) {
   const clientId = typeof client === "string" ? client : client && client.id;
   if (!clientId || !normAt(deliverAt)) return null;
+  /* 탈퇴 여부는 **저장소의 지금 레코드**로 본다(들고 있던 사본은 탈퇴 처리 전일 수 있다). */
+  const rec = store.get().clients.find((c) => c.id === clientId);
+  if (rec && rec.status === WITHDRAWN) {
+    const ym = ymOfAt(deliverAt);
+    return {
+      ym, label: periodLabel(ym), s: settlementOf(rec, ym, now), moved: false, isOld: false, raise: false, withdrawn: true,
+      reason: WITHDRAWN_INTAKE_REASON, short: WITHDRAWN_INTAKE_SHORT,
+    };
+  }
   return settlementImpactOf(null, { id: "", clientId, deliverAt, amount: 0, status: "접수대기", product: "" }, now).lock;
 }
 
 /**
  * 미입금인 달인가 — **명세서가 나갔고**(발행 시각이 지남) · 입금 전이고 · 청구할 금액이 있는 달.
- * 동의 전(AWAITING_AGREEMENT — 보류 3종 포함)·계산서 발급 전(AGREED) 달도 센다 — 계산서 발급 여부와 무관하다
- * (2026-10-16 사용자 결정 A). 세지 않는 달: 아직 발행 전(SCHEDULED — 이번 달은 늘 여기) · 0원 달(발행과 함께 닫힌다) ·
- * 거래 없는 달(NONE) · 입금완료(PAID).
+ * 동의 전(AWAITING_AGREEMENT — 보류 2종 포함)·계산서 발급 전(AGREED) 달도 센다 — 계산서 발급 여부와 무관하다
+ * (2026-10-16 사용자 결정 A). 세지 않는 달: 아직 발행 전(SCHEDULED — 이번 달은 늘 여기) · 거래 없는 달(NONE — 0원 주문만 있는 달도) ·
+ * 발급 뒤 고쳐서 0원이 된 달(입금 없이 닫힌다) · 입금완료(PAID).
  * 관리자 정산회계 표 머리 '미입금' · 월간 분석(report.js — 화면 KPI '미입금액' · 정산 진행 현황 · 리포트 PDF) · 대쉬보드
  * KPI '미수금' · '정산 진행' 카드 '미입금' 이 **이 판정 하나**를 쓴다. 예전엔 셋이 달랐다 — 표 머리는 계산서가 나간 달
  * (ISSUED·OVERDUE)만, 리포트·대쉬보드는 `입금완료 !== "입금완료"` 라 아직 발행 전인 달까지 세어, 같은 9월을 다른 금액으로
  * 말했고 이번 달 '미수금' 은 그 달 청구 전액이었다. settlementOf 결과나 settlementsFor 행을 받는다.
  */
-export const isUnpaid = (s) => !!s && !!s.issued && !s.zero && !s.empty && s.status !== "PAID";
+export const isUnpaid = (s) => !!s && !!s.issued && !s.empty && !s.zeroEdited && s.status !== "PAID";
 
 /**
  * 한 거래처의 최근 6개월 정산 행(m=0 이 이번 달 귀속) = 바탕(귀속월·금액) + settlementOf.
@@ -445,15 +467,15 @@ export const isUnpaid = (s) => !!s && !!s.issued && !s.zero && !s.empty && s.sta
 export function settlementsFor(client, now = new Date()) {
   return settlementBaseRows(client).map((b) => {
     const s = settlementOf(client, b.ym, now);
-    /* 0원 달(발급 때부터 · 고쳐서 0원 모두)은 동의·계산서·입금이 없다 — 세 칸 모두 '해당없음'. 이 칸을 읽는 report.js ·
-       대쉬보드는 0원 달을 이미 빼고 센다(inSettlementFlow 와 같은 두 칸) — 숫자는 그대로다. */
-    const zeroish = (s.zero || s.zeroEdited) && s.issued;
+    /* 발급 뒤 고쳐서 0원이 된 달은 동의·계산서·입금이 없다 — 세 칸 모두 '해당없음'. 이 칸을 읽는 report.js · 대쉬보드는 그 달을
+       이미 빼고 센다(inSettlementFlow 와 같은 두 칸) — 숫자는 그대로다. 0원 주문만 있는 달은 거래 없는 달(NONE)이다(2026-10-22 결정 B). */
+    const zeroish = s.zeroEdited;
     const none = s.status === "NONE";
     return {
       ...b,
       ...s,
-      /* 0원으로 닫힌(닫히는) 달은 동의·계산서가 없다 — '해당없음'(배지 대신 '0원 · 계산서 없음' 을 찍는다). */
-      /* 거래가 없는 달(NONE)은 '거래없음' — 청구서가 없으니 입금완료도 미입금도 아니다. */
+      /* 고쳐서 0원으로 닫힌(닫히는) 달은 동의·계산서가 없다 — '해당없음'(배지 대신 '0원 · 계산서 없음' 을 찍는다). */
+      /* 거래가 없는 달(NONE — 0원 주문만 있는 달도)은 '거래없음' — 청구서가 없으니 입금완료도 미입금도 아니다. */
       거래명세서동의: none ? "거래없음" : zeroish ? "해당없음" : s.mode ? "동의완료" : !s.issued ? "발급예정" : "동의대기",
       계산서발급: none ? "거래없음" : zeroish ? "해당없음" : s.einvoice ? "발급완료" : "발급대기",
       /* '미입금' 은 isUnpaid 한 판정의 결과다(report.js 가 이 칸을 읽는다 — data 층이라 util 을 import 하지 않는다).
@@ -466,25 +488,26 @@ export function settlementsFor(client, now = new Date()) {
 export const settlementsMap = (clients, now = new Date()) =>
   Object.fromEntries(clients.map((c) => [c.id, settlementsFor(c, now)]));
 
-/** 조치가 필요한 이유들(없으면 빈 배열) — 보류 3종 · 계산서 발급 전(AGREED)에 머문 달 · 기한 초과 · 알림 수신자 없음. */
+/** 조치가 필요한 이유들(없으면 빈 배열) — 보류 2종 · 계산서 발급 전(AGREED)에 머문 달 · 기한 초과 · 알림 수신자 없음. */
 export function actionReasons(row) {
   if (!row) return [];
   const out = [];
   if (row.autoAgreeHold) out.push(row.autoAgreeHold);
   if (row.status === "AGREED") out.push("EINVOICE_PENDING");
   if (row.status === "OVERDUE") out.push("OVERDUE");
-  /* 청구할 것이 남은 달만 — 0원·입금 끝난 달은 알림을 보낼 일이 없다. */
-  if (row.noRecipient && !row.zero && !row.empty && row.status !== "PAID") out.push("NO_RECIPIENT");
+  /* 청구할 것이 남은 달만 — 거래 없는 달(0원 주문만 있는 달 포함)·고쳐서 0원·입금 끝난 달은 알림을 보낼 일이 없다. */
+  if (row.noRecipient && !row.empty && !row.zeroEdited && row.status !== "PAID") out.push("NO_RECIPIENT");
   return out;
 }
 
-/** 정산 절차(명세서 → 동의 → 계산서 → 입금)를 밟는 달인가 — 0원 달(발행과 함께 닫힘)과 거래 없는 달은 아니다.
- *  관리자 정산 진행 카드(report.js)와 대쉬보드 '정산 진행' 이 같은 판정을 쓴다(예전엔 둘이 달라 같은 9월을 다른 수로 말했다). */
-export const inSettlementFlow = (row) => !!row && !row.zero && !row.empty;
+/** 정산 절차(명세서 → 동의 → 계산서 → 입금)를 밟는 달인가 — 거래 없는 달(0원 주문만 있는 달 포함 · 내역서가 없다)과 발급 뒤 고쳐서
+ *  0원이 된 달(계산서 없이 닫힘)은 아니다. 관리자 정산 진행 카드(report.js)와 대쉬보드 '정산 진행' 이 같은 판정을 쓴다(예전엔 둘이 달라
+ *  같은 9월을 다른 수로 말했다). */
+export const inSettlementFlow = (row) => !!row && !row.empty && !row.zeroEdited;
 
 /** 문서의 '계산서 발행' 칸 낱말(S-02 시안 · 상태별) — settlementOf 결과나 settlementsFor 행을 받는다.
  *  동의 여부가 아니라 **계산서가 실제로 나갔는지**를 말한다.
- *  발행 전 '발행 전' · 거래 없음 '해당 없음' · 0원 '해당 없음(0원)' · 동의대기 '발급대기 · 동의 후 발급' ·
+ *  발행 전 '발행 전' · 거래 없음(0원 주문만 있는 달도 — 2026-10-22 결정 B) '해당 없음' · 고쳐서 0원 '해당 없음(0원)' · 동의대기 '발급대기 · 동의 후 발급' ·
  *  동의했지만 계산서 전(AGREED — 발급 실패·재시도) '발급 중' · 계산서가 나간 달(ISSUED·OVERDUE·PAID) '발급완료'.
  *  ⚠️ 발행 전이 거래 없음보다 먼저다 — 주문이 아직 0건인 이번 달도 '발행 전' 이다(2026-10-16 결정 D: 관리자·포털 정산회계가
  *     이미 '발행 전 · M월 D일 10:00 발급' 이라고 말한다). '해당 없음' 은 발행 시각이 지났는데 거래가 없는 달(NONE)뿐이다.
@@ -496,8 +519,7 @@ export const invoiceDocNoteOf = (s) => (
   !s ? INVOICE_NOTE.wait
     : s.status === "SCHEDULED" ? INVOICE_NOTE.scheduled
     : s.zeroEdited ? INVOICE_NOTE.zero
-    : s.empty ? INVOICE_NOTE.none
-    : s.zero ? INVOICE_NOTE.zero
+    : s.status === "NONE" || s.empty ? INVOICE_NOTE.none
     : s.status === "AWAITING_AGREEMENT" ? INVOICE_NOTE.awaiting
     : s.status === "AGREED" ? INVOICE_NOTE.issuing
     : INVOICE_NOTE.done
@@ -508,40 +530,48 @@ export const needsAction = (row) => actionReasons(row).length > 0;
 /* S-04·S-05 — 약관 동의 전 거래처의 명세서 일정(거래처 목록 한 줄 · 정보 창 배너 · 대쉬보드 약관 경고).
    (첫 달만 보던 `firstStatementOf` 는 대쉬보드가 이 함수로 옮겨 호출부가 없어져 지웠다 — 2026-10-16 통합 점검) */
 /**
- * 약관 동의 전 거래처의 **명세서 일정 경고**. 약관에 동의했거나(termsPending 이 아니면) 주문이 없으면 null.
+ * 약관 동의 전 거래처의 **명세서 일정 경고**. 약관에 동의했거나(termsPending 이 아니면 — 탈퇴한 거래처도 여기 들지 않는다) 명세서가
+ * 나갈 달이 없으면(주문이 없거나 0원 주문만 있다 — 2026-10-22 결정 B) null.
  * 상태는 settlementOf 에서 끌어온다 — 화면이 날짜로 상태를 짐작하지 않는다(명세 6.6).
  * - held: 약관 동의 전에 마감이 지나 **자동 동의하지 않은** 달들(autoAgreeHold TERMS_NOT_AGREED · 오래된 순)
  *   `[{ ym, label, issueAt, deadline, first }]`. 그 달은 마감 뒤에도 수동 동의를 기다린다(명세 3.4 예외표) — 그래서
  *   거래처가 약관에 동의할 때까지 경고를 남긴다(운영자 결정 6).
  * - next: 그 밖에 아직 마감 전인 가장 이른 달 — `{ ym, label, issueAt, deadline, dDay, phase: "before"|"open", first }` 또는 null.
- *   first = 그 달이 첫 명세서(거래가 있는 가장 이른 귀속월 — 배송일의 달 또는 수수료 취소의 취소한 달)인가 ·
- *   dDay = 오늘 → 발급일의 달력일 차. 0원으로 닫힌 첫 달(가입 혜택 '1회 무료')은 건너뛰므로 next 가 첫 달이 아닐 수 있다.
+ *   first = 그 달이 첫 명세서(명세서가 나갈 가장 이른 귀속월 — 배송일의 달 또는 수수료 취소의 취소한 달 · **0원 주문만 있는 달은
+ *   세지 않는다** — 내역서를 내지 않는다 · 2026-10-22 결정 B · 그래서 가입 혜택 '1회 무료' 만 있던 첫 달 다음 달이 '첫 명세서' 다) ·
+ *   dDay = 오늘 → 발급일의 달력일 차. 고쳐서 0원으로 닫힌 첫 달은 건너뛰므로 next 가 첫 달이 아닐 수 있다.
  * - hot: next 가 7일 이내 발급이거나 발급 뒤 마감 전 · 또는 held 가 있다(마감이 지나도 약관 동의 전이면 남는다).
- * - firstZero: 첫 달(거래가 있는 가장 이른 귀속월)이 0원으로 **닫혔으면** `{ ym, label }`, 아니면 null(S-05 '첫 달(M월분)은
- *   0원이라 계산서 없이 닫혔습니다'). 0원 달(발급 때부터 · 고쳐서 0원)은 동의 대상이 아니라 held·next 어디에도 넣지 않는다 —
- *   고쳐서 0원이 된 달(마감 전 AWAITING · 동의 버튼 없음)을 '동의 기다리는 달' 로 경고하면 거짓 경고다.
+ * - firstZero: 첫 명세서 달이 발급 뒤 고쳐서 0원이 되어 **닫혔으면** `{ ym, label }`, 아니면 null(S-05 '첫 달(M월분)은 0원이라 계산서
+ *   없이 닫혔습니다'). 고쳐서 0원이 된 달은 동의 대상이 아니라 held·next 어디에도 넣지 않는다 — 그 달(마감 전 AWAITING · 동의 버튼
+ *   없음)을 '동의 기다리는 달' 로 경고하면 거짓 경고다. 0원 주문만 있는 달은 내역서가 없어 처음부터 세지 않는다(위 first).
  * 거래처 목록(S-04)과 대쉬보드 약관 경고(S-05)가 **같은 이 판정**을 쓴다 — 예전엔 대쉬보드가 첫 달만 보는 별도 판정이라
  * 첫 달이 0원으로 닫힌 거래처를 목록은 'D-4' 로 경고하는데 대쉬보드는 놓쳤다(2026-10-16 통합 점검 실측).
  */
 export function termsWatchOf(client, now = new Date()) {
-  if (!client || !termsPending(client)) return null;
+  if (!client || !termsPending(client) || client.status === WITHDRAWN) return null;
   const m = index().get(client.id);
-  const yms = m ? [...m.keys()].filter((ym) => m.get(ym).length).sort() : [];
+  /* 명세서가 나갈(나간) 달만 — 내역서가 없는 달(0원 주문만 · 2026-10-22 결정 B)은 뺀다. 고쳐서 0원이 된 달은 내역서가 나갔으니 남긴다. */
+  const sOf = new Map();
+  const yms = (m ? [...m.keys()].filter((ym) => m.get(ym).length).sort() : []).filter((ym) => {
+    const s = settlementOf(client, ym, now);
+    sOf.set(ym, s);
+    return !s.empty || s.zeroEdited;
+  });
   if (!yms.length) return null;
   const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const held = [];
   let next = null;
   let firstZero = null;
   yms.forEach((ym) => {
-    const s = settlementOf(client, ym, now);
-    if ((s.zero || s.zeroEdited) && s.status === "PAID" && ym === yms[0]) firstZero = { ym, label: periodLabel(ym) };
+    const s = sOf.get(ym);
+    if (s.zeroEdited && s.status === "PAID" && ym === yms[0]) firstZero = { ym, label: periodLabel(ym) };
     if (s.autoAgreeHold === "TERMS_NOT_AGREED") {
       held.push({ ym, label: periodLabel(ym), issueAt: s.issueAt, deadline: s.deadline, first: ym === yms[0] });
       return;
     }
     if (next) return;
-    /* 0원 달(닫혔든 마감 전이든)·동의된 달은 동의를 기다리지 않는다 — 다음 후보로 넘어간다. */
-    if (s.zero || s.zeroEdited) return;
+    /* 고쳐서 0원이 된 달(닫혔든 마감 전이든)·동의된 달은 동의를 기다리지 않는다 — 다음 후보로 넘어간다. */
+    if (s.zeroEdited) return;
     if (s.status !== "SCHEDULED" && !(s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold)) return;
     const d1 = new Date(s.issueAt.getFullYear(), s.issueAt.getMonth(), s.issueAt.getDate());
     next = {
@@ -556,36 +586,43 @@ export function termsWatchOf(client, now = new Date()) {
 /* ── 포털 거래명세서의 달 (예전 invoice-mock 의 자리 · 시그니처 그대로) ─────────────────────── */
 /** 명세서 발행일 표기("2026년 09월 15일") — **그 귀속월에 유효했던** 발급일로. */
 const issueOf = (client, ym) => fmtKo(issueDate(ym, invoiceDayFor(client, ym)));
-/** 한 달치. 없는 달도 빈 껍데기를 돌려준다(호출부가 null 분기를 하지 않게). */
-export function invoiceMonth(client, ym) {
-  const rows = billingRowsOf(client, ym);
+/** 한 달치. 없는 달도 빈 껍데기를 돌려준다(호출부가 null 분기를 하지 않게). 0원 주문만 있는 달은 내역서가 없어 **거래 없는 달과
+ *  같은 빈 껍데기**다(2026-10-22 결정 B — settlementOf 의 empty · 발급 뒤 고쳐서 0원이 된 달은 남은 줄을 그대로 싣는다). */
+export function invoiceMonth(client, ym, now = new Date()) {
+  const noStatement = !!client && (() => { const s = settlementOf(client, ym, now); return s.empty && !s.zeroEdited; })();
+  const rows = noStatement ? [] : billingRowsOf(client, ym);
   /* count = **주문** 건수 — 취소 수수료 줄은 세지 않는다(settlementOf.count · usageFor.orders · 관리자 '주문 건수' 와 같은 규칙).
      줄 수로 세면 수수료가 있는 달만 화면마다 건수가 갈렸다. 수수료 줄의 표기는 디자이너 몫(운영자 결정 1)이라 여기서는 세지만 않는다. */
-  const count = client ? entriesOf(client.id, ym).filter((e) => e.kind === "order").length : 0;
+  const count = client && !noStatement ? entriesOf(client.id, ym).filter((e) => e.kind === "order").length : 0;
   /* fees = 취소 수수료 줄 수(settlementOf.feeCount 와 같다 — S-02 '거래 10건 · 수수료 1건'). 더하기만 한 칸이다. */
-  const fees = client ? entriesOf(client.id, ym).filter((e) => e.kind === "cancelFee").length : 0;
+  const fees = client && !noStatement ? entriesOf(client.id, ym).filter((e) => e.kind === "cancelFee").length : 0;
   return { ym, rows, issue: rows.length ? issueOf(client, ym) : "", count, fees, total: rows.reduce((a, r) => a + r[4], 0), empty: !rows.length };
 }
 /** 한 해를 12칸으로. **거래가 없는 달도 칸을 만든다**(빈 해로 가면 12칸 모두 empty). */
-export function monthsOf(client, year) {
-  return MONTHS.map((mm) => ({ ...invoiceMonth(client, `${year}-${mm}`), mm }));
+export function monthsOf(client, year, now = new Date()) {
+  return MONTHS.map((mm) => ({ ...invoiceMonth(client, `${year}-${mm}`, now), mm }));
 }
 /** 화면의 기본 선택월("YYYY-MM") — 거래가 있는 달 중 **명세서가 이미 발행된** 가장 최근 달.
  *  주문이 정산과 이어진 뒤(2026-10-16)로는 이번 달에도 거의 늘 거래가 있어서 '거래가 있는 가장 최근 달'만 보면
  *  아직 발행 전이라 네 버튼이 모두 잠긴 이번 달이 열린다 — 거래처가 보러 오는 것은 받은 명세서다.
  *  발행된 달이 없으면(첫 명세서 전) 오늘이 속한 달까지 중 거래가 있는 가장 최근 달, 그것도 없으면 지난달.
+ *  '거래가 있는 달' 에 0원 주문만 있는 달은 들지 않는다(내역서가 없다 — 2026-10-22 결정 B).
  *  다음 달 이후 배송 예약만 있는 달은 기본으로 열지 않는다(명세 6.6 · 2026-10-15 귀속월 배송일 기준). ⚠️ 상수로 박지 말 것. */
 export function latestInvoiceKey(client, now = new Date()) {
   const cur = periodOf(now);
   const m = client ? index().get(client.id) : null;
-  const keys = m ? [...m.keys()].filter((k) => k <= cur && m.get(k).length).sort() : [];
+  /* 거래가 있는 달 — 0원 주문만 있는 달은 내역서가 없어 빼고(2026-10-22 결정 B), 고쳐서 0원이 된 달은 받은 명세서가 있어 남긴다. */
+  const keys = m ? [...m.keys()].filter((k) => k <= cur && m.get(k).length).filter((k) => {
+    const s = settlementOf(client, k, now);
+    return !s.empty || s.zeroEdited;
+  }).sort() : [];
   const issued = keys.filter((k) => issueDate(k, invoiceDayFor(client, k)) <= now);
   return issued.pop() || keys.pop() || periodOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 }
 
 /* ── 쓰기 — 상태를 settlementOf 로 한 번 더 거른 뒤 store 에 기록한다 ─────────────────────── */
 /* (예전 `agreementFor` — 동의 상태 + 0원 여부 — 는 포털 거래명세서가 settlementOf 로 옮겨 호출부가 없어져 지웠다.
-   0원 달은 동의를 받지 않는다는 규칙은 settlementOf(zero → PAID · 고쳐서 0원 → open:false) 와 store.agreeInvoice
+   0원 달은 동의를 받지 않는다는 규칙은 settlementOf(0원 주문만 → NONE · 고쳐서 0원 → open:false) 와 store.agreeInvoice
    (보여 준 금액도 0 → null) 가 지킨다.) */
 /** 기한 초과가 규칙상 시각(정산기한 다음 날 10:00)보다 **늦게** 시작한 까닭 — null(제때 · 기한 초과 전) · "issue"(계산서가 정산기한 뒤에
  *  발급됐다 — 다시 시도 · 늦은 동의) · "record"(직접 입력을 정산기한 뒤에 **기록**했다 — 적은 발급 시각은 그 전이어도 안내 T6·T8 은
@@ -601,9 +638,9 @@ export const OVERDUE_LATE_WORD = {
   issue: "계산서가 정산기한 뒤에 발급돼 발급 순간부터",
   record: "직접 입력을 정산기한 뒤에 기록해 기록한 순간부터",
 };
-/** 마감 전인데 **이대로면 보류**(고지 미도달 · 정지 중 마감)가 잡힐 달 — `notice.hold`(settlement-rules `noticeState`) 예측. 그런 달에
+/** 마감 전인데 **이대로면 보류**(고지 미도달)가 잡힐 달 — `notice.hold`(settlement-rules `noticeState`) 예측. 그런 달에
  *  '마감까지 동의가 없으면 그 시각에 자동 동의됩니다' 라고 단정하지 않는다(관리자 정산회계 · 포털 거래명세서 · 포털 정산회계가 같은 판정 ·
- *  2026-10-19 검토 9). 아직 오지 않은 시각(마감 당일 10:00 · 마감 13:00)의 상태는 지금 상태로 본다. 보류는 마감 시각에 정해지므로
+ *  2026-10-19 검토 9). 보류는 마감 시각에 정해지므로
  *  settlementOf 의 autoAgreeHold 는 마감 뒤에야 선다 — 그 전 예측이 이것이다. 고쳐서 0원인 달은 동의를 받지 않아 해당 없음. */
 export const holdPendingOf = (s) => !!s && s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold && !s.zeroEdited && !!(s.notice && s.notice.hold);
 

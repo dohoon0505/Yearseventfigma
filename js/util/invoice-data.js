@@ -56,7 +56,9 @@ function itemOf(e) {
  */
 export function invoiceDocData(client, ym, now = new Date()) {
   const s = settlementOf(client, ym, now);
-  const entries = billingEntriesOf(client, ym);
+  /* 내역서가 없는 달(거래가 없거나 **0원 주문만** 있다 — 2026-10-22 운영자 결정 B)은 거래 없는 달 문서다('해당 월의 거래 내역이 없습니다').
+     발급 뒤 고쳐서 0원이 된 달은 받은 명세서가 있어 남은 줄을 그대로 싣는다. */
+  const entries = s.empty && !s.zeroEdited ? [] : billingEntriesOf(client, ym);
   const name = displayName(client, sharedBizKeys(store.get().clients));
   const total = entries.reduce((a, e) => a + e.amount, 0);
   const items = entries.length

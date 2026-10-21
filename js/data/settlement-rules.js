@@ -180,8 +180,9 @@ export function agreementState({ period, invoiceDay, manualAt = null, termsAt, h
   const manual = manualAt instanceof Date ? manualAt : parseAt(manualAt);
   const terms = termsAt === undefined ? undefined : termsAt instanceof Date ? termsAt : parseAt(termsAt);
   const termsOk = terms === undefined || (!!terms && terms.getTime() <= deadline.getTime());
-  /* 잠정 보류(Q19 고지 미도달 · Q20 정지 중 마감)는 약관 보류처럼 **그 달의 자동 동의만** 막는다 — 수동 동의는 받는다.
-     약관 보류가 먼저다(의제 조항 자체가 없다). 모르는 값은 보류로 치지 않는다. */
+  /* 잠정 보류(Q19 고지 미도달)는 약관 보류처럼 **그 달의 자동 동의만** 막는다 — 수동 동의는 받는다.
+     약관 보류가 먼저다(의제 조항 자체가 없다). 모르는 값은 보류로 치지 않는다 — 옛 저장본의 'CLIENT_SUSPENDED'(정지 중 마감 ·
+     2026-10-22 운영자 결정으로 '정지' 체계를 없앴다)도 여기서 무시된다. */
   const heldBy = HOLD_CODES.includes(hold) && hold !== "TERMS_NOT_AGREED" ? hold : null;
   const past = now.getTime() > deadline.getTime();
   let mode = null, at = null;
@@ -199,7 +200,7 @@ export function agreementState({ period, invoiceDay, manualAt = null, termsAt, h
     issued, open: issued && mode === null, mode, at,
     /* 마감이 지났는데 약관 동의 전이라 자동 동의하지 않은 달 — 화면이 이유를 말할 수 있게 */
     termsHold: !manual && !termsOk && past,
-    /* 마감이 지났는데 자동 동의하지 않은 이유(명세 6.6 `autoAgreeHold`) — 보류 3종 중 하나, 아니면 null */
+    /* 마감이 지났는데 자동 동의하지 않은 이유(명세 6.6 `autoAgreeHold`) — 보류 2종(약관 동의 전 · 고지 미도달) 중 하나, 아니면 null */
     autoAgreeHold,
     heldAtDeadline,
     docDate: mode ? docDate(period, day, at) : (day <= 10 ? periodEnd(period) : null),
@@ -241,110 +242,84 @@ export const LOCK_SHORT = {
 };
 /** 발행 시각이 지났는데 거래가 없던 달(NONE)로는 등록·배송일 이동을 받지 않는다(2026-10-16 사용자 답 3) — 그 이유.
  *  그 달로 주문이 들어오면 명세서·발급 안내(T3) 없이 '발급 때 0원 → 지금 X원' 이 되고, 마감이 지났으면 주문이 생기기 전
- *  시각에 자동 동의된 꼴이 된다. 발행 전 달(이번 달·다음 달)은 그대로 받는다. 판정은 util/settlement `settlementImpactOf`. */
+ *  시각에 자동 동의된 꼴이 된다. 발행 전 달(이번 달·다음 달)은 그대로 받는다. 판정은 util/settlement `settlementImpactOf`.
+ *  0원 주문만 있던 달도 NONE 이다(2026-10-22 운영자 결정 B — 내역서를 내지 않는다) — 그 달로 들어오는 주문도 이 이유로 막는다
+ *  (그 달에 있던 0원 주문의 금액을 올리는 저장은 아래 issuedZeroReason). */
 export const issuedEmptyReason = (period) => `${splitPeriod(period).m1}월은 명세서 발행이 지난 달입니다 — 배송일을 확인해 주세요`;
 /** 위 이유의 짧은 말(칸 옆 한 줄용). 정본은 issuedEmptyReason. */
 export const ISSUED_EMPTY_SHORT = "명세서 발행이 지난 달";
-/** 자동 동의 보류 3종(명세 6.6 `autoAgreeHold`) → 관리자 정산 표 낱말. 잠정 둘(Q19·Q20)은 외부 답에 따라 빠질 수 있다. */
+/** 0원 주문만 있어 명세서를 내지 않은 달(NONE — 2026-10-22 운영자 결정 B)에서 그 달에 있던 0원 주문의 금액을 올리는 저장을 막는 이유.
+ *  받으면 명세서·발급 안내(T3) 없이 '발급 때 0원 → 지금 X원' 이 된다(위 issuedEmptyReason 과 같은 까닭). 판정은 util/settlement
+ *  `settlementImpactOf`. 상품만 바꾸거나 다른 달로 옮기거나 지우는 것은 받는다. */
+export const issuedZeroReason = (period) => `${splitPeriod(period).m1}월은 0원 주문만 있어 명세서를 내지 않은 달입니다 — 금액을 올릴 수 없습니다`;
+/** 위 이유의 짧은 말. 정본은 issuedZeroReason. */
+export const ISSUED_ZERO_SHORT = "명세서를 내지 않은 달";
+/** 탈퇴한 거래처로는 새 주문(등록 위저드 · 포털 접수)을 받지 않는 이유(2026-10-22 운영자 결정 A — 탈퇴는 되돌리지 않는다 ·
+ *  끝나지 않은 정산이 없을 때만 받았으므로 새 주문이 들어오면 로그인할 수 없는 거래처에 명세서·자동 동의가 걸린다).
+ *  판정은 util/settlement `intakeBlockOf`. 화면은 이미 막는다(등록 위저드는 활성 거래처만 고르고 · 탈퇴 계정은 로그인할 수 없다) —
+ *  이 이유는 그 문이 바뀌어도 지키는 마지막 문이다. 이미 있는 주문을 고치는 길은 util/withdraw.js `orderImpactOf` 가 막는다. */
+export const WITHDRAWN_INTAKE_REASON = "탈퇴한 거래처라 새 주문을 받을 수 없습니다 — 다시 쓰려면 새로 가입합니다";
+/** 위 이유의 짧은 말. 정본은 WITHDRAWN_INTAKE_REASON. */
+export const WITHDRAWN_INTAKE_SHORT = "탈퇴한 거래처";
+/** 자동 동의 보류 2종(명세 6.6 `autoAgreeHold`) → 관리자 정산 표 낱말. 잠정 하나(Q19 고지 미도달)는 외부 답에 따라 빠질 수 있다.
+ *  (예전 셋째 'CLIENT_SUSPENDED' 정지 중 마감(Q20)은 2026-10-22 운영자 결정 A — '정지' 체계를 없애고 '탈퇴' 를 둔다 — 로 지웠다.
+ *  탈퇴는 끝나지 않은 정산이 있으면 할 수 없어서 '로그인 못 하는 거래처의 자동 동의' 가 생기지 않는다.) */
 export const HOLD_LABEL = {
   TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",
   NOTICE_UNDELIVERED: "고지 미도달 · 자동 동의 보류",
-  CLIENT_SUSPENDED: "정지 중 마감 · 자동 동의 보류",
 };
 export const HOLD_CODES = Object.keys(HOLD_LABEL);
 
-/* ── 거래처 상태 이력 · 정산 안내(T3·T4)의 도달 (2026-10-19 사용자 결정 '정지 이력을 남긴다' · 명세 3.4 '잠정 보류 두 가지' ·
-      9.4 T3·T4 · 10.4 Q19·Q20·Q35) ──────────────────────────────────────────────────────────────────────────── */
-/** 이용 정지 상태 낱말(거래처 레코드 `status`). */
-export const SUSPENDED = "정지";
+/* ── 정산 안내(T3·T4)의 도달 (명세 3.4 '잠정 보류' · 9.4 T3·T4 · 10.4 Q19) ──────────────────────────────────────────
+   2026-10-19 에 넣은 거래처 상태 이력(statusLog · statusAt · 정지 중 T3·T4 빼기 · 정지 중 마감 보류)은 2026-10-22 운영자 결정 A 로
+   모두 지웠다 — 거래처 상태는 활성 · 승인대기 · 반려 · 탈퇴 넷이고 '정지' 는 없다. 남은 것은 발송 실패(고지 미도달)뿐이다. */
 /** 마감 당일 다시 보내는 시각 — 동의 마감 **날짜의 10:00**(마감 13:00 의 세 시간 전). T4 가 닿지 않은 달은 이 시각에 그때의
  *  정산·회계 담당자에게 한 번 더 보낸다(명세 3.4 '잠정 보류' 1 · 2차 답 N20 ① — 운영자 확인). */
 export function noticeResendAt(period, day) {
   const d = agreeDeadline(period, day);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), ISSUE_HOUR, 0, 0, 0);
 }
-/** 상태 이력 한 줄이 **일어난 시각** — 'YYYY-MM-DD HH:mm' 은 초를 버린 기록이라 **그 분의 끝**(HH:mm:59.999)에 일어난 것으로 본다
- *  (2026-10-19 검토). 13:00:40 에 정지하면 '13:00' 으로 남는데, 13:00:00 마감(자동 동의)과 10:00:00 안내(T3·T4)는 그 전에 이미
- *  지났다 — 분의 처음으로 보면 마감 직후 정지가 이미 자동 동의·발급된 달을 소급해 '정지 중 마감' 으로 뒤집었다(실측). */
-const STATUS_LINE_END_MS = 59999;
-export const statusLineTime = (e) => {
-  const d = e && parseAt(e.at);
-  return d ? d.getTime() + STATUS_LINE_END_MS : null;
-};
-/**
- * 그 시각의 거래처 상태("활성"·"정지"·"승인대기"·"반려"). 이력은 `client.statusLog = [{ at: "YYYY-MM-DD HH:mm", from, to }]`
- * (store.updateClient 가 상태가 바뀔 때마다 쌓는다 — invoiceDayLog 와 같은 자리).
- *   → **`date` 보다 뒤에 일어난 첫 이력 줄의 from**, 그런 줄이 없으면 **레코드의 지금 상태**.
- * from 으로 읽는 까닭: 새 줄의 from 은 늘 그 순간 저장소의 실제 직전 상태다(store `withStatusLog`). 앞 줄의 to 로 읽으면 사슬이
- * 끊긴 이력(옛 저장본에 시드 이력이 얹힌 경우 — 시드 줄은 '정지' 로 끝나는데 저장된 상태는 '활성')에서 두 줄 사이가 통째로
- * '정지' 로 읽혀, 다음 상태 변경 때 지난 달이 소급해 '정지 중 마감' 으로 바뀌었다(2026-10-19 검토 실측 — 9월 발급완료 → 동의대기).
- * **이력이 없으면 지금 상태가 내내 이어진 것**으로 본다 — 그래서 저장소는 이력 없이 '활성' 이 아닌 레코드에 hydrate 때 한 줄
- * ('그 순간까지 활성')을 붙인다(store `hydrateClient` — 붙이지 않으면 이력 없는 '정지' 거래처의 지난 달이 모두 소급해 보류된다).
- * 줄 시각은 그 분의 끝이다(`statusLineTime`) — **같은 분 안의 `date` 는 바뀌기 전 상태**를 돌려준다. 그래서 '지금 정지 중인가' 는
- * 이 함수가 아니라 레코드의 `status` 로 볼 것(방금 정지한 그 1분 동안 statusAt(now) 는 아직 '활성' 이다).
- * ⚠️ 정지 판정(마감 때 정지 · 안내를 보내는 시각에 정지)은 이 함수 하나를 지난다 — `client.status` 로 과거 달을 가르면 정지를
- *    풀거나 거는 순간 지난 달의 보류·안내 기록이 소급해 바뀐다(발급일 이력과 같은 함정).
- */
-export function statusAt(client, date) {
-  const cur = (client && client.status) || "활성";
-  if (!(date instanceof Date)) return cur;
-  const raw = client && Array.isArray(client.statusLog) ? client.statusLog : [];
-  const t = date.getTime();
-  const next = raw.map((e, i) => ({ e, i, t: statusLineTime(e) })).filter((x) => x.t != null && x.t > t)
-    .sort((a, b) => a.t - b.t || a.i - b.i)[0];
-  return next ? next.e.from || cur : cur;
-}
 /**
  * 한 (거래처, 귀속월)의 정산 안내 도달 — 명세서 발급 안내(T3) · 마감 하루 전 안내(T4) · 마감 당일 다시 보내기 — 와 그 결과로
  * **마감에 잡힐 자동 동의 보류**. 시각은 고정이라(발급일 10:00 · 수정 마감 = 마감 전날 10:00 · 마감 당일 10:00 · 마감 13:00)
  * `now` 를 받지 않는다 — 화면은 `at ≤ now` 인 것만 보인다.
- *   · 정지 중에는 T3·T4 를 보내지 않는다 — '정지 중' 은 **그 알림을 보내는 시각**의 상태(Q35 ② 잠정). T6~T8 은 평소대로(① 잠정).
- *     보내는 시각(10:00:00)과 같은 분에 기록된 정지·해제는 그 뒤에 일어난 것으로 친다(statusLineTime — 09:59 정지면 못 보내고
- *     10:00 정지면 보낸다 · 마감도 같다: 12:59 정지면 정지 중 마감, 13:00 정지면 아니다).
- *   · T4 가 닿지 않은 달(고지 미도달 기록 `undelivered` — 발송 실패의 데모 대역 · 정지라서 보내지 않음)은 마감 당일 10:00 에
- *     다시 보낸다(Q19 잠정 · 정지라서 못 보낸 달은 Q35 ③ — 2026-10-19 운영자 확인). 그 시각에 정지가 아니고 정산 담당 연락처가 있으면 닿은 것(데모 규칙), 아니면 고지 미도달.
- *   · 마감 13:00 에 정지면 CLIENT_SUSPENDED(Q20) — 고지 미도달보다 먼저다. 약관 보류는 agreementState 가 더 먼저 본다.
+ *   · T4 가 닿지 않은 달(고지 미도달 기록 `undelivered` — 발송 실패의 데모 대역 · store.holds)은 마감 당일 10:00 에 다시 보낸다(Q19 잠정).
+ *     데모에서는 그 기록이 있는 달의 다시 보내기도 닿지 않은 것으로 친다(발송 로그가 없다) → 마감에 고지 미도달(NOTICE_UNDELIVERED) 보류.
+ *     약관 보류는 agreementState 가 먼저 본다.
  *   · ⚠️ **의도한 데모 차이**(명세 3.4 예외표는 '받을 사람 없음 → 다시 보내고 보류' 다 — 이 차이는 같은 예외표에 '데모 차이' 로 적어 두었다 · 2026-10-19 검토 8):
- *     연락처가 비어 T4 가 닿지 않은 달(정지도 발송 실패 기록도 없음)은 다시 보내지 않고 **보류로 치지 않는다** — 데모에는 담당자
+ *     연락처가 비어 T4 가 닿지 않은 달(발송 실패 기록 없음)은 다시 보내지 않고 **보류로 치지 않는다** — 데모에는 담당자
  *     연락처 이력이 없어 지금 연락처로 가르면 지난 달 자동 동의가 소급해 풀린다(정산 담당 연락처는 비울 수 없다 — M52 · 생기면
- *     데이터 오류). 반대로 정지·발송 실패로 T4 가 빠진 달의 **마감 당일 다시 보내기는 지금 연락처로** 닿는지 가른다(reach) —
- *     그 시각이 지나면 결과가 굳어야 하는데 연락처를 나중에 비우면 그 달이 NOTICE_UNDELIVERED 로 바뀐다(같은 데이터 오류 대비 · 소급 위험은 받아들였다).
- *   · 0원 달(T3·T4 없음 — N20 ⓔ · Q21)은 금액을 아는 쪽(util/settlement)이 가린다. 여기는 금액을 모른다.
- * @param {{ period, invoiceDay, client, reach?: boolean, undelivered?: boolean, manualAt?: Date|string|null }} o
+ *     데이터 오류).
+ *   · 0원 달(T3·T4 없음)은 이제 거래 없는 달(NONE — 2026-10-22 결정 B)이라 금액을 아는 쪽(util/settlement)이 화면에서 뺀다.
+ *     발급 뒤 고쳐서 0원이 된 달의 T4 도 그쪽이 가린다. 여기는 금액을 모른다.
+ * @param {{ period, invoiceDay, reach?: boolean, undelivered?: boolean, manualAt?: Date|string|null }} o
  *   reach = 정산·회계 담당자가 있고 연락처가 있다 · undelivered = 고지 미도달(발송 실패) 기록이 있는 달 · manualAt = 직접 동의 시각
  * @returns {{ issueAt, editLockAt, resendAt, deadline,
- *   t3: { at, sent, why: null|"SUSPENDED"|"NO_RECIPIENT" },
- *   t4: null|{ at, sent, why: null|"SUSPENDED"|"UNDELIVERED"|"NO_RECIPIENT" },      // null = 수정 마감 전에 직접 동의해 T4 가 없다
- *   resend: null|{ at, reached, why: null|"SUSPENDED"|"UNDELIVERED"|"NO_RECIPIENT" }, // null = 다시 보낼 일이 없다
- *   suspendedAtDeadline: boolean, hold: null|"CLIENT_SUSPENDED"|"NOTICE_UNDELIVERED" }}
+ *   t3: { at, sent, why: null|"NO_RECIPIENT" },
+ *   t4: null|{ at, sent, why: null|"UNDELIVERED"|"NO_RECIPIENT" },      // null = 수정 마감 전에 직접 동의해 T4 가 없다
+ *   resend: null|{ at, reached, why: null|"UNDELIVERED" },              // null = 다시 보낼 일이 없다
+ *   hold: null|"NOTICE_UNDELIVERED" }}
  */
-export function noticeState({ period, invoiceDay, client, reach = true, undelivered = false, manualAt = null }) {
+export function noticeState({ period, invoiceDay, reach = true, undelivered = false, manualAt = null }) {
   const day = invoiceDayOf({ invoiceDay });
   const issueAt = issueDate(period, day);
   const lockAt = editLockAt(period, day);
   const resendAt = noticeResendAt(period, day);
   const deadline = agreeDeadline(period, day);
   const manual = manualAt instanceof Date ? manualAt : parseAt(manualAt);
-  const susp = (d) => statusAt(client, d) === SUSPENDED;
-  const t3 = susp(issueAt) ? { at: issueAt, sent: false, why: "SUSPENDED" }
-    : !reach ? { at: issueAt, sent: false, why: "NO_RECIPIENT" }
-    : { at: issueAt, sent: true, why: null };
+  const t3 = reach ? { at: issueAt, sent: true, why: null } : { at: issueAt, sent: false, why: "NO_RECIPIENT" };
   /* T4 는 수정 마감 시각에 아직 동의 전인 달에만(정각 포함 — 그 시각에 동의했으면 이미 늦다 · admin 진행 기록과 같은 경계) */
   let t4 = null;
   if (!manual || manual.getTime() >= lockAt.getTime()) {
-    t4 = susp(lockAt) ? { at: lockAt, sent: false, why: "SUSPENDED" }
-      : undelivered ? { at: lockAt, sent: false, why: "UNDELIVERED" }
+    t4 = undelivered ? { at: lockAt, sent: false, why: "UNDELIVERED" }
       : !reach ? { at: lockAt, sent: false, why: "NO_RECIPIENT" }
       : { at: lockAt, sent: true, why: null };
   }
-  let resend = null;
-  if (t4 && (t4.why === "SUSPENDED" || t4.why === "UNDELIVERED") && (!manual || manual.getTime() >= resendAt.getTime())) {
-    resend = susp(resendAt) ? { at: resendAt, reached: false, why: "SUSPENDED" }
-      : undelivered ? { at: resendAt, reached: false, why: "UNDELIVERED" }
-      : !reach ? { at: resendAt, reached: false, why: "NO_RECIPIENT" }
-      : { at: resendAt, reached: true, why: null };
-  }
-  const suspendedAtDeadline = susp(deadline);
-  const hold = suspendedAtDeadline ? "CLIENT_SUSPENDED" : resend && !resend.reached ? "NOTICE_UNDELIVERED" : null;
-  return { issueAt, editLockAt: lockAt, resendAt, deadline, t3, t4, resend, suspendedAtDeadline, hold };
+  /* 다시 보내기 — T4 가 닿지 않은(발송 실패) 달이고 그 시각 전에 직접 동의하지 않았을 때. 발송 실패 기록이 있는 달은 다시 보내도
+     닿지 않은 것으로 친다(데모 규칙 — 위 주석). */
+  const resend = t4 && t4.why === "UNDELIVERED" && (!manual || manual.getTime() >= resendAt.getTime())
+    ? { at: resendAt, reached: false, why: "UNDELIVERED" }
+    : null;
+  const hold = resend && !resend.reached ? "NOTICE_UNDELIVERED" : null;
+  return { issueAt, editLockAt: lockAt, resendAt, deadline, t3, t4, resend, hold };
 }

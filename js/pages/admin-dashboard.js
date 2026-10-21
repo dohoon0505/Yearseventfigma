@@ -8,21 +8,23 @@
         전월 대비 증감.
      ② 액션 큐(좌) — 접수대기 · 미완료처리 탭. **남은시간 오름차순**이라
         급한 건이 항상 위에 온다. 도착희망까지 6시간 미만은 위험색.
-     ③ 통합매출 추이(좌) — 최근 6개월 정산 매출 + 연속 증가 문장.
+     ③ B2B 정산 금액 추이(좌) — 최근 6개월 B2B 정산 금액(배송일의 달) + 연속 증가 문장. B2C 는 더하지 않는다 — 예전 제목
+        'B2B · B2C 통합매출 추이' 가 실제와 달라 2026-10-22 운영자 답(Q32 ⓐ)으로 고쳤다. 매출 KPI 의 '주문 접수 기준' 은 그대로다.
      ⓪ 약관 동의 전 · 명세서 마감 임박(우 맨 위, 건이 있을 때만 — 시안 'S-05 대쉬보드 약관 경고' 2차) — 거래처 한 항목 +
         경고할 달 줄 여러 개(마감 지난 달 위 · 곧 나갈 달 아래).
      ④ 가입 승인 대기(우, 대기 건이 있을 때만)
      ⑤ 상품별 이용 비중(우) — 도넛 + 순위 막대. 전체/채널 전환.
      ⑥ 거래처 계약 통계(우) — joinDate 누적. 월별/년별 전환.
      ⑦ 정산 진행(우) — 지난 달 귀속 4단계 + 칩 줄 넷: '연락 필요'(지난달) · '기한 초과'(최근 6개월 · 누르면 가장 오래된 달 —
-        needsAction) · '금액 바뀜'·'0원'(지난달 · 누를 수 없는 표시 — 조치 필요가 아니다).
-     ①의 '미수금' 과 ⑦의 '미입금' 은 util/settlement `isUnpaid` 한 판정(명세서가 나간 달 전부 — 발행 전·0원·거래 없음 제외).
+        needsAction) · '금액 바뀜'·'0원'(지난달 · 누를 수 없는 표시 — 조치 필요가 아니다 · '0원' 은 발급 뒤 고쳐서 0원이 된 곳뿐 —
+        0원 주문만 있는 달은 내역서가 없는 거래 없는 달이다 · 2026-10-22 결정 B).
+     ①의 '미수금' 과 ⑦의 '미입금' 은 util/settlement `isUnpaid` 한 판정(명세서가 나간 달 전부 — 발행 전·고쳐서 0원·거래 없음 제외).
 
    ⚠️ 모든 수치는 목록 화면과 **같은 소스에서 파생**한다(b2cList·b2bList·
       usageFor·settlementsFor·termsWatchOf·store.clients). 대쉬보드 전용 집계를 두면
       화면 간 숫자가 어긋나 아무도 믿지 않는 화면이 된다. ⓪은 거래처 목록의 '약관 동의 전' 표시와,
       ⑦의 '연락 필요'·'기한 초과' 는 정산회계 '조치 필요' 탭과 같은 판정이고, '금액 바뀜'·'0원' 은 정산회계 지난달과 같은
-      settlementOf 값(changed · zero · zeroEdited)에서 센다 — 단 **숫자는 다르다**: 정산회계 '바뀜' 칩은 changed 인 달 모두,
+      settlementOf 값(changed · zeroEdited)에서 센다 — 단 **숫자는 다르다**: 정산회계 '바뀜' 칩은 changed 인 달 모두,
       여기 '금액 바뀜' 은 그중 0원이 아닌 달이고 고쳐서 0원이 된 달은 '0원' 에서 센다(정산회계 '바뀜' = 금액 바뀜 + zeroEdited).
 
    ⚠️ B2B 레코드에도 deliverAt 은 있지만 **이 큐는 쓰지 않는다** — 도착 기준은
@@ -252,7 +254,7 @@ export function mount(root, { nav }) {
     <button class="dsh-tab ${state.tab === "pending" ? "is-on" : ""}" data-tab="pending">접수대기<b class="dsh-tab__n is-hot">${queueCount("pending")}</b></button>
     <button class="dsh-tab ${state.tab === "photo" ? "is-on" : ""}" data-tab="photo">미완료처리<b class="dsh-tab__n">${queueCount("photo")}</b></button>`;
 
-  /* ── ③ 통합매출 추이 (최근 6개월 정산 매출) ───────────── */
+  /* ── ③ B2B 정산 금액 추이 (최근 6개월 — usageFor = B2B 주문의 배송일 달 합계 · B2C 는 들지 않는다) ───────────── */
   function trend() {
     const cs = clients();
     const bars = [];
@@ -292,24 +294,26 @@ export function mount(root, { nav }) {
      약관에 동의하지 않은 거래처는 마감이 지나도 그 달이 자동 동의되지 않는다(명세 3.4 · termsHold). 발급일이 7일·25일이면
      발급에서 마감까지 사흘 남짓뿐이라, 직원이 연락하고 임시비밀번호를 다시 만들어 주고 로그인을 기다리려면 **명세서
      7일 전부터** 챙겨야 한다 — 그래서 매일 보는 첫 화면에, 급할 때만 나타난다('가입 승인 대기' 와 같은 문법).
-     첫 명세서만이 아니다 — 첫 달이 0원으로 닫힌 거래처(가입 혜택 '1회 무료')는 '다음 명세서' 가 첫 경고라서 제목이
-     '첫 명세서 임박' 에서 '명세서 마감 임박' 으로 넓어졌다(2차 ⑧).
+     첫 명세서만이 아니다 — 첫 명세서 달이 발급 뒤 고쳐서 0원으로 닫힌 거래처는 '다음 명세서' 가 첫 경고라서 제목이
+     '첫 명세서 임박' 에서 '명세서 마감 임박' 으로 넓어졌다(2차 ⑧). (가입 혜택 '1회 무료' 0원 주문만 있는 첫 달은 2026-10-22 결정 B 로
+     내역서가 없어 처음부터 첫 명세서로 세지 않는다 — 그 다음 달이 '첫 명세서' 다.)
      · 판정은 거래처 목록의 '약관 동의 전' 표시와 **같은 함수**다 — util/settlement.js `termsWatchOf`(termsPending + settlementOf
        파생 · hot = 발급 7일 이내 · 발급 뒤 마감 전 · 마감이 지났어도 약관 동의 전이면 남는다). 경고용 데이터를 따로 두지 않는다
        (명세 4.8). 같은 판정·같은 달이고, 낱말은 각 시안을 따른다(목록은 S-04 · 이 카드는 S-05).
-       ⚠️ 첫 달만 보는 firstStatementOf 를 되살리지 말 것 — 첫 달이 0원으로 닫힌 거래처의 다음 유료 명세서를 놓쳤다
+       ⚠️ 첫 달만 보는 firstStatementOf 를 되살리지 말 것 — 첫 달이 0원으로 닫힌 거래처의 다음 명세서를 놓쳤다
           (목록은 'D-4' 로 경고하는데 이 카드는 비었다 — 2026-10-16 통합 점검 실측).
      · **거래처 한 항목 + 달 줄 여러 개**(2차 ⑨): 마감이 지난 달(held) 전부 + 다음 달(next — 발급 뒤 마감 전이거나 발급 7일
        이내일 때만). 달 줄 머리는 늘 '(첫|다음) 명세서 · M월분'. 줄 왼쪽 2px 막대가 단계를 가르지만 장식이다 — 글자가
        단계를 말한다('발급 완료' · '오늘 발급' · '발급 예정 (D-n)' · '… 지남').
      · 칩과 항목끼리의 순서는 **가장 급한 달**(months[0])로 정한다. 급한 순: 마감 지남 → 발급 뒤 마감 전 → 발급 전.
        같은 단계에서는 마감(발급 전은 발급)이 가까운 것이 위 — 항목 안의 달 줄도 같은 순서다(마감 지난 달은 오래된 것 먼저).
-     · **활성 거래처만**(2026-10-16 운영자 결정) — 정지한 거래처는 로그인 자체가 막혀 연락해도 동의를 받을 수 없다.
-     · 0원 달(발급 때부터 · 고쳐서 0원)은 동의를 받지 않는다 — termsWatchOf 가 held·next 에 넣지 않는다(발행 전 달은 아직
-       주문이 들어올 수 있어 남긴다). 첫 달이 0원으로 **실제로 닫힌 뒤에만**(PAID — termsWatchOf.firstZero) 다음 명세서 줄에
-       '첫 달(M월분)은 0원이라 계산서 없이 닫혔습니다' 를 붙인다 — 고쳐서 0원이 된 달은 마감 때 닫히므로 그 전에 '닫혔다' 고
-       말하면 사실보다 앞선다.
-     · 낱말 '마감 지남 · 자동 동의 안 함' 은 그대로다(시안의 '자동 동의 보류' 는 쓰지 않는다 — '보류' 는 Q19·Q20 전용).
+     · **활성 거래처만**(2026-10-16 운영자 결정 — 승인대기·반려·탈퇴는 빠진다). 탈퇴한 거래처는 계정이 닫혀 연락해도 동의를 받을 수
+       없다(2026-10-22 결정 A — 끝나지 않은 정산이 있으면 탈퇴할 수 없어 실제로는 걸리지 않는다 · termsPending 도 탈퇴를 뺀다).
+     · 고쳐서 0원이 된 달은 동의를 받지 않는다 — termsWatchOf 가 held·next 에 넣지 않는다. 0원 주문만 있는 달은 내역서가 없어
+       처음부터 세지 않는다(2026-10-22 결정 B). 첫 명세서 달이 고쳐서 0원으로 **실제로 닫힌 뒤에만**(PAID — termsWatchOf.firstZero)
+       다음 명세서 줄에 '첫 달(M월분)은 0원이라 계산서 없이 닫혔습니다' 를 붙인다 — 마감 때 닫히므로 그 전에 '닫혔다' 고 말하면
+       사실보다 앞선다.
+     · 낱말 '마감 지남 · 자동 동의 안 함' 은 그대로다(시안의 '자동 동의 보류' 는 쓰지 않는다 — '보류' 는 Q19 고지 미도달 전용).
      · 발송·계산서 실패 경고와는 다른 것이다 — 그쪽 대쉬보드 경고는 두지 않는다(M59). 섞지 말 것. */
   const PHASE_RANK = { closed: 0, open: 1, before: 2 };
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -352,7 +356,7 @@ export function mount(root, { nav }) {
       .map(({ c, w }) => {
         /* 보이는 달 — 마감 지난 달(held) 전부 + 다음 달(next)은 발급 뒤 마감 전이거나 발급 7일 이내일 때만(termsWatchOf.hot 과 같은 문턱). */
         const showNext = !!w.next && (w.next.phase === "open" || w.next.dDay <= 7);
-        /* 첫 달이 0원으로 닫힌 거래처(firstZero — PAID 뒤에만 온다) — 다음 명세서가 첫 경고일 때 그 줄에 까닭을 붙인다. */
+        /* 첫 명세서 달이 고쳐서 0원으로 닫힌 거래처(firstZero — PAID 뒤에만 온다) — 다음 명세서가 첫 경고일 때 그 줄에 까닭을 붙인다. */
         const zeroNote = showNext && !w.next.first && w.firstZero && !w.held.length
           ? `첫 달(${monthNo(w.firstZero.ym)}월분)은 0원이라 계산서 없이 닫혔습니다`
           : "";
@@ -542,7 +546,7 @@ export function mount(root, { nav }) {
     let billed = 0, unpaid = 0;
     cs.forEach((c) => {
       const r = settlementsFor(c)[1];
-      if (!inSettlementFlow(r)) return; // 0원 달·거래 없는 달은 동의·계산서 단계가 없다 — 진행률에 세지 않는다(리포트와 같은 판정)
+      if (!inSettlementFlow(r)) return; // 고쳐서 0원인 달·거래 없는 달(0원 주문만 있는 달 포함)은 동의·계산서 단계가 없다 — 진행률에 세지 않는다(리포트와 같은 판정)
       const amt = Number(String(r.정산금액).replace(/[^0-9]/g, "")) || 0;
       billed += amt;
       if (r.issued) st.명세서 += 1; // 발행일이 아직 안 온 달은 명세서 단계에도 세지 않는다
@@ -556,7 +560,7 @@ export function mount(root, { nav }) {
     const pct = Math.round(((st.명세서 + st.동의 + st.계산서 + st.입금) / (n * 4)) * 100);
     return { st, billed, unpaid, count: st.명세서, pct };
   }
-  /** 조치가 필요한 정산 줄 — 판정은 관리자 정산회계 '조치 필요' 탭과 **같은** `needsAction`(보류 3종 · 계산서 발급 전에
+  /** 조치가 필요한 정산 줄 — 판정은 관리자 정산회계 '조치 필요' 탭과 **같은** `needsAction`(보류 2종 · 계산서 발급 전에
    *  머문 달 · 기한 초과 · 알림 수신자 없음)이다. 세는 범위는 칩마다 다르다(2026-10-16 사용자 결정 B):
    *  · '연락 필요' · '조치 필요 열기' — 이 카드와 같은 귀속월(지난 달)의 조치 필요 줄 중 기한 초과가 아닌 것 / 전부.
    *    total = 정산회계 지난달 '조치 필요' 탭 건수.
@@ -566,8 +570,8 @@ export function mount(root, { nav }) {
    *  · '금액 바뀜' · '0원' (2차 시안) — 이 카드와 같은 지난달 귀속에서 settlementOf 값만 센다. **조치 필요가 아니다** —
    *    정산회계 '조치 필요' 탭(위 판정)에 그 줄이 없어서, 누를 수 없는 표시로 둔다(그 탭으로 보내면 빈 목록이 뜬다).
    *    changed = 명세서 발급 때 금액 ≠ 지금 금액(동의·발급·입금 뒤에도 남는다 — 정산회계 '바뀜' 칩과 같은 값) · 단 0원이 된 달은
-   *    '0원' 쪽으로 센다(amount > 0). zero = 0원 주문만 있는 달 · 고쳐서 0원이 된 달(zero || zeroEdited — 줄이 다 빠진 달 포함).
-   *    0원 달은 '정산 진행 N개사' 와 4단계에서 이미 빠져 있다(inSettlementFlow). */
+   *    '0원' 쪽으로 센다(amount > 0). zero = 발급 뒤 고쳐서 0원이 된 달(zeroEdited — 줄이 다 빠진 달 포함). 0원 주문만 있는 달은
+   *    내역서가 없는 거래 없는 달이라 세지 않는다(2026-10-22 결정 B). 0원 달은 '정산 진행 N개사' 와 4단계에서 이미 빠져 있다(inSettlementFlow). */
   function actionCounts() {
     const cs = clients();
     const lastRows = cs.map((c) => ({ c, r: settlementsFor(c)[1] })).filter(({ r }) => r);
@@ -578,10 +582,11 @@ export function mount(root, { nav }) {
     const shared = sharedBizKeys(cs);
     const names = (pick) => lastRows.filter(({ r }) => pick(r)).map(({ c }) => displayName(c, shared));
     const changed = names((r) => r.changed && r.amount > 0);
-    const zero = names((r) => r.zero || r.zeroEdited);
     /* 발급 뒤 고쳐서 0원이 된 곳 — 금액이 바뀐 달이지만 '0원' 쪽에서 센다. 정산회계는 이 달에도 '바뀜' 칩을 달아
-       (정산회계 '바뀜' 수 = 금액 바뀜 + 이 수) 두 title 이 그 사실을 말한다 — 안 그러면 '금액이 다른 곳' 목록이 거짓으로 짧다. */
-    const edited0 = names((r) => r.zeroEdited);
+       (정산회계 '바뀜' 수 = 금액 바뀜 + 이 수) 두 title 이 그 사실을 말한다 — 안 그러면 '금액이 다른 곳' 목록이 거짓으로 짧다.
+       '0원' 칩 = 이 곳들뿐이다(0원 주문만 있는 달은 거래 없는 달 — 2026-10-22 결정 B). */
+    const zero = names((r) => r.zeroEdited);
+    const edited0 = zero;
     return {
       total: last.length, contact: last.length - lastOverdue, overdue: overdueRows.length, overdueYm,
       changed, zero, edited0, lastYm: lastRows.length ? lastRows[0].r.ym : "",
@@ -619,7 +624,7 @@ export function mount(root, { nav }) {
               ? html`<span class="dsh-pill dsh-pill--orange" title="${periodLabel(a.lastYm)} 귀속 · 명세서 발급 때 금액과 지금 금액이 다른 곳 — ${a.changed.join(", ")}${a.edited0.length ? ` · 발급 뒤 고쳐서 0원이 된 곳(${a.edited0.join(", ")})은 '0원' 에서 셉니다` : ""}">금액 바뀜 ${a.changed.length}</span>`
               : ""}
             ${a.zero.length
-              ? html`<span class="dsh-pill dsh-pill--gray" title="${periodLabel(a.lastYm)} 귀속 · 금액이 0원이라 계산서가 없는 곳 — ${a.zero.join(", ")}${a.edited0.length ? ` · 그중 발급 뒤 고쳐서 0원이 된 곳: ${a.edited0.join(", ")}` : ""}">0원 ${a.zero.length}</span>`
+              ? html`<span class="dsh-pill dsh-pill--gray" title="${periodLabel(a.lastYm)} 귀속 · 발급 뒤 고쳐서 0원이 되어 계산서가 없는 곳 — ${a.zero.join(", ")}">0원 ${a.zero.length}</span>`
               : ""}
           </div>`
         : ""}
@@ -658,7 +663,7 @@ export function mount(root, { nav }) {
                 </div>
                 <div class="dsh-card__b dsh-card__b--queue" data-slot="queue">${queueBody()}</div>
               </section>
-              ${card("B2B · B2C 통합매출 추이", html`<span class="dsh-badge">최근 6개월 · 단위 백만원</span>`, trendBody())}
+              ${card("B2B 정산 금액 추이", html`<span class="dsh-badge">최근 6개월 · 단위 백만원</span>`, trendBody())}
             </div>
 
             <div class="dsh-col">

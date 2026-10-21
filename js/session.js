@@ -76,7 +76,7 @@ export function takeReturnTo() {
 }
 
 /* ── 세션을 끊은 이유 (2026-09-25) ──
-   라우터가 거래처 세션을 끊으면(로그인 뒤 관리자가 정지·반려했거나 거래처를 지웠다) 로그인 화면이
+   라우터가 거래처 세션을 끊으면(로그인 뒤 관리자가 탈퇴 처리·반려했거나 거래처를 지웠다) 로그인 화면이
    그 이유를 한 번 말한다. 이유 없이 로그인 화면으로 튕기면 사용자는 무엇이 잘못됐는지 모른다. */
 export function setLoginNotice(msg) {
   if (msg) sessionStorage.setItem(NKEY, msg);

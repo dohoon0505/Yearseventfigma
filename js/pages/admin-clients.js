@@ -14,9 +14,10 @@ import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../
 import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup } from "../util/dialog.js";
 import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
-import { INVOICE_DAYS, CLIENT_CHANNELS } from "../data/admin-mock.js";
-import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel, fmtMdHm, fmtKoShortTime } from "../data/settlement-rules.js";
+import { INVOICE_DAYS, CLIENT_CHANNELS, CLIENT_STATUSES } from "../data/admin-mock.js";
+import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel, fmtMdHm, fmtKoShortTime, fmtAt } from "../data/settlement-rules.js";
 import { termsPending } from "../util/client.js";
+import { withdrawBlockOf, WITHDRAWN, isWithdrawn, WITHDRAWN_LOCK, withdrawnDay } from "../util/withdraw.js";
 import { termsWatchOf } from "../util/settlement.js";
 import { normalizeBiz, sharedBizKeys, onBizInput } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
@@ -24,17 +25,14 @@ import { ensurePostcode, openPostcode } from "../util/postcode.js";
 import { openContactsModal } from "../util/contacts-modal.js";
 import { setFocusClient, takeFocusClient } from "../session.js";
 
-const STATUS_OPTS = ["활성", "승인대기", "정지", "반려"];
+/* 거래처 상태는 넷이다(2026-10-22 운영자 답 A — '정지' 를 없애고 '탈퇴' 를 뒀다). 활성·승인대기·반려 사이는 지금처럼 양방향이고,
+   **탈퇴는 되돌리지 않는다**(다시 쓰려면 새로 가입) — 탈퇴한 거래처는 상태 칸이 모두 잠긴다. 탈퇴는 끝나지 않은 정산이 없을 때만
+   누를 수 있다(판정 util/withdraw.js `withdrawBlockOf`). 순서·낱말은 data/admin-mock.js `CLIENT_STATUSES` 한 벌이다. */
+const STATUS_OPTS = CLIENT_STATUSES;
 /* 구 시스템 계약체결 리스트(302)의 '계약요청유형'. 별도 화면 대신 거래처 레코드에
    붙였다 — 승인대기 탭이 이미 파이프라인 역할을 하므로 화면을 하나 더 두지 않는다. */
 const SALES_ROUTES = ["미지정", "우체국 문서발송", "업체 방문영업", "SNS", "셀프 가입", "지인 소개", "기타"];
-const TABS = [
-  { value: "all", label: "전체" },
-  { value: "활성", label: "활성" },
-  { value: "승인대기", label: "승인대기" },
-  { value: "정지", label: "정지" },
-  { value: "반려", label: "반려" },
-];
+const TABS = [{ value: "all", label: "전체" }, ...STATUS_OPTS.map((v) => ({ value: v, label: v }))];
 
 /* ── 필드 서술자 — 시안의 원장 카드 단위로 나눈다 ──────────────
    서술자: { k, label, req, type, ph, options, ddLabel, help, num, find }
@@ -76,8 +74,9 @@ const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"]
 const STATUS_DOT = {
   "활성": "var(--c-success-ink)",
   "승인대기": "var(--c-warn-soft-ink)",
-  "정지": "var(--c-danger-ink)",
   "반려": "var(--c-text-4)",
+  /* 예전 '정지' 자리의 색을 그대로 물려받았다(새 모양 없음 · 탈퇴의 색은 디자이너 몫) */
+  [WITHDRAWN]: "var(--c-danger-ink)",
 };
 
 /** 그 거래처에 등록된 담당자 수 — 목록 배지와 다이얼로그 제목이 같이 읽는다. */
@@ -90,8 +89,13 @@ const deleteCopy = (client) => ({
   eyebrow: client.accountId || client.companyName,
   title: `${client.companyName} 거래처를 삭제할까요?`,
   okLabel: "거래처 삭제",
-  desc: html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
-    거래를 멈추는 것이라면 삭제 대신 <b>정지</b>를 사용하세요.`,
+  /* 이미 탈퇴한 거래처에 '삭제 대신 탈퇴를 사용하세요' 는 맞지 않는다 — 기록을 남기려고 탈퇴한 계정이라, 지우면 그 기록이 함께
+     사라진다는 사실을 같은 자리에서 말한다(2026-10-22 운영자 답 A — 탈퇴는 지난 주문·정산 기록을 남긴다). */
+  desc: isWithdrawn(client)
+    ? html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
+      <b>탈퇴한 거래처</b>입니다 — 삭제하면 남겨 둔 지난 주문·정산 기록도 함께 사라집니다.`
+    : html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
+      거래를 끝내는 것이라면 삭제 대신 <b>탈퇴</b>를 사용하세요 — 탈퇴는 지난 주문·정산 기록을 남깁니다.`,
 });
 
 /** 정산 일정 안내문 — 초기 렌더와 부분 갱신이 **같은 문장**을 쓰게 한 곳에 둔다.
@@ -113,7 +117,7 @@ function invoiceHelpText(invoiceDay) {
     + `발급일은 동의 기간이 ${MIN_CONSENT_DAYS}일 이상 남는 ${invoiceDayRangeLabel()} 중에서 고릅니다.`;
 }
 
-const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "정지": "pill--danger", "반려": "pill--gray" };
+const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "반려": "pill--gray", [WITHDRAWN]: "pill--danger" };
 const statusPill = (s) => html`<span class="pill ${PILL[s] ?? "pill--gray"}">${s}</span>`;
 
 /** 지금 시각 "오후 2:53" — 변경 이력·저장 표시에 쓴다(주문 모달과 같은 포맷). */
@@ -155,6 +159,12 @@ function termsLineParts(client, now) {
       : { text: html`${n.first ? "첫" : "다음"} 명세서 ${mdHm(n.issueAt)} · ${ddayText(n.dDay)}`, hot: n.dDay <= 7 });
   }
   return out;
+}
+/** 목록 회사명 칸 아래 '탈퇴 · YYYY-MM-DD' — 탈퇴한 날을 상태 칸(92px) 대신 약관 일정 줄과 같은 글자 자리에 적는다(새 모양 없음).
+ *  탈퇴한 시각이 없는 레코드(옛 기록)는 상태 칸의 '탈퇴' 로 충분해 아무것도 붙이지 않는다. */
+function withdrawnLine(client) {
+  const d = isWithdrawn(client) ? withdrawnDay(client) : "";
+  return d ? html`<div class="cli-terms"><span class="cli-tsched">탈퇴 · ${d}</span></div>` : "";
 }
 /** 목록 회사명 칸의 '약관 동의 전' 배지 + 일정 한 줄. 약관에 동의한 거래처는 빈 문자열. */
 function termsLine(client, now) {
@@ -268,7 +278,8 @@ export function mount(root, { nav }) {
       label: "회사명", width: "1fr",
       render: (r) => {
         const c = r.client;
-        /* 약관 표시는 상태 칸이 아니라 **회사명 아래**에 붙는다(시안) — 상태(활성·정지…)와 다른 종류의 사실이다. */
+        /* 약관 표시는 상태 칸이 아니라 **회사명 아래**에 붙는다(시안) — 상태(활성·탈퇴…)와 다른 종류의 사실이다.
+           탈퇴한 날도 같은 자리에 적는다(withdrawnLine — 탈퇴한 거래처는 약관 동의 전이 아니다: util/client termsPending). */
         if (r.kind === "group") {
           return html`<div class="cli-name">
             <button type="button" class="cli-grp" data-action="grp" data-k="${r.key}" aria-expanded="${r.open ? "true" : "false"}">
@@ -280,9 +291,9 @@ export function mount(root, { nav }) {
           </div>`;
         }
         if (r.kind === "child") {
-          return html`<div class="cli-name"><div class="cli-child ellipsis">${c.department || "계정 구분 없음"}</div>${termsLine(c, listNow)}</div>`;
+          return html`<div class="cli-name"><div class="cli-child ellipsis">${c.department || "계정 구분 없음"}</div>${termsLine(c, listNow)}${withdrawnLine(c)}</div>`;
         }
-        return html`<div class="cli-name"><div class="ellipsis">${c.companyName}</div>${termsLine(c, listNow)}</div>`;
+        return html`<div class="cli-name"><div class="ellipsis">${c.companyName}</div>${termsLine(c, listNow)}${withdrawnLine(c)}</div>`;
       },
     },
     { label: "사업자번호", width: "128px", align: "center", render: (r) => (r.kind === "child" ? dash : r.client.bizNumber) },
@@ -577,18 +588,30 @@ export function mount(root, { nav }) {
     };
     /** 상태만 쓴다(상태 pill·승인·거부 — 누르는 즉시 반영). 저장소의 지금 레코드 위에 **상태·거부 사유만** 덮는다 — 임시비밀번호 발급이
      *  password 만 쓰는 것과 같은 수법이다(발급일 이력도 저장소의 것이 그대로 간다). 예전엔 writeForm 으로 form 전체를 써서 원장에서 고치던
-     *  (아직 저장하지 않은) 칸까지 함께 저장됐다 — 실측: 회사명·이메일을 고친 채 '정지' 를 누르면 둘 다 저장소·목록에 들어갔는데 푸터는
+     *  (아직 저장하지 않은) 칸까지 함께 저장됐다 — 실측: 회사명·이메일을 고친 채 상태 칸을 누르면 둘 다 저장소·목록에 들어갔는데 푸터는
      *  여전히 '수정한 항목 2개' 라고 했다. 원장 편집은 form·touched 에 그대로 남아 계속 센다.
-     *  form 에도 같은 값을 넣는다 — 나중에 원장을 저장할 때(writeForm 은 form 전체를 쓴다) 옛 상태로 되돌아가지 않게. */
-    const writeStatus = (status, rejectReason) => {
+     *  form 에도 같은 값을 넣는다 — 나중에 원장을 저장할 때(writeForm 은 form 전체를 쓴다) 옛 상태로 되돌아가지 않게.
+     *  `extra` 는 상태와 함께 쓰는 사실 칸이다 — 탈퇴의 `withdrawnAt`("YYYY-MM-DD HH:mm" · 2026-10-22 결정 A)뿐이다. */
+    const writeStatus = (status, rejectReason, extra = {}) => {
       form.status = status;
       form.rejectReason = rejectReason;
+      Object.assign(form, extra);
       const rec = store.get().clients.find((c) => c.id === form.id);
-      if (rec) store.updateClient({ ...rec, status, rejectReason });
+      if (rec) store.updateClient({ ...rec, status, rejectReason, ...extra });
+    };
+    /** 상태 칸의 잠금 — 탈퇴한 거래처는 모두(되돌리지 않는다), 아니면 '탈퇴' 칸만 끝나지 않은 정산이 있을 때(util/withdraw.js).
+     *  판정은 **저장된 레코드**로 한다(상태·정산은 저장소의 사실이다). 머리를 그릴 때마다 다시 잰다 — 누르는 순간에도 한 번 더 잰다. */
+    const stLock = () => {
+      if (!isEdit) return null;
+      const rec = storedRec();
+      if (isWithdrawn(rec)) return { all: true, text: WITHDRAWN_LOCK };
+      const b = withdrawBlockOf(rec, new Date());
+      return b ? { all: false, text: b.text } : null;
     };
 
     /* ── 헤더 ── */
     const hdBody = () => {
+      const lk = stLock();
       const shared = sharedBizKeys(store.get().clients);
       const showDept = isEdit && form.department && shared.has(normalizeBiz(form.bizNumber));
       const meta = [form.accountId || "아이디 미정", isEdit ? `가입 ${form.joinDate}` : "신규 등록",
@@ -598,8 +621,9 @@ export function mount(root, { nav }) {
         <div class="ord-hd__l">
           <div class="ord-hd__row">
             <h3 class="ord-hd__no" id="modal-title">${form.companyName || (isEdit ? "거래처" : "신규 거래처 등록")}</h3>
+            ${/* 탈퇴한 거래처는 '탈퇴 · YYYY-MM-DD'(탈퇴한 날 — 2026-10-22 결정 A · 같은 자리에 날짜만 더한다) */ ""}
             ${isEdit ? html`<span class="ord-hd__pill" style="background:var(--c-surface-2);color:var(--c-text-strong)">
-              <span class="ord-hd__dot" style="background:${STATUS_DOT[form.status] || "var(--c-text-4)"}"></span>${form.status}</span>` : ""}
+              <span class="ord-hd__dot" style="background:${STATUS_DOT[form.status] || "var(--c-text-4)"}"></span>${form.status}${isWithdrawn(form) && withdrawnDay(form) ? ` · ${withdrawnDay(form)}` : ""}</span>` : ""}
             ${/* 상태 pill 옆 — 상태와 다른 종류의 사실이라 따로 단다(시안). 약관에 동의하면 사라진다. */ ""}
             ${isEdit && termsPending(storedRec()) ? html`<span class="cli-termschip">약관 동의 전</span>` : ""}
             ${showDept ? html`<span class="cli-deptchip">${form.department}</span>` : ""}
@@ -608,8 +632,16 @@ export function mount(root, { nav }) {
         </div>
         <div class="ord-hd__r">
           ${isEdit ? html`<div class="cli-st">
-            ${STATUS_OPTS.map((s) => html`<button type="button" class="cli-st__btn ${form.status === s ? "is-on" : ""}" data-status="${s}">
-              <span class="cli-st__dot" style="background:${STATUS_DOT[s]}"></span>${s}</button>`)}
+            ${STATUS_OPTS.map((s) => {
+              /* 잠긴 칸도 **초점이 가는 버튼**이다(aria-disabled + aria-describedby — ⋯ 메뉴의 잠긴 '주문서 삭제' 와 같은 수법) — 누르면
+                 이유를 토스트로 말한다(주문 스테퍼의 잠긴 단계와 같은 모습 · .is-locked). 지금 상태 칸은 흐리게 하지 않는다. */
+              const on = form.status === s;
+              const locked = !!lk && (lk.all || s === WITHDRAWN);
+              return html`<button type="button" class="cli-st__btn ${on ? "is-on" : ""} ${locked && !on ? "is-locked" : ""}" data-status="${s}"
+                aria-disabled="${locked ? "true" : "false"}" aria-describedby="${locked ? "cli-st-why" : ""}" title="${locked ? lk.text : ""}">
+                <span class="cli-st__dot" style="background:${STATUS_DOT[s]}"></span>${s}</button>`;
+            })}
+            ${lk ? html`<span class="sr-only" id="cli-st-why">${lk.text}</span>` : ""}
           </div>
           <span class="ord-hd__vdiv"></span>
           <div class="ord-more">
@@ -618,7 +650,14 @@ export function mount(root, { nav }) {
             ${/* 주문 상세 ⋯ 메뉴와 같은 마크업·같은 키보드(order-screen bindOrdMenu) — 항목은 tabindex=-1 이라 메뉴 안은
                  화살표로 옮기고 Tab 은 메뉴를 닫고 나간다. 열고 닫는 키는 아래 bindOrdMenu 가 준다. */ ""}
             ${menuOpen ? html`<div class="ord-menu" role="menu" aria-label="거래처 더보기">
-              <button class="ord-menu__item" role="menuitem" tabindex="-1" data-action="reset-pw">임시비밀번호 발급</button>
+              ${/* 탈퇴한 계정은 로그인할 수 없다(util/client portalBlock) — 임시비밀번호를 줘도 쓸 곳이 없어 잠근다(주문 메뉴의 잠긴 항목과 같은 모양) */ ""}
+              ${isWithdrawn(storedRec())
+                ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" tabindex="-1" aria-disabled="true"
+                    aria-describedby="cli-pw-why" data-action="reset-pw-locked">
+                    <span class="ord-menu__row"><span>임시비밀번호 발급</span>${icon("lock", { size: 14 })}</span>
+                    <span class="ord-menu__why" id="cli-pw-why">탈퇴한 계정은 로그인할 수 없습니다</span>
+                  </button>`
+                : html`<button class="ord-menu__item" role="menuitem" tabindex="-1" data-action="reset-pw">임시비밀번호 발급</button>`}
               <button class="ord-menu__item ord-menu__item--danger" role="menuitem" tabindex="-1" data-action="delete">거래처 삭제</button>
             </div>` : ""}
           </div>` : ""}
@@ -694,10 +733,14 @@ export function mount(root, { nav }) {
         ${isEdit
           ? html`<p class="rail-card__v">${form.accountId || "-"}</p>`
           : html`<input class="hm-input" data-cf="accountId" value="${form.accountId ?? ""}" placeholder="영문·숫자" />`}
-        <button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
-        ${/* 안내문은 **발급 후에만**(시안). 평소에도 띄워 두면 카드가 늘 3줄이라
-             정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
-        ${pwShown ? html`<p class="rail-card__out">${pwOutText()}</p>` : ""}
+        ${/* 탈퇴한 계정은 발급 버튼을 두지 않고 그 이유만 적는다 — 로그인할 수 없는 계정이다. 아이디는 다시 가입할 때도 쓸 수 없다
+             (store.accountIdTaken 이 탈퇴한 계정도 '쓰는 중' 으로 친다 · 2026-10-22 결정 A). */ ""}
+        ${isEdit && isWithdrawn(storedRec())
+          ? html`<p class="rail-card__out">탈퇴한 계정이라 로그인할 수 없습니다 · 이 아이디는 새로 가입할 때도 쓸 수 없습니다.</p>`
+          : html`<button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
+            ${/* 안내문은 **발급 후에만**(시안). 평소에도 띄워 두면 카드가 늘 3줄이라
+                 정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
+            ${pwShown ? html`<p class="rail-card__out">${pwOutText()}</p>` : ""}`}
       </div>
       ${isEdit ? billingCard() : newBillingCard()}
       ${isEdit ? histBlock() : ""}
@@ -740,22 +783,16 @@ export function mount(root, { nav }) {
       const contact = b
         ? html`<span>연락 <b>${b.name || "이름 없음"} ${b.phone || "· 연락처 미등록"}</b></span>`
         : html`<span>연락 <b class="cli-tb__dday">정산 담당자 없음</b></span>`;
-      /* 정지 중인 거래처는 로그인 자체가 막혀 있다(util/client portalBlock) — 임시비밀번호를 새로 줘도 들어와 약관에 동의할 수
-         없으므로 '연락할 때 새로 발급하세요' 를 말하지 않는다. 대신 정지 중이라 로그인할 수 없고, 정지를 풀어야 약관 동의를 받을
-         수 있다는 사실만 말한다(2026-10-16 결정 E — 배너 모양은 그대로, 글자만). 대쉬보드 약관 경고가 정지 거래처를 빼는 것과
-         같은 이유다. 상태 pill 을 바꾸면 renderBanner 가 다시 그리므로 저장된 레코드(rec)의 상태를 본다. */
-      const suspended = rec.status === "정지";
-      const SUSP = "정지 중이라 거래처가 로그인할 수 없습니다. 정지를 풀어야 첫 로그인 때 약관 동의를 받을 수 있습니다.";
-      const pwCap = pwShown && isEdit ? `발급 완료 · ${pwUntil()}까지 유효`
-        : suspended ? "24시간 유효 · 정지 중 로그인 불가"
-        : "24시간 유효 · 연락할 때 새로 발급";
-      const pwTail = suspended ? SUSP : "임시비밀번호는 24시간만 유효하니 연락할 때 새로 발급하세요.";
+      /* 탈퇴한 거래처는 이 배너가 없다 — termsPending 이 탈퇴 계정을 빼므로 위에서 돌아간다(2026-10-22 결정 A · 예전 '정지 중이라
+         로그인할 수 없고 정지를 풀어야 약관 동의를 받을 수 있다' 문장(2026-10-16 결정 E)은 정지가 없어져 지웠다). */
+      const pwCap = pwShown && isEdit ? `발급 완료 · ${pwUntil()}까지 유효` : "24시간 유효 · 연락할 때 새로 발급";
+      const pwTail = "임시비밀번호는 24시간만 유효하니 연락할 때 새로 발급하세요.";
       let facts = "";
       let foot;
       if (!w) {
         /* 귀속월 = 배송일의 달(2026-10-15 결정) — '첫 주문이 생기면 다음 달' 이 아니라 배송일 기준으로 말한다. */
         foot = `아직 거래가 없어 첫 명세서 일정이 없습니다. 주문이 생기면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 첫 명세서가 발급되고, `
-          + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " + (suspended ? SUSP : "임시비밀번호는 24시간만 유효합니다.");
+          + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. 임시비밀번호는 24시간만 유효합니다.";
       } else {
         const n = w.next;
         const heldOne = w.held.length === 1 ? w.held[0] : null;
@@ -989,11 +1026,39 @@ export function mount(root, { nav }) {
       renderHd(); renderBanner(); renderRail(); refreshList();
       refocus(`[data-status='${form.status}']`);
     };
-    /* 승인·거부 확인 창과 토스트가 부르는 이름은 **저장된 레코드**의 것이다(storedRec) — 상태만 쓰므로 원장에서 고치던 회사명은
+    /* 승인·거부·탈퇴 확인 창과 토스트가 부르는 이름은 **저장된 레코드**의 것이다(storedRec) — 상태만 쓰므로 원장에서 고치던 회사명은
        저장되지 않는데, form 의 이름을 부르면 '…수정중 거래처를 승인했습니다' 처럼 목록·알림톡에 없는 이름을 말했다(실측). */
+    /* 탈퇴 — 되돌릴 수 없어 확인 창(체크 게이트)을 지난다. 누르는 순간과 확정하는 순간 **두 번** 판정한다(util/withdraw.js) —
+       창을 연 사이 명세서가 나가거나 주문이 들어왔으면 확정에서 막는다(서버 409 대역 · 주문 삭제의 guard 와 같은 생각).
+       막히면 머리를 다시 그려 '탈퇴' 칸을 잠그고(이유가 칸의 설명이 된다) 그 칸에 초점을 두고 이유를 토스트로 말한다. */
+    const WD_SEL = `[data-slot='hd'] [data-status='${WITHDRAWN}']`;
+    const blockedNow = (b) => { renderHd(); refocus(WD_SEL); toast(b.text, "warn"); };
+    const askWithdraw = () => {
+      const b = withdrawBlockOf(storedRec(), new Date());
+      if (b) return blockedNow(b);
+      renderHd(); // 그린 뒤 잠금이 풀렸을 수 있다(마감이 지나 0원 달이 닫힘 등) — 칸 모양을 지금 값으로
+      refocus(WD_SEL);
+      openWithdrawConfirm(storedRec(), {
+        recheck: () => withdrawBlockOf(storedRec(), new Date()),
+        onBlocked: blockedNow,
+        onConfirm: () => {
+          const at = fmtAt(new Date());
+          /* 거부 사유는 지우지 않는다 — 탈퇴는 '기록은 남긴다'(반려된 거래처를 탈퇴 처리해도 왜 반려했는지가 남는다 · 배너는 반려일 때만 뜬다). */
+          writeStatus(WITHDRAWN, storedRec().rejectReason || "", { withdrawnAt: at });
+          push(`탈퇴 처리 · ${at.slice(0, 10)}`, "danger");
+          afterStatus();
+          toast(`${storedRec().companyName} 거래처를 탈퇴 처리했습니다 · 이제 로그인할 수 없습니다`, "warn");
+        },
+        /* 돌아가기·✕·ESC — 창이 연 칸(탈퇴)으로 초점을 돌려준다. 그 칸이 그사이 다시 그려졌으면(확정·막힘) 위에서 정한 자리 그대로다. */
+        onClose: () => refocus(WD_SEL),
+      });
+    };
     on(panel, "click", "[data-status]", (e, t) => {
       const v = t.dataset.status;
+      /* 탈퇴한 거래처는 상태를 바꾸지 않는다(되돌리지 않는다 — 다시 쓰려면 새로 가입) · 지금 칸('탈퇴')은 아무 일도 하지 않는다 */
+      if (isWithdrawn(storedRec())) { if (v !== form.status) toast(WITHDRAWN_LOCK, "warn"); return; }
       if (v === form.status) return;
+      if (v === WITHDRAWN) return askWithdraw();
       if (v === "반려") return openReject(storedRec(), (reason) => {
         writeStatus("반려", reason);
         push("가입 거부 · 사유 통보", "danger");
@@ -1043,6 +1108,7 @@ export function mount(root, { nav }) {
       push("임시비밀번호 발급", "warn");
     };
     on(panel, "click", "[data-action='reset-pw']", (e, t) => {
+      if (isEdit && isWithdrawn(storedRec())) return; // 탈퇴한 계정 — 버튼은 그리지 않지만(레일·메뉴) 옛 화면에서 눌려도 쓰지 않는다
       /* 누른 자리를 기억한다 — 레일·배너·⋯ 메뉴가 다시 그려져도 키보드 포커스가 같은 자리로 돌아오게 */
       const from = t.closest("[data-slot]");
       const where = from ? from.dataset.slot : "";
@@ -1203,6 +1269,52 @@ export function mount(root, { nav }) {
       goPricing(client.id);
     });
     on(d.panel, "click", "[data-action='ok']", () => { d.close(); doApprove(); });
+  }
+
+  /** 탈퇴 확인 창 — 체크 게이트(되돌릴 수 없음을 확인해야 주 버튼이 열린다 · `openDeleteConfirm` 과 같은 `.dlg-check` 규격).
+   *  `openDeleteConfirm` 을 그대로 쓰지 않는 까닭: 그 함수는 힌트가 '확인에 체크해야 **삭제**됩니다' 로 박혀 있고 주 버튼에 휴지통이
+   *  붙는다 — 탈퇴는 지우는 것이 아니라 기록을 남기고 닫는 것이라 두 글자가 사실과 다르다(포털 계산서 발급 동의 창이 같은 이유로
+   *  `openDialog` + `.dlg-check` 를 쓴 선례). 거래처 창 **위에 스택**되므로 핸들을 activeModal 에 담지 않는다(거부 사유 창과 같은 규칙).
+   *  recheck() — 주 버튼을 누르는 순간 한 번 더 판정(null 이면 진행) · 막히면 창을 닫고 onBlocked(b) · 아니면 창을 닫고 onConfirm(). */
+  function openWithdrawConfirm(client, { recheck, onBlocked, onConfirm, onClose }) {
+    let ack = false;
+    const HINT_OFF = "확인에 체크해야 탈퇴 처리됩니다";
+    const HINT_ON = "탈퇴 처리를 진행할 수 있습니다";
+    const d = openDialog({
+      eyebrow: client.accountId || client.companyName,
+      title: `${client.companyName} 거래처를 탈퇴 처리할까요?`,
+      width: 480,
+      onClose,
+      body: html`
+        <p class="dlg-desc">탈퇴하면 이 계정으로 <b>로그인할 수 없고, 되돌릴 수 없습니다.</b>
+          지난 주문 · 거래명세서 · 계산서 · 입금 기록은 그대로 남습니다.
+          다시 이용하려면 다른 아이디로 새로 가입해야 합니다${/* 조사는 '아이디' 에 붙인다 — 아이디 글자에 붙이면 받침에 따라
+            틀린 말이 된다('nurisol는' · 'hanbit는'). 괄호 뒤 조사는 괄호 앞 낱말('아이디는')로 읽힌다. */ ""}${client.accountId
+            ? html` — 쓰던 접속 아이디(<b>${client.accountId}</b>)는 다시 쓸 수 없습니다` : ""}.</p>
+        <button class="dlg-check" data-action="ack" aria-pressed="false">
+          <span class="dlg-check__box" aria-hidden="true"></span>
+          <span>되돌릴 수 없음을 확인했습니다</span>
+        </button>`,
+      hint: HINT_OFF,
+      hintBlock: true,
+      actions: dlgActions({ cancel: "돌아가기", ok: "탈퇴 처리", okClass: "hm-btn--danger", disabled: true }),
+    });
+    const chk = qs(d.panel, "[data-action='ack']");
+    const go = qs(d.panel, "[data-action='ok']");
+    on(d.panel, "click", "[data-action='ack']", () => {
+      ack = !ack;
+      chk.classList.toggle("is-on", ack);
+      chk.setAttribute("aria-pressed", ack ? "true" : "false");
+      go.disabled = !ack;
+      d.setHint(ack ? HINT_ON : HINT_OFF, !ack); /* 버튼만 흐려 두지 않는다 — 왜 못 누르는지 푸터가 말한다 */
+    });
+    on(d.panel, "click", "[data-action='ok']", () => {
+      if (!ack) return;
+      const b = recheck();
+      d.close();
+      if (b) onBlocked(b); else onConfirm();
+    });
+    return d;
   }
 
   /** 가입 거부 — 사유는 필수. onDone(reason) 이 있으면 저장은 호출부가 한다(모달 안에서 호출).

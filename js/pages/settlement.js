@@ -90,40 +90,39 @@ function pendingOldIssue(client, now) {
      끝난 단계 ✓ + 회색 낱말 · 지금 단계 ● + 진한 낱말 · 아직 안 온 단계 -.
    지금 단계의 기한·사유는 '안내' 칸 한 곳에 적는다(지금 단계가 없으면 마지막으로 끝난 단계의 것). 끝난 단계의
    작성일자 · 동의 방식은 마우스 올림(title)과 스크린리더(.sr-only)로만 — 세무 근거라 버리지 않는다.
-   ⚠️ 상태는 settlementOf 값(status · autoAgreeHold · zero …)만 읽는다. 날짜로 상태를 짐작하지 않는다(명세 6.6).
+   ⚠️ 상태는 settlementOf 값(status · autoAgreeHold · zeroEdited …)만 읽는다. 날짜로 상태를 짐작하지 않는다(명세 6.6).
+   ⚠️ 0원 주문만 있는 달은 내역서를 내지 않는다 — 거래 없는 달(NONE)과 똑같이 '-' · '거래 없음 · 명세서 없음'(2026-10-22 운영자 결정 B).
    ⚠️ 빨간 안내는 동의 마감 24시간 전부터(금액 바뀜 문장 포함)와 기한 초과 · 호박은 자동 동의가 보류된 달(시안).
-   안내 칸 갈래 순서(2차 시안): 고쳐서 0원 → 보류 3종 → 금액 바뀜 → 수정 마감 전 → '마감 …'.
+   안내 칸 갈래 순서(2차 시안): 고쳐서 0원 → 보류 2종 → 금액 바뀜 → 수정 마감 전 → '마감 …'.
    반환: { kind, label, tone, meta(보이는 안내), title(안내·칸 마우스 올림), hot, amb, sr, chg(안내가 amountChangeLine 을 말한다) } */
 const DAY = 864e5;
 const howOf = (s) => (s.mode === "auto" ? "자동 동의" : "직접 동의");
-/* 보류 3종의 **포털** 낱말. 관리자 표(HOLD_LABEL — '고지 미도달'·'정지 중 마감')와 다르다: 안내 칸은 사실만
-   ('마감 지남 · 자동 동의 보류') 말하고, 이유는 마우스 올림에서 거래명세서 조회(S-02) 동의 카드와 같은 말로 한다. */
+/* 보류 2종의 **포털** 낱말. 관리자 표(HOLD_LABEL — '고지 미도달')와 다르다: 안내 칸은 사실만
+   ('마감 지남 · 자동 동의 보류') 말하고, 이유는 마우스 올림에서 거래명세서 조회(S-02) 동의 카드와 같은 말로 한다.
+   (예전 셋째 '정지 중 마감' 은 2026-10-22 운영자 결정 A — '정지' 체계를 없앤다 — 로 지웠다.) */
 const HOLD_NOTE = {
   TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",
   NOTICE_UNDELIVERED: "마감 지남 · 자동 동의 보류",
-  CLIENT_SUSPENDED: "마감 지남 · 자동 동의 보류",
 };
 const HOLD_WHY = {
   TERMS_NOT_AGREED: "약관 동의 전에 마감이 지나 자동 동의되지 않았습니다",
   NOTICE_UNDELIVERED: "마감 안내가 전달되지 않아 자동 동의를 보류했습니다",
-  CLIENT_SUSPENDED: "마감 때 이용이 정지되어 있어 자동 동의를 보류했습니다",
 };
 const NOT_YET = { kind: "none" };
 
-/* 0원으로 닫히는(닫힌) 달 — 발급 때부터 0원(zero) · 발급 뒤 고쳐서 0원(zeroEdited — 주문을 다 취소·삭제해 줄이 0개여도
-   이 갈래다. 그때 zero 는 false 라 zero 만 보면 '발급완료'·'처리할 달' 로 샌다). */
-const zeroish = (s) => s.zero || s.zeroEdited;
+/* 0원으로 닫히는(닫힌) 달 — 발급 뒤 고쳐서 0원(zeroEdited — 주문을 다 취소·삭제해 줄이 0개여도 이 갈래다). 0원 주문만 있는 달은
+   내역서가 없어(NONE — 2026-10-22 결정 B) 여기 들지 않는다. */
+const zeroish = (s) => s.zeroEdited;
 
-/** 계산서 발급 칸 — 발행 전 · 동의 필요(마감 / 수정 마감 전 / 금액 바뀜 / 보류 3종) · 동의 완료(발급 중) · 발급완료 ·
- *  0원 달 '계산서 없음'(발급 때부터 0원 · 고쳐서 0원 — 마감 전 ● / 닫힌 뒤 ✓) */
+/** 계산서 발급 칸 — 발행 전 · 동의 필요(마감 / 수정 마감 전 / 금액 바뀜 / 보류 2종) · 동의 완료(발급 중) · 발급완료 ·
+ *  고쳐서 0원인 달 '계산서 없음'(마감 전 ● / 닫힌 뒤 ✓) */
 function invStage(s, now) {
   if (s.status === "NONE") return { kind: "none", sr: "거래 없음" };
-  /* 0원으로 닫힌 달(10.4 Q21 잠정 ①) — 동의·계산서가 없다. 회색 ✓ = 실제 처리 없이 닫힌 완료.
-     고쳐서 0원이 된 달도 마감에 닫히면 같은 모습이다(시안 — 6월 0원 달처럼). 근거만 다르게 말한다. */
+  /* 고쳐서 0원이 되어 마감에 닫힌 달 — 동의·계산서가 없다. 회색 ✓ = 실제 처리 없이 닫힌 완료. */
   if (zeroish(s) && s.status === "PAID") {
     return {
       kind: "done", label: "계산서 없음", tone: "gray",
-      meta: s.zeroEdited ? "고쳐서 0원 · 마감에 계산서 없이 닫힘" : "0원 주문만 있는 달", title: "동의가 필요 없습니다",
+      meta: "고쳐서 0원 · 마감에 계산서 없이 닫힘", title: "동의가 필요 없습니다",
     };
   }
   if (s.status === "SCHEDULED") return { kind: "live", label: "발행 전", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발급`, title: "발급되면 내용을 확인하고 동의할 수 있습니다" };
@@ -220,7 +219,7 @@ function markOf(st, cur) {
     : { kind: st.kind, label: st.label, tone: st.tone, meta: st.meta, tip });
 }
 /** '처리할 달' — 동의 필요 + 정산필요 + 기한 초과(0원 달 제외 · 시안). 발급 중(AGREED)은 거래처가 할 일이 없다.
- *  고쳐서 0원이 된 달(마감 전 AWAITING)도 뺀다 — 동의를 받지 않는 달이다(줄이 다 빠져 zero 가 false 여도). */
+ *  고쳐서 0원이 된 달(마감 전 AWAITING)도 뺀다 — 동의를 받지 않는 달이다. 0원 주문만 있는 달은 NONE 이라 처음부터 들지 않는다. */
 const isTodo = (s) => !zeroish(s) && (s.status === "AWAITING_AGREEMENT" || s.status === "ISSUED" || s.status === "OVERDUE");
 
 /* 표 열 폭은 `--st-*` 로 넘긴다 — tableGrid 가 grid-template-columns 를 인라인 style 로 찍어
@@ -241,15 +240,15 @@ const COLUMNS = [
   { label: "정산 기한", width: "var(--st-date, 94px)", render: (r) => html`<span class="st-num">${fmtDot(r.dueAt)}</span>` },
   {
     label: "정산금액", width: "var(--st-amt, 140px)", align: "right",
-    /* 거래가 없는 달은 '-'(거래명세서 조회의 월 목록과 같은 말) — '0원' 이라 적으면 0원 주문만 있는 달과 구분되지 않는다.
-       단 발급 뒤 주문을 다 취소·삭제해 줄이 0개가 된 달(zeroEdited)은 거래 없는 달이 아니다 — 0원 + '바뀜'.
+    /* 거래가 없는 달은 '-'(거래명세서 조회의 월 목록과 같은 말) — 0원 주문만 있는 달도 내역서가 없어 같다(2026-10-22 결정 B).
+       단 발급 뒤 주문을 고치거나 다 취소·삭제해 0원이 된 달(zeroEdited)은 거래 없는 달이 아니다 — 0원 + '바뀜'.
        금액은 늘 **지금** 금액이다. 바뀐 달(②)은 옆에 '바뀜' 칩(동의·발급·입금 뒤에도 남는다 · 관리자 S-01 과 같은 칩).
        칩은 aria-hidden 이고 문장은 마우스 올림 + .sr-only — 단 안내 칸이 이미 그 문장을 말하는 동의 전 줄은 .sr-only 를
-       빼서 두 번 읽히지 않게 한다. 마우스 올림 순서(시안): 바뀐 달 문장 → 0원 달 '0원 주문 N건' → '지금 금액'. */
+       빼서 두 번 읽히지 않게 한다. 마우스 올림 순서(시안): 바뀐 달 문장 → '지금 금액'. */
     render: (r) => {
       if (r.empty && !r.zeroEdited) return html`<span class="st-amt is-none">-</span>`;
       const chg = amountChangeLine(r);
-      const tip = chg || (r.zero ? `0원 주문 ${r.count}건` : "지금 금액");
+      const tip = chg || "지금 금액";
       const said = r.$st.cur && r.$st.cur.chg;
       return html`<span class="st-amtw" title="${tip}"><span class="st-amt">${won(r.amount)}</span>${chg
         ? html`<span class="settle-chip settle-chip--chg" aria-hidden="true">바뀜</span>${said ? "" : html`<span class="sr-only"> · ${chg}</span>`}`

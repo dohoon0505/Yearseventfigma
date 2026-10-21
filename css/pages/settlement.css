@@ -572,10 +572,10 @@
   min-width: 0; overflow: hidden; text-overflow: ellipsis;
   font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
 }
-/* 이름 옆 칩 — 계정 구분(회색) · 정지 중(호박) · 알림 수신자 없음(빨강). 칩 기본 모양(.settle-chip)과 청구금액 옆
+/* 이름 옆 칩 — 계정 구분 · 탈퇴(회색 — 칩 기본 모양) · 알림 수신자 없음(빨강). 칩 기본 모양(.settle-chip)과 청구금액 옆
    '바뀜'(.settle-chip--chg)은 포털 정산회계(S-03)와 같이 쓰는 공용이라 components.css 에 있다 — 여기에 사본을 두지 말 것
-   (같은 특이도라 이 파일이 나중에 로드돼 공용을 덮는다 · 한쪽만 고치면 두 화면이 갈린다). 여기는 관리자 전용 변형만. */
-.settle-chip--amber { background: var(--c-warn-soft-bg); color: var(--c-amber-ink); }
+   (같은 특이도라 이 파일이 나중에 로드돼 공용을 덮는다 · 한쪽만 고치면 두 화면이 갈린다). 여기는 관리자 전용 변형만.
+   (예전 '정지 중' 호박 칩 .settle-chip--amber 는 2026-10-22 결정 A — '정지' 를 없애고 '탈퇴' 를 둔다 — 로 쓰는 곳이 없어 지웠다.) */
 .settle-chip--red { background: var(--c-danger-bg); color: var(--c-danger-ink); }
 /* 7자리 금액도 꺾이지 않는다(예전 110px 칸에서 '1,000,000원' 이 두 줄이었다). 2차 시안: '바뀜' 칩이 금액 오른쪽에 붙는다 */
 .settle-td--amt {
@@ -583,7 +583,7 @@
   font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
 }
 .settle-amt { flex: 0 0 auto; }
-/* 0원 달 · 거래 없는 달은 세 상태 칸을 한 칸으로 */
+/* 고쳐서 0원인 달 · 거래 없는 달(0원 주문만 있는 달 포함)은 세 상태 칸을 한 칸으로 */
 .settle-td--span3 { grid-column: span 3; }
 .settle-none { font-size: var(--fs-13); color: var(--c-text-4); }
 /* '기한 · 비고' — 지금 단계의 기한·사유. 빨강 = 수정 마감 24시간 전(고칠 수 있는 달) · 동의 마감 24시간 전(수정 마감이

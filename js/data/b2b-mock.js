@@ -35,7 +35,7 @@
 /* import 방향: b2b-mock → store → admin-mock → settlement-rules, b2b-mock → invoice-mock(시드 INVOICE_DB 만).
    store·admin-mock·invoice-mock 은 이 모듈을 import 하지 않는다 — 거꾸로 걸면 순환이다.
    정산 계산(이용 내역 · 청구금액 · 명세서 행)은 이 모듈을 읽는 `js/util/settlement.js` 층에서 한다. */
-import { DATA_NOW, INITIAL_CLIENTS, SEED_BILLING } from "./admin-mock.js";
+import { DATA_NOW, INITIAL_CLIENTS, SEED_BILLING, withdrawnYmOf } from "./admin-mock.js";
 import { INVOICE_DB } from "./invoice-mock.js";
 import { store, ALL_PRODUCTS, priceNum } from "../store.js";
 import { periodOf, fmtAt, issueDate, invoiceDayFor, editLockAt } from "./settlement-rules.js";
@@ -337,8 +337,9 @@ const windowMonths = (now) => [0, 1, 2, 3, 4, 5].map((m) => periodOf(new Date(no
 
 /* ── 예시 달 (2026-10-16 운영자 결정 — 가상 거래처·예시 달 추가) ──────────────────
    ⚠️ 주문이 없는 거래처: 누리솔루션(C022) — 가입했지만 아직 주문을 넣지 않았다(첫 명세서가 없다).
-   ⚠️ 0원 달: 고이메모리얼(C007)의 **3달 전**은 가입 혜택 '1회 무료' 0원 주문 2건만 있는 달이다 — 명세서는 발급되고
-      동의·계산서 없이 닫힌다(명세 3.4 예외표 · 10.4 Q21 잠정 ①). DATA_NOW 상대라 늘 '발급 뒤 닫힌 달' 로 보인다. */
+   ⚠️ 0원 주문만 있는 달: 고이메모리얼(C007)의 **3달 전**은 가입 혜택 '1회 무료' 0원 주문 2건만 있는 달이다 — 2026-10-22 운영자
+      결정 B 로 이런 달은 **내역서를 내지 않는다**(거래 없는 달 NONE 과 같다 · T3 없음 · util/settlement settlementOf). 예전엔 명세서를
+      발급하고 동의·계산서 없이 닫았다(명세 3.4 예외표 · 10.4 Q21 잠정 ①). DATA_NOW 상대라 늘 '발행이 지난 거래 없는 달' 로 보인다. */
 const NO_ORDER_CLIENTS = new Set(["C022"]);
 const ZERO_MONTH = { clientId: "C007", monthsAgo: 3 };
 function zeroMonth(clientId, ym) {
@@ -378,7 +379,8 @@ function zeroMonth(clientId, ym) {
      C  새봄푸드(주) C002 2개월 전 — 4단화환(표준형) → 3단화환(기본형) 50,000 · 동의·발급·입금 뒤에도 남는 기록
      D  주식회사 하늘빛 C019 지난달 — 주문 1건짜리 달 · 3단화환(고급형) 60,000 → 0원 · 고쳐서 0원(1~7일 그룹 — 마감에 닫힘)
      E  한빛과학(주) 연구소 계정 C027(11일 그룹 · 약관 전) 지난달 — 주문 1건짜리 달 · 50,000 → 0원 · 고쳐서 0원(마감 전)
-     F  (주)새솔테크 C020(약관 전) 지난달(첫 달) — 처음부터 0원 1건(가입 혜택) · 줄 없음 → 첫 달이 0원으로 닫힌 거래처
+     F  (주)새솔테크 C020(약관 전) 지난달(첫 달) — 처음부터 0원 1건(가입 혜택) · 줄 없음 → 0원 주문만 있어 내역서가 없는 달(NONE —
+        2026-10-22 결정 B) · 첫 명세서는 이번 달분
      G  한빛과학(주) C001 — 손으로 쓴 t45(다른 달 배송분을 이 달에 취소한 수수료) · 줄 없음(수수료는 이번 달이 아니라 취소한 달)
    ⚠️ D·E·F 는 그 달 생성 주문을 1건짜리로 **바꾼다**(난수 생성기 대신) — 그 달 금액·건수·주문번호(뒤 거래처의 같은 달 번호)가
       예전 시드와 달라진다. C019 는 손으로 쓴 주문이 없는 유일한 기존 거래처라 그 달이 1건으로 깨끗하다. */
@@ -484,8 +486,6 @@ function seedGenerated(now) {
     .sort((a, b) => idNum(a) - idNum(b));
   const byMonth = new Map();
   const zeroYm = periodOf(new Date(now.getFullYear(), now.getMonth() - ZERO_MONTH.monthsAgo, 1));
-  const curYm = periodOf(now);
-  const suspended = new Set(INITIAL_CLIENTS.filter((c) => c.status === "정지").map((c) => c.id));
   /* 주문 1건짜리 달(시드 예시 D·E·F) — "거래처|YYYY-MM" → spec */
   const single = new Map(SINGLE_MONTHS.map((sp) => [`${sp.clientId}|${periodOf(new Date(now.getFullYear(), now.getMonth() - sp.monthsAgo, 1))}`, sp]));
   clientIds.forEach((cid) => {
@@ -500,10 +500,6 @@ function seedGenerated(now) {
       if (rows && rows.length) recs = fromInvoiceRows(cid, ym, rows);          // 실데이터가 이긴다
       else if (cid === ZERO_MONTH.clientId && ym === zeroYm) recs = zeroMonth(cid, ym);
       else if (single.has(`${cid}|${ym}`) && SEED_CLIENTS.has(cid) && (!joined || ym >= joined)) recs = singleMonth(cid, ym, single.get(`${cid}|${ym}`));
-      /* 정지된 거래처(시드 상태 '정지' — C023 다솜물산)는 **이번 달 주문을 만들지 않는다** — 정지는 이번 달 1일부터로 본다.
-         예전엔 정지된 계정에도 이번 달 미래 배송분(접수대기)이 생겨 대쉬보드 액션 큐에 떴다. 지금 시각(now)으로 자르지 않는
-         이유: 날이 지나며 미래 주문이 하나씩 '배송완료' 로 나타나게 된다 — 달 경계는 DATA_NOW 상대라 늘 같은 모양이다. */
-      else if (suspended.has(cid) && ym >= curYm) recs = null;
       else if (months.includes(ym) && SEED_CLIENTS.has(cid) && (!joined || ym >= joined)) {
         /* 가입한 달은 가입일 이후 배송분만 — 가입 전에 배송된 주문이 생기면 안 된다(C020~ 의 첫 명세서가 이 날짜로 정해진다).
            기존 거래처 19곳은 가입일이 시드 창보다 앞이라 걸리지 않는다. */
@@ -581,12 +577,37 @@ function consistentSeedLines(lines, byId) {
   return out;
 }
 
+/** 탈퇴한 거래처의 탈퇴한 달 — { [clientId]: "YYYY-MM" }. **저장소의 지금 레코드**로 본다(화면에서 탈퇴 처리한 거래처도 —
+ *  시드 레코드만 보면 새로고침 뒤 다음 달에 그 거래처의 시드 주문이 다시 생겨 끝나지 않은 정산이 생긴다). build() 는 첫 b2bList()
+ *  때 돌므로 hydrate 뒤다. 저장소에 없는 시드 거래처(그 거래처가 생기기 전에 저장한 옛 브라우저 — 저장값이 시드를 이겨 목록에는 없는데
+ *  시드 주문은 생긴다)는 시드 레코드로 본다 — 안 그러면 탈퇴 예시(C028)의 탈퇴 뒤 달 주문이 그 브라우저에서 생긴다. */
+function withdrawnMonths() {
+  const out = {};
+  const stored = store.get().clients || [];
+  const ids = new Set(stored.map((c) => c.id));
+  [...stored, ...INITIAL_CLIENTS.filter((c) => !ids.has(c.id))].forEach((c) => { const ym = withdrawnYmOf(c); if (ym) out[c.id] = ym; });
+  return out;
+}
+/** 시드 주문이 탈퇴한 달 이후 것인가 — 배송일의 달이나 정산 줄(취소 수수료는 취소한 달)이 탈퇴한 달 이상이면.
+ *  (2026-10-22 운영자 결정 A — 탈퇴는 끝나지 않은 정산이 있으면 할 수 없다. 시드는 오늘 기준으로 움직여 다음 달에도 새 주문을
+ *  만들므로, 탈퇴한 거래처에 끝나지 않은 정산이 생기지 않게 **탈퇴한 달부터는 시드 주문을 만들지 않는다**.) 예전 '정지 거래처의 이번
+ *  달 주문은 만들지 않음' 의 자리다. */
+function afterWithdrawal(o, gone) {
+  const w = gone[o.clientId];
+  if (!w) return false;
+  return normAt(o.deliverAt).slice(0, 7) >= w || entriesOfOrder(o).some((e) => e.ym >= w);
+}
+
 function build() {
   const hand = HAND_ORDERS.map((o) => finishSeed({ ...o }));
   const gen = seedGenerated(DATA_NOW);
-  const seeds = [...hand, ...gen.orders];
-  seedIds = new Set(seeds.map((o) => o.id));
   const ops = store.orderOps();
+  /* 탈퇴한 달 이후 시드는 뺀다 — **번호를 매긴 뒤**에 빼서 다른 거래처의 주문번호가 밀리지 않는다(화면에서 본 번호가 새로고침 뒤에
+     바뀌면 안 된다). 사용자가 고친 시드(patched — 그 사람이 남긴 기록)는 남긴다. seedIds 는 뺀 것까지 담는다(새 주문 id 와 겹치지 않게). */
+  const gone = withdrawnMonths();
+  const all = [...hand, ...gen.orders];
+  seedIds = new Set(all.map((o) => o.id));
+  const seeds = all.filter((o) => !afterWithdrawal(o, gone) || (ops.patched && ops.patched[o.id]));
   const removed = new Set(ops.removed || []);
   /* 시드 창(6개월) 밖으로 밀려난 달의 patched 는 버려진다 — 그 달 시드가 더는 없다. */
   const kept = seeds
@@ -647,11 +668,12 @@ function ledgerLinesFor(before, after, ctx = {}, now = new Date()) {
     return line;
   });
 }
-/** 그 (거래처, 귀속월)이 이 쓰기 **전에** '발급 때부터 0원' 으로 닫혀 있었는가 — util/settlement `settlementOf` 의
- *  `zero && !zeroEdited`(발행과 함께 PAID · 수정 마감 전에도 잠긴 달 · LOCK_REASON.zero). 위 경고(개발용) 판정에만 쓴다.
+/** 그 (거래처, 귀속월)이 이 쓰기 **전에** '0원 주문만 있어 명세서를 내지 않은 달' 이었는가 — util/settlement `settlementOf` 의
+ *  NONE(줄은 있고 합이 0원 · 고쳐서 0원이 아님 — 2026-10-22 운영자 결정 B · 예전엔 '발급 때부터 0원 · 발행과 함께 PAID' 였다).
+ *  그 달로 금액이 들어오는 변경은 화면이 settlementImpactOf(issuedZeroReason · issuedEmptyReason)로 막는다 — 위 경고(개발용) 판정에만 쓴다.
  *  이 모듈은 settlementOf 를 부를 수 없어(그쪽이 이 모듈을 import 한다 — 순환) 같은 두 값으로 다시 잰다: 그 달 줄의 합
  *  (이 주문은 바꾸기 전 모양 — 캐시에는 이미 바꾼 뒤 모양이 들어 있다)과 발행 뒤 기록 줄(사용자 줄 ∪ 시드 줄)의 순변동.
- *  줄이 없는 달(NONE)은 잠긴 달이 아니라 false(들어오는 주문은 settlementImpactOf 가 따로 막는다 — 2차 답 3). */
+ *  줄이 없는 달(NONE)은 false(들어오는 주문은 settlementImpactOf 가 따로 막는다 — 2차 답 3). */
 function zeroClosedBefore(clientId, ym, issueAt, before, after) {
   const self = after || before;
   let n = 0, sum = 0;

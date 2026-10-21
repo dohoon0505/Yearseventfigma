@@ -180,7 +180,7 @@ export function mount(root, { nav }) {
     nav(landingFor("enterprise"));
   };
 
-  /* 라우터가 세션을 끊고 보냈으면(로그인 뒤 정지·반려·삭제) 그 이유를 한 번 말한다. */
+  /* 라우터가 세션을 끊고 보냈으면(로그인 뒤 탈퇴 처리·반려·삭제) 그 이유를 한 번 말한다. */
   const notice = takeLoginNotice();
   if (notice) showError(notice);
 
@@ -213,8 +213,8 @@ export function mount(root, { nav }) {
       showError("아이디 또는 비밀번호가 올바르지 않습니다.");
       return;
     }
-    /* 승인대기·반려·정지는 로그인 자체를 막는다(2026-09-25 결정). 자격 증명이 맞은 뒤에 보므로
-       상태를 알려 줘도 계정 존재가 새지 않는다. */
+    /* 승인대기·반려·탈퇴는 로그인 자체를 막는다(2026-09-25 결정 · 탈퇴는 2026-10-22 결정 A). 자격 증명이 맞은 뒤에 보므로
+       상태를 알려 줘도 계정 존재가 새지 않는다(탈퇴한 계정도 비밀번호가 맞아야 '탈퇴한 계정입니다' 를 본다). */
     const block = portalBlock(c);
     if (block) {
       showError(block);

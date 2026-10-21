@@ -2,9 +2,9 @@
    store.js — global state (profiles / contacts / favorites)
    pub/sub + localStorage persistence. Ports AppContext.tsx.
    ============================================================ */
-import { INITIAL_CLIENTS, SEED_BILLING, DATA_NOW, suspendStoryLines } from "./data/admin-mock.js";
+import { INITIAL_CLIENTS, SEED_BILLING, DATA_NOW, WITHDRAWN } from "./data/admin-mock.js";
 /* 동의 상태(발행·마감·자동 동의·작성일자)는 규칙 모듈 한 곳에서 파생한다 — import 0 이라 순환이 없다. */
-import { agreementState, noticeState, fmtAt, parseAt, periodOf, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, SUSPENDED } from "./data/settlement-rules.js";
+import { agreementState, noticeState, fmtAt, parseAt, periodOf, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom } from "./data/settlement-rules.js";
 /* ⚠️ session.js 는 store 를 import 하지 않는다 — 순환이 아니다.
    util/client.js 는 store 를 import 하므로 여기서 쓰면 순환이 된다. */
 import { getClientId, isReservedAccountId } from "./session.js";
@@ -19,7 +19,9 @@ import { contactPhoneOk } from "./util/phone.js";
 /** @typedef {{id:string,no?:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
 /* ⚠️ Contact 의 키는 `id` 다. `no` 는 화면에 보이는 순번일 뿐이라 쓰기마다 다시 매겨진다 —
    삭제하면 뒤 번호가 전부 당겨지므로 `no` 로 대상을 지목하면 엉뚱한 사람이 바뀐다. */
-/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string}} Client */
+/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string,withdrawnAt?:string}} Client */
+/* status 는 '활성' · '승인대기' · '반려' · '탈퇴' 넷(2026-10-22 운영자 결정 A — '정지' 는 없다 · admin-mock CLIENT_STATUSES).
+   withdrawnAt 은 탈퇴한 시각 "YYYY-MM-DD HH:mm"(탈퇴 레코드에만 · updateClient 가 비어 있으면 채운다). */
 /* password 는 셀프 가입(register.js)·데모 시드(`demo1234`)·관리자의 임시비밀번호 발급이 채운다. 로그인은 언제나
    검사한다(login.js). 관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
 
@@ -153,9 +155,8 @@ let state = {
      payments     : 입금 확인 { at }. 0원 달은 입금 없이 닫히므로 여기 있어도 읽지 않는다(util 이 무시).
      holds        : **고지 미도달**(10.4 Q19 — T4 가 알림톡·대체 문자 모두 실패)의 데모 대역 — "NOTICE_UNDELIVERED" 만.
                     발송 로그(명세 5.10)가 없어 '발송 실패' 만은 기록으로 둔다. 그 달은 마감 당일 10:00 에 다시 보내도 닿지 않은 것으로
-                    친다(settlement-rules `noticeState`). **정지 중 마감(Q20)은 여기 두지 않는다** — 거래처 상태 이력(`client.statusLog`)
-                    에서 파생한다(2026-10-19 '정지 이력을 남긴다'). 옛 저장본의 "CLIENT_SUSPENDED" 는 hydrate 가 holds 에서 버리되
-                    **그 달**을 그 거래처의 상태 이력 두 줄로 먼저 옮긴다(hydrateClient ③ — 그 브라우저의 보류 달이 그대로 남게).
+                    친다(settlement-rules `noticeState`). 옛 저장본의 "CLIENT_SUSPENDED"(정지 중 마감 Q20)는 hydrate 가 버린다 —
+                    '정지' 체계는 2026-10-22 운영자 결정 A 로 없앴다(거래처 상태는 활성 · 승인대기 · 반려 · 탈퇴).
                     약관 보류는 거래처 약관 시각에서 파생한다.
      ⚠️ 저장값이 시드를 이긴다 — 시드는 저장소가 빈 브라우저(또는 이 칸이 없는 옛 저장본)에서만 보인다.
      `by`(einvoice · payments — 2026-10-16 DATA.md 1.4): 처리자 `{ type, id, name, dept }`(util/actor.js currentActor).
@@ -185,9 +186,8 @@ const seedEinvoiceFail = () => ({
   C004: { [seedYm(1)]: { detail: "[예시] 바로빌 오류 -10002 · 공급받는자 사업자번호 상태 조회 실패 — 다시 시도하거나 수기 발급 승인번호를 입력하세요" } },
 });
 /* 고지 미도달 — (주)바다향(C005)의 지난달분: 마감 하루 전 안내(T4)가 알림톡·대체 문자 모두 실패했고 마감 당일 다시 보내도 닿지
-   않았다(1~7일 그룹이라 지난달분 마감 — 발급월 10일 — 이 이미 지났다). 정지 중 마감((주)싱싱마켓 C009 지난달분)은 예전엔 여기
-   'CLIENT_SUSPENDED' 로 박아 두었는데, 이제 거래처 상태 이력 시드(admin-mock C009 `statusLog` — 수정 마감 전에 정지 → 마감 뒤 해제)
-   에서 파생한다(2026-10-19). */
+   않았다(1~7일 그룹이라 지난달분 마감 — 발급월 10일 — 이 이미 지났다). 예전 셋째 시드 '정지 중 마감'((주)싱싱마켓 C009)은
+   2026-10-22 운영자 결정 A('정지' 체계를 없앤다)로 지웠다. */
 const seedHolds = () => ({
   C005: { [seedYm(1)]: "NOTICE_UNDELIVERED" },
 });
@@ -199,7 +199,7 @@ const reachOf = (contactsByClient, clientId) => {
 /** 그 (거래처, 귀속월)의 정산 안내 도달과 마감에 잡힐 보류(settlement-rules `noticeState`) — 지금 상태(st)의 기록으로. */
 function noticeFor(client, ym, st) {
   return noticeState({
-    period: ym, invoiceDay: invoiceDayFor(client, ym), client,
+    period: ym, invoiceDay: invoiceDayFor(client, ym),
     reach: reachOf(st.contactsByClient, client.id),
     undelivered: ((st.holds || {})[client.id] || {})[ym] === "NOTICE_UNDELIVERED",
     manualAt: ((st.invoiceAgreed || {})[client.id] || {})[ym] || null,
@@ -208,13 +208,17 @@ function noticeFor(client, ym, st) {
 /* 기한 초과 시연 — 한빛과학(주)(C001)의 두 달 전분은 입금 시드를 넣지 않는다(정산기한 다음 날 10:00 이 지나 OVERDUE). */
 const NO_PAY_SEED = { C001: [2] };
 /** 입금 시드 — 예전 화면 모습('두 달 이전이고 동의된 달은 입금됨')을 유지한다. 입금일은 정산기한 3일 전 14:00
- *  (계산서보다 앞서지 않게 동의 시각 + 2시간 이후). 발급 실패·보류 달은 계산서가 없어 넣지 않는다. */
+ *  (계산서보다 앞서지 않게 동의 시각 + 2시간 이후). 발급 실패·보류 달은 계산서가 없어 넣지 않는다.
+ *  2년 전 달까지 넣는다(2026-10-22 — 예전엔 5개월 전까지만이라 그보다 오래된 달이 영원히 '입금 전' 으로 남아, 관리자 정산회계
+ *  6개월 창 밖이라 입금 확인도 못 하는 채 거의 모든 거래처의 탈퇴가 막혔고 포털 정산회계에도 옛 달이 '정산필요' 로 섰다). */
 function seedPayments(clients, holds, fails, agreed, contactsByClient) {
   const out = {};
   clients.forEach((c) => {
     const termsAt = c.termsFirstAgreedAt || c.termsAgreedAt || null;
-    for (let m = 2; m <= 5; m++) {
+    const joinYm = String(c.joinDate || "").slice(0, 7); // 가입하기 전 달에는 입금이 없다
+    for (let m = 2; m <= 24; m++) {
       const ym = seedYm(m);
+      if (joinYm && ym < joinYm) continue;
       if ((NO_PAY_SEED[c.id] || []).includes(m) || ((fails[c.id] || {})[ym])) continue;
       const st = agreementState({
         period: ym, invoiceDay: invoiceDayFor(c, ym), manualAt: (agreed[c.id] || {})[ym] || null,
@@ -344,22 +348,14 @@ function hydrate() {
     if (!raw) return;
     const data = JSON.parse(raw);
     bumpSeqsFrom(data); // 새 id 를 매기기(아래 fixBilling · hydrateProfiles) **전에** 저장된 id 의 최댓값부터
-    const now = new Date();
-    let statusFixed = false;
-    /* 옛 저장본의 '정지 중 마감' 보류 기록 — 아래 holds 에서는 버리지만, 그 전에 상태 이력으로 옮긴다(hydrateClient) */
-    const legacySusp = hydrateByClient(data.holds, (x) => x === "CLIENT_SUSPENDED") || {};
     const clients = Array.isArray(data.clients)
-      ? data.clients.filter((c) => c && typeof c === "object").map((c) => {
-        const r = hydrateClient(c, now, Object.keys(legacySusp[c.id] || {}));
-        if (r.fixed) statusFixed = true;
-        return r.rec;
-      })
+      ? data.clients.filter((c) => c && typeof c === "object").map(hydrateClient)
       : null;
     state = {
       profilesByClient: hydrateProfilesByClient(data),
       contactsByClient: hydrateContacts(data),
       favorites: new Set(Array.isArray(data.favorites) ? data.favorites : []),
-      // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다(hydrateClient — 상태 이력 사슬도 여기서 맞춘다).
+      // 저장된 레코드에 없는 신규 시드 필드(invoiceDay 등)만 백필한다(hydrateClient — 옛 '정지' 도 여기서 '활성' 으로 읽는다).
       // 편집값이 항상 이기고, 삭제한 거래처는 부활시키지 않는다(저장 목록만 순회).
       clients: clients || state.clients,
       clientPrices: data.clientPrices && typeof data.clientPrices === "object" ? data.clientPrices : state.clientPrices,
@@ -368,9 +364,8 @@ function hydrate() {
       /* 정산 기록 — 칸이 없는 옛 저장본이면 시드(F2 이전에 열어 본 브라우저도 예시 달이 보이게) */
       einvoice: hydrateByClient(data.einvoice, (x) => okAt(x) && typeof x.no === "string") || {},
       einvoiceFail: hydrateByClient(data.einvoiceFail, (x) => !!x && typeof x === "object") || seedEinvoiceFail(),
-      /* 고지 미도달만 받는다 — 옛 저장본의 'CLIENT_SUSPENDED' 는 버린다(정지 중 마감은 statusLog 에서 파생한다 · 남기면 그 브라우저를
-         처음 연 달의 보류가 상태 이력과 따로 남는다). 버리기 전에 위 legacySusp 가 그 달을 상태 이력 두 줄로 옮겼다(hydrateClient ③).
-         약관 코드도 보류 기록이 아니다(agreementState 가 무시한다). */
+      /* 고지 미도달만 받는다 — 옛 저장본의 'CLIENT_SUSPENDED'(정지 중 마감)는 버린다('정지' 체계는 2026-10-22 결정 A 로 없앴다 —
+         그 달은 이제 평소처럼 마감에 자동 동의된 달로 읽힌다). 약관 코드도 보류 기록이 아니다(agreementState 가 무시한다). */
       holds: hydrateByClient(data.holds, (x) => x === "NOTICE_UNDELIVERED") || seedHolds(),
       payments: null,
       amountLog: hydrateLines(data.amountLog),
@@ -381,63 +376,20 @@ function hydrate() {
     const fixed = {};
     Object.keys(state.contactsByClient).forEach((k) => { fixed[k] = fixBilling(state.contactsByClient[k]); });
     state.contactsByClient = fixed;
-    /* 상태 이력 줄을 지금 시각으로 붙였으면 바로 저장한다 — 저장하지 않으면 다음 새로고침이 그 줄을 **그때의** 지금으로 다시 만들어
-       '언제부터 정지였나' 가 열 때마다 앞으로 밀리고, 그 사이 지난 마감이 소급해 '활성' 으로 읽힌다(자동 동의). */
-    if (statusFixed) persist();
   } catch {
     /* corrupt JSON → keep defaults (self-heal) */
   }
 }
 
-/* 저장된 거래처 레코드 하나 — 신규 시드 필드 백필 + **상태 이력 사슬 맞추기**(2026-10-19 검토 1·2).
-   settlement-rules `statusAt` 은 '그 시각 뒤 첫 이력 줄의 from, 없으면 레코드의 지금 상태' 라서 이력이 없으면 지금 상태가 내내
-   이어진 것으로 읽는다. 그대로 두면:
-   ① 이력이 생기기 전(statusLog 이전 코드)에 '정지' 로 저장된 거래처는 지난 모든 달이 소급해 '정지 중 마감' 으로 보류됐다(실측: 5~9월
-      자동 동의·발급·입금이 사라지고 동의대기) → 이력 없이 '정지' 인 레코드에는 **{ at: 지금, from: "활성", to: "정지" }** 한 줄을
-      붙인다(지난 시각은 활성 — statusLog 이전 코드와 같은 결과 · 정지는 이 브라우저가 처음 알게 된 지금부터). 승인대기·반려는 붙이지 않는다 —
-      정산 판정은 '정지' 만 보고, 한 번도 활성이었던 적 없는 가입 신청에 '활성 → 승인대기' 를 지어 적으면 이력이 거짓말을 한다.
-   ② 시드 백필({ ...시드, ...저장 })이 옛 저장본에 시드 이력을 얹으면 시드 사슬의 끝과 저장된 상태가 어긋날 수 있다(시드는 '정지 →
-      활성' 으로 끝나는데 관리자가 예전에 정지해 둔 레코드 등) → 시드 이력은 **마지막 to 가 저장된 상태와 같을 때만** 받고, 아니면 버리고
-      ①을 따른다. 저장본이 자기 이력을 갖고 있으면(withStatusLog 가 쌓은 것) 그대로 믿는다.
-   ③ statusLog 이전 코드는 '정지 중 마감' 을 holds 에 'CLIENT_SUSPENDED' 로 박아 두었다(싱싱마켓 시드 — 그 브라우저가 처음 저장한
-      날의 지난달분). 지금 holds 는 그 값을 버리므로(hydrate) 그대로 두면 ②의 시드 이력(**지금** 시각 기준 달)이 들어와 보류가 다른
-      달로 옮겨 갔다(실측: 10-05 에 저장한 브라우저 → 입금까지 끝난 8월이 '정지 중 마감' 으로 · 9월 보류는 사라짐 / 09-20 저장 → 8월이
-      자동 동의로 거슬러 올라가 기한 초과 · 9월 발급완료가 보류로) → 이력 없는 레코드에 그런 달(`legacyYms`)이 있으면 **시드 이력 대신**
-      시드와 같은 일정(admin-mock `suspendStoryLines` — 수정 마감 18시간 전 정지 · 동의 마감 21시간 뒤 해제)으로 그 달의 두 줄을 만든다.
-      지금 상태가 '활성' 이 아니면 아직 오지 않은 줄은 넣지 않고 그 자리에서 멈춘 뒤 ①처럼 '지금 · 그 상태' 한 줄로 끝을 맞춘다(사슬 끝 =
-      저장된 상태). '활성' 이면 두 줄 다 넣는다 — 그 달 마감이 아직 오지 않았어도 옛 기록은 그 달을 보류로 정해 두었다(옛 코드도 마감 전부터
-      그 달을 보류 예정으로 보였다 · 데모 시계를 옮겼을 때만 생긴다: 실제 날짜로는 옛 코드가 저장한 달의 해제 시각이 이미 지났다).
-   반환 `fixed` = ①·③의 줄을 붙였다(hydrate 가 바로 저장한다 — 줄 시각이 열 때마다 밀리지 않게 · ③은 holds 의 옛 값과 함께 굳힌다). */
-function hydrateClient(c, now, legacyYms = []) {
+/* 저장된 거래처 레코드 하나 — 신규 시드 필드 백필 + **옛 '정지' 를 '활성' 으로**(2026-10-22 운영자 결정 A — '정지' 체계를 없애고
+   '탈퇴' 를 둔다). 2026-10-19 의 거래처 상태 이력 칸(`statusLog`)도 버린다 — 읽는 곳이 없고, 남겨 두면 저장할 때마다 따라다닌다.
+   '활성' 으로 바꾼 것은 저장하지 않는다 — 읽을 때마다 같은 답이 나오고(다른 쓰기가 생기면 그때 함께 저장된다), 옛 브라우저의 거래처는
+   예전처럼 로그인할 수 있게 된다(정지가 없으니 막을 이유가 없다 · 그 거래처를 닫으려면 직원이 탈퇴 처리한다). 탈퇴는 건드리지 않는다. */
+function hydrateClient(c) {
   const seed = SEED_BY_ID.get(c.id) || {};
-  const rec = { ...seed, ...c };
-  const status = rec.status || "활성";
-  let log = Array.isArray(c.statusLog) ? c.statusLog : null;
-  let fixed = false;
-  if (!log && legacyYms.length) { log = legacySuspendLog(rec, legacyYms, now, status); fixed = true; }
-  if (!log) {
-    const sl = Array.isArray(seed.statusLog) ? seed.statusLog : [];
-    log = sl.length && (sl[sl.length - 1].to || "활성") === status ? sl : [];
-  }
-  if (!log.length && status === SUSPENDED) { log = [{ at: fmtAt(now), from: "활성", to: status }]; fixed = true; }
-  if (log.length) rec.statusLog = log;
-  else delete rec.statusLog;
-  return { rec, fixed };
-}
-/** ③ 옛 '정지 중 마감' 보류 달들 → 상태 이력(시간순). 사슬 끝은 늘 저장된 상태다(statusAt 은 마지막 줄 뒤를 레코드 상태로 읽는다). */
-function legacySuspendLog(rec, yms, now, status) {
-  const log = [];
-  let cur = "활성";
-  const future = (line) => { const d = parseAt(line.at); return !d || d.getTime() > now.getTime(); };
-  for (const ym of [...yms].sort()) {
-    const [off, on] = suspendStoryLines(ym, invoiceDayFor(rec, ym));
-    if (status !== "활성" && future(off)) break;
-    log.push(off); cur = SUSPENDED;
-    if (status !== "활성" && future(on)) break;
-    log.push(on); cur = "활성";
-  }
-  if (cur !== status) log.push({ at: fmtAt(now), from: cur, to: status });
-  return log;
+  const { statusLog: _droppedLog, ...rec } = { ...seed, ...c };
+  if (rec.status === "정지") rec.status = "활성";
+  return rec;
 }
 
 /* 구 저장본(id 없음)에 안정 id 를 그 자리에서 발급한다 — KEY 를 올리지 않고
@@ -518,25 +470,16 @@ function withInvoiceDayLog(prevRec, nextRec, now = new Date()) {
   return { ...nextRec, invoiceDayLog: log };
 }
 
-/* 상태가 바뀌면(활성 ↔ 정지 · 승인대기 → 활성/반려 …) **언제 바뀌었는지**를 레코드에 남긴다 — `statusLog = [{ at, from, to }]`
-   (2026-10-19 사용자 결정 '정지 이력을 남긴다'). 마감 시각에 정지였는가(자동 동의 보류 Q20)·안내를 보내는 시각에 정지였는가
-   (T3·T4 — Q35 ②)를 지난 달에 대해 가르려면 지금 상태 하나로는 모자란다 — 정지를 푸는 순간 지난 달의 보류가 소급해 사라진다.
-   판정은 settlement-rules `statusAt` 한 곳. `withInvoiceDayLog` 와 같은 자리에 둔다(거래처 저장 경로가 전부 updateClient 를 지난다).
-   ⚠️ **이력은 저장소가 주인이다.** 거래처 창(admin-clients)은 창을 연 순간의 form 사본을 쓰므로, 들어온 레코드의 statusLog 가
-   없거나 저장소 것보다 짧으면(사본이 낡았다) 저장소 이력을 이어 쓴다 — 받아 쓰면 그 사이 쌓인 이력이 통째로 지워진다
-   (발급일 이력이 실제로 그렇게 지워졌다 · admin-clients `writeForm`). 저장소 이력을 앞부분 그대로 이어 늘린 이력만 받아들인다. */
-function withStatusLog(prevRec, nextRec, now = new Date()) {
-  const base = Array.isArray(prevRec.statusLog) ? prevRec.statusLog : [];
-  const inc = Array.isArray(nextRec.statusLog) ? nextRec.statusLog : null;
-  const same = (a, b) => !!a && !!b && a.at === b.at && a.from === b.from && a.to === b.to;
-  let log = inc && inc.length > base.length && base.every((e, i) => same(e, inc[i])) ? inc : base;
-  /* 상태 칸이 없으면 '활성' — 앱 전체(로그인 portalBlock · statusAt)가 그렇게 읽는다. updateClient 는 레코드를 **통째로** 바꾸므로
-     상태 칸을 뺀 레코드는 활성으로 바꾼 것과 같다(그래서 그 줄도 남긴다). */
-  const before = prevRec.status || "활성";
-  const after = nextRec.status || "활성";
-  if (before !== after) log = [...log, { at: fmtAt(now), from: before, to: after }];
-  if (!log.length && !("statusLog" in nextRec)) return nextRec;
-  return log === nextRec.statusLog ? nextRec : { ...nextRec, statusLog: log };
+/* 탈퇴(2026-10-22 운영자 결정 A)는 **되돌리지 않는다** — 저장소가 마지막으로 지킨다. 화면(거래처 정보 창)은 탈퇴한 거래처의 상태 칸을
+   모두 잠그지만, 낡은 form 사본이나 다른 쓰기 경로가 '활성' 을 실어 와도 상태와 탈퇴한 시각은 그대로 둔다(되살아나면 끝난 줄 알았던
+   계정이 다시 로그인하고, 시드 주문도 다시 생긴다 — b2b-mock 은 탈퇴한 달부터 시드 주문을 만들지 않는다).
+   탈퇴로 바뀌는데 시각(`withdrawnAt` "YYYY-MM-DD HH:mm")이 없으면 지금으로 채운다(사실 한 칸 — 이력 장치가 아니다).
+   2026-10-19 의 상태 이력 칸(statusLog)은 들어와도 버린다(hydrateClient 와 같은 이유). */
+function withWithdrawn(prevRec, nextRec, now = new Date()) {
+  const { statusLog: _droppedLog, ...rec } = nextRec;
+  if (prevRec.status === WITHDRAWN) return { ...rec, status: WITHDRAWN, withdrawnAt: prevRec.withdrawnAt || rec.withdrawnAt || fmtAt(now) };
+  if (rec.status === WITHDRAWN && !parseAt(rec.withdrawnAt)) return { ...rec, withdrawnAt: fmtAt(now) };
+  return rec;
 }
 
 export const store = {
@@ -599,10 +542,10 @@ export const store = {
        재동의 시각(termsAgreedAt)을 쓰면 약관 버전을 올리는 순간 이미 자동 동의된 달이 '동의대기'로 되돌아간다
        (발급일 변경 때 겪은 소급 결함과 같은 모양). termsFirstAgreedAt 이 없는 옛 저장본은 termsAgreedAt 을 쓴다. */
     const termsAt = client ? client.termsFirstAgreedAt || client.termsAgreedAt || null : null;
-    /* 잠정 보류(Q19·Q20)도 같은 자리에서 정한다 — 그 달은 마감에 자동 동의하지 않는다. 보류는 기록이 아니라 **파생**이다
-       (settlement-rules `noticeState`): 마감 13:00 에 정지(statusLog) → CLIENT_SUSPENDED, 마감 하루 전 안내가 닿지 않았고(발송 실패
-       기록 holds · 정지라서 보내지 않음) 마감 당일 10:00 에 다시 보내도 닿지 않음 → NOTICE_UNDELIVERED. 약관 보류가 먼저고
-       수동 동의는 늘 이긴다(agreementState). `notice`(안내 도달)는 관리자 진행 기록이 같은 판정으로 '보냈다/못 보냈다' 를 말하게 싣는다. */
+    /* 잠정 보류(Q19)도 같은 자리에서 정한다 — 그 달은 마감에 자동 동의하지 않는다. 보류는 settlement-rules `noticeState` 가 정한다:
+       마감 하루 전 안내가 닿지 않았고(발송 실패 기록 holds) 마감 당일 10:00 에 다시 보내도 닿지 않음 → NOTICE_UNDELIVERED. 약관 보류가
+       먼저고 수동 동의는 늘 이긴다(agreementState). `notice`(안내 도달)는 관리자 진행 기록이 같은 판정으로 '보냈다/못 보냈다' 를 말하게
+       싣는다. (2026-10-19 의 '정지 중 마감' CLIENT_SUSPENDED 는 2026-10-22 결정 A 로 없앴다.) */
     const notice = noticeFor(client || { id: k }, ym, state);
     return { ...agreementState({ period: ym, invoiceDay: invoiceDayFor(client, ym), manualAt: (state.invoiceAgreed[k] || {})[ym] || null, termsAt, hold: notice.hold, now }), notice };
   },
@@ -648,8 +591,8 @@ export const store = {
   einvoiceOf(clientId, ym) { return (state.einvoice[scopeId(clientId)] || {})[ym] || null; },
   einvoiceFailOf(clientId, ym) { return (state.einvoiceFail[scopeId(clientId)] || {})[ym] || null; },
   paymentOf(clientId, ym) { return (state.payments[scopeId(clientId)] || {})[ym] || null; },
-  /** 고지 미도달(발송 실패) **기록** — "NOTICE_UNDELIVERED" 또는 null. ⚠️ 마감에 잡히는 보류 판정이 아니다(정지 중 마감은 statusLog 에서
-   *  파생한다) — 화면은 settlementOf 의 autoAgreeHold · heldAtDeadline · notice 를 쓸 것. */
+  /** 고지 미도달(발송 실패) **기록** — "NOTICE_UNDELIVERED" 또는 null. ⚠️ 마감에 잡히는 보류 판정 그 자체가 아니다(직접 동의하면 보류가
+   *  없다) — 화면은 settlementOf 의 autoAgreeHold · heldAtDeadline · notice 를 쓸 것. */
   holdOf(clientId, ym) { return (state.holds[scopeId(clientId)] || {})[ym] || null; },
   /** 계산서 발급 재시도·수기 입력(명세 6.6 `POST …/einvoice`). **AGREED(동의완료 · 발급 전)에서만** 받는다 —
    *  동의 전이거나, 이미 발급됐거나(기록 또는 자동 발급 파생 = 실패 기록이 없는 달) 이면 null.
@@ -765,10 +708,10 @@ export const store = {
     if (!id) return false;
     return isReservedAccountId(id) || state.clients.some((c) => c.id !== exceptClientId && c.accountId === id);
   },
-  /** 거래처 레코드 저장 — 발급일 이력(invoiceDayLog)과 상태 이력(statusLog)을 여기서 쌓는다(둘 다 저장소가 주인).
-   *  `now`(선택)는 이력 시각 — 테스트가 시계를 못박을 때만 넘긴다. */
+  /** 거래처 레코드 저장 — 발급일 이력(invoiceDayLog)을 여기서 쌓고, 탈퇴는 되돌리지 않는다(withWithdrawn — 탈퇴한 시각도 채운다).
+   *  `now`(선택)는 이력·탈퇴 시각 — 테스트가 시계를 못박을 때만 넘긴다. */
   updateClient(c, now = new Date()) {
-    this.setClients((prev) => prev.map((x) => (x.id === c.id ? withStatusLog(x, withInvoiceDayLog(x, c, now), now) : x)));
+    this.setClients((prev) => prev.map((x) => (x.id === c.id ? withWithdrawn(x, withInvoiceDayLog(x, c, now), now) : x)));
   },
   removeClient(id) {
     this.setClients((prev) => prev.filter((x) => x.id !== id));

@@ -125,13 +125,14 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
     .sort((a, b) => b.amount - a.amount);
 
   /* ── 정산 진행 현황 (해당 월 정산 레코드 기준) ──
-     ⚠️ 정산 절차를 밟는 달만 센다 — 0원 달(발행과 함께 계산서 없이 닫힘)·거래 없는 달은 동의·계산서·입금 단계가 없다.
+     ⚠️ 정산 절차를 밟는 달만 센다 — 발급 뒤 고쳐서 0원이 된 달(계산서 없이 닫힘)·거래 없는 달(0원 주문만 있는 달 포함 — 내역서가
+     없다 · 2026-10-22 결정 B)은 동의·계산서·입금 단계가 없다.
      세면 '입금 완료 2건 · 입금완료 0원' 처럼 건수와 금액이 어긋나고, 대쉬보드 '정산 진행'(같은 판정 — util/settlement
      inSettlementFlow)과 같은 달을 다른 수로 말했다. data 층이라 util 을 import 하지 않고 같은 두 칸을 직접 본다. */
   const recs = clients
     .map((c) => {
       const rec = (settlements[c.id] || []).find((r) => r.청구년월 === label);
-      return rec && !rec.zero && !rec.empty ? { client: c, rec } : null;
+      return rec && !rec.zeroEdited && !rec.empty ? { client: c, rec } : null;
     })
     .filter(Boolean);
   const wonToNum = (s) => Number(String(s).replace(/[^0-9]/g, "")) || 0;
@@ -139,7 +140,7 @@ export function buildMonthlyReport({ year, month, clients, usage, settlements, c
   const issued = recs.filter(({ rec }) => rec.계산서발급 === "발급완료").length;
   const paidRecs = recs.filter(({ rec }) => rec.입금완료 === "입금완료");
   const paidAmount = paidRecs.reduce((a, { rec }) => a + wonToNum(rec.정산금액), 0);
-  /* 미입금 = 명세서가 나갔고 입금 전인 달(동의 전·계산서 발급 전 포함 · 0원·거래 없음·발행 전 제외 — 2026-10-16 사용자 결정 A).
+  /* 미입금 = 명세서가 나갔고 입금 전인 달(동의 전·계산서 발급 전 포함 · 고쳐서 0원·거래 없음·발행 전 제외 — 2026-10-16 사용자 결정 A).
      판정은 util/settlement `isUnpaid` 한 곳이고, 정산 행의 `입금완료` 칸 '미입금' 이 그 결과다(data 층이라 import 하지 않고 칸을 읽는다).
      ⚠️ `입금완료 !== "입금완료"` 로 세지 말 것 — 아직 발행 전인 달('청구전' — 이번 달은 늘 여기)까지 미입금으로 잡혀, 이번 달
      '미입금액' 이 그 달 청구 전액이 되고 관리자 표 머리와 다른 금액을 말했다. 화면 KPI · 정산 진행 현황 · 리포트 PDF 가 이 값을 쓴다. */

@@ -49,8 +49,7 @@ function headOf(client, ym) {
 /** 토스트에 쓰는 거래처 이름 — admin-settlement.js `rowName` 과 같은 규칙. 회사명만 쓰면 한빛과학(주)(C001)과
  *  한빛과학(주) 연구소 계정(C027) · 법무법인 한결 두 계정의 입금 확인 토스트가 한 글자도 다르지 않았다(실측). */
 const nameOf = (client) => (splitAccount(client) ? `${client.companyName} ${client.department}` : client.companyName);
-/** 정산·회계 담당자와 알림(T6)이 닿는지. 연락처가 비면 '보냈습니다' 라고 말하지 않는다.
- *  T6~T8 은 정지 중에도 평소대로 간다(10.4 Q35 ① 잠정) — 그래서 여기는 정지를 보지 않는다(T3·T4 만 정지 중에 빠진다). */
+/** 정산·회계 담당자와 알림(T6)이 닿는지. 연락처가 비면 '보냈습니다' 라고 말하지 않는다(진행 기록과 같은 판정). */
 function recipientOf(client) {
   const ct = store.getBillingContactOf(client.id);
   const ok = !!ct && !!String(ct.phone || "").trim();
