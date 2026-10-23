@@ -7,9 +7,17 @@
    b2b-mock 은 util/settlement 를 import 할 수 없다(util/settlement → b2b-mock → store … 순환). 그래서 규칙을
    import 0 인 이 모듈로 내려 두 층이 같은 함수를 부른다 — 정산 금액과 변경 기록이 **같은 규칙**이다(2026-10-16 DATA.md 1.3).
 
-   ── 규칙 (명세 3.4 · 5.4 · decisions-2026-10-04 맨 끝 두 절) ──
-   · 취소가 아니면 → 배송일시의 달에 `amount`(0원 주문도 한 줄 — 상태로 거르지 않는다: 접수대기·주문접수·배송완료)
-   · 취소이고 수수료 > 0 → **취소한 달**(canceledAt — 없으면 처리 이력의 마지막 cancel 시각)에 `cancelFee`
+   ── 규칙 (명세 3.4 · 5.4 · decisions-2026-10-04 맨 끝 두 절 · 2026-10-23 운영자 결정 D2·D3) ──
+   · **배송완료 주문만** → 배송일시의 달에 `amount`(0원 주문도 한 줄). 접수대기·주문접수는 배송일이 지났든 아니든 어디에도 없다
+     (D2 — 예전엔 '상태로 거르지 않는다' 였다: 배송하지 못한 주문도 금액 그대로 명세서에 들었다 · 명세 Q30 ⓑ 의 걱정).
+     그래서 이번 달 예상 정산도 배송완료만 센다.
+   · 배송완료여도 **'정산에 넣지 않음' 표지**(`unbilled: { ym, at, why }` — D3)가 있으면 어디에도 없다. 명세서가 나간 뒤 **잠긴 달**
+     (수정 마감 뒤 · 동의된 달 · 고쳐서 0원으로 닫는 달)이나 **발행이 지난 거래 없는 달(NONE)** 로 배송완료가 된 주문이다(직원이 완료
+     처리를 잊었던 경우) — 그 전환은 막지 않고 받되 금액은 그 달에 넣지 않는다(운영 담당이 바로빌에서 따로 처리). 표지를 달지는
+     금액을 아는 쪽(util/settlement `settlementImpactOf` 의 `unbill`)이 정하고 화면(admin-orders)이 단다 — 한 번 달면 배송일시를
+     다른 달로 옮겨도 어느 달 정산에도 들지 않는다. 아직 고칠 수 있는 달이면 표지 없이 그 달에 더한다(원인 `complete`).
+   · 취소이고 수수료 > 0 → **취소한 달**(canceledAt — 없으면 처리 이력의 마지막 cancel 시각)에 `cancelFee`(그대로 — 배송 전에
+     취소한 주문도 · 표지와 무관하다)
    · 취소이고 수수료 0 / 지운 주문 → 어디에도 없다
    ⚠️ 줄 모양은 util/settlement 의 옛 색인 줄과 같다(화면이 읽는 칸 — kind · key · orderNo · at · ordererName · address ·
       product · amount). 새 칸은 **더하기만** 했다: orderId · clientId · ym, 수수료 줄의 deliverAt(원래 배송 예정 일시).
@@ -27,6 +35,15 @@ export function canceledAtOf(o) {
   const h = ((o && o.history) || []).filter((x) => x && x.type === "cancel").pop();
   return h ? normAt(h.at) : "";
 }
+
+/** 정산에 드는 주문 상태 — 배송완료 하나(2026-10-23 운영자 결정 D2). */
+export const BILLED_STATUS = "배송완료";
+/** 취소가 아닌 주문이 그 달 정산에 금액을 보태는가 — 배송완료이고 '정산에 넣지 않음' 표지(`unbilled`)가 없다(D2 · D3). */
+export const isBilled = (o) => !!o && o.status === BILLED_STATUS && !o.unbilled;
+/** 이 저장이 **배송완료 전환**인가 — 배송완료가 아니던(취소도 아닌) 주문이 배송완료가 된다. 표지 여부는 보지 않는다
+ *  (표지를 달지 정하는 쪽 — util/settlement settlementImpactOf — 이 표지 없는 전환을 따로 거른다). */
+export const isCompletion = (before, after) => !!before && !!after
+  && before.status !== BILLED_STATUS && before.status !== "취소" && after.status === BILLED_STATUS;
 
 /**
  * 주문 한 건의 정산 기여 — `[]` 또는 `[entry]`(지금 규칙으로는 언제나 0~1줄).
@@ -49,6 +66,8 @@ export function entriesOfOrder(o) {
       deliverAt: normAt(o.deliverAt),
     }];
   }
+  /* 배송완료가 아니면(접수대기·주문접수) · '정산에 넣지 않음' 표지가 있으면 줄이 없다(D2 · D3). */
+  if (!isBilled(o)) return [];
   const at = normAt(o.deliverAt);
   if (!at) return [];
   return [{
@@ -95,14 +114,17 @@ export function contributionDiff(before, after) {
 
 /**
  * 이 저장의 원인(정산 금액 변경 기록의 `cause` · 저장 전 확인 창의 '바뀌는 것' 갈래가 같은 판정을 쓴다).
- * "create" 등록 · "remove" 삭제 · "feeRemove" 수수료 붙은 취소 주문 삭제 · "cancel" 주문취소 · "move" 배송일시를 다른 달로 ·
- * "product" 주문상품 변경(적용 단가로 다시 채움 포함) · "amount" 금액 직접 수정 · 정산과 무관한 저장이면 null.
+ * "create" 등록 · "remove" 삭제 · "feeRemove" 수수료 붙은 취소 주문 삭제 · "cancel" 주문취소 ·
+ * "complete" 배송완료 처리(배송완료가 아니던 주문이 배송완료가 되어 기여가 생김 — 2026-10-23 운영자 결정 D3 · 배송일시·금액·상품을
+ *   함께 고쳐도 complete 다: 그 전엔 어느 달에도 기여가 없었다 · '정산에 넣지 않음' 표지를 단 전환은 기여가 없어 아니다) ·
+ * "move" 배송일시를 다른 달로 · "product" 주문상품 변경(적용 단가로 다시 채움 포함) · "amount" 금액 직접 수정 · 정산과 무관한 저장이면 null.
  */
 export function causeOf(before, after) {
   if (!before && !after) return null;
   if (!before) return "create";
   if (!after) return before.status === "취소" && Number(before.cancelFee) > 0 ? "feeRemove" : "remove";
   if (before.status !== "취소" && after.status === "취소") return "cancel";
+  if (isCompletion(before, after) && !after.unbilled) return "complete";
   const bm = normAt(before.deliverAt).slice(0, 7);
   const am = normAt(after.deliverAt).slice(0, 7);
   if (before.status !== "취소" && bm !== am) return "move";

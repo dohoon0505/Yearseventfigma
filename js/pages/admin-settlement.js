@@ -11,14 +11,16 @@
    · 단계 셀은 공용 `settleMark`(util/settle-mark.js — ✓ 끝남 · ● 지금 · - 아직). 끝난 단계의 근거(동의 시각·수동/자동 ·
      작성일자 · 승인번호 · 처리자)는 title + .sr-only 로 남긴다 — 세무 근거라 버리지 않는다. 지금 단계의 기한·사유는 '기한 · 비고' 칸.
    · 빨간 글씨는 **수정 마감 24시간 전부터**(고칠 수 있는 달) · **동의 마감 24시간 전부터**(수정 마감이 지난 달) · 기한 초과 ·
-     동의 뒤 30분 넘게 계산서가 안 나간 달(2차 시안). 호박 글씨 = 약관 동의 전 · 자동 동의 보류.
-   · 조치 필요 = `needsAction`(보류 2종 · 계산서 발급 전에 머문 달 · 기한 초과 · 알림 수신자 없음) — 대쉬보드
+     동의 뒤 30분 넘게 계산서가 안 나간 달(2차 시안). 호박 글씨 = 약관 동의 전(자동 동의 안 함).
+   · 자동 동의를 막는 것은 약관 동의 전 하나뿐이다(2026-10-23 운영자 결정 D1 — 예전 잠정 '고지 미도달 보류'(Q19)와 마감 당일 다시
+     보내기는 걷어 냈다 · 마감 하루 전 안내가 닿지 않은 사실은 진행 기록에 글자로만 남는다).
+   · 조치 필요 = `needsAction`(약관 동의 전으로 마감이 지난 달 · 계산서 발급 전에 머문 달 · 기한 초과 · 알림 수신자 없음) — 대쉬보드
      '정산 진행' 카드와 같은 판정이다. 그 카드의 '연락 필요' 칩·'조치 필요 열기' 는 지난달 한 달, '기한 초과' 칩만 최근
      6개월 전체의 OVERDUE 줄을 센다(사용자 결정 B — 지난달은 정산기한이 이번 달 말일이라 기한 초과가 될 수 없다). 이 표는
      언제나 한 달씩이다. 그 줄의 발급·입금 버튼은 채운 주황(수정 마감 임박은 조치 필요가 아니다 — 시안).
    · 처리 칸(⑬) — 버튼은 하나: AGREED '발급 처리' · ISSUED·OVERDUE '입금 확인'(작은 창 — util/settle-dialogs.js) ·
      고칠 수 있는 동의대기 달 '주문 고치기'(주문관리로 — 아래 넘겨주기). 버튼이 없는 줄은 낱말 + 이유(title · .sr-only):
-     발행 전 · 동의 기다림 · 거래처 연락(보류 2종) · 마감에 닫힘(고쳐서 0원 · 수정 마감 지남) · 처리 완료 · 처리 없음.
+     발행 전 · 동의 기다림 · 거래처 연락(약관 동의 전으로 마감이 지난 달) · 마감에 닫힘(고쳐서 0원 · 수정 마감 지남) · 처리 완료 · 처리 없음.
      쓰기가 성공하면 **그 줄만** 다시 그린다(펼침 상태 보존 · 포커스는 그 줄의 펼침 버튼으로).
    · 금액이 바뀐 달(②, s.changed — 동의·발급·입금 뒤에도 남는다)은 청구금액 옆 '바뀜' 칩 + 마우스 올림 한 줄
      (util/settlement `amountChangeLine` — 포털 명세서·정산과 같은 말)이다. 펼치면 맨 위에 '정산 금액 변경 기록' 카드(③ —
@@ -27,7 +29,8 @@
    · 발급 뒤 고쳐서 0원이 된 달(zeroEdited)은 세 칸을 '0원 · 계산서 없음' 한 칸으로 — 마감까지 ● 동의대기, 마감 뒤 회색 ✓.
    · 줄 아무 데나 누르면 펼친다(onRowOpen 과 같은 가드 — 안쪽 컨트롤·드래그 선택은 비켜 간다). 키보드는 줄 끝의
      펼침 버튼이 맡는다 — 줄에 tabindex 를 달면 Tab 순서에 거래처 수만큼 끼어든다.
-   · 이의는 고객센터로 받고 직원이 그 달 주문을 바로 고친다(2026-10-15 운영자 결정) — 이 화면에 따로 절차·상태를 두지 않는다.
+   · 내역이 다르다는 연락은 카카오톡 채널·고객센터로 받고 직원이 그 달 주문을 바로 고친다(2026-10-15 운영자 결정 · 창구는
+     2026-10-23 결정 D5 — 약관에서도 '이의' 절차를 뺐다, D4) — 이 화면에 따로 절차·상태를 두지 않는다.
    · 담당자(조회 전용) 화면·띠, 이름 옆 '관리자 등록' 칩은 넣지 않는다(운영자 결정 6 · 결정 F — 2차 시안에 남아 있어도).
    · 명세서 문서(PDF · 공개 링크)는 util/invoice-data `invoiceDocData` 한 빌더다(포털 명세서·공개 열람 페이지와 같은 문서 —
      예전 이 파일의 `buildDoc` 사본은 지웠다). 공개 링크는 귀속월만 싣고 **열 때** 다시 만든다(명세 3.5 '열 때의 지금 값').
@@ -54,7 +57,7 @@ import { USAGE_CATEGORIES, DATA_NOW, WITHDRAWN } from "../data/admin-mock.js";
 /* 정산 상태·청구 근거는 B2B 주문(배송일의 달)에서 파생한다(2026-10-16 — 주문과 정산 연결). 청구금액·펼친 품목·리포트가 같은 소스. */
 import {
   settlementOf, settlementsMap, usageMap, billingEntriesOf, needsAction, isUnpaid, amountChangesOf, amountChangeLine,
-  EINVOICE_MODE_WORD, holdPendingOf, overdueLateOf, OVERDUE_LATE_WORD,
+  EINVOICE_MODE_WORD, overdueLateOf, OVERDUE_LATE_WORD, AMOUNT_CAUSE_WORD,
 } from "../util/settlement.js";
 import { printInvoiceFor } from "../util/invoice-data.js";
 import { actorLabel } from "../util/actor.js";
@@ -115,19 +118,14 @@ function deltaBadge(delta, suffix = "원") {
    반환: { kind, label, tone, meta(보이는 기한·사유 — 지금 단계면 '기한 · 비고' 칸에), tip, dtip('기한 · 비고' 칸만의 title), hot, amb }
    ⚠️ 1280 에서는 '기한 · 비고' 칸이 말줄임된다 — 그 칸의 title(dtip || tip)은 **보이는 낱말부터** 다시 말한다. */
 const NONE = { kind: "none" };
-/* 자동 동의 보류 줄의 설명(⑫ — 펼침 처리 카드 · 마우스 올림이 같은 말을 한다) */
+/* 자동 동의되지 않은 달(약관 동의 전) 줄의 설명(⑫ — 펼침 처리 카드 · 마우스 올림이 같은 말을 한다) */
 const HOLD_WHY = "마감이 지났지만 거래처가 직접 동의할 수 있습니다. 오래 동의하지 않으면 운영이 연락합니다. 수정 마감이 지나 금액은 고칠 수 없습니다.";
-/* 마감 전인데 이대로면 보류(고지 미도달)가 잡힐 달 — util/settlement `holdPendingOf`(settlementOf().notice.hold — 진행 기록의 '마감 하루 전
-   안내가 닿지 않았습니다' 와 같은 소스 · 포털 거래명세서·정산회계도 같은 판정). settlementOf 는 마감이 지나야 autoAgreeHold 를 준다
-   (보류는 마감 시각에 정해진다). 그 전에 '마감에 자동 동의됩니다' 라고 단정하면 같은 줄의 진행 기록과 반대말을 한다(C005 9월 ·
-   10-09 10:00~10-10 13:00 실측) — 그런 달은 사실(수정 마감 · 마감 시각 · 안내가 닿지 않았다)만 말한다. */
-const holdPending = holdPendingOf;
-/* ── 정산 안내(T3 명세서 발급 안내 · T4 마감 하루 전 안내 · 마감 당일 다시 보내기)를 '보냈다 / 못 보냈다' 고 말하는 판정 ──
+/* ── 정산 안내(T3 명세서 발급 안내 · T4 마감 하루 전 안내)를 '보냈다 / 못 보냈다 / 닿지 않았다' 고 말하는 판정 ──
    진행 기록 · '기한 · 비고' 마우스 올림 · 펼침 '고칠 수 있음' 줄이 **같은 판정**을 쓴다(settlementOf().notice · 2026-10-19).
    · 0원 주문만 있는 달은 내역서가 없어(NONE — 2026-10-22 결정 B) 진행 기록 자체가 없다. 고쳐서 0원이 된 달은 발급 때 금액이 있어 T3 이
      나갔고 T4 가 없다.
-   · 마감 하루 전 안내가 닿지 않은 달(발송 실패 기록)은 마감 당일 10:00 에 다시 보낸다(Q19 잠정).
-   · (2026-10-19 의 '정지 중이라 안내를 보내지 않았습니다' 갈래는 2026-10-22 결정 A — '정지' 체계를 없앤다 — 로 지웠다.)
+   · 마감 하루 전 안내가 닿지 않은 달(발송 실패 기록)도 마감에 평소대로 자동 동의된다 — 닿지 않은 사실만 글자로 남긴다(2026-10-23 운영자
+     결정 D1 — 예전 마감 당일 다시 보내기·고지 미도달 보류는 걷어 냈다).
    이유는 글자로 적는다(사용자 결정 — '알림 수신자 없음' 줄과 같은 자리 · 같은 말투). */
 const NOT_SENT = "알림 수신자 없음 · 안내를 보내지 못했습니다";
 const reachOf = (ct) => !!ct && !!String(ct.phone || "").trim();
@@ -139,24 +137,11 @@ function t4Text(s, ct) {
   if (t4 && t4.why === "UNDELIVERED") return "마감 하루 전 안내가 닿지 않았습니다";
   return reachOf(ct) ? `마감 하루 전 안내 → ${ct.name} · 최종 ${won(s.amount)}` : NOT_SENT;
 }
-function resendText(r, s, ct) {
-  if (r.why === "UNDELIVERED") return "마감 하루 전 안내를 다시 보냈지만 닿지 않았습니다";
-  if (r.why === "NO_RECIPIENT" || !reachOf(ct)) return NOT_SENT;
-  return `마감 하루 전 안내를 다시 보냈습니다 → ${ct.name} · 최종 ${won(s.amount)}`;
-}
 /** '기한 · 비고' 마우스 올림에 붙이는 안내 사정(수정 마감 뒤 · 동의 전 달). 닿았으면(또는 수신자 없음 — 칩이 말한다) "". */
 function noticeTip(s, now) {
-  const n = s.notice;
-  const t4 = n && n.t4;
+  const t4 = s.notice && s.notice.t4;
   if (!t4 || now.getTime() < t4.at.getTime() || t4.why !== "UNDELIVERED") return "";
-  const parts = ["마감 하루 전 안내가 닿지 않았습니다"];
-  const r = n.resend;
-  if (r) {
-    if (now.getTime() < r.at.getTime()) parts.push("마감 당일 10:00에 다시 보냅니다");
-    else if (r.reached) parts.push("마감 당일 10:00에 다시 보냈습니다");
-    else parts.push("마감 당일 10:00에 다시 보냈지만 닿지 않았습니다");
-  }
-  return parts.join(" · ");
+  return "마감 하루 전 안내가 닿지 않았습니다";
 }
 function agreeStage(client, s, now) {
   if (s.status === "SCHEDULED") {
@@ -168,14 +153,14 @@ function agreeStage(client, s, now) {
   if (s.status === "AWAITING_AGREEMENT") {
     const dl = fmtKoShortTime(s.deadline);
     const lk = fmtKoShortTime(s.editLockAt);
-    /* 자동 동의 보류 3종(명세 6.6 autoAgreeHold) — 낱말은 settlement-rules HOLD_LABEL 한 벌. '보류' 는 Q19·Q20 둘에만 쓴다
-       (약관 동의 전은 보류가 아니라 의제 조항이 없는 것이다 — 그래서 상태 낱말도 '동의대기' 다 · 2차 시안의 '동의 보류' 3종 통일은
-       받지 않았다). 칸에는 시안대로 '{이유} · 마감 뒤 직접 동의 가능' 을 늘 보인다(⑫). */
+    /* 마감이 지났는데 자동 동의되지 않은 달(명세 6.6 autoAgreeHold — 약관 동의 전 하나뿐 · 2026-10-23 결정 D1) — 낱말은
+       settlement-rules HOLD_LABEL 한 벌. 약관 동의 전은 보류가 아니라 의제 조항이 없는 것이다 — 그래서 상태 낱말도 '동의대기' 다
+       (2차 시안의 '동의 보류' 통일은 받지 않았다). 칸에는 시안대로 '{이유} · 마감 뒤 직접 동의 가능' 을 늘 보인다(⑫). */
     if (s.autoAgreeHold) {
       const word = HOLD_LABEL[s.autoAgreeHold];
       const meta = `${word.split(" · ")[0]} · 마감 뒤 직접 동의 가능`;
       return {
-        kind: "live", label: s.autoAgreeHold === "TERMS_NOT_AGREED" ? "동의대기" : "동의 보류", tone: "amber", meta, amb: true,
+        kind: "live", label: "동의대기", tone: "amber", meta, amb: true,
         tip: `${word} · 마감 뒤 직접 동의 가능 — 마감 ${dl} 지남 · 오래 동의하지 않으면 운영이 연락합니다 · 수정 마감이 지나 금액은 고칠 수 없습니다`,
       };
     }
@@ -203,14 +188,12 @@ function agreeStage(client, s, now) {
     /* 13:00:00 정각은 아직 열려 있다(agreementState 와 같다) — 지난 것은 그 뒤부터 */
     if (left < 0) return { kind: "live", label: "동의대기", tone: "orange", meta: `마감 ${fmtMdHm(s.deadline)} 지남`, hot: true, tip: `마감 ${dl}` };
     const soon = left <= DAY;
-    const pending = holdPending(s);
+    /* 마감 하루 전 안내가 닿지 않은 달도 마감에 자동 동의된다(2026-10-23 결정 D1) — 닿지 않은 사실만 덧붙인다 */
     const nt = noticeTip(s, now);
     return {
       kind: "live", label: "동의대기", tone: "orange", hot: soon,
       meta: soon ? `수정 마감 지남 · 동의 마감까지 ${span(left)}` : `수정 마감 지남 · 동의 마감 ${fmtMdHm(s.deadline)}`,
-      tip: pending
-        ? `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk} · 마감 ${dl}${nt ? ` · ${nt}` : ""}`
-        : `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk}${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
+      tip: `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk}${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
     };
   }
   if (s.mode) {
@@ -281,7 +264,8 @@ function stagesOf(client, s, now) {
 }
 
 /** 처리 칸(⑬ — 2차 시안). 버튼은 하나(지금 상태에서 하는 일), 버튼이 없는 줄은 낱말 + 이유(tip — title · .sr-only).
- *  예전의 '연락 필요'(조치 필요 줄 전부)·'동의 후 처리'·'발행 후 처리' 는 시안 낱말로 바뀌었다 — 보류 3종만 '거래처 연락'. */
+ *  예전의 '연락 필요'(조치 필요 줄 전부)·'동의 후 처리'·'발행 후 처리' 는 시안 낱말로 바뀌었다 — 약관 동의 전으로 마감이 지난 달만
+ *  '거래처 연락'(autoAgreeHold — 2026-10-23 결정 D1 부터 약관 하나). */
 function actOf(client, s) {
   if (s.status === "AGREED") return { btn: "issue", label: "발급 처리", full: "계산서 발급 처리" };
   if (s.status === "ISSUED" || s.status === "OVERDUE") return { btn: "pay", label: "입금 확인", full: "입금 확인" };
@@ -297,10 +281,7 @@ function actOf(client, s) {
     text: "동의 기다림",
     tip: termsPending(client)
       ? `${s.lockReason} · 약관 동의 전이라 마감에 자동 동의되지 않습니다`
-      /* 보류가 잡힌 달은 '자동 동의' 라고 단정하지 않는다(holdPending — 진행 기록과 반대말을 하지 않게) */
-      : holdPending(s)
-        ? `${s.lockReason} · 마감 ${fmtKoShortTime(s.deadline)}`
-        : `${s.lockReason} · ${fmtKoShortTime(s.deadline)}에 자동 동의`,
+      : `${s.lockReason} · ${fmtKoShortTime(s.deadline)}에 자동 동의`,
   };
 }
 
@@ -350,7 +331,7 @@ function availOf(s) {
   return { issue, pay };
 }
 
-/** 펼침 '진행 기록' — 발행 · 정산 금액 변경 · 수정 마감 · 마감(보류) · 동의 · 발급 · 기한 초과 · 입금 · 고쳐서 0원 닫힘. 시간순.
+/** 펼침 '진행 기록' — 발행 · 정산 금액 변경 · 수정 마감 · 마감(약관 동의 전 — 자동 동의 안 함) · 동의 · 발급 · 기한 초과 · 입금 · 고쳐서 0원 닫힘. 시간순.
  *  `lines` = amountChangesOf(…).lines(관리자 전용 — 처리자 · 전후 금액). 처리자 표기는 util/actor `actorLabel`('이름(부서)'). */
 function logOf(client, s, ct, now, lines) {
   const L = [];
@@ -363,7 +344,9 @@ function logOf(client, s, ct, now, lines) {
   else if (s.status === "NONE") return [];
   else L.push([s.issueAt, "명세서 발행", t3Text(s, ct)]);
   (lines || []).forEach((l) => {
-    L.push([l.at, `정산 금액 변경 · ${l.orderNo}`, `${actorLabel(l.by) || "처리자 기록 없음"} · ${won(l.before)} → ${won(l.after)}`]);
+    /* 배송완료 처리(명세서가 나간 뒤 배송완료가 된 주문을 그 달에 더함 — 2026-10-23 운영자 결정 D3)는 금액만으로는 까닭을 알 수 없어 낱말을 붙인다. */
+    const cw = AMOUNT_CAUSE_WORD[l.cause];
+    L.push([l.at, `정산 금액 변경 · ${l.orderNo}${cw ? ` · ${cw}` : ""}`, `${actorLabel(l.by) || "처리자 기록 없음"} · ${won(l.before)} → ${won(l.after)}`]);
   });
   /* 수정 마감(= T4 발송 시각) — 그 시각에 아직 동의 전이었던 달만(수정 마감 전에 직접 동의한 달은 T4 가 없다 · 명세 3.4).
      고쳐서 0원이 된 달은 T4 를 보내지 않는다(명세 3.4 예외표 — T4·T5·T6 없음). */
@@ -371,19 +354,16 @@ function logOf(client, s, ct, now, lines) {
       && (!s.agreedAt || s.agreedAt.getTime() >= s.editLockAt.getTime())) {
     if (s.zeroEdited) L.push([s.editLockAt, "수정 마감 · 0원 확정", "0원 달이라 마감 하루 전 안내는 보내지 않습니다"]);
     else {
-      /* 닿지 않음(발송 실패 기록)은 settlementOf().notice — '기한 · 비고' 마우스 올림(noticeTip)과 같은 판정 */
+      /* 닿지 않음(발송 실패 기록)은 settlementOf().notice — '기한 · 비고' 마우스 올림(noticeTip)과 같은 판정. 닿지 않았어도 다시
+         보내지 않고 마감에 평소대로 자동 동의한다(2026-10-23 결정 D1 — 예전 '마감 당일 · 안내 다시 보내기' 줄은 걷어 냈다). */
       L.push([s.editLockAt, "수정 마감 · 금액 고정", t4Text(s, ct)]);
-      /* 마감 하루 전 안내가 닿지 않은 달은 마감 당일 10:00 에 다시 보낸다(Q19 잠정). 그 시각 전에 직접 동의한 달은 다시 보낼 일이 없다
-         (notice.resend = null). */
-      const r = s.notice && s.notice.resend;
-      if (r && now.getTime() >= r.at.getTime()) L.push([r.at, "마감 당일 · 안내 다시 보내기", resendText(r, s, ct)]);
     }
   }
-  /* 마감 때 보류였던 달 — `heldAtDeadline`(settlementOf 파생)으로 본다. autoAgreeHold 는 '지금 보류 중' 이라 거래처가 마감 뒤
-     직접 동의하면 null 이 되고, 그것으로 그리던 때는 이 줄이 통째로 사라져 '마감 → 거래처 동의' 사이의 사정이 기록에서 빠졌다(실측). */
+  /* 마감 때 약관 동의 전이라 자동 동의하지 않은 달 — `heldAtDeadline`(settlementOf 파생)으로 본다. autoAgreeHold 는 '지금 그런 달' 이라
+     거래처가 마감 뒤 직접 동의하면 null 이 되고, 그것으로 그리던 때는 이 줄이 통째로 사라져 '마감 → 거래처 동의' 사이의 사정이 기록에서
+     빠졌다(실측). */
   if (s.heldAtDeadline && now.getTime() > s.deadline.getTime()) {
-    const terms = s.heldAtDeadline === "TERMS_NOT_AGREED";
-    L.push([s.deadline, terms ? "마감 · 자동 동의 안 함" : "마감 · 자동 동의 보류", HOLD_LABEL[s.heldAtDeadline].split(" · ")[0]]);
+    L.push([s.deadline, "마감 · 자동 동의 안 함", HOLD_LABEL[s.heldAtDeadline].split(" · ")[0]]);
   }
   /* 거래처 동의 줄에는 사람 이름을 적지 않는다 — 동의는 계정이 했고 누가 눌렀는지는 기록이 없다(2차 시안의 담당자 이름은 받지 않았다). */
   if (s.agreedAt) L.push([s.agreedAt, s.mode === "auto" ? "자동 동의" : "거래처 동의", s.mode === "auto" ? "마감 시각" : ""]);
@@ -702,9 +682,8 @@ export function mount(root, { nav }) {
     /* 탈퇴한 거래처 — 지난 달 정산 줄에 남는다(2026-10-22 결정 A · 예전 '정지 중' 칩 자리). 정산이 다 끝난 계정이라 경고색이 아니라
        계정 구분과 같은 회색이다. */
     if (c.status === WITHDRAWN) chips.push(["", "탈퇴"]);
-    /* 정산·회계 담당자가 없거나 연락처가 비면 명세서·마감 안내(T3·T4)가 닿지 않는다 — 명세로는 고지 미도달 보류로 이어진다(명세 3.4).
-       정산 담당 연락처는 비울 수 없어(M52) 데이터 오류 대비 칩이다. 데모는 연락처 이력이 없어 이것만으로는 보류로 치지 않는다
-       (지금 연락처로 가르면 지난 달 자동 동의가 소급해 풀린다 — settlement-rules `noticeState`). */
+    /* 정산·회계 담당자가 없거나 연락처가 비면 명세서·마감 안내(T3·T4)가 닿지 않는다 — 그래도 그 달은 마감에 평소대로 자동 동의된다
+       (2026-10-23 운영자 결정 D1). 정산 담당 연락처는 비울 수 없어(M52) 데이터 오류 대비 칩이다. */
     if (s.noRecipient) chips.push(["red", "알림 수신자 없음"]);
     const nameTip = ct && String(ct.phone || "").trim()
       ? `정산·회계 ${ct.name}${ct.role ? ` · ${ct.role}` : ""} · ${ct.phone}`
@@ -807,7 +786,8 @@ export function mount(root, { nav }) {
                   <span class="settle-chg__by" role="cell">${actorLabel(l.by) || "처리자 기록 없음"}</span>
                   <span class="settle-chg__no" role="cell">${l.orderNo}</span>
                   <b class="settle-chg__d" role="cell">${won(l.before)} → ${won(l.after)}</b>
-                  <span class="settle-chg__r ${l.reason ? "" : "is-none"}" role="cell">${l.reason || "사유 없음"}</span>
+                  ${/* 배송완료 처리 줄(D3)은 사유 칸 앞에 원인 낱말을 둔다 — 'B2B-… 0원 → 60,000원' 만으로는 왜 늘었는지 모른다. */ ""}
+                  <span class="settle-chg__r ${l.reason || AMOUNT_CAUSE_WORD[l.cause] ? "" : "is-none"}" role="cell">${[AMOUNT_CAUSE_WORD[l.cause], l.reason || "사유 없음"].filter(Boolean).join(" · ")}</span>
                 </div>`)}
             </div>
           </section>`

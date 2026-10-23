@@ -20,6 +20,10 @@
    ⚠️ 기록 지점은 잠금을 판정하지 않는다 — 잠긴 달은 화면이 util/settlement `settlementImpactOf` 로 먼저 막는다(서버 409 의
       데모 대역). 잠긴 달의 변경이 그래도 들어오면 기록은 사실대로 남기고 개발 중 console.warn 으로 알린다.
    시드 예시 줄(A~E)은 저장하지 않고 매번 만든다(b2bSeedAmountChanges) — 아래 '시드 예시' 참조.
+   ⚠️ 정산에는 **배송완료 주문만** 든다(2026-10-23 운영자 결정 D2 — billing-entries). 그래서 배송 전 주문의 금액·배송일시 수정은 기록이
+      없고, 배송완료로 바꾸는 쓰기가 그 달에 금액을 더한다(원인 `complete` — 명세서가 나간 달이면 한 줄). 그 달이 잠겼으면 화면이
+      '정산에 넣지 않음' 표지(`unbilled` — D3)를 단 레코드를 넘긴다 — 표지는 레코드의 한 칸이라 orderOps 에 함께 영속한다.
+      시드는 지금보다 앞선 배송일의 주문을 모두 배송완료로 만든다(generateMonth) — 명세서가 나간 달의 시드 주문은 다 정산에 든다.
 
    ⚠️ 손으로 쓴 45건의 날짜는 DATA_NOW 기준 상대 생성(util/date.js mockDates). 절대값으로 박으면
       기본 필터('이번 달')에 걸리는 행이 사라져 표가 영구히 빈 화면이 된다.
@@ -42,7 +46,7 @@ import { periodOf, fmtAt, issueDate, invoiceDayFor, editLockAt } from "./settlem
 import { seedHistory, pushHistory, histAt } from "./order-history.js";
 import { formatDateLabel, mockDates } from "../util/date.js";
 /* 정산 기여 규칙(import 0) — util/settlement 의 색인과 같은 함수다. 처리자는 util/actor(→ store · session · staff-mock). */
-import { contributionDiff, causeOf, normAt, entriesOfOrder } from "./billing-entries.js";
+import { contributionDiff, causeOf, normAt, entriesOfOrder, BILLED_STATUS } from "./billing-entries.js";
 import { SEED_ACTOR } from "./staff-mock.js";
 import { currentActor } from "../util/actor.js";
 /* 취소 수수료 규칙(B2B·B2C 공통 — 명세 5.3 `cancel_fee ≤ amount` · 6.4 `400 CANCEL_FEE_INVALID`)은 import 0 중립 모듈 order-rules.js 에 있다.
@@ -577,6 +581,21 @@ function consistentSeedLines(lines, byId) {
   return out;
 }
 
+/** 옛 저장본의 정산 금액 변경 기록 가운데 **지금 배송 전 주문**(접수대기·주문접수)을 가리키는 사용자 줄을 버린다(메모리에서만 —
+ *  store.pruneAmountLog). 2026-10-23 운영자 결정 D2 전에는 배송 전 주문도 금액이 그 달에 들어, 명세서가 나간 달에 그런 주문을 등록하거나
+ *  고치면 줄이 남았다. 지금 규칙으로 그 주문의 기여는 0 이라 줄만 남으면 '발급 때' 금액(지금 금액 − Σ(after − before))이 틀어지고
+ *  바뀌지 않은 달에 '바뀜' 이 서며 changeCount 가 는다(2026-10-23 검증 — C011 9월 '발급 때 320,000원 → 지금 340,000원', 실제 발급
+ *  380,000원). 지금 코드는 배송 전 주문에 줄을 남기지 않으므로(기여가 없다 · 상태는 앞으로만 간다) 이런 줄은 옛 저장본에만 있다.
+ *  그래서 옛 규칙 때 발급 금액에 들어 있던 배송 전 주문은 지금 금액과 '발급 때' 금액에서 **함께** 빠진다(그 달의 바뀜 여부는 그대로).
+ *  배송완료가 된 주문의 옛 줄은 둔다 — 그 금액이 지금도 그 달에 있어 순변동이 맞다. 배송 전에 취소한 주문의 옛 배송일 달 줄(등록 +X ·
+ *  취소 −X)은 순변동이 0 이라 '발급 때' 금액은 맞고 changeCount 만 남는다 — 배송 전에 취소했는지 레코드로 가를 수 없어 그대로 둔다. */
+function pruneStaleUserLines(byId) {
+  store.pruneAmountLog((l) => {
+    const o = l && l.orderId ? byId.get(l.orderId) : null;
+    return !(o && o.status !== BILLED_STATUS && o.status !== "취소");
+  });
+}
+
 /** 탈퇴한 거래처의 탈퇴한 달 — { [clientId]: "YYYY-MM" }. **저장소의 지금 레코드**로 본다(화면에서 탈퇴 처리한 거래처도 —
  *  시드 레코드만 보면 새로고침 뒤 다음 달에 그 거래처의 시드 주문이 다시 생겨 끝나지 않은 정산이 생긴다). build() 는 첫 b2bList()
  *  때 돌므로 hydrate 뒤다. 저장소에 없는 시드 거래처(그 거래처가 생기기 전에 저장한 옛 브라우저 — 저장값이 시드를 이겨 목록에는 없는데
@@ -624,7 +643,9 @@ function build() {
   });
   /* 최신순(주문일) — 화면은 색 순서로 **안정** 정렬하므로 같은 색 안에서는 이 순서가 남는다. */
   cache = [...created, ...kept].sort((a, b) => toTime(b.date) - toTime(a.date));
-  seedLines = consistentSeedLines(gen.lines, new Map(cache.map((o) => [o.id, o])));
+  const byId = new Map(cache.map((o) => [o.id, o]));
+  pruneStaleUserLines(byId); // 시드 줄 검사보다 먼저 — 그 검사가 사용자 줄의 합을 본다
+  seedLines = consistentSeedLines(gen.lines, byId);
   renumbered.forEach((o) => record(o)); // 번호만 다시 매긴 것 — 정산 금액은 그대로라 기록 줄이 없다
   version++;
   return cache;
@@ -805,6 +826,8 @@ export function b2bCancel(id, { reason = "", fee = 0, note = "", actor = null } 
   pushHistory(o, "cancel", `주문취소${why}${f}`, fmtAt(now));
   return commit(o, before, { note, actor, now });
 }
+/** 상태만 바꾼다(포털 등 호환 — '배송완료 · 알림톡 발송' 한 줄). ⚠️ 정산 판정을 지나지 않는다 — 배송완료로 바꾸면 그 달 정산에 금액이
+ *  든다(D2). 주문 상세는 이 함수 대신 settlementImpactOf 로 판정한 뒤(확인 창 · '정산에 넣지 않음' 표지 — D3) b2bUpsert 로 쓴다. */
 export function b2bSetStatus(id, status, ctx = {}) {
   const o = b2bFind(id);
   if (!o) return false;

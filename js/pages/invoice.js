@@ -33,7 +33,7 @@
    ─ 낱말 — '귀속 연도' → '배송한 달 기준' · '귀속월 말일' → '배송한 달 말일' · 부제 '배송한 달을 골라 …'.
    ⚠️ 시안에는 2026-10-15 에 폐지된 '내역 고침' 체계의 갈래가 1차에 있었고 2차에서 빠졌다 — 옮기지 않았다.
    ⚠️ 시안 머리(26px '거래명세서' · 고정 배율 · 연도 끝 토스트)는 1차 결정대로 따르지 않는다 — pageHead · 맞춤/100% ·
-      아무 해로나 이동. 고객센터 번호는 CS_PHONE(시안의 손으로 적은 번호가 아니다).
+      아무 해로나 이동. 고객센터 번호는 CS_PHONE(시안의 손으로 적은 번호가 아니다) · 그 앞의 카카오톡 채널은 CS_KAKAO(2026-10-23 결정 D5).
 
    ⚠️ **`js/invoice-doc.js` 는 예외 세 가지(계산서 발행 칸 낱말 · 동의 전 표기 · 수수료 줄)만 데이터로 연다.**
       A4 서식과 **여러 장 분할**(paginateItems · 페이지 번호 푸터)은 거기 있고, 공개 열람 링크 페이지(`invoice/`)와
@@ -47,7 +47,7 @@ import { icon } from "../icons.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, DOC_STAMP } from "../data/invoice-links.js";
 import { fmtAt, fmtKoShortY, fmtKoShortTimeY, periodLabel, periodEnd } from "../data/settlement-rules.js";
-import { CS_PHONE } from "../data/contact.js";
+import { CS_PHONE, CS_KAKAO } from "../data/contact.js";
 import { currentClient } from "../util/client.js";
 import { takeFocusSection } from "../session.js";
 import { pageHead } from "../ui.js";
@@ -58,7 +58,7 @@ import { sheetToXlsx } from "../util/xlsx.js";
    (invoice-mock)를 읽어 주문을 고쳐도 명세서가 그대로였다. */
 import {
   INVOICE_YM_KEY, settlementsFor, monthsOf, invoiceMonth, latestInvoiceKey, agreeSettlement,
-  settlementOf, amountChangeLine, holdPendingOf,
+  settlementOf, amountChangeLine,
 } from "../util/settlement.js";
 /* 문서 데이터의 단일 빌더 — 미리보기 · PDF · EXCEL 이 같은 값을 본다(예전 이 파일의 docData 와 관리자 buildDoc 두 벌). */
 import { invoiceDocData, invoiceDocElement } from "../util/invoice-data.js";
@@ -74,16 +74,24 @@ function spanText(ms) {
   return d ? `${d}일 ${h}시간` : h ? `${h}시간 ${mi}분` : `${mi}분`;
 }
 
-/* 자동 동의 보류 2종(명세 6.6 autoAgreeHold)의 **포털 제목** — 시안 문구 그대로. 관리자 표 낱말(HOLD_LABEL)과 다르다:
-   거래처에게는 '왜 자동 동의되지 않았는지'를 사실로 말하고, 설명·고객센터 줄이 뒤따른다.
-   (예전 셋째 '마감 때 이용이 정지되어 있었습니다' 는 2026-10-22 운영자 결정 A — '정지' 체계를 없앤다 — 로 지웠다.) */
+/* 마감이 지났는데 자동 동의되지 않은 이유(명세 6.6 autoAgreeHold — 약관 동의 전 하나뿐)의 **포털 제목** — 시안 문구 그대로.
+   관리자 표 낱말(HOLD_LABEL)과 다르다: 거래처에게는 '왜 자동 동의되지 않았는지'를 사실로 말하고, 설명·고객센터 줄이 뒤따른다.
+   (예전 '마감 안내가 전달되지 않았습니다'(고지 미도달)는 2026-10-23 운영자 결정 D1 로, '마감 때 이용이 정지되어 있었습니다' 는
+   2026-10-22 결정 A 로 지웠다 — 그런 달은 이제 마감에 평소대로 자동 동의된다.) */
 const HOLD_TITLE = {
   TERMS_NOT_AGREED: "약관 동의 전에 마감이 지났습니다",
-  NOTICE_UNDELIVERED: "마감 안내가 전달되지 않았습니다",
 };
-/* 고객센터 줄의 앞말(시안) — 보류 2종은 '문의', 금액이 바뀐 달·고쳐서 0원이 된 달은 '내역이 다르면'. 그 밖의 갈래에는 없다. */
-const HELP_ASK = "문의 · 고객센터";
-const HELP_DIFF = "내역이 다르면 고객센터";
+/* 고객센터 줄의 갈래(시안) — 자동 동의되지 않은 달(약관 동의 전)은 '문의', 금액이 바뀐 달·고쳐서 0원이 된 달은 '내역이 다르면'.
+   그 밖의 갈래에는 없다. 카카오톡 채널을 앞에 두고 고객센터 번호를 함께 적는다(2026-10-23 운영자 결정 D5 — 예전엔 '내역이 다르면
+   고객센터 1668-1840' 번호만). 채널 이름은 contact.js CS_KAKAO 한 곳이고 그 낱말 뒤에는 조사를 붙이지 않는다(이름이 정해지면 받침이
+   바뀐다). '이의' 라는 낱말은 쓰지 않는다. 굵은 글씨는 예전처럼 연락처 낱말(.iv-help b)이다.
+   연락처 두 덩어리('카카오톡 채널' · '고객센터 1668-1840에')는 한 덩어리로 묶는다(.iv-help__nw — 포털 정산회계 .st-nw 와 같은 수법).
+   묶지 않으면 340px 레일에서 조사 '에' 가 번호와 떨어져 다음 줄 맨 앞에 혼자 섰다(2026-10-23 검증 · 1280·1440). */
+const HELP_ASK = "ask";
+const HELP_DIFF = "diff";
+const helpLine = (kind) => (kind === HELP_DIFF
+  ? html`내역이 다르면 <span class="iv-help__nw"><b>${CS_KAKAO}</b></span> 또는 <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b>에</span> 알려 주세요`
+  : html`문의 · <span class="iv-help__nw"><b>${CS_KAKAO}</b></span> · <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b></span>`);
 
 /* ── 엑셀 스타일 팔레트(ARGB) · tokens.css 브랜드값 미러링 ────────
    워크시트 색상은 CSS 토큰을 참조할 수 없어 브랜드 hex 를 ARGB(FF+hex)로 옮겨 둔다(xlsx 예외 — CLAUDE.md).
@@ -238,21 +246,20 @@ export function mount(root) {
 
   /* ── 계산서 발급 동의 카드 — 갈래 ───────────────────────
      작성일자 규칙: 1~7일 그룹 = 배송한 달 말일(동의 시점과 무관), 11~25일 그룹 = 동의한 날(자동이면 마감일).
-     보류 달(11~25 그룹)에는 '자동이면 …' 이 거짓이다(그 달은 자동 동의되지 않는다) — 오늘 동의하면 며칠인지 말한다
-     (시안은 '자동이면 …' 이지만 1차 자동 결정을 지킨다).
+     약관 동의 전으로 마감이 지난 달(11~25 그룹)에는 '자동이면 …' 이 거짓이다(그 달은 자동 동의되지 않는다) — 오늘 동의하면 며칠인지
+     말한다(시안은 '자동이면 …' 이지만 1차 자동 결정을 지킨다).
      ⚠️ html`` 은 Date 를 String(date) 로 찍는다 — 반드시 포맷해서 넣는다. */
   function writtenOf(s, now) {
     if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송한 달 말일`;
     if (s.agreedAt) return `${fmtKoShortY(s.agreedAt, now)} · 동의한 날`;
-    /* 마감 전이어도 이대로면 보류가 잡힐 달(holdPendingOf — 관리자 정산회계와 같은 예측)은 '자동이면 …' 을 단정하지 않는다(검토 9) */
-    if (s.autoAgreeHold || holdPendingOf(s)) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
+    if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
     return `동의한 날 · 자동이면 ${fmtKoShortY(s.deadline, now)}`;
   }
   /** 정산 상태 → 카드 갈래. btn: "on"(동의 가능) · "off"(잠금 — 이유는 제목·설명이 말한다) · "none"(버튼 없음).
-   *  help: 고객센터 줄의 앞말(없으면 그 줄이 없다).
+   *  help: 고객센터 줄의 갈래 HELP_ASK · HELP_DIFF(없으면 그 줄이 없다 — helpLine).
    *  갈래 순서(시안): 발행 전 · 거래 없음(0원 주문만 있는 달도 — 2026-10-22 결정 B · 예전 '발급 때부터 0원' 갈래는 지웠다) → 고쳐서 0원 →
-   *  보류 → 금액이 바뀐 달 / 보통 열림 → 발급 중 → 발급 완료.
-   *  보류이면서 금액이 바뀐 달은 **보류 갈래가 이긴다**(요약의 '발급 때 → 지금' 줄만 붙는다). */
+   *  보류(약관 동의 전이라 마감에 자동 동의되지 않은 달 — 2026-10-23 결정 D1 부터 이것 하나) → 금액이 바뀐 달 / 보통 열림 → 발급 중 →
+   *  발급 완료. 보류이면서 금액이 바뀐 달은 **보류 갈래가 이긴다**(요약의 '발급 때 → 지금' 줄만 붙는다). */
   function cardOf(s, now) {
     /* ⚠️ 발행 전과 거래 없음(NONE)은 서로 겹치지 않는다(NONE = 발행 시각이 지났는데 거래가 없는 달). 주문이 아직 0건인 이번 달도
        '발행 전' 이다(2026-10-16 결정 D — 관리자·포털 정산회계가 이미 그렇게 말한다). */
@@ -283,7 +290,7 @@ export function mount(root) {
     if (s.status === "AWAITING_AGREEMENT" && s.autoAgreeHold) {
       /* 마감이 지났지만 자동 동의되지 않은 달 — '…까지 동의가 없으면 자동 동의' 는 이 달에 거짓이다. 이유를 말하고 지금 받는다. */
       return {
-        badge: ["동의 필요", "orange"], title: HOLD_TITLE[s.autoAgreeHold] || "마감이 지났지만 자동 동의되지 않았습니다",
+        badge: ["동의 필요", "orange"], title: HOLD_TITLE[s.autoAgreeHold] || HOLD_TITLE.TERMS_NOT_AGREED,
         body: "그래서 자동 동의되지 않았습니다. 내용을 확인하시고 동의해 주세요. 마감이 지났어도 지금 동의할 수 있습니다.",
         facts: [["동의 마감", `${fmtKoShortTimeY(s.deadline, now)} · 지남`], ["작성일자", writtenOf(s, now)]],
         btn: "on", help: HELP_ASK,
@@ -293,10 +300,8 @@ export function mount(root) {
       const left = s.deadline.getTime() - now.getTime();
       /* 마감 24시간 전부터 남은 시간을 빨갛게(시안 · S-01·S-03 과 같은 기준). */
       const due = ["동의 마감", `${fmtKoShortTimeY(s.deadline, now)} · ${spanText(left)} 남음`, left <= DAY];
-      /* '마감까지 동의가 없으면 · 그 시각에 자동 동의' 는 이대로면 보류가 잡힐 달(고지 미도달 예정 — 마감 하루 전 안내가 닿지 않았다)에
-         거짓이다 — 관리자 정산회계가 같은 달에 '자동 동의됩니다' 를 피하는 판정(holdPendingOf)으로 그 줄을 뺀다(새 문장은 짓지 않는다 ·
-         보류 사정은 마감이 지나 보류가 잡히면 보류 갈래가 말한다 · 2026-10-19 검토 9). */
-      const auto = holdPendingOf(s) ? null : ["마감까지 동의가 없으면", "그 시각에 자동 동의"];
+      /* 마감 하루 전 안내가 닿지 않은 달도 마감에 자동 동의된다(2026-10-23 운영자 결정 D1 — 예전엔 그 달에서 이 줄을 뺐다) */
+      const auto = ["마감까지 동의가 없으면", "그 시각에 자동 동의"];
       const written = ["작성일자", writtenOf(s, now)];
       const lock = fmtKoShortTimeY(s.editLockAt, now);
       if (s.changed) {
@@ -306,7 +311,7 @@ export function mount(root) {
           body: `발급 뒤 내역이 고쳐졌습니다. 지금 금액으로 계산서(면세)가 발급되며, ${s.editable
             ? `수정 마감(${lock}) 뒤에는 금액이 더 바뀌지 않습니다.`
             : `수정 마감(${lock})이 지나 금액이 더 바뀌지 않습니다.`}`,
-          facts: [["발급 때 금액", won(s.issuedAmount)], due, auto, written].filter(Boolean),
+          facts: [["발급 때 금액", won(s.issuedAmount)], due, auto, written],
           btn: "on", help: HELP_DIFF,
         };
       }
@@ -314,7 +319,7 @@ export function mount(root) {
         badge: ["동의 필요", "orange"], title: "금액을 확인하고 동의해 주세요",
         /* 수정 마감 전이면 직원이 아직 금액을 고칠 수 있다는 사실을 덧붙인다(editable = now < editLockAt — 시안 lockLeft > 0). */
         body: `동의하면 이 금액으로 계산서(면세)가 발급됩니다. 동의 후에는 내용을 바꿀 수 없습니다.${s.editable ? ` 수정 마감(${lock})까지는 금액이 바뀔 수 있습니다.` : ""}`,
-        facts: [due, auto, written].filter(Boolean),
+        facts: [due, auto, written],
         btn: "on",
       };
     }
@@ -351,7 +356,7 @@ export function mount(root) {
         : ""}
       ${c.btn === "none" ? "" : html`
         <button type="button" class="iv-btn iv-btn--agree" data-action="agree" ${c.btn === "off" ? "disabled" : ""}>계산서 발급에 동의</button>`}
-      ${c.help ? html`<p class="iv-help">${c.help} <b>${CS_PHONE}</b></p>` : ""}
+      ${c.help ? html`<p class="iv-help">${helpLine(c.help)}</p>` : ""}
     `;
   }
 
@@ -629,7 +634,7 @@ export function mount(root) {
      되돌릴 수 없는 동작이라 주문서·거래처 삭제와 같은 마찰을 준다. 다만
      `openDeleteConfirm` 은 쓰지 않는다 — 빨간 danger 버튼·휴지통 아이콘·삭제 문구라
      '발급 동의'에 맞지 않는다. 공용 `.dlg-check` 만 빌려 쓴다.
-     안내 상자는 카드와 같은 갈래를 따른다 — 보류 달에는 '…까지 동의하지 않아도 자동 동의' 를 말하지 않는다.
+     안내 상자는 카드와 같은 갈래를 따른다 — 자동 동의되지 않은 달(약관 동의 전)에는 '…까지 동의하지 않아도 자동 동의' 를 말하지 않는다.
      금액이 바뀐 달은 요약에 '발급 때 금액'(지운 글씨)과 '지금 금액' 을 함께 보인다(시안 d-changed).
      창을 열어 둔 사이 금액이 바뀌어 거부되면(SETTLEMENT_AMOUNT_CHANGED) **창을 닫지 않는다**(시안 d-reject) — 맨 위에 경고 상자,
      요약·체크 문구·머리를 새 금액으로 바꾸고 체크를 풀어 다시 받는다. 다음 요청은 **창이 새로 보여 준 금액**을 싣는다
@@ -654,10 +659,8 @@ export function mount(root) {
     const HINT_OFF = "확인에 체크해야 발급됩니다";
     const HINT_ERR = "새 금액에 다시 체크해야 발급됩니다";
     const HINT_ON = "동의하면 바로 발급을 시작합니다";
-    /* 이대로면 보류가 잡힐 달(holdPendingOf)은 '자동 동의' 안내 상자를 두지 않는다 — 카드와 같은 판정(검토 9) */
     const line = s0.autoAgreeHold
       ? ["자동 동의되지 않은 명세서", "마감이 지나 자동 동의되지 않은 명세서입니다. 지금 동의하시면 계산서가 발급됩니다."]
-      : holdPendingOf(s0) ? null
       : ["자동 동의", `${fmtKoShortTimeY(s0.deadline, now)}까지 동의하지 않아도 그 시각에 자동 동의됩니다.`];
     /* 창의 작성일자는 **지금 동의하면 실제로 찍힐 날짜**다(2026-10-16 결정) — 11~25일 그룹은 동의한 날 = 오늘.
        카드는 시안 문장 그대로('동의한 날 · 자동이면 …')지만, 동의 버튼을 누르기 직전의 창이 '자동이면 10월 28일' 이라고

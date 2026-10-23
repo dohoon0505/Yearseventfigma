@@ -256,6 +256,8 @@
 .page-invoice .iv-fact dd.is-warn { color: var(--c-danger-ink); }
 .page-invoice .iv-help { margin-top: 10px; font-size: var(--fs-13); color: var(--c-text-4); }
 .page-invoice .iv-help b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+/* 연락처 덩어리는 꺾지 않는다 — '고객센터 1668-1840에' 의 조사가 다음 줄로 떨어지지 않게(2026-10-23 · 포털 정산회계 .st-nw 와 같은 수법) */
+.page-invoice .iv-help__nw { white-space: nowrap; }
 
 .page-invoice .iv-btn {
   border-radius: var(--r-pill);

@@ -60,13 +60,14 @@ js/
   data/billing-entries.js  # 주문 한 건이 어느 달에 얼마를 보태는지 — 정산·변경 기록의 단일 기여 규칙 (import 0)
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
-  data/contact.js       # 고객센터 번호 단일 소스 — 1668-1840 (로그인 안내·계정 차단 문구·주문 안내)
+  data/privacy.js       # 개인정보 수집·이용 동의서 단일 소스 — 약관과 따로 + PRIVACY_VERSION (가입·첫 로그인 게이트 공용)
+  data/contact.js       # 고객센터 번호(1668-1840)·카카오톡 채널 낱말 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
-tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 236케이스 · 정산 금액 변경 기록 295케이스
+tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 252케이스 · 정산 금액 변경 기록 402케이스
 serve.mjs               # 개발용 정적 서버
 ```
 

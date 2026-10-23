@@ -19,6 +19,9 @@
      옛 lockHit·removeHit·cancelHit 를 대신한다 · 상세 창은 탈퇴한 거래처의 잠금을 더한 util/withdraw.js `orderImpactOf` —
      탈퇴한 거래처의 주문은 금액·상품·다른 달로 옮기기·취소·삭제를 막는다). 명세서가 나간 달의 금액이 실제로 바뀌는 저장·등록은 '저장 전 금액 변경 확인'
      창(util/order-settle-dialog.js · 사유(선택) → b2b 쓰기 ctx.note → 정산 금액 변경 기록)을 지난다(⑦)
+   - **정산에는 배송완료 주문만 든다**(2026-10-23 운영자 결정 D2) — 그래서 배송완료 전환(헤더 스테퍼 · 저장의 자동 전환)도 같은 판정
+     (`judge` — settlementImpactOf)과 같은 확인 창을 지난다(D3 · 원인 `complete`). 그 달이 잠겼거나 발행이 지난 거래 없는 달이면 전환은
+     막지 않고 '정산에 넣지 않음' 표지(`unbilled`)를 달아 금액은 그 달에 넣지 않는다 — 처리 이력 한 줄 + 토스트(운영 담당이 바로빌에서 처리)
    - clientNote(거래 조건)는 최상단 배너가 아니라 **요약 레일 맨 아래 카드**다.
      메모가 아니라 거래 조건이고((주)홈박스: "무조건 특대상품 발송") 빠지면 주문마다 사고가 난다
    - 주문취소는 settle 에 달 이름을 넘긴다 — 수수료가 취소한 달 정산에 가산된다는 안내(귀속월은 배송한 달)
@@ -43,7 +46,13 @@ import { sharedBizKeys, displayName } from "../util/biz.js";
 import { store, ALL_PRODUCTS, productKey, priceNum, receivingContacts, MSG_RECEIVE } from "../store.js";
 import { invoiceDayOf, periodOf, periodLabel, fmtKoShortTime, fmtAt } from "../data/settlement-rules.js";
 import { readWonInput, settleWonInput, DELIVER_AT_OK, dtpMarkup } from "../util/order-fields.js";
-import { settlementOf, settlementImpactOf, intakeBlockOf } from "../util/settlement.js";
+import { settlementOf, settlementImpactOf, intakeBlockOf, withUnbilled, unbilledLine, unbilledWhy } from "../util/settlement.js";
+/* 잠긴 달·발행이 지난 거래 없는 달의 배송 전 주문을 다른 달로 옮길 때(E1) · 그 밖의 달의 배송 전 주문을 그런 달로 옮길 때(F1) — 막지
+   않고 경고(2026-10-23 운영자 결정 · settlementImpactOf `closedMove`). 배송일시 줄·저장 줄·처리 이력이 같은 판정의 문장을 쓴다. 낱말은
+   막힘 문장(lockSentence)과 같은 closedMonthWord. */
+import { closedMonthWord, closedMoveWarn, closedMoveLine, orderSaveLineOf } from "../util/settlement.js";
+/* 정산에 드는 주문인가(배송완료 · '정산에 넣지 않음' 표지 없음 — 2026-10-23 운영자 결정 D2·D3). 금액 칸·배송일시 줄의 정산 안내가 본다. */
+import { isBilled } from "../data/billing-entries.js";
 /* 상세 창의 저장·주문취소·삭제는 settlementImpactOf 에 **탈퇴한 거래처의 잠금**을 더한 판정을 쓴다(2026-10-22 운영자 답 A — 탈퇴한
    뒤 주문을 고쳐 정산이 새로 생기면 로그인할 수 없는 거래처에 명세서·자동 동의가 걸린다). 등록 위저드는 활성 거래처만 고른다. */
 import { orderImpactOf, withdrawnOrderMsg } from "../util/withdraw.js";
@@ -302,6 +311,9 @@ export function mount(root, { nav }) {
   const DIRTY_KEYS = ["ordererName", "product", "amount", ...DELIVER_FIELDS.map((d) => d.k), "receiver", "memo", "image"];
 
   const canComplete = () => !!editing?.image && !!String(editing?.receiver || "").trim();
+  /** 이 레코드를 저장하면 배송완료로 바뀌는가 — 주문접수 + 사진 + 인수자(commitSave 의 자동 전환). 저장 전 판정도 **같은 모양**을 본다
+   *  (mergedNow) — 배송완료가 되면 그 달 정산에 금액이 들기 때문이다(2026-10-23 운영자 결정 D2·D3). */
+  const autoDoneOf = (rec) => !!rec && rec.status === "주문접수" && !!rec.image && !!String(rec.receiver || "").trim();
   const dirtyCount = () =>
     baseline ? DIRTY_KEYS.filter((k) => String(editing[k] ?? "") !== String(baseline[k] ?? "")).length : 0;
 
@@ -329,6 +341,9 @@ export function mount(root, { nav }) {
     return c && ym ? settlementOf(c, ym, now) : null;
   };
   const lockOf = (o, now = new Date()) => { const s = settleOf(o, undefined, now); return s && !s.editable ? s : null; };
+  /** 금액·상품 칸을 달의 잠금과 상관없이 고칠 수 있는 주문 — 배송 전 주문 · '정산에 넣지 않음' 표지가 붙은 배송완료 주문(어느 달에도 금액이
+   *  없다 — 2026-10-23 운영자 결정 D2·D3 · data/billing-entries isBilled). 취소한 주문은 아니다(예전 그대로 잠근다). */
+  const amtFreeOf = (o) => !!o && o.status !== "취소" && !isBilled(o);
   const monthNo = (ym) => Number(String(ym || "").slice(5, 7));
   /** 정산이 '명세서' 인 달인가(발행 뒤 · 거래 없는 달 제외) — 낱말이 '9월 명세서' / '10월 정산' 으로 갈린다(시안). */
   const isSheet = (s) => !!s && s.issued && s.status !== "NONE";
@@ -336,12 +351,30 @@ export function mount(root, { nav }) {
   const num = (n) => Number(n || 0).toLocaleString("ko-KR");
   /** 'M월 D일 HH:mm' — 확인 창의 배송일시 전후(시안 '9월 29일 15:00 → 10월 3일 14:00'). */
   const koDT = (s) => { const d = parseFlexDate(s); return d ? fmtKoShortTime(d) : dash(s); };
-  /** 지금 작업본을 저장하면 들어갈 레코드(이력 제외 — 판정용). */
-  const mergedNow = () => { const { history: _h, ...rec } = editing; return { ...rec, amount: Number(editing.amount) || 0 }; };
+  /** 작업본 그대로(이력 제외 · 금액은 숫자) — 자동 배송완료 전환을 하지 않은 모양. 주문취소가 먼저 쓰는 레코드가 이것이다(cancelHit). */
+  const workNow = () => {
+    const { history: _h, ...rec } = editing;
+    return { ...rec, amount: Number(editing.amount) || 0 };
+  };
+  /** 지금 작업본을 저장하면 들어갈 레코드(이력 제외 — 판정용). 사진·인수자가 찬 주문접수는 저장이 배송완료로 바꾸므로 그 모양이다. */
+  const mergedNow = () => {
+    const out = workNow();
+    if (autoDoneOf(out)) out.status = "배송완료";
+    return out;
+  };
+  /** 판정 — orderImpactOf 그대로이되, **배송완료 전환이 잠긴 달·발행이 지난 거래 없는 달로 들면**(settlementImpactOf `unbill` —
+   *  2026-10-23 운영자 결정 D3) 막지 않고 '정산에 넣지 않음' 표지를 단 작업본으로 다시 판정한다(그 주문은 어느 달에도 기여가 없어
+   *  잠금이 풀린다). 돌려주는 값의 `unbill`·`mark` 가 그 사실이고 쓰기는 `mark` 를 레코드에 단다(commitSave · 스테퍼). */
+  function judge(stored, next, now = new Date()) {
+    const imp = orderImpactOf(stored, next, now);
+    if (!imp.unbill) return { ...imp, mark: null };
+    const rec = withUnbilled(next, imp.unbill, now);
+    return { ...orderImpactOf(stored, rec, now), unbill: imp.unbill, mark: rec.unbilled };
+  }
   /** 지금 작업본을 저장하면 정산에 주는 영향(서버 409 의 데모 대역 · 저장 전 확인 창의 근거) — 저장된 레코드가 없으면 null. */
   const impactNow = (now = new Date()) => {
     const st = editing && findOrder(editing.id);
-    return st ? orderImpactOf(st, mergedNow(), now) : null;
+    return st ? judge(st, mergedNow(), now) : null;
   };
   /** 누르기 전부터 막는 잠김 — 배송일시를 옮기는 저장(옛 달이 잠김)과 잠긴 달·발행이 지난 거래 없는 달로 들어가는 저장(시안 —
    *  저장 줄이 어느 달 때문인지 말하고 저장 버튼이 잠긴다). 같은 달 안에서 금액·상품만 바꾸다 잠긴 경우(창을 열어 둔 사이 수정 마감)는
@@ -355,9 +388,7 @@ export function mount(root, { nav }) {
     /* 탈퇴한 거래처의 주문(util/withdraw.js orderImpactOf) — 달이 아니라 거래처 때문이라 그 이유 그대로. */
     if (lock.withdrawn) return lock.reason;
     if (lock.s.status === "NONE" && !lock.isOld) return lock.reason;
-    const kind = lock.s.zeroEdited ? "0원으로 닫는 달"
-      : lock.s.status === "AWAITING_AGREEMENT" ? "수정 마감이 지난 달" : "동의를 마친 달";
-    return `${monthNo(lock.ym)}월은 ${kind}이라 이 주문을 ${verb} 수 없습니다 — ${tailOf(lock.s.lockReason)}`;
+    return `${monthNo(lock.ym)}월은 ${closedMonthWord(lock.s)}이라 이 주문을 ${verb} 수 없습니다 — ${tailOf(lock.s.lockReason)}`;
   }
   /** 저장 순간 막혔을 때의 제목 — 확인 창 안의 빨간 안내 · 토스트. */
   function lockTitle(lock) {
@@ -450,8 +481,9 @@ export function mount(root, { nav }) {
   const DELIV_WHY = "ord-deliv-why";
   const periodText = () => { const ym = ymOf(editing.deliverAt); return ym ? `${periodLabel(ym)} 귀속` : "-"; };
   /** 명세서가 나갔는데 아직 고칠 수 있는 달(시안 '발급 후 · 동의 전 · 수정 마감 전') — 금액 칸이 호박색이 되고 수정 마감을 말한다.
-   *  취소한 주문은 그 달에 금액을 보태지 않으므로(수수료만 취소한 달에) 말하지 않는다. */
-  const amtOpenOf = () => (!amtLock && isSheet(s0) && s0.editable && editing && editing.status !== "취소" ? s0 : null);
+   *  그 달에 금액을 보태는 주문만이다 — 취소한 주문(수수료만 취소한 달에) · 배송 전 주문(2026-10-23 운영자 결정 D2 — 배송완료로 바뀔 때
+   *  든다) · '정산에 넣지 않음' 표지가 붙은 주문(D3)은 고쳐도 명세서가 바뀌지 않으므로 말하지 않는다. */
+  const amtOpenOf = () => (!amtLock && isSheet(s0) && s0.editable && editing && isBilled(editing) ? s0 : null);
   /* 주문금액 칸 — 열려 있으면 입력(거부형 readWonInput), 잠겼으면 시안의 잠김 모양(자물쇠 + 금액, 읽기 전용)과 같은 줄의 이유.
      잠긴 이유는 시안의 **짧은 말**(`lockShort` — settlement-rules LOCK_SHORT)을 줄에 두고, 정본(`lockReason` — 명세 6.4)은
      title(마우스)과 보조기술이 읽는 숨은 글(aria-describedby)로 살린다. 0원 달은 짧은 말이 없어 정본 전체를 줄에 둔다(말줄임). */
@@ -501,21 +533,36 @@ export function mount(root, { nav }) {
       </div>
     </div>`;
   /** 배송일시 줄 안내 — 저장된 달이 명세서가 나간 달이면 '다른 달로 옮기면 두 달 정산이 함께 바뀜'(고칠 수 있음) /
-   *  '같은 달 안에서만 · 다른 달로 못 옮김'(잠김). 다른 달로 옮기는 중이면 칸에 호박색, 막히면 빨간색(시안). */
+   *  '같은 달 안에서만 · 다른 달로 못 옮김'(잠김 — 정산에 든 배송완료 주문). 잠긴 달의 배송 전 주문을 다른 달로 옮기는 중이면 경고
+   *  ('9월은 동의를 마친 달 — 실제 배송일일 때만 옮기세요 · …' — E1 · 막지 않음), 그 밖의 달의 배송 전 주문을 잠긴 달로 옮기는 중이면
+   *  그 달 사정('9월은 동의를 마친 달이라 배송완료해도 정산에 넣지 않습니다' — F1 · 막지 않음). 다른 달로 옮기는 중이면 칸에 호박색,
+   *  막히면 빨간색(시안). */
   function syncDeliv(imp) {
     const p = panelOf(); if (!p || !editing) return;
     const box = qs(p, "[data-slot='delivf']");
     const why = qs(p, "[data-slot='delivwhy']");
     if (!box || !why) return;
     const st = findOrder(editing.id);
-    const moved = !!st && editing.status !== "취소" && ymOf(st.deliverAt) !== ymOf(editing.deliverAt);
+    /* 옮기면 정산이 바뀌는 주문만 칠한다 — 배송 전 주문 · '정산에 넣지 않음' 주문은 어느 달에도 금액이 없다(2026-10-23 운영자 결정
+       D2·D3). 배송 전 주문이 이 저장으로 배송완료가 되며 막힌 달로 들어가면 아래 lock 이 아니라 표지다(judge — 저장 줄이 말한다). */
+    const billed = !!st && isBilled(st);
+    const moved = billed && editing.status !== "취소" && ymOf(st.deliverAt) !== ymOf(editing.deliverAt);
     /* 금액·상품 칸이 원인인 잠금 둘은 배송일시를 다른 달로 옮길 때만 이 줄에서 말한다 — 탈퇴한 거래처의 잠금(orderImpactOf ·
        금액·상품만 고쳐도 선다)과 0원 주문만 있던 달의 금액 올림(settlementImpactOf `raise` — 2026-10-22 결정 B · isOld 가 false 라
        '들어오는 달' 처럼 보이지만 배송일시는 그대로다). 칠하면 고치지 않은 칸을 가리킨다 — 이유는 저장 줄이 말하고 금액 칸에 잇는다(linkAmtWhy). */
     const lock0 = preBlockOf(imp);
     const lock = lock0 && (lock0.withdrawn || lock0.raise) && !moved ? null : lock0;
+    /* 잠긴 달·발행이 지난 거래 없는 달에 있던 배송 전 주문을 다른 달로 옮기는 중(E1) · 그 밖의 달에 있던 배송 전 주문을 그런 달로 옮기는
+       중(F1 — '9월은 동의를 마친 달이라 배송완료해도 정산에 넣지 않습니다') — 막지 않고 경고한다(2026-10-23 운영자 결정 · settlementImpactOf
+       `closedMove` 하나 · 둘이 겹치면 한 문장). 칸은 '옮기는 중' 호박색(is-moved), 글자도 호박(is-open) — 막힘(is-blocked)이 아니다. 같은 달
+       안의 날짜·시각 변경은 closedMove 가 없어 아무 말도 하지 않는다. 글자는 좁으면 말줄임이라 title 과 저장 줄이 같은 사실을 다시 말한다. */
+    const cm = !lock && imp ? imp.closedMove : null;
     let text = "", tip = "귀속월은 배송일시의 달입니다", tone = "";
-    if (isSheet(s0) && editing.status !== "취소") {
+    if (cm) {
+      text = closedMoveWarn(cm);
+      tip = text;
+      tone = "is-open";
+    } else if (isSheet(s0) && billed && editing.status !== "취소") {
       if (!s0.editable) {
         text = "같은 달 안에서만 · 다른 달로 못 옮김";
         tip = `${s0.lockReason} · 같은 달 안의 날짜·시각 변경은 금액 영향이 없어 저장됩니다`;
@@ -529,7 +576,7 @@ export function mount(root, { nav }) {
     /* 들어가는 달이 막혔으면(잠긴 달 · 발행이 지난 거래 없는 달) 그 달의 짧은 말을 쓴다 — 옛 달 안내가 거기서는 틀린 말이다. */
     if (lock && lock.withdrawn) { text = lock.short; tip = lock.reason; }
     else if (lock && !lock.isOld) { text = `${monthNo(lock.ym)}월 · ${lock.short}`; tip = lock.reason; }
-    box.classList.toggle("is-moved", moved && !lock);
+    box.classList.toggle("is-moved", (moved || !!cm) && !lock);
     box.classList.toggle("is-blocked", !!lock);
     why.textContent = text;
     why.title = tip;
@@ -576,7 +623,7 @@ export function mount(root, { nav }) {
      정산 줄은 2차 시안(S-06)대로 **언제나 보이고 저장된 배송일시의 달**을 말한다(s0) — 발행 전이면 회색 칩 '발급 전'.
      칩 옆에 그 달 지금 금액을 두고, 이 수정으로 바뀌면 그 자리에서 '955,000 → 1,025,000원', 다른 달로 옮기는 중이면
      '9월 895,000 · 10월 580,000' 이다. 막힌 저장이면 저장되지 않을 '뒤' 금액 대신 지금 금액만 보인다(오해 방지).
-     낱말은 관리자 정산회계(S-01)와 같은 말이다. 동의대기·동의 보류에는 '· 고칠 수 있음' / '· 금액 고정' 을 붙인다. */
+     낱말은 관리자 정산회계(S-01)와 같은 말이다. 동의대기에는 '· 고칠 수 있음' / '· 금액 고정' 을 붙인다. */
   const SETTLE_CHIP = {
     AGREED: ["동의완료 · 발급 전", "warn"],
     ISSUED: ["동의완료 · 발급완료", "ok"],
@@ -590,14 +637,16 @@ export function mount(root, { nav }) {
     if (s.status === "NONE") return SETTLE_CHIP.NONE.concat("");
     if (s.zeroEdited) return ["0원 · 계산서 없음", "gray", ""]; // 발급 뒤 고쳐서 0원 — 0원 주문만 있는 달은 위 NONE(2026-10-22)
     if (s.status === "AWAITING_AGREEMENT") {
-      /* 잠정 보류(Q19 고지 미도달)만 '보류' 라고 말한다(S-01 과 같은 낱말 — 약관 동의 전은 그냥 동의대기다 · 정지 중 마감 보류(Q20)는
-         2026-10-22 운영자 답 A 로 '정지' 가 없어지며 함께 없어졌다). */
-      const held = s.autoAgreeHold === "NOTICE_UNDELIVERED";
-      return [`${held ? "동의 보류" : "동의대기"} · ${s.editable ? "고칠 수 있음" : "금액 고정"}`, "warn", s.editable ? "" : s.lockReason];
+      /* 늘 '동의대기'(S-01 과 같은 낱말 — 약관 동의 전도 동의대기다). 예전 '동의 보류'(Q19 고지 미도달)는 2026-10-23 운영자 결정 D1 로
+         보류가 없어지며 함께 지웠다(정지 중 마감 보류 Q20 은 2026-10-22 결정 A). */
+      return [`동의대기 · ${s.editable ? "고칠 수 있음" : "금액 고정"}`, "warn", s.editable ? "" : s.lockReason];
     }
     const [l, t] = SETTLE_CHIP[s.status] || [s.status, "gray"];
     return [l, t, ""];
   }
+  /** 이 주문에 맞춘 칩 — '정산에 넣지 않음' 표지가 붙은 주문(2026-10-23 운영자 결정 D3)은 그 달 상태 대신 그 사실을 말한다(칩 옆 금액은
+   *  그 달 금액 그대로 · 이 주문은 거기 들지 않았다). 그 달 칩을 그대로 두면 이 주문이 그 정산에 든 것처럼 읽힌다. */
+  const chipFor = (s) => (editing && editing.unbilled ? ["이 주문 넣지 않음", "gray", unbilledWhy(editing.unbilled)] : chipOf(s));
   /** 칩 옆 금액 { text, changed } — 판정(imp)이 막히지 않았고 그 달 금액이 바뀌면 전 → 후. */
   function liveOf(imp) {
     const ch = imp && !imp.lock ? imp.months.filter((m) => m.delta !== 0) : [];
@@ -611,7 +660,7 @@ export function mount(root, { nav }) {
   function settleRow() {
     const s = s0;
     if (!s) return null;
-    const [chip, tone, chipTip] = chipOf(s);
+    const [chip, tone, chipTip] = chipFor(s);
     const lv = liveOf(lastImp);
     const m = monthNo(s.period);
     return {
@@ -630,7 +679,7 @@ export function mount(root, { nav }) {
     const row = amt.closest(".ord-sum__row--settle");
     if (row) {
       row.classList.toggle("is-changed", lv.changed);
-      row.setAttribute("aria-label", `거래처 정산회계에서 ${monthNo(s0.period)}월 열기 · ${chipOf(s0)[0]} · ${lv.text}`);
+      row.setAttribute("aria-label", `거래처 정산회계에서 ${monthNo(s0.period)}월 열기 · ${chipFor(s0)[0]} · ${lv.text}`);
     }
   }
   const summaryRows = () => [
@@ -731,8 +780,12 @@ export function mount(root, { nav }) {
     else if (pre) { text = lockSentence(pre, pre.isOld ? "다른 달로 옮길" : "그 달로 옮길"); cls = "is-block"; tip = pre.reason; }
     else if (unsaved) { text = n ? `수정한 항목 ${n}개 · ${unsaved}` : unsaved; cls = "is-block"; tip = unsavedTip; }
     else if (!n) { text = savedAt ? `저장됨 · ${savedAt}` : "변경 없음"; cls = savedAt ? "is-saved" : ""; }
-    else if (imp && !imp.lock && imp.confirm.length) { text = `저장 전에 확인합니다 · ${monthsLine(imp)}`; cls = "is-dirty"; ask = true; }
-    else { text = `수정한 항목 ${n}개`; cls = "is-dirty"; }
+    /* 그 밖의 저장 줄은 util/settlement.js::orderSaveLineOf 한 곳이 고른다(시험이 같은 함수를 부른다 · 2026-10-23 검증):
+       이 저장이 배송완료로 바꾸는데 그 달이 잠겼다(D3 — 막지 않고 금액이 그 달에 들지 않는다는 것만) → 확인 창이 뜰 저장 → 배송 전 주문을
+       잠긴 달에서(E1) · 잠긴 달로(F1) 옮기는 중(막지 않고 경고 — E1 이면 앞에 '실제 배송일일 때만 · 9월(동의를 마친 달)에서 옮김' 한 마디 ·
+       배송일시 줄은 1280 폭에서 '…실제 배송일일 때만 …' 쯤 말줄임이라 주의 낱말도 싣는다 · F1 은 새 달 사정(closedMoveTail) 한 마디만 —
+       같은 저장이 배송완료로 바꾸면 그 사정은 표지 문장이 이미 말한다) → '수정한 항목 N개'. */
+    else { ({ text, tip, ask } = orderSaveLineOf(imp, n, imp ? monthsLine(imp) : "")); cls = "is-dirty"; }
     const stat = qs(p, "[data-slot='dirty']");
     if (stat) {
       stat.textContent = text;
@@ -1438,7 +1491,9 @@ export function mount(root, { nav }) {
   }
   /* 등록 — 막힘(createBlock)은 누르는 순간 한 번 더 본다. 명세서가 나간 달(고칠 수 있음)로 드는 늦은 등록이면 저장 전 금액 변경
      확인 창을 지난다(명세 3.4 '마감 전 수정' 8 '들어오면' · 사유 → b2bUpsert ctx.note). 채번은 쓰는 순간에만(확인 창에서 취소하면
-     번호가 소모되지 않는다). */
+     번호가 소모되지 않는다). ⚠️ 이 위저드는 접수대기로 등록해 그 자리에서는 정산에 닿지 않는다(2026-10-23 운영자 결정 D2 — 배송완료만
+     든다) — 그 달 금액은 배송완료로 바꿀 때 더한다(상세 창의 스테퍼·저장 · 확인 창도 그때 · D3). 확인 창 갈래는 배송완료로 등록하는
+     레코드가 생길 때를 위해 남긴다. 받을 수 없는 달(createBlock)은 그 주문이 배송완료로 들 때를 보고 예전처럼 막는다(intakeBlockOf). */
   function submitCreate() {
     const blk = createBlock();
     if (blk) { toast(blk, "warn"); createModal && createModal.syncFooter(); return; }
@@ -1603,6 +1658,12 @@ export function mount(root, { nav }) {
     const a = Number(stored ? stored.amount : 0) || 0;
     const b = Number(next ? next.amount : 0) || 0;
     if (!stored) return `새 주문 ${won(b)}이 ${imp.months[0] ? monthWord(imp.months[0]) : "그 달 정산"}에 듭니다 · ${dash(next.product)}`;
+    /* 배송완료 처리(2026-10-23 운영자 결정 D3) — 배송 전 주문은 어느 달에도 금액이 없어(D2) 배송완료가 되는 순간 그 달에 든다. */
+    if (imp.cause === "complete") {
+      const m = imp.months.find((x) => x.delta !== 0) || imp.months[0];
+      const fix = a === b ? "" : `주문금액 ${won(a)} → ${won(b)} · `;
+      return `배송완료 처리 · ${fix}${won(b)}이 ${m ? monthWord(m) : "그 달 정산"}에 듭니다`;
+    }
     if (imp.cause === "move") {
       const o = imp.months.find((m) => m.isOld), n = imp.months.find((m) => !m.isOld);
       const ol = o ? monthWord(o) : "옛 달 정산", nl = n ? monthWord(n) : "새 달 정산";
@@ -1662,7 +1723,8 @@ export function mount(root, { nav }) {
     const stored = findOrder(editing.id);
     /* 취소한 주문의 금액 < 수수료(서버 400 대역) — 저장 줄이 이미 막지만 누르는 순간 한 번 더 본다. 정산 판정보다 먼저(syncDirty 와 같은 순서). */
     if (orderFeeError(mergedNow(), stored)) { syncDirty(); toast(writeFail(mergedNow(), stored), "warn"); focusAfterSave(panelOf()); return; }
-    const imp = stored ? orderImpactOf(stored, mergedNow(), new Date()) : null;
+    /* judge — 사진·인수자로 배송완료가 되는 저장이 잠긴 달로 들면 막지 않고 표지(mark)를 단다(2026-10-23 운영자 결정 D3 · commitSave). */
+    const imp = stored ? judge(stored, mergedNow(), new Date()) : null;
     if (imp && imp.lock) {
       rejectLocked(imp.lock, stored);
       toast(lockTitle(imp.lock), "warn");
@@ -1687,18 +1749,31 @@ export function mount(root, { nav }) {
       recheck: () => {
         if (!editing) return null;
         const st = findOrder(editing.id) || stored;
-        const imp2 = orderImpactOf(st, mergedNow(), new Date());
+        const imp2 = judge(st, mergedNow(), new Date());
+        /* 창을 연 사이 배송완료가 들 달이 잠겼다 — 창이 말한 '명세서 금액이 바뀝니다' 가 틀린 말이 되어 이번 누름은 받지 않는다(다시 누르면
+           저장 줄이 그 사실을 말하고 표지를 달아 저장한다 — D3). 칸은 되돌리지 않는다(lockSeen 없음). */
+        if (imp2.unbill && !imp2.lock) { lockSeen = null; return unbillErr(imp2.unbill); }
         if (!imp2.lock) { pending = imp2; return null; }
         lockSeen = imp2.lock;
         return lockErr(imp2.lock, st);
       },
       onConfirm: (note) => (editing ? commitSave(pending, note) : true),
       onLockedClose: () => {
-        if (!editing || !lockSeen) return;
+        if (!editing) return;
+        if (!lockSeen) { syncDirty(); return; } // 배송완료가 들 달이 잠긴 경우(unbillErr) — 저장 줄이 그 사실을 말한다
         rejectLocked(lockSeen, findOrder(editing.id) || stored);
         focusAfterSave(panelOf()); // 확인 창이 돌려준 저장 버튼이 잠겼으면 '닫기' 로(order-screen)
       },
     });
+  }
+  /** 확인 창을 연 사이 배송완료가 들 달이 잠겼을 때 창 안 빨간 안내(D3) — 다시 누르면 표지를 달아 받는다. `what` = '저장' · '배송완료 처리'. */
+  function unbillErr(u, what = "저장") {
+    const m = monthNo(u.ym);
+    return {
+      title: `${what}하지 못했습니다 — 그사이 ${m}월 정산이 잠겼습니다`,
+      body: [`다시 누르면 배송완료로 바꾸되 이 주문 금액은 ${m}월 정산에 넣지 않습니다.`, u.reason],
+      hint: "창을 닫고 다시 누르세요",
+    };
   }
   /** 쓰기 — 실패하면(저장 공간 한도) false 를 돌려 확인 창을 닫지 않는다(적은 사유를 잃지 않게). */
   function commitSave(imp, note) {
@@ -1706,15 +1781,24 @@ export function mount(root, { nav }) {
     const stored = findOrder(editing.id);
     const merged = { ...editing, amount: Number(editing.amount) || 0 }; // 칸은 readWonInput 이 받은 숫자만 쓴다
     let autoDone = false;
-    if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
+    if (autoDoneOf(merged)) {
       merged.status = "배송완료";
       merged.notified = notifyPeople(merged).length > 0; // 받을 사람이 0명이면 보내지 않는다(M58 — 스테퍼와 같은 규칙)
       autoDone = true;
     }
+    /* 배송완료가 드는 달이 잠겼으면 판정(judge)이 단 '정산에 넣지 않음' 표지를 그대로 단다(2026-10-23 운영자 결정 D3 — 판정과 쓰기가 같은
+       레코드를 본다: mergedNow 도 같은 자동 전환을 한다). */
+    const mark = autoDone && imp && imp.mark ? imp.mark : null;
+    if (mark) merged.unbilled = mark;
     /* 이력은 레코드와 **한 번에** 저장한다(쓰기 하나 — 둘로 나누면 둘째가 실패할 때 '수정했는데 이력 없음' 이 남는다). */
     const hist = [...((stored && stored.history) || [])];
     if (n) hist.push(histEntry("edit", `주문 정보 수정 ${n}건`));
+    /* 잠긴 달·발행이 지난 거래 없는 달에 있던 배송 전 주문을 다른 달로 옮겼다(E1) · 그 밖의 달에서 그런 달로 옮겼다(F1) — 막지 않는 대신
+       남긴다(2026-10-23 운영자 결정): 언제 · 어느 날짜 → 어느 날짜 · 어느 달에서 / 어느 달로(둘 다면 한 줄). 판정(settlementImpactOf
+       closedMove)이 본 저장본 → 작업본 그대로이고 같은 쓰기에 함께 남는다. */
+    if (imp && imp.closedMove) hist.push(histEntry("edit", closedMoveLine(imp.closedMove)));
     if (autoDone) hist.push(...deliveredEntries(merged));
+    if (mark) hist.push(histEntry("edit", unbilledLine(mark)));
     merged.history = hist;
     /* 저장이 실패하면(저장 공간 한도) 모달은 고친 값을 그대로 든 채 '수정한 항목' 도 남긴다 — 저장된 척하지 않는다.
        사유(note)는 명세서가 나간 달의 금액이 바뀌면 b2b-mock 이 정산 금액 변경 기록에 함께 남긴다(처리자는 currentActor). */
@@ -1729,16 +1813,17 @@ export function mount(root, { nav }) {
     const d = new Date();
     savedAt = `${d.getHours() < 12 ? "오전" : "오후"} ${d.getHours() % 12 || 12}:${pad2(d.getMinutes())}`;
     /* 금액에 영향이 없는 저장은 잠긴 달에서도 받는다 — 그 사이 그 달이 잠겼으면(열어 둔 동안 수정 마감·동의) 칸을 지금 잠근다. */
-    if (!amtLock && saved) { const nl = lockOf(saved); if (nl) applyLock(nl, null); }
+    if (!amtLock && saved && !amtFreeOf(saved)) { const nl = lockOf(saved); if (nl) applyLock(nl, null); }
     refreshAmtBox();
     syncDirty(); renderHd(); renderSum(); renderHist();
     /* 정산 꼬리는 자동 배송완료 저장에도 같은 규칙으로 붙인다 — 같은 저장이 명세서가 나간 달의 금액을 바꿨을 수 있다
        (금액·상품·배송일시를 고치고 사진·인수자까지 넣어 한 번에 저장). 예전엔 이 갈래만 꼬리가 없어 확인 창을 지나 저장해도
        바뀐 명세서 금액을 말하지 않았다. */
-    const tail = `${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`;
+    const tail = mark ? unbilledWhy(mark)
+      : `${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`;
     toast(autoDone
       ? `${merged.notified ? "배송완료 처리됨 · 거래처 알림톡이 자동 발송됩니다" : "배송완료 처리됨 · 받을 사람이 없어 알림톡은 나가지 않습니다"} · ${tail}`
-      : `저장했습니다 · ${tail}`);
+      : `저장했습니다 · ${tail}`, mark ? "warn" : undefined); // 표지를 달았으면 운영 담당이 따로 처리할 일이 남는다
     focusAfterSave(panelOf()); // 잠긴 저장 버튼에 있던 초점 → '닫기'(order-screen)
     return true;
   }
@@ -1781,32 +1866,93 @@ export function mount(root, { nav }) {
        T1 줄을 쓰지 않는다 — 보낼 곳이 없는 알림을 보냈다고 적지 않는다. */
     const st = findOrder(editing.id);
     if (!st) return;
-    const rec = { ...st, status: next };
+    if (next !== "배송완료") { writeStep(next, st, null, ""); return; }
+    /* 배송일시를 다른 달로 바꾼 채(저장 전)면 배송완료로 바꾸지 않는다 — 스테퍼는 저장된 레코드 + 사진·인수자만 쓰므로(위 · completedOf)
+       **저장된** 배송일의 달로 판정·저장한다. 잠긴 달에 남은 배송 전 주문을 실제 배송일로 옮기는 중이면(2026-10-23 운영자 결정 E1) 옛 달에
+       '정산에 넣지 않음' 표지가 붙고, 그 뒤 저장으로 옮겨도 표지가 남아 열린 새 달에도 들지 않았다 — 옮긴 이력 줄도 남지 않았다
+       (2026-10-23 검증). 반대로 잠긴 달로 옮기는 중이면(F1) 열린 옛 달에 금액이 들고 옮긴 이력 줄이 빠진다 — 같은 거절이다. 저장 버튼은
+       고친 배송일로 판정한다(mergedNow — 주문접수 + 사진 + 인수자면 저장이 곧 배송완료다). 같은 달 안의 날짜·시각 변경은 정산 달이 같아
+       그대로 받는다. */
+    if (ymOf(editing.deliverAt) !== ymOf(st.deliverAt)) {
+      toast("배송일시를 다른 달로 바꾼 내용을 먼저 저장하세요 · 배송완료는 저장된 배송일의 달로 정산합니다", "warn");
+      return;
+    }
+    /* 배송완료는 그 달 정산에 금액이 든다(2026-10-23 운영자 결정 D2 — 배송 전 주문은 어느 달에도 금액이 없다). 그래서 저장 버튼과
+       **같은 판정**(judge — settlementImpactOf)을 지난다(D3): 명세서가 나간 달인데 아직 고칠 수 있으면 같은 확인 창(openSettleConfirm)을,
+       잠긴 달 · 발행이 지난 거래 없는 달이면 막지 않고 '정산에 넣지 않음' 표지를 단다. 발행 전 달이면 바로 쓴다. */
+    const imp = judge(st, completedOf(st), new Date());
+    if (imp.lock) { toast(lockMsg(imp.lock, "배송완료로 바꿀"), "warn"); return; } // 지금 규칙으로는 탈퇴한 거래처의 주문뿐이다
+    if (imp.confirm.length) { openStepConfirm(imp, st); return; }
+    writeStep(next, st, imp, "");
+  }
+  /** 스테퍼로 배송완료로 바꿀 레코드 — 저장된 레코드 + 작성 중인 사진·인수자(근거는 상태와 함께 저장한다 · 위 주석). 판정과 쓰기가 같은 모양을 본다. */
+  const completedOf = (st) => ({ ...st, status: "배송완료", image: editing.image, receiver: editing.receiver });
+  /** 스테퍼 쓰기 — 상태 · 근거 · 이력을 한 번에(위 주석). `imp` 는 배송완료일 때의 판정(judge) — 표지(mark)·정산 꼬리가 거기서 온다.
+   *  `note` 는 확인 창의 사유(정산 금액 변경 기록). 저장에 실패하면 false(확인 창을 닫지 않는다). */
+  function writeStep(next, st, imp, note) {
+    const done = next === "배송완료";
+    const rec = done ? completedOf(st) : { ...st, status: next };
+    const mark = done && imp && imp.mark ? imp.mark : null;
+    if (mark) rec.unbilled = mark;
     const add = [];
-    if (next === "배송완료") {
-      rec.image = editing.image; rec.receiver = editing.receiver;
+    if (done) {
       /* 받을 사람이 0명이면 보내지 않고 notified=false 다(명세 5.3 'T2 발송 규칙' 4 · M58) — 이력('받을 사람 없음')·
          목록 '알림' 칸·토스트가 같은 말을 하게 한다(예전엔 이력은 '받을 사람 없음' 인데 목록은 '알림 발송완료' 였다). */
       rec.notified = notifyPeople(rec).length > 0;
       add.push(...deliveredEntries(rec));
+      if (mark) add.push(histEntry("edit", unbilledLine(mark)));
     } else {
       add.push(histEntry("status", `${next}로 변경`));
       const rq = next === "주문접수" ? requesterOf(rec) : null;
       if (rq) add.push(histEntry("status", `주문접수 알림 · ${rq.name}`));
     }
     rec.history = [...(st.history || []), ...add];
-    if (!b2bUpsert(rec)) { toast(SAVE_FAIL, "warn"); syncDirty(); return; }
-    if (next === "배송완료" && baseline) { baseline.image = editing.image; baseline.receiver = editing.receiver; }
+    if (!b2bUpsert(rec, { note })) { toast(SAVE_FAIL, "warn"); syncDirty(); return false; }
+    if (done && baseline) { baseline.image = editing.image; baseline.receiver = editing.receiver; }
     editing.status = next;
-    if (next === "배송완료") editing.notified = rec.notified;
+    if (done) editing.notified = rec.notified;
+    if (mark) { editing.unbilled = mark; if (baseline) baseline.unbilled = mark; }
     if (baseline) { baseline.status = next; baseline.notified = editing.notified; }
     const stored = findOrder(editing.id);
-    if (stored) editing.history = stored.history;
+    if (stored) { editing.history = stored.history; s0 = settleOf(stored); } // 배송완료면 그 달 금액이 바뀌었다 — 요약 'M월 정산' 줄이 지금 금액을 말하게
     refreshList();
+    refreshAmtBox(); // 배송완료가 되어 명세서가 나간 달에 금액을 보태게 됐으면 금액 칸이 '명세서 나감' 모양으로(amtOpenOf)
     renderHd(); renderSum(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다 · 요약은 '배송 완료'
-    toast(next !== "배송완료" ? `${next}(으)로 변경했습니다`
-      : rec.notified ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : "배송완료로 전환 · 받을 사람이 없어 알림톡은 나가지 않습니다");
+    const head = !done ? `${next}(으)로 변경했습니다`
+      : rec.notified ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : "배송완료로 전환 · 받을 사람이 없어 알림톡은 나가지 않습니다";
+    /* 정산 꼬리 — 저장 버튼과 같은 규칙(settleAfter). 표지를 달았으면 그 까닭과 할 일(운영 담당이 바로빌에서 처리 — D3). */
+    const tail = !done ? "" : mark ? unbilledWhy(mark)
+      : `${settleAfter(imp)}${note && imp && imp.confirm.length ? " · 사유를 변경 기록에 남겼습니다" : ""}`;
+    toast(tail ? `${head} · ${tail}` : head, mark ? "warn" : undefined);
     focusAfterStep(panelOf()); // 새 '지금' 단계는 disabled 라 초점을 못 받는다 — 다음 단계로(order-screen)
+    /* 확인 창을 지나 쓴 경우 창이 닫히며 연 버튼(다시 그려져 떨어졌다)으로 초점을 돌려주지 못해 body 로 빠진다 — 창이 닫힌 뒤 한 번 더. */
+    queueMicrotask(() => focusAfterStep(panelOf()));
+    return true;
+  }
+  /** 배송완료 전 금액 변경 확인 창 — 저장 버튼의 확인 창과 같은 창(openSettleConfirm · 2026-10-23 운영자 결정 D3). 누르는 순간 다시 판정한다:
+   *  그사이 그 달이 잠겼으면 이번 누름은 받지 않고(창이 말한 금액이 틀린 말이 된다) 다시 누르게 한다 — 그때는 표지를 달아 바로 쓴다. */
+  function openStepConfirm(imp, st) {
+    let pending = imp;
+    openSettleConfirm({
+      eyebrow: `${editing.orderNo} · ${clientName(st)} · 배송완료 전 확인`,
+      title: "명세서 금액이 바뀝니다. 배송완료로 바꿀까요?",
+      months: monthRows(imp),
+      what: whatOf(imp, st, completedOf(st)),
+      notes: [confirmNote(imp, "배송완료로 바꾸는")],
+      okLabel: "배송완료로 바꾸고 명세서에 반영",
+      hint: "바꾸면 바로 반영됩니다 · 상태는 되돌릴 수 없습니다",
+      recheck: () => {
+        if (!editing) return null;
+        const st2 = findOrder(editing.id) || st;
+        const imp2 = judge(st2, completedOf(st2), new Date());
+        if (imp2.unbill && !imp2.lock) return unbillErr(imp2.unbill, "배송완료 처리");
+        if (imp2.lock) return lockErr(imp2.lock, st2, { what: "배송완료 처리" });
+        pending = imp2;
+        return null;
+      },
+      onConfirm: (note) => (editing ? writeStep("배송완료", findOrder(editing.id) || st, pending, note) : true),
+      onLockedClose: () => { if (editing) syncDirty(); },
+    });
   }
 
   function openEditor(order) {
@@ -1819,7 +1965,11 @@ export function mount(root, { nav }) {
     menuOpen = false;
     unsaved = ""; unsavedTip = ""; lastImp = null; // 저장 줄 메모는 창을 닫으면 사라진다(사용자 답 2)
     s0 = settleOf(order); // 저장된 배송일시의 달 — 요약 줄·금액 칸 안내·배송일시 안내의 기준
-    amtLock = s0 && !s0.editable ? s0 : null; // 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다
+    /* 저장된 배송일시의 달이 잠겼으면 금액·상품 칸을 처음부터 잠근다 — 단 배송 전 주문 · '정산에 넣지 않음' 표지가 붙은 주문은 뺀다
+       (amtFreeOf). 그 주문은 어느 달에도 금액이 없어(2026-10-23 운영자 결정 D2·D3) 고쳐도 정산이 바뀌지 않는다 — settlementImpactOf 도
+       막지 않는다. 예전엔 상태를 보지 않아 그런 주문도 '금액 조정은 수정계산서로' 로 잠겼다(완료 처리를 잊은 지난달 주문의 잘못 적힌 금액을
+       바로잡을 길이 없었다 · 2026-10-23 검증). 배송완료로 열린 달에 든 뒤 잠기면 저장 뒤 lockOf 가 잡는다. 취소한 주문은 예전 그대로 잠근다. */
+    amtLock = s0 && !s0.editable && !amtFreeOf(order) ? s0 : null;
     let menu = null; // ··· 메뉴 키보드(order-screen bindOrdMenu) — 열려 있으면 ESC 는 메뉴만 닫는다
     activeModal = openModal({
       panelClass: "modal-panel--ord",
@@ -1951,7 +2101,10 @@ export function mount(root, { nav }) {
     const cancelHit = (fee = 0, now = new Date()) => {
       const st = findOrder(editing.id);
       if (!st) return null;
-      const rec = mergedNow();
+      /* 쓰기와 같은 모양 — 취소는 작업본을 **상태 그대로** 먼저 저장한다(아래 onConfirm · b2bUpsert(rec)). mergedNow 는 사진·인수자가 찬
+         주문접수를 배송완료로 바꾼 모양이라, 그것으로 판정하면 잠긴 달의 그런 주문이 '배송완료 전환' 잠금에 걸려 취소가 거짓 이유로 막혔다
+         (2026-10-23 검증 — 쓰기는 정산에 닿지 않는다 · D2). */
+      const rec = workNow();
       const a = orderImpactOf(st, rec, now);
       if (a.lock) return a.lock;
       return orderImpactOf(rec, { ...rec, status: "취소", cancelFee: Number(fee) || 0, canceledAt: fmtAt(now) }, now).lock;
@@ -1982,7 +2135,13 @@ export function mount(root, { nav }) {
           /* 작성 중인 수정은 지금 상태 그대로 먼저 저장하고, 취소는 b2bCancel 이 한 번에 남긴다(사유·수수료·
              취소 시각 canceledAt·이력). ⚠️ 예전엔 상태를 '취소'로 바꾼 레코드를 먼저 upsert 해서 뒤의
              b2bSetStatus 가 '값이 그대로'로 건너뛰어 **취소 이력이 한 줄도 남지 않았다**. */
-          if (!b2bUpsert(rec)) { toast(writeFail(rec, findOrder(editing.id)), "warn"); return; }
+          /* 그 작업본이 잠긴 달에 남은 배송 전 주문을 다른 달로 옮긴 것이면(2026-10-23 운영자 결정 E1) · 배송 전 주문을 잠긴 달로 옮긴 것이면
+             (F1) 옮긴 사실 한 줄을 같은 쓰기에 남긴다 —
+             저장 버튼(commitSave)과 같은 판정·같은 문장이다(예전엔 이 길만 날짜를 옮겨 저장하고 이력 줄이 없었다 · 2026-10-23 검증). */
+          const stNow = findOrder(editing.id);
+          const cmv = stNow ? orderImpactOf(stNow, rec, new Date()).closedMove : null;
+          const recW = cmv ? { ...rec, history: [...(stNow.history || []), histEntry("edit", closedMoveLine(cmv))] } : rec;
+          if (!b2bUpsert(recW)) { toast(writeFail(rec, findOrder(editing.id)), "warn"); return; }
           if (!b2bCancel(editing.id, { reason, fee })) {
             const e2 = cancelFeeError((findOrder(editing.id) || rec).amount, fee);
             toast(e2 ? `취소하지 못했습니다 · ${e2.message}` : SAVE_FAIL, "warn");
@@ -2064,7 +2223,8 @@ export function mount(root, { nav }) {
      session.js 의 1회 전달 두 개를 받는다 — takeFocusClient("orders") = 거래처 id,
      takeFocusSection("orders") = "deliver:YYYY-MM". 거래처는 정확히 그 하나로(state.clientId — 검색칸에도 이름을 보인다),
      날짜 기준은 **배송일**(정산 달 = 배송일의 달, 2026-10-15), 기간은 그 달 1일~말일. 상태 탭은 '전체'로 연다 —
-     정산 금액은 상태로 거르지 않는다(접수대기·주문접수·배송완료 모두 든다). 꺼내면 지워지므로 새로고침하면 평소 화면이다. */
+     정산에는 배송완료 주문만 들지만(2026-10-23 운영자 결정 D2), 완료 처리를 잊은 그 달 배송 전 주문도 같은 목록에서 보이게 한다
+     (배송완료로 바꾸면 그 달에 더하거나 '정산에 넣지 않음' 표지를 단다 — D3). 꺼내면 지워지므로 새로고침하면 평소 화면이다. */
   (function takeFocus() {
     const cid = takeFocusClient("orders");
     const sec = takeFocusSection("orders");

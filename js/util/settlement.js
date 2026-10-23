@@ -13,7 +13,9 @@
 
    ── 명세서 행(billingRowsOf)의 규칙 (명세 3.4 · 5.4 · decisions-2026-10-04 맨 끝 두 절) ──
    · 주문 한 건의 기여는 `data/billing-entries.js` 한 곳이다(b2b-mock 의 정산 금액 변경 기록과 같은 규칙):
-     귀속월 = 주문 **배송일시**의 년·월. 상태로 거르지 않는다(접수대기·주문접수·배송완료) — 금액 그대로, 0원 주문도 한 줄.
+     귀속월 = 주문 **배송일시**의 년·월. **배송완료 주문만** 든다(2026-10-23 운영자 결정 D2 — 접수대기·주문접수는 배송일이 지났어도 0 ·
+     이번 달 예상 정산도 그렇다) — 금액 그대로, 0원 주문도 한 줄. 명세서가 나간 뒤 잠긴 달·발행이 지난 거래 없는 달로 배송완료가 된
+     주문은 '정산에 넣지 않음' 표지(`unbilled` — D3)를 달아 어느 달에도 넣지 않는다(아래 settlementImpactOf 의 `unbill`).
    · 취소한 주문은 금액이 빠지고, **수수료가 있으면 취소한 날의 달**(canceledAt — 없으면 이력의 cancel 시각)에 한 줄.
    · 삭제한 주문은 빠진다(b2bList 에 없다).
    · 줄 순서는 **주문 줄 먼저, 수수료 줄 뒤**(각각 날짜 내림차순 — 2026-10-16 S-02 '수수료 줄은 맨 아래').
@@ -44,12 +46,12 @@ import { store, einvoiceNoFor } from "../store.js";
 import { b2bList, b2bVersion, b2bSeedAmountChanges } from "../data/b2b-mock.js";
 import { DATA_NOW, WITHDRAWN } from "../data/admin-mock.js";
 import {
-  invoiceDayOf, invoiceDayFor, issueDate, fmtKo, fmtKoShortY, parseAt,
+  invoiceDayOf, invoiceDayFor, issueDate, fmtKo, fmtKoShortY, parseAt, fmtAt,
   periodOf, periodLabel, editLockAt, overdueAt, isPastOverdue, LOCK_REASON, LOCK_SHORT,
   issuedEmptyReason, ISSUED_EMPTY_SHORT, issuedZeroReason, ISSUED_ZERO_SHORT,
   WITHDRAWN_INTAKE_REASON, WITHDRAWN_INTAKE_SHORT,
 } from "../data/settlement-rules.js";
-import { entriesOfOrder, compareEntries, contributionDiff, causeOf, normAt } from "../data/billing-entries.js";
+import { entriesOfOrder, compareEntries, contributionDiff, causeOf, normAt, isCompletion, BILLED_STATUS } from "../data/billing-entries.js";
 import { termsPending } from "./client.js";
 import { currentActor } from "./actor.js";
 import { INVOICE_NOTE } from "../data/invoice-links.js";
@@ -198,8 +200,8 @@ export function noRecipientOf(client) {
 /**
  * 한 (거래처, 귀속월)의 정산 상태(명세 5.4 · 6.6 응답의 데모 대역).
  * @returns {{ id, period, status: "SCHEDULED"|"AWAITING_AGREEMENT"|"AGREED"|"ISSUED"|"OVERDUE"|"PAID"|"NONE",
- *   autoAgreeHold: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED",
- *   heldAtDeadline: null|"TERMS_NOT_AGREED"|"NOTICE_UNDELIVERED",
+ *   autoAgreeHold: null|"TERMS_NOT_AGREED",
+ *   heldAtDeadline: null|"TERMS_NOT_AGREED",
  *   amount: number, count: number, feeCount: number, empty: boolean, group: "early"|"late",
  *   issued: boolean, open: boolean, issueAt: Date, deadline: Date, dueAt: Date, overdueAt: Date,
  *   editLockAt: Date|null, editable: boolean, lockReason: string|null, lockShort: string|null,
@@ -219,12 +221,15 @@ export function noRecipientOf(client) {
  *   store.einvoiceFail 에 든 달만 AGREED 에 머물고, 다시 시도·직접 입력(store.einvoice)이 성공하면 ISSUED.
  * - OVERDUE: 계산서가 나간 미입금 달이 정산기한 다음 날 10:00 을 지났다(정각 포함 · 발급이 그 뒤면 발급 순간부터).
  *   overdueFrom = 기한 초과가 **된** 시각 = max(overdueAt, 계산서가 시스템에 생긴 시각) — 계산서가 정산기한 뒤에 나온 달(바로빌 장애 뒤
- *   다시 시도 · 보류 달의 늦은 직접 동의)은 발급 순간 기한 초과다(명세 3.4 · M39 · N01 · 10.4 Q36 잠정 '지금 규칙 그대로'). 계산서가 없으면 null.
+ *   다시 시도 · 약관 동의 전 달의 늦은 직접 동의)은 발급 순간 기한 초과다(명세 3.4 · M39 · N01 · 10.4 Q36 잠정 '지금 규칙 그대로'). 계산서가 없으면 null.
  *   '시스템에 생긴 시각' = 직접 입력이면 **기록한 시각**(einvoice.recordedAt — 적은 발급 시각 at 은 바로빌 콘솔에서 낸 과거일 수 있다 ·
  *   T6·T8 은 기록한 순간에 나간다 · M39 · 2026-10-19 검토 4 · 옛 기록은 at), 그 밖은 발급 시각(at). 까닭은 `overdueLateOf`.
  *   진행 기록의 '기한 초과' 줄 · 표의 '…부터 기한 초과' · 입금 확인 창 · 포털 정산회계가 이 값을 쓴다(overdueAt 은 규칙상의 시각 그대로).
- * - notice: 정산 안내 도달(settlement-rules `noticeState` — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류). 가리지 않은 날것이다 —
- *   내역서가 없는 달(NONE)에는 T3 이 없고, 고쳐서 0원이 된 달에는 T4 가 없다는 것은 화면이 status · zeroEdited 로 가린다.
+ * - autoAgreeHold · heldAtDeadline: 자동 동의를 막는 것은 약관 동의 전 하나뿐이다(2026-10-23 운영자 결정 D1 — 예전 잠정
+ *   '고지 미도달' 보류(Q19)는 걷어 냈다).
+ * - notice: 정산 안내 도달(settlement-rules `noticeState` — T3 · T4 · 닿지 않은 이유). **기록일 뿐 자동 동의에 끼지 않는다**(D1).
+ *   가리지 않은 날것이다 — 내역서가 없는 달(NONE)에는 T3 이 없고, 고쳐서 0원이 된 달에는 T4 가 없다는 것은 화면이 status ·
+ *   zeroEdited 로 가린다.
  * - editable: SCHEDULED · NONE 이거나 (AWAITING_AGREEMENT 이고 now < editLockAt). lockReason 은 명세 6.4 세 문구 중 하나,
  *   lockShort 는 그 짧은 말(settlement-rules LOCK_SHORT — 0원 달은 null).
  *   ⚠️ NONE 이 editable 인 것은 '잠글 정산이 없다' 는 뜻이다 — 그 달로 **들어오는** 주문은 settlementImpactOf 가 막는다(사용자 답 3).
@@ -345,6 +350,24 @@ export function amountChangeLine(s, now = new Date()) {
 
 /* ── 저장 전 확인 · 잠금 검사의 단일 판정 (S-06 · 명세 3.4 '마감 전 수정' · 6.4 '정산 잠금' · 2026-10-16 DATA.md 2.3) ── */
 const ymOfAt = (s) => normAt(s).slice(0, 7);
+/* 배송 전 주문인가 — 접수대기·주문접수(배송완료 · 취소가 아니다)이고 '정산에 넣지 않음' 표지가 없다(표지는 배송완료 때만 붙지만
+   그런 주문이 되돌려진 경우까지 막는다). E1 · F1 의 '옮기는 주문' 이 이것이다. */
+const isPendingOrder = (o) => !!o && o.status !== BILLED_STATUS && o.status !== "취소" && !o.unbilled;
+/* 그 달(settlementOf)이 명세서가 나간 뒤 잠겼거나(!editable — 수정 마감 뒤 · 동의된 달 · 고쳐서 0원으로 닫는 달) 발행이 지난 거래
+   없는 달(NONE)인가 — 배송완료해도 그 달 정산에 넣지 않는 달(D3 표지 갈래). */
+const isClosedMonth = (s) => !!s && !!s.issued && (!s.editable || s.status === "NONE");
+/** 이 주문이 **배송 전 주문**이고 그 배송일시의 달(`s` — 그 달 settlementOf)이 명세서가 나간 뒤 잠겼거나(!editable — 수정 마감 뒤 ·
+ *  동의된 달 · 고쳐서 0원으로 닫는 달) 발행이 지난 거래 없는 달(NONE)인가. 배송완료(표지 유무와 무관)·취소한 주문은 아니다.
+ *  그런 주문의 배송일시를 다른 달로 옮기는 것은 **막지 않고 경고한다**(2026-10-23 운영자 결정 E1 — 배송완료 때 실제 배송일로 고쳐 그 달로
+ *  옮기는 운영 · 세무 5-3 '충분'). 화면이 쓰는 판정은 아래 settlementImpactOf 의 `closedMove` 이고, 그것은 이 함수를 부르지 않고 같은
+ *  도우미(isPendingOrder · isClosedMonth)로 판정한다 — 이 export 는 같은 판정을 한 주문·한 달에 묻는 시험용이다. 문장은 closedMoveWarn 들.
+ *  반대 방향(그 밖의 달 → 이런 달 — 2026-10-23 운영자 결정 F1)도 같은 `closedMove` 다(`from` 이 closed 가 아니다). */
+export const pendingInClosedOf = (o, s) => isPendingOrder(o) && isClosedMonth(s);
+/** 잠긴 달·발행이 지난 거래 없는 달의 상태 낱말 — 문장 '9월은 {낱말}이라 …' · '9월({낱말})에서 옮김' 의 자리(그 달 settlementOf 로만).
+ *  주문 상세의 막힘 문장(admin-orders lockSentence)과 E1 경고가 같은 낱말을 쓴다. 고칠 수 있는 달에는 부르지 않는다. */
+export const closedMonthWord = (s) => (s.status === "NONE" ? ISSUED_EMPTY_SHORT
+  : s.zeroEdited ? "0원으로 닫는 달"
+  : s.status === "AWAITING_AGREEMENT" ? "수정 마감이 지난 달" : "동의를 마친 달");
 /**
  * 주문 한 건의 저장(stored → next)이 정산에 주는 영향. `stored` 가 null 이면 등록, `next` 가 null 이면 삭제.
  * 주문취소는 next 에 취소 뒤 모양(status '취소' · cancelFee · canceledAt)을 넘긴다.
@@ -360,11 +383,38 @@ const ymOfAt = (s) => normAt(s).slice(0, 7);
  *           // (NONE · reason = issuedZeroReason · isOld false · **raise true** — 2026-10-22 결정 B). 이동이면 옛 달 먼저, 삭제는 앞선 달(명세 6.4).
  *           // raise = 배송일시는 그대로이고 금액만 그 달로 들어오는 막힘(위 셋째) — isOld 가 false 라 '들어오는 쪽' 으로 미리 막히지만
  *           // 원인은 배송일시가 아니라 금액 칸이다. 배송일시 줄을 칠하는 화면은 moved 이거나 raise 가 아닐 때만 칠한다(admin-orders syncDeliv).
- *   cause: "create"|"remove"|"feeRemove"|"cancel"|"move"|"product"|"amount"|null,   // data/billing-entries causeOf
+ *   cause: "create"|"remove"|"feeRemove"|"cancel"|"complete"|"move"|"product"|"amount"|null,   // data/billing-entries causeOf
  *   moved: boolean,   // 배송일시가 다른 달로
+ *   unbill: { ym, label, s, why: "editLock"|"agreed"|"zero"|"none", reason, short } | null,
+ *           // 배송완료 전환이 막힌 달로 든다 — 위 lock 이 그 달이다(아래 D3)
+ *   closedMove: { ym, label, s, from: "closed"|"scheduled"|"open", word, fromAt, toAt, toYm, toLabel, toS, to: "scheduled"|"open"|"closed", toWord } | null,
+ *           // **배송 전 주문**을 다른 달로 옮기는데 옛 달이나 새 달이 잠긴 달·발행이 지난 거래 없는 달이다(아래 E1 · F1 — 막지 않는다 ·
+ *           // 경고와 처리 이력 한 줄의 근거). 둘 다 그런 달이면 한 값이다(경고·이력도 하나).
+ *           // ym/s = 옛 달 · from = 옛 달이 잠긴 달·거래 없는 달(closed — E1 · pendingInClosedOf) / 발행 전(scheduled) / 명세서가 나갔고
+ *           // 고칠 수 있음(open) · word = from 이 closed 일 때 옛 달 낱말(closedMonthWord — 아니면 "") ·
+ *           // fromAt/toAt = 배송일시 전 → 후("YYYY-MM-DD HH:mm") ·
+ *           // to = 새 달이 발행 전(scheduled) / 명세서가 나갔고 고칠 수 있음(open — 배송완료 때 확인 창) / 잠긴 달·발행이 지난 거래 없는 달
+ *           // (closed — 배송완료 때 '정산에 넣지 않음' 표지 · D3 · F1) · toWord = closed 일 때 새 달 낱말(아니면 "").
+ *           // from 이 closed 가 아니면 to 는 늘 closed 다(F1).
  * }}
- * - months 가 비면 금액·줄에 영향이 없는 저장이다(리본 문구 등) — 잠긴 달에서도 받는다(명세 6.4).
+ * - months 가 비면 금액·줄에 영향이 없는 저장이다(리본 문구 · 배송 전 주문의 금액·배송일시 — D2) — 잠긴 달에서도 받는다(명세 6.4).
  * - confirm 이 비면 바로 저장한다. 사유는 b2bUpsert(rec, { note }) 로 넘긴다.
+ * - **배송완료 전환**(배송 전 → 배송완료 · 2026-10-23 운영자 결정 D3) — 그 주문은 그 전엔 어느 달에도 기여가 없어(D2) 배송일시의 달이
+ *   새로 받는 쪽이다. 그 달이 아직 고칠 수 있으면(발행 전 · 발행 뒤 editable) 여느 저장처럼 더하고 발행 뒤면 confirm 이 선다(원인
+ *   `complete`). 잠긴 달(수정 마감 뒤 · 동의된 달 · 고쳐서 0원으로 닫는 달)이나 발행이 지난 거래 없는 달(NONE)이면 lock 과 함께
+ *   **`unbill`** 을 돌려준다 — 전환은 막지 않는다: 호출부가 `withUnbilled(next, unbill)` 로 '정산에 넣지 않음' 표지를 단 뒤 **다시
+ *   판정**하면 기여가 없어 lock 이 사라진다(배송완료·사진·인수자·알림은 그대로 저장된다). unbill 을 모르는 호출부는 lock 에서 멈춘다
+ *   (표지 없이 잠긴 달에 금액이 들어가는 일은 없다). 같은 저장의 금액·상품·배송일시 수정은 그 전환과 함께 표지를 따른다 — 배송 전 주문의
+ *   그런 수정은 원래 정산에 닿지 않으므로(D2) 전환 때문에 잠금이 풀리거나 걸리지 않는다.
+ * - **잠긴 달에 남은 배송 전 주문은 다른 달로 옮길 수 있다**(2026-10-23 운영자 결정 E1 — 세무 5-3 '충분': 배송완료 때 실제 배송일로 고쳐
+ *   그 달로 옮기는 운영). 그 주문은 기여가 없어(D2) 옮겨도 금액은 그대로이고, 옮긴 뒤 배송완료로 바꾸면 **새 달 규칙**(위 D3)을 따른다 —
+ *   발행 전 달이면 더하고 · 고칠 수 있는 발급 달이면 확인 창 · 잠긴 달·거래 없는 달이면 표지. 막지 않는 대신 `closedMove` 로 알린다
+ *   (화면은 배송일시 줄·저장 줄에 '실제 배송일일 때만 옮기세요' 경고 · 처리 이력에 옮긴 사실 한 줄 — admin-orders). 같은 달 안의
+ *   날짜·시각 변경은 closedMove 가 없다. (같은 날 한때 이 이동을 옛 달 잠금으로 막았다 — E1 로 걷어 냈다, 되살리지 말 것.)
+ * - **반대 방향도 같다**(2026-10-23 운영자 결정 F1) — 발행 전 달·고칠 수 있는 달(그 밖 아무 달)의 배송 전 주문을 잠긴 달·발행이 지난
+ *   거래 없는 달로 옮기면 막지 않고 같은 `closedMove`(from ≠ closed · to = closed)로 알린다 — 그 주문은 배송완료해도 그 달 정산에 넣지
+ *   않는다(D3 표지). 옛 달·새 달이 모두 그런 달이면(E1 과 겹침) closedMove 는 하나다. 배송완료 주문(기존 잠금 규칙 그대로)·취소한 주문·
+ *   표지 붙은 주문·같은 달 안의 이동은 해당하지 않는다.
  */
 export function settlementImpactOf(stored, next, now = new Date()) {
   const clients = store.get().clients;
@@ -397,6 +447,30 @@ export function settlementImpactOf(stored, next, now = new Date()) {
   months = next ? [...months].sort((a, b) => (a.isOld === b.isOld ? 0 : a.isOld ? -1 : 1)) : [...months].sort((a, b) => (a.ym < b.ym ? -1 : a.ym > b.ym ? 1 : 0));
   const confirm = months.filter((m) => m.s.issued && m.s.editable && m.s.status !== "NONE" && m.delta !== 0);
   let lock = null;
+  /* 배송 전 주문을 다른 달로 옮기는데 옛 달(E1)이나 새 달(F1)이 잠긴 달·발행이 지난 거래 없는 달이다 — 막지 않고 알린다(위 JSDoc ·
+     closedMove). 금액은 그대로라(D2) 아래 months·lock 판정과 상관없다(옮기며 배송완료로 바꾸면 그 전환이 새 달 규칙으로 판정된다). */
+  let closedMove = null;
+  /* 새 배송일시가 비었거나 날짜 모양이 아니면(ymOfAt → "") 경고를 만들지 않는다 — settlementOf 는 "YYYY-MM" 만 받아 던진다. 화면의 피커는
+     늘 온전한 날짜를 쓰지만 저장 줄은 입력마다 이 함수를 부른다(2026-10-23 검증 · E1 이전처럼 빈 결과). */
+  const nm = moved ? ymOfAt(next.deliverAt) : "";
+  if (moved && nm && isPendingOrder(stored)) {
+    const pm = ymOfAt(stored.deliverAt);
+    const pc = clients.find((x) => x.id === stored.clientId);
+    const ps = pc && pm ? settlementOf(pc, pm, now) : null;
+    if (ps) {
+      const nc = clients.find((x) => x.id === next.clientId) || pc;
+      const ns = settlementOf(nc, nm, now);
+      const from = isClosedMonth(ps) ? "closed" : !ps.issued ? "scheduled" : "open";
+      const to = !ns.issued ? "scheduled" : isClosedMonth(ns) ? "closed" : "open";
+      if (from === "closed" || to === "closed") {
+        closedMove = {
+          ym: pm, label: periodLabel(pm), s: ps, from, word: from === "closed" ? closedMonthWord(ps) : "",
+          fromAt: normAt(stored.deliverAt), toAt: normAt(next.deliverAt),
+          toYm: nm, toLabel: periodLabel(nm), toS: ns, to, toWord: to === "closed" ? closedMonthWord(ns) : "",
+        };
+      }
+    }
+  }
   for (const m of months) {
     /* 거래 없는 달(NONE)은 그 달로 **들어오는** 주문을 막는다(사용자 답 3) — 나가는 쪽(옛 달)은 잠글 정산이 없다. */
     const closedEmpty = m.s.status === "NONE" && !m.isOld;
@@ -415,8 +489,124 @@ export function settlementImpactOf(stored, next, now = new Date()) {
       break;
     }
   }
-  return { months, confirm, lock, cause: causeOf(stored, next), moved };
+  /* 배송완료 전환이 막힌 달로 든다(D3) — 배송 전 주문은 기여가 없어(D2) 바뀌는 달은 그 전환이 들어가는 달뿐이고, 막혔다면 lock 이
+     바로 그 달이다(들어오는 쪽 · isOld false). 막지 않고 표지를 달 수 있게 이유 코드를 함께 준다. */
+  const unbill = lock && !lock.isOld && isCompletion(stored, next) && !next.unbilled
+    ? {
+      ym: lock.ym, label: lock.label, s: lock.s, reason: lock.reason, short: lock.short,
+      why: lock.s.status === "NONE" ? "none" : lock.s.zeroEdited ? "zero" : lock.s.status === "AWAITING_AGREEMENT" ? "editLock" : "agreed",
+    }
+    : null;
+  return { months, confirm, lock, cause: causeOf(stored, next), moved, unbill, closedMove };
 }
+
+/* ── '정산에 넣지 않음' 표지 (2026-10-23 운영자 결정 D3) ─────────────────────────────────────────────
+   명세서가 나간 뒤에야 배송완료가 된 주문(직원이 완료 처리를 잊었던 경우)의 배송일 달이 잠겼으면(수정 마감 뒤 · 동의된 달 · 고쳐서 0원으로
+   닫는 달) 또는 발행이 지난 거래 없는 달(NONE)이면, 전환은 받되 금액은 그 달에 넣지 않는다 — 주문 레코드에 표지를 남겨 어느 달 정산에도
+   들지 않게 한다(data/billing-entries `isBilled`). 그 금액은 운영 담당이 바로빌 웹에서 처리한다(세무 4 의 지금 방식 — 계산서가 나갔거나
+   나갈 달은 수정계산서(증액)로). 표지는 주문 쓰기(b2bUpsert)와 함께 store.orderOps 에 영속한다.
+   표지 = { ym("YYYY-MM" — 그때 배송일의 달), at("YYYY-MM-DD HH:mm" — 단 시각), why(settlementImpactOf unbill.why) }. */
+/** settlementImpactOf 의 `unbill` → 주문에 남길 표지. */
+export const unbilledMarkOf = (unbill, now = new Date()) => ({ ym: unbill.ym, at: fmtAt(now), why: unbill.why });
+/** 표지를 단 작업본(사본) — 호출부는 이것으로 **다시 판정**한 뒤 쓴다. */
+export const withUnbilled = (next, unbill, now = new Date()) => ({ ...next, unbilled: unbilledMarkOf(unbill, now) });
+/** "9월" — 단 시각과 해가 다르면 "2025년 12월"(연도 없이 쓰면 올해로 읽힌다 · fmtKoShortY 와 같은 규칙). */
+const ymWord = (ym, now) => {
+  const y = Number(String(ym).slice(0, 4)), m = Number(String(ym).slice(5, 7));
+  return y === now.getFullYear() ? `${m}월` : `${y}년 ${m}월`;
+};
+/* 계산서가 나갔거나 나갈 달(수정 마감 뒤 · 동의된 달)은 바로빌에서 **수정계산서**로 고친다. 고쳐서 0원으로 닫는 달·거래 없는 달은 고칠
+   계산서가 없어 '따로 처리' 라고만 말한다(없는 계산서를 고치라고 하지 않는다). */
+const hasInvoice = (why) => why === "editLock" || why === "agreed";
+/** 처리 이력 한 줄 — '정산 마감 뒤 배송완료 · 9월 정산에 넣지 않음 · 수정계산서로'. */
+export function unbilledLine(mark, now = new Date()) {
+  const when = mark.why === "none" ? "명세서 발행 뒤" : "정산 마감 뒤";
+  return `${when} 배송완료 · ${ymWord(mark.ym, now)} 정산에 넣지 않음 · ${hasInvoice(mark.why) ? "수정계산서로" : "바로빌에서 따로 처리"}`;
+}
+/** 왜 넣지 않았는지 한 문장(토스트 꼬리 · 주문 상세 'M월 정산' 칩의 title) —
+ *  '9월 정산이 잠겨 이 주문 금액은 넣지 않았습니다 — 바로빌에서 수정계산서로 처리하세요'. */
+export function unbilledWhy(mark, now = new Date()) {
+  const m = ymWord(mark.ym, now);
+  const head = mark.why === "none" ? `${m}은 명세서 발행이 지난 달이라`
+    : mark.why === "zero" ? `${m} 정산이 0원으로 닫혀`
+    : `${m} 정산이 잠겨`;
+  return `${head} 이 주문 금액은 넣지 않았습니다 — 바로빌에서 ${hasInvoice(mark.why) ? "수정계산서로" : "따로"} 처리하세요`;
+}
+
+/* ── 배송 전 주문을 잠긴 달에서 · 잠긴 달로 옮길 때의 경고 (2026-10-23 운영자 결정 E1 · F1) ─────────────────────────────────
+   settlementImpactOf 의 `closedMove` → 화면 문장. 막지 않는다 — 옮긴 날짜가 실제 배송일인지 사람이 확인하게 할 뿐이다(세무 5-3 '충분' —
+   배송완료 때 실제 배송일로 고쳐 그 달로 옮기는 운영). 달 낱말·상태는 모두 settlementOf 값(closedMove 의 s · toS)에서 온다.
+   E1(옛 달이 잠긴 달 · from closed)은 옛 달 낱말로 '실제 배송일일 때만 옮기세요' 를, F1(새 달만 잠긴 달 · to closed)은 새 달 사정
+   (closedMoveTail — 'N월은 {낱말}이라 배송완료해도 정산에 넣지 않습니다')을 말한다. 둘이 겹치면(잠긴 달 → 잠긴 달) E1 문장 하나에 새 달
+   사정이 이미 꼬리로 붙는다 — 경고·이력이 둘로 나뉘지 않는다. */
+/** 새 달에서 이 주문이 어떻게 되는지 — '10월 정산에 듭니다'(발행 전) / '10월 명세서에 듭니다'(고칠 수 있는 발급 달 — 배송완료 때 확인 창) /
+ *  '8월은 동의를 마친 달이라 배송완료해도 정산에 넣지 않습니다'(잠긴 달·발행이 지난 거래 없는 달 — 배송완료 때 '정산에 넣지 않음' 표지 · D3). */
+export function closedMoveTail(cm, now = new Date()) {
+  const n = ymWord(cm.toYm, now);
+  if (cm.to === "closed") return `${n}은 ${cm.toWord}이라 배송완료해도 정산에 넣지 않습니다`;
+  return `${n} ${cm.to === "open" ? "명세서" : "정산"}에 듭니다`;
+}
+/* 옛 달이 잠긴 달·거래 없는 달인가(E1) — 아니면 새 달만 그런 달이다(F1). 옛 값(from 칸이 없던 closedMove)은 E1 이다. */
+const fromClosed = (cm) => !cm.from || cm.from === "closed";
+/** 배송일시 줄 경고 — E1 '9월은 동의를 마친 달 — 실제 배송일일 때만 옮기세요 · 옮기면 10월 정산에 듭니다' /
+ *  F1 '9월은 동의를 마친 달이라 배송완료해도 정산에 넣지 않습니다'(새 달 사정 closedMoveTail 그대로). */
+export function closedMoveWarn(cm, now = new Date()) {
+  const tail = closedMoveTail(cm, now);
+  if (!fromClosed(cm)) return tail;
+  return `${ymWord(cm.ym, now)}은 ${cm.word} — 실제 배송일일 때만 옮기세요 · ${cm.to === "closed" ? tail : `옮기면 ${tail}`}`;
+}
+/** 처리 이력의 짧은 사실 — E1 '9월(동의를 마친 달)에서 옮김' / F1 '9월(동의를 마친 달)로 옮김' /
+ *  둘 다(잠긴 달 → 잠긴 달) '9월(동의를 마친 달)에서 8월(동의를 마친 달)로 옮김' — 한 줄이다. */
+export function closedMoveFrom(cm, now = new Date()) {
+  const toPart = `${ymWord(cm.toYm, now)}(${cm.toWord})로`;
+  if (!fromClosed(cm)) return `${toPart} 옮김`;
+  const fromPart = `${ymWord(cm.ym, now)}(${cm.word})에서`;
+  return cm.to === "closed" ? `${fromPart} ${toPart} 옮김` : `${fromPart} 옮김`;
+}
+/** 저장 줄의 한 마디(E1) — '실제 배송일일 때만 · 9월(동의를 마친 달)에서 옮김'. 배송일시 줄 경고(closedMoveWarn)는 1280 폭에서 '…실제
+ *  배송일일 때만 …' 쯤에서 말줄임이라 주의 낱말을 저장 줄도 싣는다(2026-10-23 검증 — 예전 저장 줄은 옮긴 사실만 말했다). 이력 줄에는
+ *  넣지 않는다. 새 달 사정은 저장 줄이 closedMoveTail 로 따로 잇기 때문에 여기는 옛 달만 말한다(잠긴 달 → 잠긴 달이어도 — 한 줄에 새 달이
+ *  두 번 서지 않게). F1(옛 달이 열린 달)은 "" — 저장 줄은 새 달 사정(closedMoveTail) 한 마디만 잇는다(admin-orders syncDirty). */
+export const closedMoveNote = (cm, now = new Date()) => (fromClosed(cm)
+  ? `실제 배송일일 때만 · ${ymWord(cm.ym, now)}(${cm.word})에서 옮김` : "");
+/** 처리 이력 한 줄(종류 'edit') — E1 '배송일시 변경 · 09-28 13:00 → 10-20 10:00 · 9월(동의를 마친 달)에서 옮김' /
+ *  F1 '배송일시 변경 · 10-05 14:00 → 09-30 14:00 · 9월(동의를 마친 달)로 옮김' / 잠긴 달 → 잠긴 달 '… · 9월(…)에서 8월(…)로 옮김'.
+ *  날짜는 `now` 와 해가 같으면 'MM-DD HH:mm', 다르면 'YYYY-MM-DD HH:mm'(연도 없이 쓰면 올해로 읽힌다). */
+export function closedMoveLine(cm, now = new Date()) {
+  const y = String(now.getFullYear());
+  const md = (at) => (String(at).slice(0, 4) === y ? String(at).slice(5) : String(at));
+  return `배송일시 변경 · ${md(cm.fromAt)} → ${md(cm.toAt)} · ${closedMoveFrom(cm, now)}`;
+}
+/** 주문 상세 저장 줄(푸터 왼쪽)의 '수정한 항목 N개' 갈래 — 화면(admin-orders syncDirty)이 막힘(금액 < 수수료 · 누르기 전 잠김) · 저장 순간
+ *  되돌린 값의 메모 · 변경 없음을 먼저 고르고, 남은 저장 줄의 글자를 여기서 고른다. DOM 이 없어 시험(test-billing ⑪ E1 · F1)이 화면과
+ *  **같은 함수**를 부른다(예전엔 시험이 같은 모양을 손으로 다시 지어 갈래 순서·앞말이 틀려도 통과했다 · 2026-10-23 검증).
+ *  `imp` = 화면 판정(judge — settlementImpactOf 에 '정산에 넣지 않음' 표지 갈래를 더한 값) · `n` = 수정한 항목 수 ·
+ *  `monthsLine` = 바뀌는 달들 한 줄('9월 명세서 955,000 → 1,025,000원' — 확인 창 갈래에서만 쓴다 · 화면 monthsLine).
+ *  갈래 순서: ① 같은 저장이 배송완료로 바꾸는데 그 달이 잠김(unbill — D3 · '저장하면 배송완료 · N월 정산에는 넣지 않습니다' · title 은 이유)
+ *  → ② 확인 창이 뜰 저장(confirm — '저장 전에 확인합니다 · …' · ask) → ③ 배송 전 주문 옮김 경고만(closedMove — E1 · F1 · 'N개 · {새 달 사정}' ·
+ *  title 은 배송일시 줄 경고) → ④ 그 밖('수정한 항목 N개'). 옮김(closedMove)은 막힘(imp.lock)이 없을 때만 말하고, 옛 달이 잠긴 달이면(E1)
+ *  ①②③ 모두 앞에 closedMoveNote 한 마디('실제 배송일일 때만 · 9월(…)에서 옮김 · ')를 둔다 — F1(옛 달이 열린 달)은 그 한 마디가 없다.
+ *  ①의 title 은 E1 이면 '{배송일시 줄 경고} · {이유}', 아니면 이유만(새 달 사정은 표지 문장이 이미 말한다).
+ *  @returns {{ text: string, tip: string, ask: boolean }} — tip "" 이면 title 없음 · ask = 버튼 '변경사항 저장…' */
+export function orderSaveLineOf(imp, n, monthsLine = "", now = new Date()) {
+  const cm = imp && !imp.lock ? imp.closedMove : null;
+  const cmNote = cm ? closedMoveNote(cm, now) : "";
+  const cmFrom = cmNote ? `${cmNote} · ` : "";
+  if (imp && !imp.lock && imp.unbill) {
+    return {
+      text: `수정한 항목 ${n}개 · ${cmFrom}저장하면 배송완료 · ${Number(String(imp.unbill.ym).slice(5, 7))}월 정산에는 넣지 않습니다`,
+      tip: cmNote ? `${closedMoveWarn(cm, now)} · ${imp.unbill.reason}` : imp.unbill.reason, ask: false,
+    };
+  }
+  if (imp && !imp.lock && imp.confirm.length) {
+    return { text: `저장 전에 확인합니다 · ${cmFrom}${monthsLine}`, tip: cm ? closedMoveWarn(cm, now) : "", ask: true };
+  }
+  if (cm) return { text: `수정한 항목 ${n}개 · ${cmFrom}${closedMoveTail(cm, now)}`, tip: closedMoveWarn(cm, now), ask: false };
+  return { text: `수정한 항목 ${n}개`, tip: "", ask: false };
+}
+/** 정산 금액 변경 기록 줄의 원인 낱말 — 관리자 정산회계 '정산 금액 변경 기록' 카드 · 진행 기록. 금액 전 → 뒤가 스스로 말하는 원인은
+ *  적지 않고, 금액만으로는 알 수 없는 배송완료 처리(D3)만 둔다. */
+export const AMOUNT_CAUSE_WORD = { complete: "배송완료 처리" };
 /* 그 달에 stored 의 줄이 있었는가(0원 주문 — 기여 0원이어도 '옛 달' 이다). */
 function entriesInclude(o, d) {
   return entriesOfOrder(o).some((e) => e.clientId === d.clientId && e.ym === d.ym);
@@ -442,12 +632,14 @@ export function intakeBlockOf(client, deliverAt, now = new Date()) {
       reason: WITHDRAWN_INTAKE_REASON, short: WITHDRAWN_INTAKE_SHORT,
     };
   }
-  return settlementImpactOf(null, { id: "", clientId, deliverAt, amount: 0, status: "접수대기", product: "" }, now).lock;
+  /* 판정용 모양은 **배송완료**로 둔다 — 새 주문은 접수대기로 들어와 그 자리에서는 정산에 닿지 않지만(D2), 받을 수 있는 달인가는 그 주문이
+     배송완료로 그 달에 들 때를 본다(예전과 같은 판정 — 등록·접수를 막는 달은 그대로다). */
+  return settlementImpactOf(null, { id: "", clientId, deliverAt, amount: 0, status: "배송완료", product: "" }, now).lock;
 }
 
 /**
  * 미입금인 달인가 — **명세서가 나갔고**(발행 시각이 지남) · 입금 전이고 · 청구할 금액이 있는 달.
- * 동의 전(AWAITING_AGREEMENT — 보류 2종 포함)·계산서 발급 전(AGREED) 달도 센다 — 계산서 발급 여부와 무관하다
+ * 동의 전(AWAITING_AGREEMENT — 약관 동의 전으로 자동 동의되지 않은 달 포함)·계산서 발급 전(AGREED) 달도 센다 — 계산서 발급 여부와 무관하다
  * (2026-10-16 사용자 결정 A). 세지 않는 달: 아직 발행 전(SCHEDULED — 이번 달은 늘 여기) · 거래 없는 달(NONE — 0원 주문만 있는 달도) ·
  * 발급 뒤 고쳐서 0원이 된 달(입금 없이 닫힌다) · 입금완료(PAID).
  * 관리자 정산회계 표 머리 '미입금' · 월간 분석(report.js — 화면 KPI '미입금액' · 정산 진행 현황 · 리포트 PDF) · 대쉬보드
@@ -488,7 +680,8 @@ export function settlementsFor(client, now = new Date()) {
 export const settlementsMap = (clients, now = new Date()) =>
   Object.fromEntries(clients.map((c) => [c.id, settlementsFor(c, now)]));
 
-/** 조치가 필요한 이유들(없으면 빈 배열) — 보류 2종 · 계산서 발급 전(AGREED)에 머문 달 · 기한 초과 · 알림 수신자 없음. */
+/** 조치가 필요한 이유들(없으면 빈 배열) — 약관 동의 전이라 마감에 자동 동의되지 않은 달(autoAgreeHold — 2026-10-23 결정 D1 부터 이것
+ *  하나) · 계산서 발급 전(AGREED)에 머문 달 · 기한 초과 · 알림 수신자 없음. */
 export function actionReasons(row) {
   if (!row) return [];
   const out = [];
@@ -583,6 +776,25 @@ export function termsWatchOf(client, now = new Date()) {
   return { held, next, hot, firstZero };
 }
 
+/**
+ * 배송 전 주문만 있는 거래처인가 — 금액이 있는 배송 전 주문(접수대기·주문접수 · 취소 아님 · 0원 아님)이 하나라도 있고 배송완료된 주문은
+ * 하나도 없다(2026-10-23 운영자 결정 F2). 정산에는 배송완료 주문만 들어(D2) 그런 거래처는 명세서가 나갈 달이 없다(termsWatchOf null).
+ * 주문이 0건이거나 0원 주문만 있는 거래처(2026-10-22 결정 B — 배송 전이든 배송완료든)는 false · 배송완료된 주문(0원 · '정산에 넣지
+ * 않음' 표지 포함)이 하나라도 있어도 false — '배송완료된 주문이 없어' 가 거짓말이 된다.
+ */
+export function pendingOnlyOf(client) {
+  const id = typeof client === "string" ? client : client && client.id;
+  if (!id) return false;
+  const mine = b2bList().filter((o) => o.clientId === id);
+  return !mine.some((o) => o.status === BILLED_STATUS) && mine.some((o) => isPendingOrder(o) && (Number(o.amount) || 0) > 0);
+}
+/** 약관 동의 전 거래처에 명세서 일정이 없을 때(termsWatchOf null)의 첫 마디 — 거래처 목록 한 줄 · 정보 창 배너가 같이 쓴다(F2).
+ *  배송 전 주문만 있으면(pendingOnlyOf) '아직 배송완료된 주문이 없어 첫 명세서 일정이 없습니다', 아니면(주문 0건 · 0원 주문만)
+ *  '아직 거래가 없어 첫 명세서 일정이 없습니다'(마침표 없음 — 호출부가 잇는다). */
+export const noScheduleLeadOf = (client) => (pendingOnlyOf(client)
+  ? "아직 배송완료된 주문이 없어 첫 명세서 일정이 없습니다"
+  : "아직 거래가 없어 첫 명세서 일정이 없습니다");
+
 /* ── 포털 거래명세서의 달 (예전 invoice-mock 의 자리 · 시그니처 그대로) ─────────────────────── */
 /** 명세서 발행일 표기("2026년 09월 15일") — **그 귀속월에 유효했던** 발급일로. */
 const issueOf = (client, ym) => fmtKo(issueDate(ym, invoiceDayFor(client, ym)));
@@ -638,11 +850,8 @@ export const OVERDUE_LATE_WORD = {
   issue: "계산서가 정산기한 뒤에 발급돼 발급 순간부터",
   record: "직접 입력을 정산기한 뒤에 기록해 기록한 순간부터",
 };
-/** 마감 전인데 **이대로면 보류**(고지 미도달)가 잡힐 달 — `notice.hold`(settlement-rules `noticeState`) 예측. 그런 달에
- *  '마감까지 동의가 없으면 그 시각에 자동 동의됩니다' 라고 단정하지 않는다(관리자 정산회계 · 포털 거래명세서 · 포털 정산회계가 같은 판정 ·
- *  2026-10-19 검토 9). 보류는 마감 시각에 정해지므로
- *  settlementOf 의 autoAgreeHold 는 마감 뒤에야 선다 — 그 전 예측이 이것이다. 고쳐서 0원인 달은 동의를 받지 않아 해당 없음. */
-export const holdPendingOf = (s) => !!s && s.status === "AWAITING_AGREEMENT" && !s.autoAgreeHold && !s.zeroEdited && !!(s.notice && s.notice.hold);
+/* (예전 `holdPendingOf` — 마감 전 '이대로면 고지 미도달 보류' 예측 — 는 2026-10-23 운영자 결정 D1 로 보류가 없어져 지웠다.
+   T4 가 닿지 않은 달도 마감에 자동 동의되므로 '…에 자동 동의됩니다' 를 피할 달이 약관 동의 전 말고는 없다.) */
 
 /** 계산서 발급 방식 낱말(명세 6.6 einvoice.mode) — 세 낱말을 한 벌로 둔다. 예전엔 화면마다 `mode === "manual" ? "직접 입력" : "자동 발급"`
  *  이라 다시 시도로 낸 계산서가 '자동 발급' 으로 읽혔다(입금 확인 창 '계산서' 줄 · 2026-10-19). */

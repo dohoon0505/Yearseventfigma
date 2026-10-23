@@ -5,8 +5,8 @@
        → 같은 파일 2차 시안 (2026-10-16 오후 — 금액이 바뀐 달 '바뀜' 칩 · 수정 마감 · 발급 뒤 고쳐서 0원이 된 달)
 
    구조: 머리글(pageHead + '회사정보 수정') · 회사정보 카드(한 줄 4칸 + 둘째 줄 주소·발급일 칩) ·
-   정산 절차 4단계 + 아래 한 줄(정산 달 = 배송한 달 · 수정 마감 · 자동 동의 · 보류된 달은 직접 동의 · 기한 초과 ·
-   발급일 변경 · 고객센터) · 정산 내역 표.
+   정산 절차 4단계 + 아래 한 줄(정산 달 = 배송한 달 · 수정 마감 · 자동 동의 · 약관 동의 전에 마감이 지난 달은 직접 동의 · 기한 초과 ·
+   발급일 변경 · 내역이 다르면 카카오톡 채널·고객센터) · 정산 내역 표.
    표 상태 칸은 관리자 정산회계(S-01)와 같은 한 줄 부품 `settleMark` 이고, 같은 정산 행(settlementOf)을 본다 —
    두 화면이 같은 달에 다른 상태를 말하면 안 된다.
    ⚠️ 날짜·마감·그룹은 전부 `data/settlement-rules.js` 가 계산한다. 이 파일에 날짜 산술을 두지 말 것
@@ -35,7 +35,7 @@ import { openDialog, dlgRule, dlgRow, dlgActions } from "../util/dialog.js";
 import { dayPickerMarkup, makeDayPicker } from "../util/day-picker.js";
 import { store } from "../store.js";
 /* 정산 행은 B2B 주문(배송일시의 달)에서 파생한 금액 + store 의 정산 기록을 얹은 조합층에서 온다 — 관리자 정산과 같은 소스. */
-import { settlementsFor, amountChangeLine, holdPendingOf, INVOICE_YM_KEY } from "../util/settlement.js";
+import { settlementsFor, amountChangeLine, INVOICE_YM_KEY } from "../util/settlement.js";
 import {
   INVOICE_DAYS, invoiceDayOf, invoiceDayFor, invoiceDayEffectiveFrom, deadlineDayOf, editLockDayOf,
   issueDate, agreeDeadline, shiftPeriod, periodLabel, ISSUE_HOUR, DEADLINE_HOUR,
@@ -45,7 +45,7 @@ import { sharedBizKeys, displayName, onBizInput } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
 import { currentClient } from "../util/client.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
-import { CS_PHONE } from "../data/contact.js";
+import { CS_PHONE, CS_KAKAO } from "../data/contact.js";
 import { setFocusSection } from "../session.js";
 import { refreshClientBadge } from "../shell.js";
 import { makeToast } from "../toast.js";
@@ -92,21 +92,19 @@ function pendingOldIssue(client, now) {
    작성일자 · 동의 방식은 마우스 올림(title)과 스크린리더(.sr-only)로만 — 세무 근거라 버리지 않는다.
    ⚠️ 상태는 settlementOf 값(status · autoAgreeHold · zeroEdited …)만 읽는다. 날짜로 상태를 짐작하지 않는다(명세 6.6).
    ⚠️ 0원 주문만 있는 달은 내역서를 내지 않는다 — 거래 없는 달(NONE)과 똑같이 '-' · '거래 없음 · 명세서 없음'(2026-10-22 운영자 결정 B).
-   ⚠️ 빨간 안내는 동의 마감 24시간 전부터(금액 바뀜 문장 포함)와 기한 초과 · 호박은 자동 동의가 보류된 달(시안).
-   안내 칸 갈래 순서(2차 시안): 고쳐서 0원 → 보류 2종 → 금액 바뀜 → 수정 마감 전 → '마감 …'.
+   ⚠️ 빨간 안내는 동의 마감 24시간 전부터(금액 바뀜 문장 포함)와 기한 초과 · 호박은 마감이 지나 자동 동의되지 않은 달(시안 — 약관 동의 전 하나).
+   안내 칸 갈래 순서(2차 시안): 고쳐서 0원 → 보류(약관 동의 전 — 2026-10-23 결정 D1 부터 이것 하나) → 금액 바뀜 → 수정 마감 전 → '마감 …'.
    반환: { kind, label, tone, meta(보이는 안내), title(안내·칸 마우스 올림), hot, amb, sr, chg(안내가 amountChangeLine 을 말한다) } */
 const DAY = 864e5;
 const howOf = (s) => (s.mode === "auto" ? "자동 동의" : "직접 동의");
-/* 보류 2종의 **포털** 낱말. 관리자 표(HOLD_LABEL — '고지 미도달')와 다르다: 안내 칸은 사실만
-   ('마감 지남 · 자동 동의 보류') 말하고, 이유는 마우스 올림에서 거래명세서 조회(S-02) 동의 카드와 같은 말로 한다.
-   (예전 셋째 '정지 중 마감' 은 2026-10-22 운영자 결정 A — '정지' 체계를 없앤다 — 로 지웠다.) */
+/* 마감이 지났는데 자동 동의되지 않은 이유(autoAgreeHold — 약관 동의 전 하나뿐)의 **포털** 낱말. 안내 칸은 사실만 말하고, 이유는
+   마우스 올림에서 거래명세서 조회(S-02) 동의 카드와 같은 말로 한다. (예전 '고지 미도달'('마감 안내가 전달되지 않아 …')은 2026-10-23
+   운영자 결정 D1 로, '정지 중 마감' 은 2026-10-22 결정 A 로 지웠다 — 그런 달은 이제 마감에 평소대로 자동 동의된다.) */
 const HOLD_NOTE = {
   TERMS_NOT_AGREED: "약관 동의 전 · 자동 동의 안 함",
-  NOTICE_UNDELIVERED: "마감 지남 · 자동 동의 보류",
 };
 const HOLD_WHY = {
   TERMS_NOT_AGREED: "약관 동의 전에 마감이 지나 자동 동의되지 않았습니다",
-  NOTICE_UNDELIVERED: "마감 안내가 전달되지 않아 자동 동의를 보류했습니다",
 };
 const NOT_YET = { kind: "none" };
 
@@ -114,7 +112,7 @@ const NOT_YET = { kind: "none" };
    내역서가 없어(NONE — 2026-10-22 결정 B) 여기 들지 않는다. */
 const zeroish = (s) => s.zeroEdited;
 
-/** 계산서 발급 칸 — 발행 전 · 동의 필요(마감 / 수정 마감 전 / 금액 바뀜 / 보류 2종) · 동의 완료(발급 중) · 발급완료 ·
+/** 계산서 발급 칸 — 발행 전 · 동의 필요(마감 / 수정 마감 전 / 금액 바뀜 / 약관 동의 전 보류) · 동의 완료(발급 중) · 발급완료 ·
  *  고쳐서 0원인 달 '계산서 없음'(마감 전 ● / 닫힌 뒤 ✓) */
 function invStage(s, now) {
   if (s.status === "NONE") return { kind: "none", sr: "거래 없음" };
@@ -140,20 +138,18 @@ function invStage(s, now) {
     if (s.autoAgreeHold) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", amb: true,
-        meta: HOLD_NOTE[s.autoAgreeHold] || "마감 지남 · 자동 동의 보류",
-        title: `${HOLD_WHY[s.autoAgreeHold] || "마감이 지났지만 자동 동의되지 않았습니다"} · 마감이 지났어도 동의할 수 있습니다`,
+        meta: HOLD_NOTE[s.autoAgreeHold] || HOLD_NOTE.TERMS_NOT_AGREED,
+        title: `${HOLD_WHY[s.autoAgreeHold] || HOLD_WHY.TERMS_NOT_AGREED} · 마감이 지났어도 동의할 수 있습니다`,
       };
     }
     const hot = s.deadline.getTime() - now.getTime() <= DAY;
-    /* 이대로면 보류가 잡힐 달(holdPendingOf — 관리자 정산회계 · 거래명세서 동의 카드와 같은 예측)은 '…까지 동의가 없으면 자동 동의됩니다' 를
-       단정하지 않는다(검토 9 — 새 문장은 짓지 않고 그 말만 뺀다). */
-    const pend = holdPendingOf(s);
-    /* 금액이 바뀐 달(②) — 동의 전에는 안내 칸이 '발급 때 → 지금' 을 말한다(동의한 뒤에는 지금 단계를 말하고 칩만 남는다). */
+    /* 금액이 바뀐 달(②) — 동의 전에는 안내 칸이 '발급 때 → 지금' 을 말한다(동의한 뒤에는 지금 단계를 말하고 칩만 남는다).
+       마감 하루 전 안내가 닿지 않은 달도 마감에 자동 동의된다(2026-10-23 결정 D1 — 예전엔 그 달에서 '자동 동의' 말을 뺐다). */
     const chg = amountChangeLine(s);
     if (chg) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", hot, chg: true, meta: chg,
-        title: pend ? `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}` : `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
+        title: `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
       };
     }
     /* 수정 마감 전(①) — 아직 금액이 바뀔 수 있다. 판정은 settlementOf 의 editable(명세 6.6 — 날짜로 짐작하지 않는다). */
@@ -162,7 +158,7 @@ function invStage(s, now) {
       meta: s.editable
         ? `마감 ${fmtMdHm(s.deadline)} · 수정 마감 ${fmtMdHm(s.editLockAt)}까지 금액 바뀔 수 있음`
         : `마감 ${fmtMdHm(s.deadline)}`,
-      title: pend ? "" : "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
+      title: "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
     };
   }
   /* AGREED — 동의는 됐지만 계산서가 아직(발급 실패 뒤 다시 시도·직접 입력 대기). '발급완료' 라고 말하지 않는다. */
@@ -373,12 +369,16 @@ export function mount(root, { nav }) {
                 정산 달은 배송한 달입니다(예약 주문은 배송한 달에, 취소 수수료는 취소한 달에 듭니다).
                 동의 전에는 수정 마감(동의 마감 전날 ${hm(ISSUE_HOUR)})까지 금액이 바뀔 수 있고,
                 마감까지 동의가 없으면 그 시각에 자동 동의됩니다.
-                <b>단, 자동 동의가 보류된 달은 직접 동의해야 계산서가 발급됩니다.</b>
+                ${/* 마감에 자동 동의되지 않는 달은 약관 동의 전에 마감이 지난 달 하나다(2026-10-23 운영자 결정 D1 — '보류'(고지 미도달)는
+                     없어졌다 · 낱말은 거래명세서 동의 카드 HOLD_TITLE '약관 동의 전에 마감이 지났습니다' 와 같은 말). */ ""}
+                <b>단, 약관 동의 전에 마감이 지난 달은 직접 동의해야 계산서가 발급됩니다.</b>
                 정산기한 다음 날 ${hm(ISSUE_HOUR)}부터는 기한 초과로 표시됩니다.
                 ${/* '시안 + 기존'(운영자 결정 4) — 시안 문안으로 바뀌며 빠졌던 기존 문장(2차 시안에서도 빠졌다). 발급일을 어디서
                      바꾸고 언제부터 적용되는지 말하는 곳이 이 화면에 있어야 한다(1번 카드의 '매월 N일' 이 앞으로의 값이라서). */ ""}
                 발급일은 회사정보 수정에서 바꿀 수 있고, 바꾸면 다음 달 발급분부터 적용됩니다.
-                <span class="st-steps__cs">내역이 다르면 <span class="st-nw">고객센터 ${CS_PHONE}</span> — 수정 마감 전이면 바로 고쳐 드립니다</span>
+                ${/* 카카오톡 채널을 앞에, 고객센터 번호를 함께(2026-10-23 운영자 결정 D5 — 채널 이름은 contact.js CS_KAKAO 한 곳이고
+                     그 낱말 뒤에는 조사를 붙이지 않는다 · '이의' 라는 낱말은 쓰지 않는다). 연락처 두 덩어리만 .st-nw 로 묶는다. */ ""}
+                <span class="st-steps__cs">내역이 다르면 <span class="st-nw">${CS_KAKAO}</span> 또는 <span class="st-nw">고객센터 ${CS_PHONE}에</span> 알려 주세요 — 수정 마감 전이면 바로 고쳐 드립니다</span>
               </p>
             </div>
 

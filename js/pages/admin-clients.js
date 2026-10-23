@@ -18,7 +18,7 @@ import { INVOICE_DAYS, CLIENT_CHANNELS, CLIENT_STATUSES } from "../data/admin-mo
 import { deadlineDayOf, invoiceDayOf, invoiceDayEffectiveFrom, periodLabel, shiftPeriod, MIN_CONSENT_DAYS, invoiceDayRangeLabel, fmtMdHm, fmtKoShortTime, fmtAt } from "../data/settlement-rules.js";
 import { termsPending } from "../util/client.js";
 import { withdrawBlockOf, WITHDRAWN, isWithdrawn, WITHDRAWN_LOCK, withdrawnDay } from "../util/withdraw.js";
-import { termsWatchOf } from "../util/settlement.js";
+import { termsWatchOf, noScheduleLeadOf } from "../util/settlement.js";
 import { normalizeBiz, sharedBizKeys, onBizInput } from "../util/biz.js";
 import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
@@ -149,7 +149,9 @@ const ddayText = (n) => (n <= 0 ? "오늘 발급" : `D-${n}`);
 function termsLineParts(client, now) {
   if (!termsPending(client)) return null;
   const w = termsWatchOf(client, now);
-  if (!w) return [{ text: "아직 거래가 없어 첫 명세서 일정이 없습니다", hot: false }];
+  /* 일정이 없을 때의 문장은 정보 창 배너와 같은 판정(noScheduleLeadOf — 배송 전 주문만 있으면 '아직 배송완료된 주문이 없어' · 2026-10-23
+     운영자 결정 F2). */
+  if (!w) return [{ text: noScheduleLeadOf(client), hot: false }];
   const out = [];
   if (w.held.length) out.push({ text: `${monthsShort(w.held)} 마감 지남 · 자동 동의 안 함`, hot: true });
   const n = w.next;
@@ -790,8 +792,11 @@ export function mount(root, { nav }) {
       let facts = "";
       let foot;
       if (!w) {
-        /* 귀속월 = 배송일의 달(2026-10-15 결정) — '첫 주문이 생기면 다음 달' 이 아니라 배송일 기준으로 말한다. */
-        foot = `아직 거래가 없어 첫 명세서 일정이 없습니다. 주문이 생기면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 첫 명세서가 발급되고, `
+        /* 귀속월 = 배송일의 달(2026-10-15 결정) — '첫 주문이 생기면 다음 달' 이 아니라 배송일 기준으로 말한다. 정산에는 배송완료 주문만
+           들므로(2026-10-23 운영자 결정 D2) '주문이 생기면' 이 아니라 '주문이 배송완료되면' 이다(termsWatchOf 가 null · 예전 '주문이 생기면' 은
+           주문이 있는데도 없다는 말로 읽혔다 · 2026-10-23 검증). 첫 마디는 목록 한 줄과 같은 판정이다(noScheduleLeadOf — 배송 전 주문만
+           있으면 '아직 배송완료된 주문이 없어' · 주문 0건 · 0원 주문만이면 '아직 거래가 없어' · 2026-10-23 운영자 결정 F2). */
+        foot = `${noScheduleLeadOf(rec)}. 주문이 배송완료되면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 첫 명세서가 발급되고, `
           + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. 임시비밀번호는 24시간만 유효합니다.";
       } else {
         const n = w.next;
@@ -811,7 +816,7 @@ export function mount(root, { nav }) {
             + pwTail
           /* 동의를 기다리는 달이 하나도 없는 경우 — 거래가 0원 주문뿐이라 발행과 함께 닫혔다(가입 혜택 '1회 무료').
              '이 달은' 이라고 하면 가리킬 달이 없다(실측) — 거래 없음 문구에서 '아직 거래가 없어'만 뺀 말로 잇는다. */
-          : !n ? `주문이 생기면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 명세서가 발급되고, `
+          : !n ? `주문이 배송완료되면 배송일이 속한 달의 다음 달 ${invoiceDayOf(rec)}일 10:00에 명세서가 발급되고, `
             + "그 달 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " + pwTail
           : "마감까지 약관 동의가 없으면 이 달은 자동 동의되지 않습니다. " + pwTail;
       }

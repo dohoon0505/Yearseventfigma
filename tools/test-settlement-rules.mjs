@@ -12,10 +12,11 @@ import {
   fmtAt, parseAt, fmtKo, fmtDot, fmtMd, fmtMdHm, agreementState,
   INVOICE_DAYS, MIN_CONSENT_DAYS, consentWindowHours, invoiceDayRangeLabel, DEADLINE_HOUR,
   editLockAt, overdueAt, isEditLocked, isPastOverdue, LOCK_REASON, HOLD_LABEL, HOLD_CODES,
-  editLockDayOf, noticeState, noticeResendAt,
+  editLockDayOf, noticeState,
 } from "../js/data/settlement-rules.js";
 import * as RULES from "../js/data/settlement-rules.js";
-import { TERMS } from "../js/data/terms.js";
+import { TERMS, TERMS_VERSION } from "../js/data/terms.js";
+import { PRIVACY, PRIVACY_VERSION } from "../js/data/privacy.js";
 
 let pass = 0, fail = 0;
 const bad = [];
@@ -213,101 +214,104 @@ eq("기한 초과 정각 1ms 전은 아직", isPastOverdue("2026-09", D(2026, 11
 eq("기한 초과 정각부터", isPastOverdue("2026-09", D(2026, 11, 1, 10)), true);
 eq("잠긴 이유 3종은 모두 '배송일이 지난 달' 로 시작", Object.values(LOCK_REASON).every((s) => s.startsWith("배송일이 지난 달 · ")), true);
 eq("잠긴 이유: 수정 마감", LOCK_REASON.editLock, "배송일이 지난 달 · 수정 마감(마감 안내 시각)이 지났습니다 — 금액 조정은 동의 뒤 수정계산서로");
-eq("보류 낱말 2종(정지 중 마감은 2026-10-22 결정 A 로 없앴다)", HOLD_CODES.join(","), "TERMS_NOT_AGREED,NOTICE_UNDELIVERED");
+eq("자동 동의를 막는 이유는 약관 하나(고지 미도달은 2026-10-23 결정 D1 · 정지 중 마감은 10-22 결정 A 로 없앴다)", HOLD_CODES.join(","), "TERMS_NOT_AGREED");
 eq("보류 낱말: 약관", HOLD_LABEL.TERMS_NOT_AGREED, "약관 동의 전 · 자동 동의 안 함");
-eq("보류 낱말: 고지 미도달", HOLD_LABEL.NOTICE_UNDELIVERED, "고지 미도달 · 자동 동의 보류");
+eq("보류 낱말: 고지 미도달은 없다(2026-10-23 결정 D1)", "NOTICE_UNDELIVERED" in HOLD_LABEL, false);
 
-/* ── 자동 동의 보류(잠정 Q19) — 그 달의 자동 동의만 막고 수동 동의는 받는다 ── */
+/* ── 자동 동의를 막는 것은 약관 동의 전 하나뿐(2026-10-23 운영자 결정 D1 — 잠정 '고지 미도달 보류'(Q19)를 걷어 냈다).
+      옛 저장본·옛 호출이 hold 코드('NOTICE_UNDELIVERED' · 'CLIENT_SUSPENDED')를 실어 와도 읽지 않는다 ── */
 const stH = (hold, now, manual = null, termsAt = "2026-01-01 09:00") =>
   agreementState({ period: "2026-08", invoiceDay: "1", manualAt: manual, termsAt, hold, now });
-eq("보류: 고지 미도달 → 자동 아님", stH("NOTICE_UNDELIVERED", AFTER).mode, null);
-eq("보류: 고지 미도달 → 열림(수동 동의 대기)", stH("NOTICE_UNDELIVERED", AFTER).open, true);
-eq("보류: 이유 = NOTICE_UNDELIVERED", stH("NOTICE_UNDELIVERED", AFTER).autoAgreeHold, "NOTICE_UNDELIVERED");
-eq("보류: 마감 전이면 이유 없음", stH("NOTICE_UNDELIVERED", D(2026, 9, 5)).autoAgreeHold, null);
-eq("보류: 수동 기록이 이긴다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").mode, "manual");
-eq("보류: 수동 동의면 이유 없음", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").autoAgreeHold, null);
-eq("보류: 약관 보류가 먼저", stH("NOTICE_UNDELIVERED", AFTER, null, null).autoAgreeHold, "TERMS_NOT_AGREED");
-eq("보류: termsHold 는 약관일 때만", stH("NOTICE_UNDELIVERED", AFTER).termsHold, false);
-eq("보류: 모르는 값은 무시(자동)", stH("WHATEVER", AFTER).mode, "auto");
-eq("보류: 없으면 자동 · 이유 null", stH(null, AFTER).autoAgreeHold, null);
+eq("옛 hold 고지 미도달 → 무시 · 마감에 자동 동의", stH("NOTICE_UNDELIVERED", AFTER).mode, "auto");
+eq("옛 hold 고지 미도달 → 자동 동의라 열림 아님", stH("NOTICE_UNDELIVERED", AFTER).open, false);
+eq("옛 hold 고지 미도달 → 이유 없음", stH("NOTICE_UNDELIVERED", AFTER).autoAgreeHold, null);
+eq("옛 hold 고지 미도달 · 마감 전 → 열림(동의 대기)", [stH("NOTICE_UNDELIVERED", D(2026, 9, 5)).open, stH("NOTICE_UNDELIVERED", D(2026, 9, 5)).autoAgreeHold].join(","), "true,");
+eq("수동 기록이 이긴다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").mode, "manual");
+eq("수동 동의면 이유 없음", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").autoAgreeHold, null);
+eq("약관 동의 전 → 자동 아님 · 이유 = 약관", [stH(null, AFTER, null, null).mode, stH(null, AFTER, null, null).autoAgreeHold].join(","), ",TERMS_NOT_AGREED");
+eq("약관 동의 전 → 열림(수동 동의 대기)", stH(null, AFTER, null, null).open, true);
+eq("termsHold 는 약관 동의 전일 때만", [stH(null, AFTER, null, null).termsHold, stH("NOTICE_UNDELIVERED", AFTER).termsHold].join(","), "true,false");
+eq("모르는 값은 무시(자동)", stH("WHATEVER", AFTER).mode, "auto");
+eq("없으면 자동 · 이유 null", stH(null, AFTER).autoAgreeHold, null);
 /* 옛 저장본·옛 호출이 '정지 중 마감' 코드를 실어 와도 보류로 치지 않는다 — 그 달은 평소처럼 마감에 자동 동의된다(2026-10-22 결정 A) */
-eq("보류: 옛 CLIENT_SUSPENDED 는 무시 → 마감에 자동 동의", [stH("CLIENT_SUSPENDED", AFTER).mode, stH("CLIENT_SUSPENDED", AFTER).autoAgreeHold, stH("CLIENT_SUSPENDED", AFTER).heldAtDeadline].join(","), "auto,,");
+eq("옛 CLIENT_SUSPENDED 는 무시 → 마감에 자동 동의", [stH("CLIENT_SUSPENDED", AFTER).mode, stH("CLIENT_SUSPENDED", AFTER).autoAgreeHold, stH("CLIENT_SUSPENDED", AFTER).heldAtDeadline].join(","), "auto,,");
 
-/* ── 마감 때 보류였던 이유(heldAtDeadline) — autoAgreeHold 와 같은 판정이되 **마감 뒤 직접 동의해도 남는다**
-      (관리자 진행 기록의 '마감 · 자동 동의 보류/안 함' 줄 · 명세 6.6 · 10.4 Q34). 마감(2026-09-10 13:00) 전이거나,
+/* ── 마감 때 자동 동의를 막던 이유(heldAtDeadline — 약관 동의 전 하나) — autoAgreeHold 와 같은 판정이되 **마감 뒤 직접 동의해도
+      남는다**(관리자 진행 기록의 '마감 · 자동 동의 안 함' 줄 · 명세 6.6 · 10.4 Q34). 마감(2026-09-10 13:00) 전이거나,
       마감 전(정각 포함)에 직접 동의했거나, 자동 동의된 달은 null. ── */
 const HELD_DL = D(2026, 9, 10, 13);
-eq("마감 때 보류: 고지 미도달 · 동의 전 → 남는다", stH("NOTICE_UNDELIVERED", AFTER).heldAtDeadline, "NOTICE_UNDELIVERED");
-eq("마감 때 보류: 고지 미도달 · 마감 뒤 직접 동의 → 남는다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").heldAtDeadline, "NOTICE_UNDELIVERED");
-eq("마감 때 보류: 마감 뒤 직접 동의면 지금 보류는 없다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").autoAgreeHold, null);
-eq("마감 때 보류: 마감 1분 뒤 직접 동의 → 남는다", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-10 13:01").heldAtDeadline, "NOTICE_UNDELIVERED");
-eq("마감 때 보류: 마감 정각 직접 동의 → 없음(정각은 아직 열림)", stH("NOTICE_UNDELIVERED", AFTER, HELD_DL).heldAtDeadline, null);
-eq("마감 때 보류: 마감 전 직접 동의 → 없음(보류 기록이 있어도)", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-03 10:00").heldAtDeadline, null);
-eq("마감 때 보류: 마감 정각(now)은 아직 없음", stH("NOTICE_UNDELIVERED", HELD_DL).heldAtDeadline, null);
-eq("마감 때 보류: 마감 1ms 뒤부터", stH("NOTICE_UNDELIVERED", D(2026, 9, 10, 13, 0, 1)).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 약관 동의 전 · 동의 전 → 남는다", stH(null, AFTER, null, null).heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 옛 hold 고지 미도달은 남기지 않는다(자동 동의)", stH("NOTICE_UNDELIVERED", AFTER).heldAtDeadline, null);
+eq("마감 때 보류: 옛 hold 고지 미도달 · 마감 뒤 직접 동의 → 없음", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00").heldAtDeadline, null);
+eq("마감 때 보류: 마감 뒤 직접 동의면 지금 보류는 없다", stH(null, AFTER, "2026-09-11 10:00", "2026-09-11 09:59").autoAgreeHold, null);
+eq("마감 때 보류: 마감 1분 뒤 약관+직접 동의 → 남는다", stH(null, AFTER, "2026-09-10 13:01", "2026-09-10 13:01").heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 마감 정각 직접 동의 → 없음(정각은 아직 열림)", stH(null, AFTER, HELD_DL, null).heldAtDeadline, null);
+eq("마감 때 보류: 마감 전 직접 동의 → 없음(약관 동의 전이어도)", stH(null, AFTER, "2026-09-03 10:00", null).heldAtDeadline, null);
+eq("마감 때 보류: 마감 정각(now)은 아직 없음", stH(null, HELD_DL, null, null).heldAtDeadline, null);
+eq("마감 때 보류: 마감 1ms 뒤부터", stH(null, D(2026, 9, 10, 13, 0, 1), null, null).heldAtDeadline, "TERMS_NOT_AGREED");
 eq("마감 때 보류: 보류 없음 → 자동 동의 · 없음", stH(null, AFTER).heldAtDeadline, null);
 eq("마감 때 보류: 보류 없음 → 자동 동의(mode)", stH(null, AFTER).mode, "auto");
 eq("마감 때 보류: 약관 동의 전 · 마감 뒤 약관+직접 동의 → 약관", stH(null, AFTER, "2026-09-11 10:00", "2026-09-11 09:59").heldAtDeadline, "TERMS_NOT_AGREED");
-eq("마감 때 보류: 약관 보류가 먼저(고지 미도달 기록과 겹쳐도)", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00", "2026-09-11 09:59").heldAtDeadline, "TERMS_NOT_AGREED");
+eq("마감 때 보류: 옛 hold 를 실어 와도 약관 판정만", stH("NOTICE_UNDELIVERED", AFTER, "2026-09-11 10:00", "2026-09-11 09:59").heldAtDeadline, "TERMS_NOT_AGREED");
 eq("마감 때 보류: 약관 기록 없음 · 동의 전 → 약관", stH(null, AFTER, null, null).heldAtDeadline, "TERMS_NOT_AGREED");
 eq("마감 때 보류: 약관을 마감 정각에 동의 → 약관 보류 아님(자동)", stH(null, AFTER, null, HELD_DL).heldAtDeadline, null);
-eq("마감 때 보류: 순수 규칙 계산(termsAt 없음)도 보류 기록은 본다",
-  agreementState({ period: "2026-08", invoiceDay: "1", hold: "NOTICE_UNDELIVERED", now: AFTER }).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 순수 규칙 계산(termsAt 없음) · 옛 hold 고지 미도달 → 없음 · 자동",
+  [agreementState({ period: "2026-08", invoiceDay: "1", hold: "NOTICE_UNDELIVERED", now: AFTER }).heldAtDeadline,
+   agreementState({ period: "2026-08", invoiceDay: "1", hold: "NOTICE_UNDELIVERED", now: AFTER }).mode].join(","), ",auto");
 eq("마감 때 보류: 순수 규칙 계산 · 보류 없음 → 없음", agreementState({ period: "2026-08", invoiceDay: "1", now: AFTER }).heldAtDeadline, null);
 eq("마감 때 보류: hold 에 약관 코드를 넣어도 보류로 치지 않는다", stH("TERMS_NOT_AGREED", AFTER).heldAtDeadline, null);
 eq("마감 때 보류: 모르는 값 → 없음", stH("WHATEVER", AFTER).heldAtDeadline, null);
-eq("마감 때 보류: 11~28 그룹(15일 · 마감 09-28 13:00) 마감 뒤 직접 동의 → 남는다",
-  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-29 09:00", termsAt: "2026-01-01 09:00", hold: "NOTICE_UNDELIVERED", now: D(2026, 9, 30) }).heldAtDeadline, "NOTICE_UNDELIVERED");
+eq("마감 때 보류: 11~28 그룹(15일 · 마감 09-28 13:00) 마감 뒤 약관+직접 동의 → 남는다",
+  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-29 09:00", termsAt: "2026-09-29 08:00", now: D(2026, 9, 30) }).heldAtDeadline, "TERMS_NOT_AGREED");
 eq("마감 때 보류: 11~28 그룹 마감 전 직접 동의 → 없음",
-  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-28 12:59", termsAt: "2026-01-01 09:00", hold: "NOTICE_UNDELIVERED", now: D(2026, 9, 30) }).heldAtDeadline, null);
+  agreementState({ period: "2026-08", invoiceDay: "15", manualAt: "2026-09-28 12:59", termsAt: null, now: D(2026, 9, 30) }).heldAtDeadline, null);
 
 /* ── '정지' 장치는 없다(2026-10-22 운영자 결정 A — '정지' 를 없애고 '탈퇴' 를 둔다). 2026-10-19 에 넣은 상태 이력 판정(statusAt ·
       statusLineTime · SUSPENDED)이 규칙 모듈에 되살아나면 지난 달 보류가 다시 상태 이력에서 나온다 ── */
 eq("정지 장치 없음 — statusAt · statusLineTime · SUSPENDED 를 내보내지 않는다",
   ["statusAt", "statusLineTime", "SUSPENDED"].filter((k) => k in RULES).join(","), "");
 
-/* ── 정산 안내 도달(noticeState) — T3 · T4 · 마감 당일 다시 보내기 · 마감에 잡힐 보류(명세 3.4 '잠정 보류' · 9.4 · 10.4 Q19)
-   귀속 2026-08 · 발급일 1일: 발급 09-01 10:00 · 수정 마감(T4) 09-09 10:00 · 다시 보내기 09-10 10:00 · 마감 09-10 13:00 ── */
-eq("다시 보내기 = 마감 당일 10:00(1일)", noticeResendAt("2026-08", 1), D(2026, 9, 10, 10));
-eq("다시 보내기 = 마감 당일 10:00(15일)", noticeResendAt("2026-08", 15), D(2026, 9, 28, 10));
+/* ── 정산 안내 도달(noticeState) — T3 · T4 가 닿았는지의 **기록**(명세 9.4). 자동 동의에는 끼지 않는다(2026-10-23 운영자 결정 D1 —
+   마감 당일 다시 보내기와 고지 미도달 보류를 걷어 냈다 · 실패 기록만).
+   귀속 2026-08 · 발급일 1일: 발급 09-01 10:00 · 수정 마감(T4) 09-09 10:00 · 마감 09-10 13:00 ── */
+eq("다시 보내기 시각 함수(noticeResendAt)는 없다(2026-10-23 결정 D1)", "noticeResendAt" in RULES, false);
 const NS = (o) => noticeState({ period: "2026-08", invoiceDay: "1", ...o });
-const why = (n) => [n.t3.why, n.t4 && n.t4.why, n.resend && (n.resend.reached ? "REACHED" : n.resend.why), n.hold];
-eq("안내: 평소 — 모두 닿음 · 다시 보낼 일 없음 · 보류 없음", JSON.stringify(why(NS({}))), JSON.stringify([null, null, null, null]));
-eq("안내: 시각 = 발급 · 수정 마감 · 다시 보내기 · 마감", [NS({}).t3.at, NS({}).t4.at, NS({}).resendAt, NS({}).deadline].map(fmtAt).join(","),
-  "2026-09-01 10:00,2026-09-09 10:00,2026-09-10 10:00,2026-09-10 13:00");
-eq("안내: 발송 실패 기록(고지 미도달 대역) — T4·다시 보내기 모두 닿지 않음 · 고지 미도달 보류(정지와 상관없이 남는다 — 결정 A)",
-  JSON.stringify(why(NS({ undelivered: true }))), JSON.stringify([null, "UNDELIVERED", "UNDELIVERED", "NOTICE_UNDELIVERED"]));
-eq("안내: 발송 실패 · 다시 보내기 시각 = 마감 당일 10:00", fmtAt(NS({ undelivered: true }).resend.at), "2026-09-10 10:00");
-eq("안내: 수정 마감 전에 직접 동의 — T4 없음 · 다시 보낼 일 없음 · 보류 없음(발송 실패 기록이 있어도)",
-  JSON.stringify(why(NS({ undelivered: true, manualAt: "2026-09-08 11:00" }))), JSON.stringify([null, null, null, null]));
+const why = (n) => [n.t3.why, n.t4 && n.t4.why];
+eq("안내: 평소 — 모두 닿음", JSON.stringify(why(NS({}))), JSON.stringify([null, null]));
+eq("안내: 반환에 다시 보내기 · 보류 칸이 없다(발송 실패 기록이 있어도)",
+  ["resend", "resendAt", "hold"].filter((k) => k in NS({ undelivered: true })).join(","), "");
+eq("안내: 시각 = 발급 · 수정 마감 · 마감", [NS({}).t3.at, NS({}).t4.at, NS({}).deadline].map(fmtAt).join(","),
+  "2026-09-01 10:00,2026-09-09 10:00,2026-09-10 13:00");
+eq("안내: 발송 실패 기록 — T4 닿지 않음(UNDELIVERED) 만 기록한다",
+  JSON.stringify(why(NS({ undelivered: true }))), JSON.stringify([null, "UNDELIVERED"]));
+eq("안내: 발송 실패 · T4 는 보내지 못한 것으로 남는다(sent false)", NS({ undelivered: true }).t4.sent, false);
+eq("안내: 수정 마감 전에 직접 동의 — T4 없음(발송 실패 기록이 있어도)",
+  JSON.stringify(why(NS({ undelivered: true, manualAt: "2026-09-08 11:00" }))), JSON.stringify([null, null]));
 eq("안내: 수정 마감 정각에 동의 — T4 는 그 달에 있다(진행 기록과 같은 경계)", NS({ manualAt: "2026-09-09 10:00" }).t4 !== null, true);
-eq("안내: 발송 실패 · 수정 마감 뒤 · 다시 보내기 전에 직접 동의 — 다시 보낼 일 없음 · 보류 없음",
-  JSON.stringify(why(NS({ undelivered: true, manualAt: "2026-09-09 16:00" }))), JSON.stringify([null, "UNDELIVERED", null, null]));
-eq("안내: 발송 실패 · 다시 보내기 정각에 동의 — 다시 보내기는 그 달에 있다(같은 경계)", NS({ undelivered: true, manualAt: "2026-09-10 10:00" }).resend !== null, true);
-eq("안내: 연락처만 없음(실패 기록 없음) — T4 미도달이지만 보류로 치지 않는다(연락처 이력이 없어 소급 위험 · M52)",
-  JSON.stringify(why(NS({ reach: false }))), JSON.stringify(["NO_RECIPIENT", "NO_RECIPIENT", null, null]));
-eq("안내: 연락처 없음 + 발송 실패 기록 — 발송 실패가 먼저 · 고지 미도달",
-  JSON.stringify(why(NS({ reach: false, undelivered: true }))), JSON.stringify(["NO_RECIPIENT", "UNDELIVERED", "UNDELIVERED", "NOTICE_UNDELIVERED"]));
+eq("안내: 발송 실패 · 수정 마감 뒤 직접 동의 — T4 닿지 않음은 남는다",
+  JSON.stringify(why(NS({ undelivered: true, manualAt: "2026-09-09 16:00" }))), JSON.stringify([null, "UNDELIVERED"]));
+eq("안내: 연락처만 없음(실패 기록 없음) — T3 · T4 수신자 없음",
+  JSON.stringify(why(NS({ reach: false }))), JSON.stringify(["NO_RECIPIENT", "NO_RECIPIENT"]));
+eq("안내: 연락처 없음 + 발송 실패 기록 — 발송 실패가 먼저",
+  JSON.stringify(why(NS({ reach: false, undelivered: true }))), JSON.stringify(["NO_RECIPIENT", "UNDELIVERED"]));
 /* 옛 호출이 거래처(정지 상태 · 상태 이력)를 실어 와도 안내 판정은 바뀌지 않는다 — 정지 중 T3·T4 빼기 · 정지 중 마감은 없다 */
 eq("안내: 옛 client 인자(정지 · 상태 이력)는 무시 — 평소대로",
-  JSON.stringify(why(NS({ client: { status: "정지", statusLog: [{ at: "2026-08-20 10:00", from: "활성", to: "정지" }] } }))), JSON.stringify([null, null, null, null]));
+  JSON.stringify(why(NS({ client: { status: "정지", statusLog: [{ at: "2026-08-20 10:00", from: "활성", to: "정지" }] } }))), JSON.stringify([null, null]));
 eq("안내: 반환에 '정지 중 마감' 칸이 없다", "suspendedAtDeadline" in NS({}), false);
 {
   const n = noticeState({ period: "2026-08", invoiceDay: "15", undelivered: true });
-  eq("안내: 11~28 그룹(15일) — 수정 마감 09-27 10:00 닿지 않음 → 28일 10:00 다시 보내도 닿지 않음 · 고지 미도달",
-    JSON.stringify([fmtAt(n.t4.at), n.t4.why, fmtAt(n.resend.at), n.resend.reached, n.hold]),
-    JSON.stringify(["2026-09-27 10:00", "UNDELIVERED", "2026-09-28 10:00", false, "NOTICE_UNDELIVERED"]));
+  eq("안내: 11~28 그룹(15일) — 수정 마감 09-27 10:00 에 닿지 않음(기록만)",
+    JSON.stringify([fmtAt(n.t4.at), n.t4.why]), JSON.stringify(["2026-09-27 10:00", "UNDELIVERED"]));
 }
-/* 보류 코드가 agreementState 에 그대로 들어간다 — 약관 보류가 먼저 · 직접 동의가 이긴다 */
+/* T4 가 닿지 않은 달도 마감에 자동 동의한다 — 약관 동의 전만 막고 · 직접 동의가 이긴다(2026-10-23 결정 D1) */
 {
-  const hold = NS({ undelivered: true }).hold;
-  const st = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold, now: D(2026, 9, 12) });
-  eq("안내 → 동의: 고지 미도달 → 자동 동의 보류", [st.mode, st.autoAgreeHold, st.heldAtDeadline].join(","), ",NOTICE_UNDELIVERED,NOTICE_UNDELIVERED");
-  const st2 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold, manualAt: "2026-09-12 09:00", now: D(2026, 9, 12, 10) });
-  eq("안내 → 동의: 마감 뒤 직접 동의 — 수동 · 마감 때 보류는 남는다", [st2.mode, st2.autoAgreeHold, st2.heldAtDeadline].join(","), "manual,,NOTICE_UNDELIVERED");
-  const st3 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: null, hold, now: D(2026, 9, 12) });
-  eq("안내 → 동의: 약관 동의 전 + 고지 미도달 → 약관이 먼저", st3.autoAgreeHold, "TERMS_NOT_AGREED");
-  const st4 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold: NS({}).hold, now: D(2026, 9, 12) });
+  const st = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold: "NOTICE_UNDELIVERED", now: D(2026, 9, 12) });
+  eq("안내 → 동의: T4 가 닿지 않은 달(옛 hold 코드) → 마감에 자동 동의", [st.mode, st.autoAgreeHold, st.heldAtDeadline].join(","), "auto,,");
+  const st2 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", hold: "NOTICE_UNDELIVERED", manualAt: "2026-09-12 09:00", now: D(2026, 9, 12, 10) });
+  eq("안내 → 동의: 마감 뒤 직접 동의 기록 — 수동 · 마감 때 보류 없음", [st2.mode, st2.autoAgreeHold, st2.heldAtDeadline].join(","), "manual,,");
+  const st3 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: null, hold: "NOTICE_UNDELIVERED", now: D(2026, 9, 12) });
+  eq("안내 → 동의: 약관 동의 전 → 약관 보류", st3.autoAgreeHold, "TERMS_NOT_AGREED");
+  const st4 = agreementState({ period: "2026-08", invoiceDay: "1", termsAt: "2026-01-01 09:00", now: D(2026, 9, 12) });
   eq("안내 → 동의: 평소 → 마감에 자동 동의", [st4.mode, st4.autoAgreeHold].join(","), "auto,");
 }
 
@@ -321,6 +325,30 @@ eq("약관 ②: 최소 동의 기간", clause2.includes(`${MIN_CONSENT_DAYS}일 
 eq("약관 ②: 마감 시각", clause2.includes(`13:00`) && DEADLINE_HOUR === 13, true);
 eq("약관 ⑤: 무리 범위가 ②와 같다", TERMS[0].items[4].includes(`${early[0]}일~${early[early.length - 1]}일`) && TERMS[0].items[4].includes(`${late[0]}일~${late[late.length - 1]}일`), true);
 eq("약관 ⑥: '수정할 수 없다' 가 남아 있지 않다", /취소·수정할 수 없/.test(TERMS[0].items[5]), false);
+/* 2026-10-23 운영자 결정 D4 — ①에 미발급 단서 · ②④에서 '이의' 절차를 빼고 오류 알림·고친 금액 · 버전을 올려 다시 동의. ③⑤⑥항은 그대로 */
+eq("약관 D4: 버전을 올렸다(모든 거래처가 다음 로그인 때 다시 동의)", TERMS_VERSION, "2026-10-23");
+eq("약관 D4: 항 수·번호는 그대로(6항 — '④항(자동 동의)' 로 부른다)", TERMS[0].items.length, 6);
+eq("약관 D4 ①: 거래 없는 달·0원 거래만 있는 달은 발급하지 않는다(결정 B 와 같은 말)",
+  TERMS[0].items[0].endsWith("다만 전월에 거래가 없거나 금액이 0원인 거래만 있는 경우에는 거래명세서를 발급하지 않는다."), true);
+eq("약관 D4: '이의' 라는 낱말이 남아 있지 않다", TERMS.some((sec) => sec.items.some((t) => t.includes("이의"))), false);
+eq("약관 D4 ②: 동의만 요구한다('동의하여야 한다')", clause2.includes("계산서 발급에 동의하여야 한다."), true);
+eq("약관 D4 ②: 다르면 기한 전에 알리고 회사가 확인한 뒤 고친다",
+  clause2.includes("명세서 내용이 사실과 다르면 이 기한 전에 회사에 알려야 하며, 회사는 확인한 뒤 명세서를 고친다."), true);
+eq("약관 D4 ④: 동의의 의사표시가 없으면 · 고친 경우 고친 금액으로",
+  TERMS[0].items[3], "제2항 기한까지 동의의 의사표시가 없는 경우, 거래처는 해당 명세서 금액(제2항에 따라 고친 경우 고친 금액)으로 계산서 발급에 동의한 것으로 본다.");
+eq("약관 D4 ③: 그대로(기한 전날 별도 고지)", TERMS[0].items[2], "회사는 제2항 기한 전날 담당자에게 기한과 미응답 시 처리 내용을 별도로 고지한다.");
+
+/* ── 개인정보 수집·이용 동의서(2026-10-23 운영자 결정 D6 — 약관과 따로 · 문안은 운영자 확정 낱말 그대로) ── */
+const pv = (t) => (PRIVACY.items.find((x) => x.t === t) || { lines: [] }).lines;
+eq("개인정보 D6: 버전", PRIVACY_VERSION, "2026-10-23");
+eq("개인정보 D6: 제목", PRIVACY.title, "개인정보 수집·이용 동의");
+eq("개인정보 D6: 여섯 항목 · 순서", PRIVACY.items.map((x) => x.t).join("|"), "모으는 항목|쓰는 목적|보관 기간|동의하지 않을 권리|맡기는 업체|다른 사람의 정보");
+eq("개인정보 D6: 줄마다 글자가 있다", PRIVACY.items.every((x) => x.lines.length > 0 && x.lines.every((l) => typeof l === "string" && l.trim() === l && l.length > 0)), true);
+eq("개인정보 D6/D7: 보관 기간 — 주문 기록 5년 · 알림 기록 5년 · 주문의 다른 이름 1년 · 담당자 저장공간",
+  pv("보관 기간").join(" / "),
+  "주문 기록(받는 분 포함): 주문이 끝난 날부터 5년 / 알림 발송 기록: 보낸 날부터 5년 / 주문에 남긴 보내는 분·담당자·직접 적은 요청자·추가 수신자: 주문이 끝난 날부터 1년 / 담당자 저장공간: 거래처가 지울 때까지, 탈퇴하면 탈퇴한 날부터 5년");
+eq("개인정보 D6: 맡기는 업체 — 바로빌 · 알리고", pv("맡기는 업체").join(" / "), "계산서 발급 대행: 바로빌 / 알림톡·문자 발송 대행: 알리고");
+eq("개인정보 D6: 동의하지 않을 권리", pv("동의하지 않을 권리")[0], "동의하지 않을 수 있지만, 그러면 가입과 주문을 할 수 없습니다.");
 
 console.log(`settlement-rules: ${pass} passed, ${fail} failed`);
 if (fail) { bad.forEach((b) => console.log("  x " + b)); process.exit(1); }

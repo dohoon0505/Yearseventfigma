@@ -1,13 +1,14 @@
 /* ============================================================
    login.js — ports Login.tsx. No real auth (DEMO): 거래처 계정은 아이디가 맞고
-   상태가 '활성'이며 약관에 동의했을 때만 #/app 으로 들어간다.
+   상태가 '활성'이며 약관과 개인정보 수집·이용에 동의했을 때만 #/app 으로 들어간다.
    ============================================================ */
 import { html, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { resolveRole, setRole, clearRole, setClientId, takeReturnTo, takeLoginNotice } from "../session.js";
 import { store } from "../store.js";
-import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
+import { openTermsDialog, termsStamp, consentNeedOf } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
+import { PRIVACY_VERSION } from "../data/privacy.js";
 import { portalBlock } from "../util/client.js";
 import { CS_PHONE, CS_TEL } from "../data/contact.js";
 
@@ -223,20 +224,32 @@ export function mount(root, { nav }) {
     /* 이용약관 동의 게이트(2026-09-17 결정) — 약관 버전이 오르면 포털로 보내기 전에 다시 받는다
        (가입 4단계에서 처음 받는다. 동의 기록이 없는 계정도 여기서 받는다). ⚠️ 역할은 **동의한 뒤에** 준다 —
        먼저 주면 게이트가 떠 있는 동안 주소창으로 포털에 들어갈 수 있었다(라우터 가드는 역할만 본다). */
-    if (c.termsVersion !== TERMS_VERSION) {
+    /* 개인정보 수집·이용 동의도 같은 게이트에서 따로 받는다(2026-10-23 운영자 결정 D6 — 약관과 따로 · 버전 PRIVACY_VERSION).
+       받아야 할 것만 보인다(consentNeedOf — 약관만 · 개인정보만 · 둘 다). 2026-10-23 약관 개정(D4)으로 예전에 동의한 거래처도
+       다음 로그인 때 약관을 다시 받는다(renew — 설명 첫 문장이 '바뀌었습니다' 를 말한다). */
+    const need = consentNeedOf(c);
+    if (need.terms || need.privacy) {
       termsDlg = openTermsDialog({
         gate: true,
-        onAgree: () => {
+        need,
+        renew: { terms: !!c.termsVersion, privacy: !!c.privacyVersion },
+        onAgree: (got) => {
           termsDlg = null;
+          /* 쓰기는 저장소의 **지금 레코드** 위에 동의 칸만 덮는다(들고 있던 사본으로 쓰면 그사이 쌓인 칸이 빠진다). */
+          const cur = store.get().clients.find((x) => x.id === c.id) || c;
+          const stamp = termsStamp();
+          const patch = {};
           /* 처음 동의한 시각은 **한 번만** 적는다 — 자동 동의가 이 시각 이후 마감만 인정하므로(store.agreementOf),
              재동의 때 덮어쓰면 이미 자동 동의된 달이 '동의대기'로 되돌아간다. */
-          const stamp = termsStamp();
-          store.updateClient({ ...c, termsAgreedAt: stamp, termsFirstAgreedAt: c.termsFirstAgreedAt || c.termsAgreedAt || stamp, termsVersion: TERMS_VERSION });
+          if (got.terms) Object.assign(patch, { termsAgreedAt: stamp, termsFirstAgreedAt: cur.termsFirstAgreedAt || cur.termsAgreedAt || stamp, termsVersion: TERMS_VERSION });
+          if (got.privacy) Object.assign(patch, { privacyAgreedAt: stamp, privacyVersion: PRIVACY_VERSION });
+          store.updateClient({ ...cur, ...patch });
           enterPortal(c);
         },
         onClose: () => {
           termsDlg = null;
-          showError("이용약관에 동의해야 서비스를 이용할 수 있습니다.");
+          const what = need.terms && need.privacy ? "이용약관과 개인정보 수집·이용" : need.terms ? "이용약관" : "개인정보 수집·이용";
+          showError(`${what}에 동의해야 서비스를 이용할 수 있습니다.`);
         },
       });
       return;

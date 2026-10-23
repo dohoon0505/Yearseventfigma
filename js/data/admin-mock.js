@@ -11,6 +11,7 @@
 
 import { INVOICE_DAYS, invoiceDayOf, periodOf } from "./settlement-rules.js";
 import { TERMS_VERSION } from "./terms.js";
+import { PRIVACY_VERSION } from "./privacy.js";
 export { INVOICE_DAYS, invoiceDayOf };
 
 const NOW = new Date();
@@ -90,19 +91,25 @@ export const WITHDRAWN = "탈퇴";
 /** 탈퇴한 달("YYYY-MM") — 그 달부터는 시드 주문을 만들지 않는다(b2b-mock). 탈퇴가 아니거나 시각이 없으면 "". */
 export const withdrawnYmOf = (client) => (client && client.status === WITHDRAWN ? String(client.withdrawnAt || "").slice(0, 7) : "");
 
-/* 공통 필드(상태·비밀번호·약관·대표 연락처)는 한 곳에서 채운다 — 19줄에 같은 값을 복제하면 한 줄만 어긋난다.
-   대표 연락처 키(managerName·contact)는 정산 명세서·주문 모달이 읽는다 → 정산담당과 같은 사람이다(가입과 같은 규칙). */
+/* 공통 필드(상태·비밀번호·약관·개인정보 동의·대표 연락처)는 한 곳에서 채운다 — 19줄에 같은 값을 복제하면 한 줄만 어긋난다.
+   대표 연락처 키(managerName·contact)는 정산 명세서·주문 모달이 읽는다 → 정산담당과 같은 사람이다(가입과 같은 규칙).
+   개인정보 수집·이용 동의(2026-10-23 운영자 결정 D6 — 약관과 따로)도 가입을 마친 모양이라 약관과 같은 시각·지금 버전으로 둔다 —
+   데모 로그인에 게이트가 뜨지 않게(약관 시드와 같은 방식). 예전에 데모를 연 브라우저는 저장된 termsVersion 이 옛 값이라
+   다음 로그인에 약관 게이트가 뜬다(2026-10-23 약관 개정 D4 — 그것이 맞다). 개인정보 동의도 함께 뜬다 — 저장된 레코드에는 개인정보 칸이
+   없고, store.hydrate 가 시드의 빈 칸을 채울 때 동의 기록 칸만은 채우지 않는다(동의한 적 없는 기록을 지어내지 않게 · store hydrateClient). */
 const seed = (c) => {
   const [name, , phone] = SEED_BILLING[c.id];
   const at = `${c.joinDate} 09:00`;
   return {
     status: "활성", password: DEMO_PASSWORD, managerName: name, contact: phone,
     termsAgreedAt: at, termsFirstAgreedAt: at, termsVersion: TERMS_VERSION,
+    privacyAgreedAt: at, privacyVersion: PRIVACY_VERSION,
     ...c,
   };
 };
 /* 관리자가 등록했고 **아직 약관에 동의하지 않은** 거래처(2026-10-16 운영자 결정 — 예시 상태 시연). 약관 시각이 없어
-   첫 로그인에 약관 게이트가 뜨고, 마감이 지나도 자동 동의하지 않는다(명세 3.4 · termsHold). 가입일은 DATA_NOW 상대 —
+   첫 로그인에 약관 게이트가 뜨고(개인정보 동의도 없어 같은 게이트에서 둘 다 받는다 — 2026-10-23 결정 D6),
+   마감이 지나도 자동 동의하지 않는다(명세 3.4 · termsHold). 가입일은 DATA_NOW 상대 —
    첫 명세서가 '곧 발급 · 발급·마감 전 · 마감 지남' 으로 갈리게(정확한 D-n 은 보는 날짜에 따라 달라지는 것이 정상). */
 const seedPending = (c) => {
   const [name, , phone] = SEED_BILLING[c.id];

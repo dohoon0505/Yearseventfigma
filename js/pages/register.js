@@ -5,8 +5,9 @@ import { html, raw, setHTML, on, qs } from "../dom.js";
 import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
-import { openTermsDialog, termsStamp } from "../util/terms-dialog.js";
+import { openTermsDialog, openPrivacyDialog, termsStamp } from "../util/terms-dialog.js";
 import { TERMS_VERSION } from "../data/terms.js";
+import { PRIVACY_VERSION } from "../data/privacy.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import {
   INVOICE_DAYS, MIN_CONSENT_DAYS, ISSUE_HOUR, DEADLINE_HOUR, deadlineDayOf, consentWindowHours,
@@ -57,6 +58,8 @@ export function mount(root, { nav }) {
       invoiceDay: "",
       /* 이용약관 동의 — 사업자등록증과 같은 게이트다. 체크 없이는 가입이 끝나지 않는다(2026-09-17 결정). */
       termsAgreed: false,
+      /* 개인정보 수집·이용 동의 — 약관과 **따로** 받는다(2026-10-23 운영자 결정 D6). 체크 없이는 가입이 끝나지 않는다. */
+      privacyAgreed: false,
     },
   };
   let termsDlg = null;
@@ -178,7 +181,7 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* 4단계 — 발급일 + 발급 안내 + 약관 동의. 발급일을 바꾸면 안내만 부분 갱신한다(셀렉트 포커스 유지). */
+  /* 4단계 — 발급일 + 발급 안내 + 약관 동의 + 개인정보 수집·이용 동의(2026-10-23 결정 D6). 발급일을 바꾸면 안내만 부분 갱신한다(셀렉트 포커스 유지). */
   function invoiceStep() {
     const v = state.form.invoiceDay;
     const err = state.errors.invoiceDay;
@@ -206,6 +209,18 @@ export function mount(root, { nav }) {
         <div class="rf--agree__row">
           <button type="button" class="rf__link" data-action="terms-view">약관 보기</button>
           ${state.errors.termsAgreed ? html`<p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${state.errors.termsAgreed}</p>` : ""}
+        </div>
+      </div>
+      <!-- 개인정보 수집·이용 동의 — 약관과 따로 받는다(2026-10-23 운영자 결정 D6 · 법무 부탁 2). 약관 줄과 **같은 부품**이다
+           (.rf--agree + .dlg-check + 보기 링크 + 오류 줄 — 새 모양 없음). 본문은 data/privacy.js. -->
+      <div class="rf rf--agree" data-field="privacyAgreed">
+        <button type="button" class="dlg-check ${state.form.privacyAgreed ? "is-on" : ""}" data-action="privacy-ack" aria-pressed="${state.form.privacyAgreed ? "true" : "false"}">
+          <span class="dlg-check__box" aria-hidden="true"></span>
+          <span>개인정보 수집·이용에 동의합니다</span>
+        </button>
+        <div class="rf--agree__row">
+          <button type="button" class="rf__link" data-action="privacy-view">동의서 보기</button>
+          ${state.errors.privacyAgreed ? html`<p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${state.errors.privacyAgreed}</p>` : ""}
         </div>
       </div>
     `;
@@ -241,7 +256,7 @@ export function mount(root, { nav }) {
       <ol class="rf-inv__steps">
         <li><b>${fmtKoShortTimeY(issue, now)}</b><span>거래명세서 발급 · ${who}에게 알림톡</span></li>
         <li><b>${fmtKoShortTimeY(remind, now)}</b><span>아직 동의하지 않았으면 한 번 더 알림</span></li>
-        <li><b>${fmtKoShortTimeY(deadline, now)}</b><span>동의 마감 — 이때까지 동의나 이의가 없으면 <em>자동으로 동의</em>한 것으로 봅니다</span></li>
+        <li><b>${fmtKoShortTimeY(deadline, now)}</b><span>동의 마감 — 이때까지 동의가 없으면 <em>자동으로 동의</em>한 것으로 봅니다</span></li>
         <li><b>동의 즉시</b><span>계산서 발급 · 작성일자 ${early
           ? `${fmtKoShortY(periodEnd(period), now)}(이용한 달의 말일)`
           : `동의한 날(자동 동의면 ${fmtKoShortY(deadline, now)})`}</span></li>
@@ -401,6 +416,7 @@ export function mount(root, { nav }) {
       const next = {};
       if (!INVOICE_DAYS.includes(state.form.invoiceDay)) next.invoiceDay = "발급일을 선택해주세요";
       if (!state.form.termsAgreed) next.termsAgreed = "이용약관에 동의해주세요";
+      if (!state.form.privacyAgreed) next.privacyAgreed = "개인정보 수집·이용에 동의해주세요";
       state.errors = next;
       if (!Object.keys(next).length) {
         registerClient(); // 신규 가입 → 거래처 '승인대기'로 등록 (어드민 승인 대상)
@@ -428,6 +444,8 @@ export function mount(root, { nav }) {
       email: f.email, address: f.address, status: "승인대기", joinDate, invoiceDay: f.invoiceDay, clientNote: "",
       bizLicense: f.bizLicense,
       termsAgreedAt: stamp, termsFirstAgreedAt: stamp, termsVersion: TERMS_VERSION,
+      /* 개인정보 수집·이용 동의 — 약관과 같은 시각 형식 · 따로 버전을 매긴다(2026-10-23 운영자 결정 D6 — 첫 로그인 게이트가 비교한다). */
+      privacyAgreedAt: stamp, privacyVersion: PRIVACY_VERSION,
       /* 셀프 가입은 영업 경로가 'SNS·홈페이지'로 고정된다 — 관리자가 등록하면 비어 있다. */
       salesRoute: "셀프 가입", salesMemo: "", salesDate: joinDate,
     });
@@ -530,17 +548,21 @@ export function mount(root, { nav }) {
     if (action === "to-login") nav("#/login");
     else if (action === "next") goNext();
     else if (action === "prev") goPrev();
-    else if (action === "terms-ack") {
-      state.form.termsAgreed = !state.form.termsAgreed;
-      t.classList.toggle("is-on", state.form.termsAgreed);
-      t.setAttribute("aria-pressed", String(state.form.termsAgreed));
-      if (state.form.termsAgreed && state.errors.termsAgreed) {
-        delete state.errors.termsAgreed;
-        const er = qs(root, "[data-field='termsAgreed'] .rf__msg");
+    else if (action === "terms-ack" || action === "privacy-ack") {
+      /* 두 동의 줄은 같은 부품이다 — 다시 그리지 않고 클래스·aria 만 토글하고, 켜면 그 줄의 오류만 걷는다. */
+      const key = action === "terms-ack" ? "termsAgreed" : "privacyAgreed";
+      state.form[key] = !state.form[key];
+      t.classList.toggle("is-on", state.form[key]);
+      t.setAttribute("aria-pressed", String(state.form[key]));
+      if (state.form[key] && state.errors[key]) {
+        delete state.errors[key];
+        const er = qs(root, `[data-field='${key}'] .rf__msg`);
         if (er) er.remove();
       }
     } else if (action === "terms-view") {
       termsDlg = openTermsDialog({ onClose: () => { termsDlg = null; } });
+    } else if (action === "privacy-view") {
+      termsDlg = openPrivacyDialog({ onClose: () => { termsDlg = null; } });
     } else if (action === "pick-license") {
       const inp = qs(root, "[data-license-input]");
       if (inp) inp.click();
