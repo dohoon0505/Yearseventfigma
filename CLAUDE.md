@@ -5,7 +5,7 @@
 ## 세션 시작 체크리스트
 1. **개발 서버**: `curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/` → 응답 없으면 `node serve.mjs` 백그라운드 기동. (서버는 세션 간 자주 죽어 있음)
 2. **데모 로그인**: `admin` / `0324` → admin 롤. 로그인 페이지 감지 시 자동 처리 습관화.
-3. **HANDOFF.md** 와 auto-memory(MEMORY.md 인덱스) 확인 — 직전 세션 상태·보류 항목. 함께 **열린 디자인 요청서**(아티팩트 '올해의경조사 디자인 요청서'의 db 컬렉션 `screens` — 화면 번호별 진행 `status`·시안 `link`·`note`. `Artifact` list 에서 제목으로 찾고 → `ArtifactData` list)와 **`docs/decisions-2026-10-04.md`**(2차 결정 답 — 파일 맨 끝 줄 참조)를 본다.
+3. **HANDOFF.md** 와 auto-memory(MEMORY.md 인덱스) 확인 — 직전 세션 상태·보류 항목. 함께 **열린 디자인 요청서**(아티팩트 '올해의경조사 디자인 요청서'의 db 컬렉션 `screens` — 화면 번호별 진행 `status`·시안 `link`·`note`. `Artifact` list 에서 제목으로 찾고 → `ArtifactData` list)와 **`docs/decisions-2026-10-04.md`**(2차 결정 답 — 파일 맨 끝 줄 참조)를 본다. 운영자 검토 중인 **약관·처리방침 초안**(2026-10-28 · `docs/legal/`)의 답은 아티팩트 '약관·처리방침 초안 검토'의 db 컬렉션 `answers` 에 쌓인다(읽는 법 `docs/legal/README.md`).
 4. 미추적 파일(`mockups/`, `백엔드 참고문서.docx`, 삭제된 `guidelines/`)은 **의도적 로컬 상태 — 절대 커밋/복원/정리하지 말 것.**
 
 ## 작업 규칙
