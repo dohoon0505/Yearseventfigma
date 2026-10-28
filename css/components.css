@@ -1660,8 +1660,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .modal-panel--ord .ord-delivf .ord-dtp.is-open .ord-dtp__trigger {
   background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field);
 }
-/* 저장 줄 — 두 줄까지 접히고(버튼은 줄지 않는다 · .ord-ft .hm-btn flex 0 0 auto) 막힘·메모는 빨강(흰 면 5.9:1). */
-.modal-panel--ord .ord-ft__stat { min-width: 0; line-height: 1.4; text-wrap: pretty; }
+/* 저장 줄 — 두 줄까지 접히고(버튼은 줄지 않는다 · .ord-ft .hm-btn flex 0 0 auto) 막힘·메모는 빨강(흰 면 5.9:1).
+   낱말 단위로 꺾는다(keep-all — 1280 에서 '…넣/지 않습니다' 처럼 낱말 가운데서 꺾였다 · 2026-10-28 운영자 확인 · 모양은 그대로) ·
+   띄어쓰기 없는 긴 덩어리만 칸 안에서 끊는다(overflow-wrap). */
+.modal-panel--ord .ord-ft__stat { min-width: 0; line-height: 1.4; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; }
 .ord-ft__stat.is-block { color: var(--c-danger-ink); }
 /* 'M월 정산' 줄 — 칩 + 그 달 금액(고치는 대로 다시 계산 · aria-live). 288px 칸에 넘치면 금액이 칩 아래 줄로 내려간다(줄바꿈 허용 —
    새 모양이 아니다 · 자동 결정). 이 수정으로 금액이 바뀌면 줄이 호박 면, 금액이 진주황. 줄 자체(.ord-sum__v)의 규칙은 아래
