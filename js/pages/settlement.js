@@ -45,7 +45,7 @@ import { sharedBizKeys, displayName, onBizInput } from "../util/biz.js";
 /* 로그인 거래처 결정은 셸 배지·거래명세서와 반드시 같아야 한다 → util/client.js 단일 소스. */
 import { currentClient } from "../util/client.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
-import { CS_PHONE, CS_KAKAO } from "../data/contact.js";
+import { CS_PHONE, CS_KAKAO, CS_KAKAO_URL } from "../data/contact.js";
 import { setFocusSection } from "../session.js";
 import { refreshClientBadge } from "../shell.js";
 import { makeToast } from "../toast.js";
@@ -377,8 +377,9 @@ export function mount(root, { nav }) {
                      바꾸고 언제부터 적용되는지 말하는 곳이 이 화면에 있어야 한다(1번 카드의 '매월 N일' 이 앞으로의 값이라서). */ ""}
                 발급일은 회사정보 수정에서 바꿀 수 있고, 바꾸면 다음 달 발급분부터 적용됩니다.
                 ${/* 카카오톡 채널을 앞에, 고객센터 번호를 함께(2026-10-23 운영자 결정 D5 — 채널 이름은 contact.js CS_KAKAO 한 곳이고
-                     그 낱말 뒤에는 조사를 붙이지 않는다 · '이의' 라는 낱말은 쓰지 않는다). 연락처 두 덩어리만 .st-nw 로 묶는다. */ ""}
-                <span class="st-steps__cs">내역이 다르면 <span class="st-nw">${CS_KAKAO}</span> 또는 <span class="st-nw">고객센터 ${CS_PHONE}에</span> 알려 주세요 — 수정 마감 전이면 바로 고쳐 드립니다</span>
+                     그 낱말 뒤에는 조사를 붙이지 않는다 · '이의' 라는 낱말은 쓰지 않는다). 연락처 두 덩어리만 .st-nw 로 묶는다.
+                     채널 낱말은 채널 1:1 채팅을 새 창으로 여는 링크다(CS_KAKAO_URL · 2026-10-28 — 마우스를 올리면 밑줄 · '명세서 보기' 와 같은 수법). */ ""}
+                <span class="st-steps__cs">내역이 다르면 <a class="st-nw" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" title="카카오톡 채널 채팅 열기 · 새 창">${CS_KAKAO}</a> 또는 <span class="st-nw">고객센터 ${CS_PHONE}에</span> 알려 주세요 — 수정 마감 전이면 바로 고쳐 드립니다</span>
               </p>
             </div>
 

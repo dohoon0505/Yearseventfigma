@@ -258,6 +258,8 @@
 .page-invoice .iv-help b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
 /* 연락처 덩어리는 꺾지 않는다 — '고객센터 1668-1840에' 의 조사가 다음 줄로 떨어지지 않게(2026-10-23 · 포털 정산회계 .st-nw 와 같은 수법) */
 .page-invoice .iv-help__nw { white-space: nowrap; }
+/* 카카오톡 채널 링크(2026-10-28) — 모양은 굵은 연락처 낱말 그대로, 마우스를 올리면 밑줄(포털 정산회계 .st-doclink 와 같은 수법) */
+.page-invoice .iv-help a:hover { text-decoration: underline; }
 
 .page-invoice .iv-btn {
   border-radius: var(--r-pill);

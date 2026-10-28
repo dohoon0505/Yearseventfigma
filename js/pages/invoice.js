@@ -47,7 +47,7 @@ import { icon } from "../icons.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, DOC_STAMP } from "../data/invoice-links.js";
 import { fmtAt, fmtKoShortY, fmtKoShortTimeY, periodLabel, periodEnd } from "../data/settlement-rules.js";
-import { CS_PHONE, CS_KAKAO } from "../data/contact.js";
+import { CS_PHONE, CS_KAKAO, CS_KAKAO_URL } from "../data/contact.js";
 import { currentClient } from "../util/client.js";
 import { takeFocusSection } from "../session.js";
 import { pageHead } from "../ui.js";
@@ -86,12 +86,15 @@ const HOLD_TITLE = {
    고객센터 1668-1840' 번호만). 채널 이름은 contact.js CS_KAKAO 한 곳이고 그 낱말 뒤에는 조사를 붙이지 않는다(이름이 정해지면 받침이
    바뀐다). '이의' 라는 낱말은 쓰지 않는다. 굵은 글씨는 예전처럼 연락처 낱말(.iv-help b)이다.
    연락처 두 덩어리('카카오톡 채널' · '고객센터 1668-1840에')는 한 덩어리로 묶는다(.iv-help__nw — 포털 정산회계 .st-nw 와 같은 수법).
-   묶지 않으면 340px 레일에서 조사 '에' 가 번호와 떨어져 다음 줄 맨 앞에 혼자 섰다(2026-10-23 검증 · 1280·1440). */
+   묶지 않으면 340px 레일에서 조사 '에' 가 번호와 떨어져 다음 줄 맨 앞에 혼자 섰다(2026-10-23 검증 · 1280·1440).
+   채널 낱말은 채널 1:1 채팅을 새 창으로 여는 링크다(CS_KAKAO_URL · 2026-10-28 — 모양은 그대로 굵은 글씨, 마우스를 올리면 밑줄 —
+   포털 정산회계 '명세서 보기' 링크와 같은 수법). */
 const HELP_ASK = "ask";
 const HELP_DIFF = "diff";
+const kakaoLink = () => html`<a class="iv-help__nw" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" title="카카오톡 채널 채팅 열기 · 새 창"><b>${CS_KAKAO}</b></a>`;
 const helpLine = (kind) => (kind === HELP_DIFF
-  ? html`내역이 다르면 <span class="iv-help__nw"><b>${CS_KAKAO}</b></span> 또는 <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b>에</span> 알려 주세요`
-  : html`문의 · <span class="iv-help__nw"><b>${CS_KAKAO}</b></span> · <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b></span>`);
+  ? html`내역이 다르면 ${kakaoLink()} 또는 <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b>에</span> 알려 주세요`
+  : html`문의 · ${kakaoLink()} · <span class="iv-help__nw">고객센터 <b>${CS_PHONE}</b></span>`);
 
 /* ── 엑셀 스타일 팔레트(ARGB) · tokens.css 브랜드값 미러링 ────────
    워크시트 색상은 CSS 토큰을 참조할 수 없어 브랜드 hex 를 ARGB(FF+hex)로 옮겨 둔다(xlsx 예외 — CLAUDE.md).

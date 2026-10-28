@@ -225,6 +225,8 @@
 .page-settlement .st-steps__cs {
   color: var(--c-text-4);
 }
+/* 카카오톡 채널 링크(2026-10-28) — 글자 모양은 그대로, 마우스를 올리면 밑줄(.st-doclink 와 같은 수법) */
+.page-settlement .st-steps__cs a:hover { text-decoration: underline; }
 
 /* ── 정산 내역 표(시안 S-03 — 8칸 · 한 줄 상태) ──────────────────────────── */
 .page-settlement .st-tbl__hd {

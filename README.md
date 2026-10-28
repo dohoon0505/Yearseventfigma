@@ -61,7 +61,7 @@ js/
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
   data/privacy.js       # 개인정보 수집·이용 동의서 단일 소스 — 약관과 따로 + PRIVACY_VERSION (가입·첫 로그인 게이트 공용)
-  data/contact.js       # 고객센터 번호(1668-1840)·카카오톡 채널 낱말 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내)
+  data/contact.js       # 고객센터 번호(1668-1840)·카카오톡 채널('올해의경조사' · 1:1 채팅 주소) 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내)
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
