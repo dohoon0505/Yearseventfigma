@@ -47,7 +47,9 @@ const CARD_COMPANY = [
   /* '부서·직위'가 아니라 **계정 구분**이다 — 같은 사업자번호를 가르는 라벨.
      실데이터도 그 용도로 쓰고 있다(법무법인 한결 C008 '정민수 변호사' / C015 '윤지아 변호사'). */
   { k: "department", label: "계정 구분", hint: true, ph: "예) 정민수 변호사 · 총무팀" },
-  { k: "address", label: "사업장주소", find: true },
+  /* 사업장주소도 **필수**다(2026-10-30 운영자 결정 BB1) — 바로빌 계산서 발급 규격에서 공급받는자 주소가 필수 칸이라
+     비어 있으면 자동 발급이 거부될 수 있다. 가입(register.js)은 이미 필수였다. */
+  { k: "address", label: "사업장주소", req: true, find: true },
 ];
 const CARD_BILL = [
   /* 아래로 연다 — 카드 첫 줄이라 위 공간이 113px 뿐이고 패널은 240px 다(유입 경로는 반대).
@@ -67,8 +69,9 @@ const CARD_SALES = [
   { k: "salesDate", label: "영업·요청일", num: true, ph: "2025-06-20" },
   { k: "salesMemo", label: "영업 메모", type: "textarea", ph: "예) 3월 방문 상담, 경조화환 월 20건 예상" },
 ];
-/** 저장 게이트 — [키, 사람이 읽을 이름]. 중복 사업자번호가 있으면 계정 구분이 여기 붙는다. */
-const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"]];
+/** 저장 게이트 — [키, 사람이 읽을 이름]. 중복 사업자번호가 있으면 계정 구분이 여기 붙는다.
+ *  사업장주소는 2026-10-30 운영자 결정 BB1 로 더했다(바로빌 공급받는자 주소 필수) — 포털 회사정보 수정(settlement.js)과 같은 넷이다. */
+const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"]];
 
 /* 상태 점 색 — 화면마다 다르면 같은 상태를 다시 배워야 한다(주문 ORDER_STATUS_STYLE 과 같은 취지) */
 const STATUS_DOT = {

@@ -20,8 +20,9 @@
    · **발급일을 포털에서 바꾼다**(명세 6.3 개정). 선택지는 `INVOICE_DAYS`(1~7·11~25일) 22개뿐이고,
      바꾸면 **다음 달 발급분부터** 적용된다 — `store.updateClient` 가 `invoiceDayLog` 를 쌓는다.
      창 안에서 첫 적용 발급일·동의 마감·작성일자 규칙을 실제 날짜로 말한다(가입 4단계와 같은 계산).
-   · **필수는 회사명·사업자번호·대표자명**(시안의 '둘뿐'이 아니다 — 명세 4.2·관리자 거래처 창과 같다.
-     대표자명은 거래명세서 공급받는자의 성명 칸에 찍힌다). 이메일·사업장주소는 비워도 저장된다.
+   · **필수는 회사명·사업자번호·대표자명·사업장주소**(시안의 '둘뿐'이 아니다 — 명세 4.2·관리자 거래처 창과 같다.
+     대표자명은 거래명세서 공급받는자의 성명 칸에 찍힌다. 사업장주소는 2026-10-30 운영자 결정 BB1 로 더했다 — 바로빌 계산서
+     발급 규격에서 공급받는자 주소가 필수 칸이라 비어 있으면 자동 발급이 거부될 수 있다). 이메일은 비워도 저장된다.
    · **사업자등록증을 포털에서 올리고 바꾼다** — 바로 반영, 재심사·관리자 표시 없음.
    시안과 다르게 한 것: 이메일 캡션 '비어 있으면 정산 담당자에게 발송' 은 쓰지 않았다 — 그런 폴백은
    명세에 없고 담당자에게는 이메일 칸 자체가 없다. 사실인 것(정산 담당은 명세서·계산서 알림톡을 받는다)만 적는다.
@@ -65,8 +66,8 @@ const DAY_GROUPS = [
    (관리자 거래처 창의 발급일 드롭다운과 같은 문구). */
 const dayLabel = (v) => (INVOICE_DAYS.includes(String(v)) ? `매월 ${v}일` : `매월 ${v}일 · 지금은 고를 수 없는 날`);
 
-/* 저장 게이트 — [키, 사람이 읽을 이름]. 관리자 거래처 창의 REQUIRED 와 같은 셋이다(2026-10-07 결정). */
-const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"]];
+/* 저장 게이트 — [키, 사람이 읽을 이름]. 관리자 거래처 창의 REQUIRED 와 같은 넷이다(2026-10-07 결정 셋 + 2026-10-30 BB1 사업장주소). */
+const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"]];
 /* 글자 칸 — 저장 때 trim 해서 쓴다. 발급일·사업자등록증은 바뀌었을 때만 싣는다(아래 save). */
 const TEXT_KEYS = ["companyName", "bizNumber", "ceoName", "address", "email"];
 /* 가입 3단계와 같은 형식 검사 — 비어 있으면 검사하지 않는다(이메일은 필수가 아니다). */
@@ -510,7 +511,7 @@ export function mount(root, { nav }) {
               ${dlgRow({ k: "사업자번호", req: true, htmlFor: "setco-bizNumber", v: input("bizNumber", { ph: "000-00-00000", mode: "numeric", cls: "ord-in--num" }) })}
             </div>
             ${dlgRow({ k: "대표자명", req: true, htmlFor: "setco-ceoName", v: input("ceoName", { ph: "사업자등록증 기준", cls: "ord-in--plain setco-narrow" }) })}
-            ${dlgRow({ k: "사업장주소", htmlFor: "setco-address", v: input("address", { ph: "사업자등록증 상의 주소", cls: "ord-in--plain" }) })}
+            ${dlgRow({ k: "사업장주소", req: true, htmlFor: "setco-address", v: input("address", { ph: "사업자등록증 상의 주소", cls: "ord-in--plain" }) })}
           </div>
         </section>
         <section>
@@ -535,7 +536,7 @@ export function mount(root, { nav }) {
             ${dlgRow({ k: "이메일", htmlFor: "setco-email", v: input("email", { ph: "예) billing@company.com", type: "email", cls: "ord-in--plain" }) })}
             ${dlgRow({ k: "정산 담당", top: true, v: billCell })}
           </div>
-          <p class="dlg-note setco-note">필수는 <b>회사명 · 사업자번호 · 대표자명</b>입니다 — 이메일과 사업장주소는 비어 있어도 저장됩니다.</p>
+          <p class="dlg-note setco-note">필수는 <b>회사명 · 사업자번호 · 대표자명 · 사업장주소</b>입니다 — 이메일은 비어 있어도 저장됩니다.</p>
         </section>`,
       hint: st0.text,
       hintBlock: st0.block,
