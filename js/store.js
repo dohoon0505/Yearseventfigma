@@ -239,16 +239,30 @@ state.einvoiceFail = seedEinvoiceFail();
 state.noticeFails = seedNoticeFails();
 state.payments = seedPayments(state.clients, state.einvoiceFail, state.invoiceAgreed);
 
-/** 계산서 승인번호 예시 꼴 — `YYYYMMDD-8자리-8자리`(명세 5.4 · 6.6 예시. ⚠ 미확정 M62 — 바로빌 레퍼런스로 확정한다). */
-export const EINVOICE_NO_RE = /^\d{8}-\d{8}-\d{8}$/;
-/** 데모 승인번호 — (거래처, 귀속월)에서 결정적으로 만든다. 앞 8자리는 발급일. 실서비스는 바로빌 응답을 가공하지 않고 저장. */
+/** 국세청 승인번호(바로빌 `GetTaxInvoiceStateEX` 의 `NTSSendKey`) — **하이픈 없는 24자리 문자열**(바로빌 회신 2026-10-31 6번 ·
+ *  명세 M62 해소 — 예전 예시 꼴 `YYYYMMDD-8자리-8자리` 는 확정 전 짐작이었다). 발급 즉시 채번된다(국세청 전송 여부와 무관).
+ *  회신이 확정한 것은 '24자리 · 하이픈 없음' 까지다. **영문·숫자만** 받는 것은 데모의 잠정 검사다(회신 밖 — 자리마다 무엇이
+ *  드는지(앞 8자리가 날짜인지 등)는 개발 때 테스트 발급 응답으로 확인 · 명세 6.6). 그래서 자리별 규칙은 두지 않는다.
+ *  ⚠️ 검사는 새 입력(직접 입력)에만 한다. 예전 데모가 저장한 하이픈 든 값(26자)은 읽을 때 그대로 보여 준다(hydrate 는 문자열인지만 본다). */
+export const EINVOICE_NO_RE = /^[0-9A-Za-z]{24}$/;
+/** 사람이 적은 승인번호에서 **구분자(공백·하이픈 — 문서에서 옮겨 적을 때 섞이는 대시 변형 ‐ ‒ – — − － 포함)만** 걷는다 —
+ *  바로빌 웹 화면 표기처럼 하이픈을 넣어 적어도 받게. 구분자만 걷어 숫자 자리는 옮기지 않는다.
+ *  저장도 걷은 값으로 한다. 그 밖의 글자는 건드리지 않는다(지우지 않고 거부 — 조용히 다른 번호가 되지 않게).
+ *  ⚠️ '바로빌 응답을 가공하지 않고 저장'(M62)은 바로빌이 돌려준 문자열 이야기다 — 여기는 사람이 넣은 구분자만 걷는다.
+ *  store.issueEinvoice(직접 입력)와 발급 처리 창(util/settle-dialogs)의 화면 검사가 이 함수 하나를 쓴다. */
+export function normalizeEinvoiceNo(no) {
+  return String(no == null ? "" : no).replace(/[\s\-‐-―−﹘﹣－]+/g, "");
+}
+/** 데모 승인번호 — (거래처, 귀속월)에서 결정적으로 만든다. 하이픈 없는 24자리 숫자 · 데모는 앞 8자리에 발급일을 넣는다
+ *  (실제 자리 구성은 회신 밖 — 화면이 그 규칙에 기대지 않는다).
+ *  실서비스는 바로빌 응답(NTSSendKey)을 가공하지 않고 저장. */
 export function einvoiceNoFor(clientId, ym, at) {
   const d = at instanceof Date ? at : parseAt(at) || new Date(0);
   let h = 2166136261;
   for (const ch of `${clientId}|${ym}`) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
   const a = String(41000000 + (h % 1000000)).padStart(8, "0");
   const b = String(Math.imul(h, 2654435761) >>> 0).padStart(8, "0").slice(-8);
-  return `${fmtAt(d).slice(0, 10).replace(/-/g, "")}-${a}-${b}`;
+  return `${fmtAt(d).slice(0, 10).replace(/-/g, "")}${a}${b}`;
 }
 
 /* 저장본의 { [clientId]: { [ym]: … } } 모양만 받는다 — 깨진 조각은 버린다(다른 상태까지 버리지 않게). */
@@ -609,7 +623,8 @@ export const store = {
   /** 계산서 발급 재시도·수기 입력(명세 6.6 `POST …/einvoice`). **AGREED(동의완료 · 발급 전)에서만** 받는다 —
    *  동의 전이거나, 이미 발급됐거나(기록 또는 자동 발급 파생 = 실패 기록이 없는 달) 이면 null.
    *  - `{ mode: "retry" }` — 데모에서는 늘 성공한다(승인번호는 결정적으로 만든다 — 실서비스는 바로빌 응답).
-   *  - `{ mode: "manual", no, at }` — 승인번호(예시 꼴 `YYYYMMDD-8자리-8자리` · ⚠ 미확정 M62)와 발급 시각(미래 불가) 필수.
+   *  - `{ mode: "manual", no, at }` — 승인번호(하이픈 없는 24자리 · `EINVOICE_NO_RE` — 바로빌 회신 2026-10-31 · M62 해소)와
+   *    발급 시각(미래 불가) 필수. 승인번호는 하이픈·공백을 걷은 뒤 검사하고 **걷은 값으로 저장**한다(`normalizeEinvoiceNo`).
    *    형식이 틀리면 `{ error: "EINVOICE_NO_INVALID" }`, 시각이 틀리거나 미래면 `{ error: "EINVOICE_AT_INVALID" }`.
    *    기록에는 `recordedAt`(기록한 시각 = now)을 함께 남긴다 — 적은 발급 시각과 다르다(기한 초과 · T6·T8 은 기록한 순간 기준).
    *  - `by`(선택) — 처리자 `{ type, id, name, dept }`(util/settlement `issueEinvoiceFor` 가 currentActor 를 싣는다).
@@ -622,7 +637,7 @@ export const store = {
     if (mode === "retry") {
       rec = { no: einvoiceNoFor(k, ym, now), at: fmtAt(now), mode: "retry" };
     } else if (mode === "manual") {
-      const n = String(no || "").trim();
+      const n = normalizeEinvoiceNo(no);
       if (!EINVOICE_NO_RE.test(n)) return { error: "EINVOICE_NO_INVALID" };
       const d = at instanceof Date ? at : parseAt(at);
       if (!d || d > now) return { error: "EINVOICE_AT_INVALID" };

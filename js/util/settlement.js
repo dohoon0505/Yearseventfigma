@@ -217,7 +217,7 @@ export function noRecipientOf(client) {
  * - 고쳐서 0원(zeroEdited — 발행 뒤 금액이 0이 됐다 · issuedAmount > 0): 마감까지 AWAITING_AGREEMENT(open:false · 보류 없음),
  *   마감(13:00) 뒤 PAID. 줄이 다 빠진 달(취소·삭제)도 이 갈래다 — NONE 이 아니다(서버엔 그 달 Settlement 가 있다).
  *   그때 `empty` 는 true(줄이 없다는 사실 — 그래서 화면은 '거래 없음' 판정을 `empty && !zeroEdited` 로 한다).
- * - 계산서: 동의(수동·자동)된 달은 동의 시각에 자동 발급된 것으로 파생(승인번호도 결정적 — 예시 꼴, 미확정 M62 · by: null = '자동').
+ * - 계산서: 동의(수동·자동)된 달은 동의 시각에 자동 발급된 것으로 파생(승인번호도 결정적 — 하이픈 없는 24자리 · 바로빌 회신 2026-10-31 로 M62 해소 · store `einvoiceNoFor` · by: null = '자동').
  *   store.einvoiceFail 에 든 달만 AGREED 에 머물고, 다시 시도·직접 입력(store.einvoice)이 성공하면 ISSUED.
  * - OVERDUE: 계산서가 나간 미입금 달이 정산기한 다음 날 10:00 을 지났다(정각 포함 · 발급이 그 뒤면 발급 순간부터).
  *   overdueFrom = 기한 초과가 **된** 시각 = max(overdueAt, 계산서가 시스템에 생긴 시각) — 계산서가 정산기한 뒤에 나온 달(바로빌 장애 뒤

@@ -19,7 +19,7 @@
    ============================================================ */
 import { html, on, qs, qsa, setHTML } from "../dom.js";
 import { icon } from "../icons.js";
-import { store, EINVOICE_NO_RE } from "../store.js";
+import { store, EINVOICE_NO_RE, normalizeEinvoiceNo } from "../store.js";
 import { openDialog, dlgRule, dlgRow, dlgPick, bindPick } from "./dialog.js";
 import { settlementOf, issueEinvoiceFor, confirmPaymentFor, EINVOICE_MODE_WORD, overdueLateOf, OVERDUE_LATE_WORD } from "./settlement.js";
 import { actorLabel } from "./actor.js";
@@ -177,8 +177,8 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
           ${dlgRow({
             k: "승인번호", req: true, top: true, htmlFor: noId,
             v: html`<div class="sdlg-stack">
-              <input id="${noId}" class="ord-in ord-in--num" data-f="no" inputmode="numeric" autocomplete="off" spellcheck="false"
-                     placeholder="20261005-41000001-12345678" aria-required="true" aria-describedby="${noId}-h" disabled />
+              <input id="${noId}" class="ord-in ord-in--num" data-f="no" inputmode="text" autocomplete="off" spellcheck="false"
+                     placeholder="202610054100000112345678" aria-required="true" aria-describedby="${noId}-h" disabled />
               <p class="dlg-hintline" id="${noId}-h" data-slot="nohint"></p>
             </div>`,
           })}
@@ -238,11 +238,19 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
 
   /** 지금 입력으로 판정 — 저장 가능 여부 · 막는 이유 · 칸별 오류. 렌더는 sync 가 한다. */
   function manualView(now) {
-    const no = st.no.trim();
+    /* 승인번호 = 하이픈 없는 24자리(바로빌 회신 2026-10-31 · M62 해소 — store `EINVOICE_NO_RE`). 사람이 넣은 하이픈·공백은
+       store 와 같은 함수(`normalizeEinvoiceNo`)로 걷고 검사한다 — 저장도 걷은 값이다(store.issueEinvoice). */
+    const no = normalizeEinvoiceNo(st.no);
     const fmtOk = EINVOICE_NO_RE.test(no);
-    /* 입력할 때 거절한다(M38 ⓐ · 400 EINVOICE_NO_INVALID) — 숫자·하이픈 밖의 글자, 다 적었는데(26자↑) 꼴이 다름,
-       칸을 떠났는데 꼴이 다름. 지우지 않고 그대로 둔 채 표시만 한다(금액 칸과 같은 '거부형' — 조용히 다른 값이 되지 않게). */
-    const noErr = st.noServerBad || (!!no && !fmtOk && (st.noTouched || no.length >= 26 || /[^\d-]/.test(no)));
+    /* 입력할 때 거절한다(M38 ⓐ · 400 EINVOICE_NO_INVALID) — 구분자(하이픈·공백)를 걷고도 영문·숫자 밖의 글자가 남음,
+       다 적었는데(걷어서 24자↑) 꼴이 다름, 칸을 떠났는데 꼴이 다름. 지우지 않고 그대로 둔 채 표시만 한다(금액 칸과 같은 '거부형' —
+       조용히 다른 값이 되지 않게). 무엇이 틀렸는지는 `noWhy` 가 한 마디로 말한다. 자리별 규칙(앞 8자리가 날짜 등)은 두지 않는다 —
+       회신 밖이다(store `EINVOICE_NO_RE`). */
+    const oddChar = /[^0-9A-Za-z]/.test(no);
+    const noErr = st.noServerBad || (!!no && !fmtOk && (st.noTouched || no.length >= 24 || oddChar));
+    const noWhy = oddChar ? "승인번호에는 영문과 숫자만 들어갑니다(구분용 하이픈·공백은 넣어도 됩니다)"
+      : no.length !== 24 ? `승인번호는 하이픈을 빼고 24자리입니다 · 지금 ${no.length}자리`
+      : "승인번호는 하이픈을 빼고 24자리입니다";
     const dt = parseDateTime(st.date, st.time);
     const dtTyped = !!st.date.trim() && !!st.time.trim();
     const future = !!dt && dt.getTime() > now.getTime();
@@ -253,7 +261,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     else if (!fmtOk) block = "승인번호 형식을 고쳐야 저장됩니다";
     else if (!dt) block = "발급 시각을 2026-10-05 · 14:40처럼 적어 주세요";
     else if (timeErr) block = "발급 시각을 고쳐야 저장됩니다";
-    return { no, fmtOk, noErr, dt, dtTyped, future, timeErr, mismatch, block };
+    return { no, fmtOk, noErr, noWhy, dt, dtTyped, future, timeErr, mismatch, block };
   }
 
   function sync() {
@@ -319,7 +327,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       inNo.classList.toggle("is-bad", mv.noErr);
       inNo.setAttribute("aria-invalid", mv.noErr ? "true" : "false");
       const nh = qs(p, "[data-slot='nohint']");
-      nh.textContent = mv.noErr ? "승인번호 형식이 맞지 않습니다. 숫자 8자리-8자리-8자리로 적어 주세요" : "예) 20261005-41000001-12345678 · 형식은 확정 전 예시 기준";
+      nh.textContent = mv.noErr ? mv.noWhy : "예) 202610054100000112345678 (24자리) · 하이픈은 넣어도 됩니다";
       nh.classList.toggle("is-bad", mv.noErr);
       [inDate, inTime].forEach((x) => { x.classList.toggle("is-bad", mv.timeErr); x.setAttribute("aria-invalid", mv.timeErr ? "true" : "false"); });
       const th = qs(p, "[data-slot='timehint']");

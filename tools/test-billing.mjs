@@ -11,7 +11,7 @@
      ③ settlementImpactOf — 확인 창 달 · 잠긴 달 · 발행 시각이 지난 거래 없는 달로 들어오는 주문 막기(사용자 답 3)
      ④ agreeSettlement — 금액 불일치를 먼저 본다 · 저장 실패
      ⑤ b2b-mock 쓰기 — 변경 기록 줄 · 사유 · 처리자 · 저장 실패 때 주문과 기록을 함께 되돌림 · hydrate
-     ⑥ 계산서 다시 시도 · 입금 확인의 처리자와 저장 실패 · 문서 빌더(동의 전 표기 · 수수료 줄) · 공개 링크 레코드
+     ⑥ 계산서 다시 시도 · 입금 확인의 처리자와 저장 실패 · 승인번호 꼴(하이픈 없는 24자리 — 바로빌 회신 2026-10-31 · ⑨-4 에 직접 입력) · 문서 빌더(동의 전 표기 · 수수료 줄) · 공개 링크 레코드
      ⑧ 2026-10-22 운영자 결정 — '정지' 장치 걷어내기 · 0원 주문만 있는 달 = NONE · 탈퇴 거래처 · 옛 저장본
         + 2026-10-23 운영자 결정 D1 — 고지 미도달 보류 · 마감 당일 다시 보내기 걷어내기(T4 발송 실패는 기록만 · 그 달도 자동 동의)
      ⑪ 2026-10-23 운영자 결정 D2 · D3 — 정산에는 배송완료 주문만(이번 달 예상 · 드릴다운 = 청구금액 = 리포트 = 도넛) · 명세서가 나간 뒤
@@ -448,6 +448,11 @@ sessionStorage.setItem("yeop.session.v1", "admin");
   eq("다시 시도 저장 실패 — STORAGE_FULL · 그대로 AGREED", [f, store.einvoiceOf("C004", LAST), so("C004", LAST).status], [{ error: "STORAGE_FULL" }, null, "AGREED"]);
   const r = S.issueEinvoiceFor(client("C004"), LAST, { mode: "retry" }, NOW);
   eq("다시 시도 — 처리자", [r.mode, r.by && r.by.name, so("C004", LAST).einvoice.by && so("C004", LAST).einvoice.by.dept], ["retry", "최고관리자", "시스템"]);
+  /* 국세청 승인번호 = 하이픈 없는 24자리(바로빌 회신 2026-10-31 6번 · M62 해소) — 데모가 만드는 번호도 같은 꼴 · 데모는 앞 8자리에 발급일(실제 구성은 회신 밖) */
+  const { EINVOICE_NO_RE } = await import(R + "store.js");
+  eq("다시 시도 승인번호 — 하이픈 없는 24자리 · 데모는 앞 8자리 발급일", [EINVOICE_NO_RE.test(r.no), r.no.length, r.no.includes("-"), r.no.slice(0, 8)], [true, 24, false, "20261016"]);
+  const auto2 = so("C002", LAST).einvoice;
+  eq("자동 발급(파생) 승인번호도 하이픈 없는 24자리 · 데모는 앞 8자리 발급일", [EINVOICE_NO_RE.test(auto2.no), auto2.no.slice(0, 8)], [true, RULES.fmtAt(auto2.at).slice(0, 10).replace(/-/g, "")]);
   eq("자동 발급(파생)은 처리자 없음", so("C002", LAST).einvoice.by, null);
   failSet = true;
   const pf = S.confirmPaymentFor(client("C002"), LAST, undefined, NOW);
@@ -1162,20 +1167,38 @@ const putStore = (raw) => { localStorage.setItem(SKEY, JSON.stringify(raw)); sto
   raw.einvoice.C018 = { ...(raw.einvoice.C018 || {}), [PREV]: { no: "20261005-41000002-12345678", at: "2026-10-05 10:00", mode: "manual" } }; // 옛 기록(recordedAt 없음)
   putStore(raw);
   eq("⑨-4 C006 8월 — 발급 실패로 AGREED", so("C006", PREV).status, "AGREED");
-  const r = S.issueEinvoiceFor(client("C006"), PREV, { mode: "manual", no: "20260925-41000001-12345678", at: "2026-09-25 14:00" }, NOW);
+  /* 승인번호 = 하이픈 없는 24자리(바로빌 회신 2026-10-31 6번 · M62 해소). 사람이 넣은 하이픈·공백은 걷어 검사·저장하고(normalizeEinvoiceNo —
+     발급 처리 창의 화면 검사와 같은 함수), 그 밖의 꼴은 거부한다(쓰지 않는다 · 그 달은 AGREED 그대로). */
+  const { EINVOICE_NO_RE, normalizeEinvoiceNo } = await import(R + "store.js");
+  const man = (no) => S.issueEinvoiceFor(client("C006"), PREV, { mode: "manual", no, at: "2026-09-25 14:00" }, NOW);
+  eq("⑨-4 승인번호 정규화 — 구분자(하이픈·공백·대시 변형)만 걷는다 · 다른 글자는 그대로",
+    [normalizeEinvoiceNo("20260925-4100 0001-1234 5678"), normalizeEinvoiceNo("20260925–41000001−12345678"), normalizeEinvoiceNo("20260925－41000001‐12345678"), normalizeEinvoiceNo(" 2026_0925 "), normalizeEinvoiceNo(null)],
+    ["202609254100000112345678", "202609254100000112345678", "202609254100000112345678", "2026_0925", ""]);
+  eq("⑨-4 직접 입력 거부 — 23자리 · 25자리(하이픈을 걷은 뒤)", [man("20260925-41000001-1234567"), man("20260925-41000001-123456789")],
+    [{ error: "EINVOICE_NO_INVALID" }, { error: "EINVOICE_NO_INVALID" }]);
+  eq("⑨-4 직접 입력 거부 — 24자인데 영문·숫자 밖의 글자(밑줄 · 점 · 한글)", [man("20260925410000011234567_"), man("2026092541000001123456.8"), man("2026092541000001123456가8")],
+    [{ error: "EINVOICE_NO_INVALID" }, { error: "EINVOICE_NO_INVALID" }, { error: "EINVOICE_NO_INVALID" }]);
+  eq("⑨-4 거부한 입력은 쓰지 않는다 — AGREED 그대로 · 기록 없음", [so("C006", PREV).status, store.einvoiceOf("C006", PREV)], ["AGREED", null]);
+  eq("⑨-4 꼴 검사 — 영문·숫자 24자(자리별 규칙 없음 — 회신 밖) · 하이픈 든 값은 걷기 전엔 아님 · 24자 안의 밑줄은 아님",
+    [EINVOICE_NO_RE.test("20261012ABCD0004efgh5678"), EINVOICE_NO_RE.test("2026101A4100000412345678"), EINVOICE_NO_RE.test("20261012-41000004-12345678"), EINVOICE_NO_RE.test("2026101241000004123456_8")], [true, true, false, false]);
+  const r = man("20260925–41000001-12345678"); // 바로빌 웹 화면 표기처럼 하이픈을 넣어 적었다(문서에서 옮겨 en dash 하나가 섞였다)
   const s = so("C006", PREV);
+  eq("⑨-4 하이픈 든 24자리 입력 — 받고 걷은 값으로 저장", [r.no, s.einvoice.no, rawStore().einvoice.C006[PREV].no], ["202609254100000112345678", "202609254100000112345678", "202609254100000112345678"]);
   eq("⑨-4 직접 입력 — 기록 시각을 남긴다(적은 시각과 따로)", [r.at, r.recordedAt, fa(s.einvoice.at), fa(s.einvoice.recordedAt)], ["2026-09-25 14:00", "2026-10-16 09:30", "2026-09-25 14:00", "2026-10-16 09:30"]);
   eq("⑨-4 정산기한 전 시각을 기한 뒤에 기록 — 기한 초과는 기록한 순간부터 · 까닭 'record'", [s.status, fa(s.overdueFrom), S.overdueLateOf(s), S.OVERDUE_LATE_WORD.record],
     ["OVERDUE", "2026-10-16 09:30", "record", "직접 입력을 정산기한 뒤에 기록해 기록한 순간부터"]);
   eq("⑨-4 저장본에도 recordedAt", rawStore().einvoice.C006[PREV].recordedAt, "2026-10-16 09:30");
-  S.issueEinvoiceFor(client("C017"), PREV, { mode: "manual", no: "20261005-41000003-12345678", at: "2026-10-05 10:00" }, NOW);
+  const r17 = S.issueEinvoiceFor(client("C017"), PREV, { mode: "manual", no: " 2026 1005 4100 0003 1234 5678 ", at: "2026-10-05 10:00" }, NOW); // 공백으로 묶어 적었다
   const s17 = so("C017", PREV);
+  eq("⑨-4 공백으로 묶어 적은 24자리 — 걷은 값으로 저장", [r17.no, s17.einvoice.no], ["202610054100000312345678", "202610054100000312345678"]);
   eq("⑨-4 정산기한 뒤 시각(10-05)을 적어도 기록한 순간(10-16)부터", [fa(s17.overdueFrom), S.overdueLateOf(s17)], ["2026-10-16 09:30", "record"]);
-  S.issueEinvoiceFor(client("C007"), LAST, { mode: "manual", no: "20261012-41000004-12345678", at: "2026-10-12 10:00" }, NOW);
+  const r7 = S.issueEinvoiceFor(client("C007"), LAST, { mode: "manual", no: "20261012ABCD0004efgh5678", at: "2026-10-12 10:00" }, NOW); // 뒤 16자리에 영문
   const s7 = so("C007", LAST);
+  eq("⑨-4 뒤 16자리에 영문이 섞인 24자리 — 받는다(회신은 '문자열' · 대소문자 그대로)", [r7.no, s7.einvoice.no], ["20261012ABCD0004efgh5678", "20261012ABCD0004efgh5678"]);
   eq("⑨-4 정산기한 전에 기록 — 규칙상 시각 그대로 · 까닭 없음", [s7.status, fa(s7.overdueFrom), S.overdueLateOf(s7)], ["ISSUED", "2026-11-01 10:00", null]);
   const s18 = so("C018", PREV);
   eq("⑨-4 옛 직접 입력 기록(recordedAt 없음) — 적은 시각으로", [s18.status, fa(s18.overdueFrom), S.overdueLateOf(s18)], ["OVERDUE", "2026-10-05 10:00", "issue"]);
+  eq("⑨-4 옛 저장본의 하이픈 든 승인번호(26자) — 읽을 때 그대로 둔다(검사는 새 입력에만)", [s18.einvoice.no, rawStore().einvoice.C018[PREV].no], ["20261005-41000002-12345678", "20261005-41000002-12345678"]);
   eq("⑨-4 다시 시도로 기한 뒤 발급(C001 8월 · ⑧) — 까닭 'issue'", S.overdueLateOf(so("C001", PREV)), "issue");
 }
 {
