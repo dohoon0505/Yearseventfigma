@@ -1357,7 +1357,8 @@
 
 /* 우측 본문 */
 /* 원장 본문 — **넘침을 받는 곳**. 평소엔 넘치지 않아 스크롤바가 없고, 축소 여력
-   (사진 → 거래 조건 카드·처리 이력 카드(상세 — S-06) → max-height:820px 여백)을 다 쓰고도 모자랄 때만 생긴다.
+   (사진 → 처리 이력 카드 → 거래 조건 카드(상세 — O-10 · S-06) → max-height:820px 여백)을 다 쓰고도 모자랄 때만 생긴다.
+   상세 창은 왼쪽 카드(주문정보·발주정보)가 줄지 않아, 화면이 그보다 짧으면 여기서 굴러간다(위 `.ord-cols` 주석).
    임계는 레코드마다 다르다(1280 폭 실측 ≈700~760px) — 단일 숫자로 적지 말 것.
    레일은 형제라 붙박이로 남는다(위 `.ord-grid` 주석의 흰 띠 참조). */
 .ord-pane {
@@ -1365,13 +1366,19 @@
   display: flex; flex-direction: column; gap: 20px;
   overflow-y: auto; overscroll-behavior: contain;
 }
-/* 세로도 못박는다(minmax(0,1fr)) — 안 그러면 두 열이 내용만큼 자라 버려
-   거래 조건이 긴 거래처에서 본문이 모달 밖으로 밀린다. */
+/* 세로를 못박는 쪽은 오른쪽 열이다 — 행은 `minmax(auto, 1fr)` 이고 바닥(auto)은 **왼쪽 열의 내용 높이**(.ord-colL 만 min-height:auto)다.
+   오른쪽 열(.ord-colR min-height:0)은 행 높이를 키우지 못해, 이력이 많거나 거래 조건이 긴 거래처라도 본문이 모달 밖으로 밀리지 않고
+   오른쪽 카드가 줄어든다(처리 이력 → 거래 조건 순 · 아래 S-06 블록 '처리 이력'). 화면이 왼쪽 카드보다 짧으면 행이 왼쪽 카드 높이에
+   머물러 원장(.ord-pane)이 굴러가고, 그때 처리 이력은 왼쪽 카드 높이까지 쓴다(시안 O-10 — 예전 `minmax(0,1fr)` 은 왼쪽 카드가 넘쳐도
+   오른쪽 열을 화면 높이에 묶어 이력이 한 줄까지 눌렸다).
+   ⚠️ `.ord-cols` 는 주문 상세 창 둘(B2B·B2C — 둘 다 `.modal-panel--ord`)만 쓴다. 스코프 없이 두는 까닭은 아래 `@media (max-width:1240px)`
+      1열 접기(같은 특이도 · 뒤)가 그대로 이기게 하려는 것이다 — 스코프 규칙으로 옮기면 접기가 진다. */
 .ord-cols {
-  display: grid; grid-template-columns: minmax(0, 1fr) 288px; grid-template-rows: minmax(0, 1fr);
+  display: grid; grid-template-columns: minmax(0, 1fr) 288px; grid-template-rows: minmax(auto, 1fr);
   gap: 18px; min-width: 0; flex: 1 1 auto; min-height: 0;
 }
-.ord-colL, .ord-colR { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.ord-colL, .ord-colR { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.ord-colR { min-height: 0; }
 
 /* ── 카드 ─────────────────────────────────────────────────── */
 .ord-card { border: 1px solid var(--c-border); border-radius: var(--r-2xl); }
@@ -1474,20 +1481,55 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    카드 밖으로 나가야 한다. 그래서 **면을 칠하는 마지막 요소가 각자** 아래
    모서리를 둥글린다(카드 18px - 테두리 1px = 안쪽 17px).
    이력은 is-latest 행이, 요약은 담당자 행 hover 면이 네모로 삐져나왔다. */
-.ord-hist { max-height: 184px; overflow-y: auto; border-radius: 0 0 17px 17px; }
+/* 처리 이력(시안 'O-10 주문 상세 처리 이력') — 줄을 자르지 않는다(말줄임 · title 없음). 저장된 글을 ' · ' 로 나눈 마디 단위로 줄을
+   바꾸고(order-screen.js historyBody — 화면에서만 나눈다), 둘째 줄부터는 시각 아래까지 카드 폭을 다 쓴다. 한 줄에 다 들어가는 줄은
+   예전과 같은 한 줄이다. 최대 높이·줄어드는 순서·상세 창 밀도(13px · 19px · 8px 18px)는 아래 S-06 블록 '처리 이력'(.modal-panel--ord).
+   ⚠️ 글 상자(`__txt`)의 overflow:hidden 은 장식이 아니다 — 마디 줄(`__line`)이 상자보다 14px 왼쪽에서 시작해, **줄 첫머리에 온
+      마디의 '·'(`__unit::before`, 왼쪽 14px 칸)가 상자 밖으로 밀려 잘린다**. 측정 없이 CSS 만으로 첫머리 '·' 를 감추는 장치다.
+   ⚠️ 첫 마디(`__head`)는 inline 이라 여러 줄로 꺾일 때 줄마다 14px 를 다시 받아야(box-decoration-break: clone) 둘째 줄이 상자
+      왼쪽 끝에서 시작한다. 둘째 마디부터는 inline-block(max-width 100% — 한 줄보다 길면 그 마디 안 띄어쓰기에서 꺾는다). */
+/* ⚠️ overflow-anchor: none — 스크롤 위치는 order-screen.js `histScrollEnd` 가 직접 지킨다(맨 아래였으면 맨 아래). 크롬의 스크롤 고정이
+      켜져 있으면 창을 키웠다(끝으로 당겨짐) 줄일 때 scrollTop 을 예전 값으로 되돌리고, 그 scroll 이벤트가 관찰 콜백보다 먼저 와
+      '맨 아래였다' 는 기록을 지워 최신 줄이 가려졌다(1366x768 → 1440x820 → 1280x720 실측: 최신 줄 54px 중 47.7px). */
+.ord-hist { overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; border-radius: 0 0 17px 17px; }
+/* 넘칠 때만 Tab 정거장(tabindex=0 — histScrollEnd)이다. 카드를 꽉 채운 스크롤 칸이라 링은 안쪽 2px — 바깥이면 카드 테두리에 겹친다.
+   ⚠️ 크롬은 스크롤 칸 자신의 outline 을 굴러가는 내용 **아래**에 칠한다 — 줄 구분선이 링 양옆을 끊고 최신 줄의 옅은 면이 링 아랫변과
+      그 줄 양옆을 덮었다(1280x720 실측). 그래서 링은 목록을 감싼 슬롯 위에 얹은 막(::after · 안쪽 2px 그림자 · 목록과 같은 모서리)이
+      그린다. outline 은 :has() 를 모르는 브라우저의 안전판이다(같은 자리라 겹쳐도 모양이 같다). */
+.ord-hist:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+.ord-histcard > [data-slot] { position: relative; }
+.ord-histcard > [data-slot]:has(> .ord-hist:focus-visible)::after {
+  content: ""; position: absolute; inset: 0; border-radius: 0 0 17px 17px;
+  box-shadow: inset 0 0 0 2px var(--c-indigo); pointer-events: none;
+}
+/* 강제 색(Windows 고대비)은 box-shadow 를 지운다 — 남은 안전판 outline 은 굴러가는 줄 아래라 최신 줄 면에 아랫변이 가려졌다.
+   덮개는 목록보다 나중에 칠해지니 같은 자리를 outline 으로 그린다(색은 시스템 색으로 바뀐다). */
+@media (forced-colors: active) {
+  .ord-histcard > [data-slot]:has(> .ord-hist:focus-visible)::after { box-shadow: none; outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+}
 .ord-hist__row {
-  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+  position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 10px 20px;
   border-bottom: 1px solid var(--c-fill-1);
+  font-size: var(--fs-14); line-height: 21px;
 }
 .ord-hist__row:last-child { border-bottom: 0; }
 .ord-hist__row.is-latest { background: var(--c-surface-hover); }
-.ord-hist__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; }
-.ord-hist__lbl {
-  flex: 1; min-width: 0; font-size: var(--fs-14); color: var(--c-text-2);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* 색 점은 첫 줄 가운데 — (줄 높이 − 6px) / 2 */
+.ord-hist__dot { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 7.5px; border-radius: 50%; }
+.ord-hist__txt {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--c-text-2);
+  word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty;
 }
-.ord-hist__row.is-latest .ord-hist__lbl { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
-.ord-hist__at { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+.ord-hist__row.is-latest .ord-hist__txt { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+/* 시각 — 첫 줄 오른쪽(float). 줄이 길어져도 시각이 한 세로줄에 선다. 최신 줄의 굵은 글씨를 물려받지 않는다. */
+.ord-hist__at {
+  float: right; margin-left: 10px; font-size: var(--fs-12); font-weight: var(--fw-normal);
+  color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ord-hist__line { margin-left: -14px; }
+.ord-hist__head { padding-left: 14px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ord-hist__unit { display: inline-block; position: relative; max-width: 100%; padding-left: 14px; vertical-align: top; }
+.ord-hist__unit::before { content: "\00b7"; position: absolute; left: 0; top: 0; width: 14px; text-align: center; }
 .ord-hist__empty { padding: 14px 20px; font-size: var(--fs-13); color: var(--c-text-muted); }
 
 /* ── 푸터 ─────────────────────────────────────────────────── */
@@ -1511,8 +1553,9 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    메모가 아니라 **거래 조건**이라 놓치면 오발주가 난다(→ CLAUDE.md 도메인 규약).
    길이가 거래처마다 천차만별(최장 4줄 → 300px 폭에서 10줄 이상)이라
    **자기 안에서 스크롤**한다. 모달 전체 높이가 거래처 하나 때문에 흔들리면 안 된다. */
-/* 원장 쪽에서 세로가 모자라면 **이 카드가 먼저 양보한다** — 레일의 `.ord-drop` 과 같은 역할.
-   이미 자체 스크롤이라 줄어들어도 내용이 사라지지 않는다. 이게 없으면 거래 조건이 긴
+/* 원장 쪽에서 세로가 모자라면 **처리 이력 다음으로 이 카드가 양보한다**(시안 O-10 — 예전엔 둘이 함께 줄어 1280x720 에서
+   거래 조건 둘째 줄이 카드 밖으로 잘렸다) — 레일의 `.ord-drop` 과 같은 역할. 줄어드는 순서와 카드 바닥(머리 + 본문 56px — 머리가 한 줄이면 98px)은
+   아래 S-06 블록 '처리 이력'(.modal-panel--ord). 이미 자체 스크롤이라 줄어들어도 내용이 사라지지 않는다. 이게 없으면 거래 조건이 긴
    거래처((주)홈박스·파란코드·온누리헬스·대성금속)에서 **1512x900 에서도** 원장에
    스크롤바가 붙는다(실측 2~47px 초과). 축소 여력을 다 쓰고도 모자라면 그때
    `.ord-pane { overflow-y:auto }` 가 마지막 그물이 된다. */
@@ -1539,10 +1582,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 1240px) {
-  /* 1열로 접으면 명시 행이 하나뿐인 `minmax(0,1fr)` 때문에 `.ord-colR` 이 암시적
-     auto 행으로 떨어져 **두 열이 겹쳐 찍힌다**(1100x800 실측: colL 232.7px 칸에
-     462px 내용 → 발주정보가 요약 카드 위로 올라탄다). 1열에서는 높이를 못박을
-     이유가 없으니 행을 내용에 맡기고, 초과분은 `.ord-pane` 스크롤이 받는다. */
+  /* 1열로 접으면 `.ord-colR` 이 명시 행(하나뿐) 밖의 암시적 auto 행으로 떨어진다. 행이 `minmax(0,1fr)` 이던 때는
+     그래서 **두 열이 겹쳐 찍혔다**(이력 — 1100x800 실측: colL 232.7px 칸에 462px 내용 → 발주정보가 요약 카드 위로 올라탔다).
+     지금 행은 `minmax(auto,1fr)` 라 겹치지는 않지만 1fr 이 남는 높이를 왼쪽 열에 몰아 준다. 1열에서는 높이를 못박을
+     이유가 없으니 행을 내용에 맡기고 두 열 모두 줄지 않게 하며(처리 이력·거래 조건도 제 높이), 초과분은 `.ord-pane` 스크롤이 받는다. */
   .ord-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
   .ord-colL, .ord-colR { min-height: auto; }
 }
@@ -1597,6 +1640,10 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 
 /* 원장 — 카드 머리 9px · 줄 84px 라벨 + 4px 상하 · 값 16px(금액만 17px) */
 .modal-panel--ord .ord-pane { padding: 14px 22px 12px; gap: 12px; }
+/* 두 열의 카드 사이 12px — 위 `@media (max-height:820px)` 의 `.ord-colL, .ord-colR { gap: 10px }` 는 이 블록이 다시 적지 않아 상세 창에
+   새던 단 하나의 축소였다(이 블록 머리 주석의 '상세 모달에는 필요 없다' 와 어긋남). 시안 O-10 도 1280x720 에서 두 열 모두 12px 다. */
+.modal-panel--ord .ord-colL,
+.modal-panel--ord .ord-colR { gap: 12px; }
 .modal-panel--ord .ord-card__head { padding: 9px 18px; }
 .modal-panel--ord .ord-row { grid-template-columns: 84px minmax(0, 1fr) 84px minmax(0, 1fr); gap: 0 12px; padding: 4px 18px; }
 .modal-panel--ord .ord-row--full { grid-template-columns: 84px minmax(0, 1fr); }
@@ -1738,16 +1785,28 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ord-schip--ok { background: var(--c-success-bg); color: var(--c-success-ink); }
 .ord-schip--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
 .ord-schip--gray { background: var(--c-fill-1); color: var(--c-text-2); }
-.modal-panel--ord .ord-hist__row { padding: 8px 18px; }
-.modal-panel--ord .ord-hist__lbl { font-size: var(--fs-13); }
+/* 처리 이력 줄 — 13px · 줄 높이 19px · 8px 18px(한 줄짜리 줄 36px). 색 점은 첫 줄 가운데((19 − 6) / 2). */
+.modal-panel--ord .ord-hist__row { padding: 8px 18px; font-size: var(--fs-13); line-height: 19px; }
+.modal-panel--ord .ord-hist__dot { margin-top: 6.5px; }
 .modal-panel--ord .ord-note__body { padding: 10px 18px; }
-/* 처리 이력도 세로가 모자라면 양보한다(거래 조건 카드 `.ord-note` 와 같은 수법) — 이력이 쌓인 주문에서 184px 를
-   고집하면 1280x720 에서 원장이 넘친다. 자체 스크롤이라 줄어도 내용은 남는다.
-   ⚠️ 바닥은 **한 줄(36px)** 이다 — 더 크게 잡으면 이력이 한 줄뿐인 주문에서 카드가 빈 줄만큼 늘어난다(min-height 는
-      내용이 짧아도 걸린다). */
-.modal-panel--ord .ord-histcard { min-height: 0; display: flex; flex-direction: column; }
+/* 처리 이력 — 시안 'O-10 주문 상세 처리 이력'. 목록은 최대 320px(1440x900 에서 긴 줄이 섞인 6건이 굴리지 않고 다 보인다).
+   세로가 모자라면 **처리 이력이 먼저 다 양보한다**(카드 flex-shrink 10000 — 거래 조건 카드는 1): 지난 줄이 위로 가려지고 목록 안에서
+   굴린다. 줄어드는 한계는 둘이다 — 왼쪽 카드 높이(`.ord-cols` 행 바닥)와 카드 바닥 = 머리 + **최신 줄 하나가 통째로 보이는 높이**.
+   최신 줄은 길이마다 높이가 달라(36 · 55 · 74px) CSS 로 적을 수 없어 order-screen.js `histScrollEnd` 가 재서 인라인 min-height 로
+   넣는다(창 높이·글꼴이 바뀌면 다시 잰다). 그보다 짧은 화면이면 원장(.ord-pane)이 굴러가고 이력은 더 줄지 않는다.
+   ⚠️ 바닥을 CSS 상수로 되돌리지 말 것 — 예전 바닥 '한 줄(36px)' 은 최신 줄이 두세 줄이면 그 줄을 반쯤 잘랐다. */
+.modal-panel--ord .ord-histcard { flex: 0 10000 auto; min-height: 0; display: flex; flex-direction: column; }
 .modal-panel--ord .ord-histcard > [data-slot] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.modal-panel--ord .ord-histcard .ord-hist { flex: 0 1 auto; min-height: 36px; }
+/* 스크롤바를 그리지 않는다(시안 — 목록에 scrollbar-width:none). 글 상자 232px 와 줄 나눔이 넘칠 때도 같다 — 그리면 실제 크롬(Windows)
+   에서 넘치는 목록 안에 15px 막대가 서서 글 상자가 217px 로 줄고 줄 나눔·줄 높이·카드 바닥이 시안과 갈렸다(헤드리스는 막대를 숨겨
+   보이지 않는다 — `ignoreDefaultArgs: ["--hide-scrollbars"]` 로 잴 것). 굴릴 수 있다는 단서는 위로 반쯤 가려진 지난 줄이고,
+   키보드는 넘칠 때만 서는 Tab 정거장 + 링, 휠·터치는 그대로다. ::-webkit-scrollbar 는 scrollbar-width 를 모르는 옛 웹킷용. */
+.modal-panel--ord .ord-histcard .ord-hist { flex: 1 1 auto; min-height: 0; max-height: 320px; scrollbar-width: none; }
+.modal-panel--ord .ord-histcard .ord-hist::-webkit-scrollbar { display: none; }
+/* 거래 조건(B2B) — 처리 이력이 바닥에 닿은 뒤에야 줄고, 카드 바닥은 머리 + 본문 바닥 56px(`.ord-note__body` 의 마지막 안전판)이다.
+   98px 는 머리가 한 줄(42px)일 때 값이고, 회사명이 길어 머리가 두 줄로 꺾이면 `histScrollEnd`(order-screen.js `fitNote`)가 머리를
+   재서 인라인 min-height 로 다시 넣는다(두 줄이면 실측 119px — 없으면 본문이 카드 밖으로 20px 삐져나왔다). 그 아래로는 원장이 굴러간다. */
+.modal-panel--ord .ord-note { flex: 0 1 auto; min-height: 98px; }
 
 .modal-panel--ord .ord-ft .hm-btn { height: 38px; }
 
@@ -2272,7 +2331,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .rail-card .hm-input + .hm-input { margin-top: 6px; } /* 신규 등록의 정산담당자 이름·연락처 두 칸 */
 
-/* 변경 이력(다크) — 밝은 `.ord-hist` 와 대비만 다르다. 최근 3건만 그린다(S-04 2차 시안 ⑪ — admin-clients.js `railBody`).
+/* 변경 이력(다크) — 밝은 `.ord-hist` 의 예전 모양(한 줄 · 말줄임)에 대비만 달리한 것이다(주문 상세 처리 이력은 2026-11 시안 O-10 에서
+   마디 단위 줄바꿈으로 바뀌었고 이 목록은 그대로다). 최근 3건만 그린다(S-04 2차 시안 ⑪ — admin-clients.js `railBody`).
    ⚠️ **줄어들지 않는다**(`flex: 0 0 auto`). 예전엔 목록이 336px 안에서 자체 스크롤(overflow)이라 flex 항목의 최소 높이가
    0 이 되어, 1280x720 에서 레일 높이가 모자라자 목록이 **높이 0** 으로 눌려 제목만 남았다(실측 494px 레일 · 이력 3~5건).
    이제 넘침은 레일 하나(`.modal-panel--cli .ord-side`)가 받는다 — 안쪽에 두 번째 스크롤러를 두지 않는다

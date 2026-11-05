@@ -683,24 +683,104 @@ export function summaryBodyV2({ order, rows }) {
           <span class="ord-sum__v" title="${x.v}">${x.v}</span></div>`))}`;
 }
 
-/* 이력 카드는 max-height 로 잘린다. 최신이 맨 아래라 새로 쌓인 줄이 접힌 영역에
-   숨는다 — 렌더 직후 끝으로 내려 준다. 없으면 아무 일도 하지 않는다. */
+/* ── 처리 이력 카드(시안 'O-10 주문 상세 처리 이력' · B2B·B2C 공용) ─────────────
+   목록은 최대 320px 이고 세로가 모자라면 원장에서 **가장 먼저** 줄어든다(components.css S-06 블록 '처리 이력').
+   최신이 맨 아래라 새로 쌓인 줄이 접힌 영역에 숨는다 — 그려질 때마다 끝으로 내려 준다. 함께 하는 일 둘:
+   ① 카드 바닥(min-height) = 머리 + **최신 줄 하나가 통째로 보이는 높이**(최신 줄은 36·55·74px 처럼 길이마다 다르다 —
+      CSS 로는 알 수 없어 잰다). 그보다 짧은 화면이면 원장(.ord-pane)이 굴러가고 이력은 더 줄지 않는다.
+   ② 목록이 넘칠 때만 Tab 정거장(tabindex=0 · '처리 이력 N건')이고 아니면 -1 이다 — ↑↓·PageUp/Down·Home/End 는 브라우저 기본 스크롤.
+   창 높이가 바뀌거나(창 크기 조절) 글꼴이 늦게 와 줄 높이가 바뀌면 ResizeObserver 가 ①② 를 다시 하고, 그 직전에 맨 아래였으면
+   맨 아래를 지킨다(사용자가 위로 굴려 둔 목록은 건드리지 않는다 — 크롬의 스크롤 고정은 CSS `overflow-anchor: none` 으로 끈다).
+   목록이 DOM 에서 떨어지면(renderHist 로 다시 그리거나 창을 닫으면) 관찰을 끊는다. 이력이 없으면(빈 안내문) 카드 바닥만 지운다.
+   같은 열의 거래 조건 카드 바닥(머리 + 본문 56px)도 여기서 맞춘다(`fitNote`).
+   scope = 상세 창 패널 또는 이력 슬롯(`[data-slot='hist']`) — 둘 다 받는다. */
+const histWatch = new WeakMap(); // 이력 카드(.ord-histcard) → 지금 목록을 보는 관찰자 — 다시 그리면 옛 것을 끊는다
+const HIST_END_SLACK = 2; // 맨 아래로 치는 여유(px) — 소수점 배율에서 scrollTop 이 1px 모자라게 멈춘다
+
+const borderBottom = (el) => parseFloat(getComputedStyle(el).borderBottomWidth) || 0;
+
+/* 카드 바닥 = (목록 위쪽 − 카드 위쪽 = 위 테두리 + 머리) + 최신 줄 + 아래 테두리. 바닥을 지우고 '카드 − 목록' 으로 재면 안 된다 —
+   바닥이 없는 순간 카드(flex-shrink 10000)가 머리보다 작게 눌릴 수 있고(머리는 카드 밖으로 넘치고 목록은 0px), 그러면 바닥을 작게
+   잡아 최신 줄이 잘렸다(요약 217px 달의 주문 + 거래 조건 8줄 · 1280x620: 바닥 67px · 맞는 값 77px). 목록의 위치는 눌림과 무관하다. */
+function fitHist(list) {
+  const card = list.closest(".ord-histcard");
+  const latest = list.lastElementChild;
+  if (card && latest) {
+    const h = list.getBoundingClientRect().top - card.getBoundingClientRect().top + latest.getBoundingClientRect().height + borderBottom(card);
+    card.style.minHeight = `${Math.ceil(h - 0.01)}px`; // 소수점 잡음(77.0001)이 1px 를 더하지 않게
+  }
+  fitNote(card);
+  const over = list.scrollHeight - list.clientHeight > 1;
+  list.tabIndex = over ? 0 : -1;
+}
+/* 거래 조건 카드(B2B · 같은 열) 바닥 = 머리 + 본문 바닥(`.ord-note__body` min-height 56px). CSS 의 98px 는 머리가 한 줄일 때 값이라
+   회사명이 길어 머리가 두 줄로 꺾이면 본문이 카드 밖으로 20px 삐져나왔다 — 머리를 재서 넣는다(한 줄이면 98px 그대로). */
+function fitNote(card) {
+  const note = card?.parentElement?.querySelector(":scope > .ord-note");
+  const body = note?.querySelector(".ord-note__body");
+  if (!body) return;
+  const floor = parseFloat(getComputedStyle(body).minHeight) || 0;
+  const h = body.getBoundingClientRect().top - note.getBoundingClientRect().top + floor + borderBottom(note);
+  note.style.minHeight = `${Math.ceil(h - 0.01)}px`;
+}
+const histAtEnd = (list) => list.scrollHeight - list.clientHeight - list.scrollTop <= HIST_END_SLACK;
+function histToEnd(list) { list.scrollTop = list.scrollHeight; list._histEnd = true; }
+
 export function histScrollEnd(scope) {
-  const el = scope && scope.querySelector(".ord-hist");
-  if (el) el.scrollTop = el.scrollHeight;
+  if (!scope) return;
+  const list = scope.matches?.(".ord-hist") ? scope : scope.querySelector(".ord-hist");
+  const card = list ? list.closest(".ord-histcard") : (scope.closest?.(".ord-histcard") || scope.querySelector(".ord-histcard"));
+  const old = card && histWatch.get(card);
+  if (old) { old.disconnect(); histWatch.delete(card); }
+  if (!list) { if (card) card.style.minHeight = ""; fitNote(card); return; }
+  fitHist(list);
+  histToEnd(list);
+  if (!list._histScrollBound) {
+    list._histScrollBound = true;
+    list.addEventListener("scroll", () => { list._histEnd = histAtEnd(list); }, { passive: true });
+  }
+  /* 다시 맞추기는 다음 프레임에 한 번 — 관찰 콜백 안에서 카드 바닥을 바꾸면 더 얕은 목록의 크기가 같은 프레임에 또 바뀌어
+     'ResizeObserver loop' 경고가 난다. 맨 아래였는지는 **바뀌기 직전** 값(scroll 이벤트가 적어 둔 것)을 콜백 때 잡아 둔다. */
+  let keep = null, raf = 0;
+  const refit = () => {
+    if (keep === null) keep = list._histEnd !== false;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const k = keep; keep = null;
+      if (!list.isConnected) return;
+      fitHist(list);
+      if (k) histToEnd(list);
+    });
+  };
+  document.fonts?.ready?.then(() => { if (list.isConnected) refit(); });
+  if (typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => {
+    if (!list.isConnected) { ro.disconnect(); cancelAnimationFrame(raf); if (card && histWatch.get(card) === ro) histWatch.delete(card); return; }
+    refit();
+  });
+  ro.observe(list);
+  [...list.children].forEach((row) => ro.observe(row)); // 글꼴이 늦게 오면 줄 높이가 바뀐다 — 목록 높이는 그대로일 수 있다
+  if (card) histWatch.set(card, ro);
 }
 
+/* 한 줄 = 색 점 · 글 상자(시각 + 마디 줄) · 화면낭독기용 한 줄. 줄을 자르지 않는다(말줄임 · title 없음).
+   저장된 글을 ' · ' 로 나눈 '마디' 단위로 줄을 바꾼다 — **화면에서만** 나누고 저장값은 그대로다(sr-only 가 전문을 읽는다).
+   첫 마디는 그냥 글, 둘째 마디부터는 inline-block 이고 '·' 는 그 왼쪽 14px 칸(CSS ::before). 마디 줄이 상자보다 14px 왼쪽에서
+   시작해 **줄 첫머리에 온 마디의 '·' 는 상자(overflow:hidden) 밖으로 밀려 잘린다** — 측정 없이 CSS 만으로 정해진다.
+   ⚠️ 마디 span 사이에 공백·줄바꿈 텍스트를 끼우지 말 것(한 줄로 잇는다) — 공백이 끼면 그 폭만큼 줄바꿈 자리가 시안과 달라진다.
+   html`` 은 배열을 "" 로 잇는다(dom.js). 시각은 첫 줄 오른쪽(float) — 줄이 길어져도 한 세로줄에 선다. */
 export function historyBody(order) {
   const list = Array.isArray(order.history) ? order.history : [];
   if (!list.length) return html`<p class="ord-hist__empty">기록된 처리 이력이 없습니다.</p>`;
-  return html`<div class="ord-hist">
-    ${list.map((h, i) => html`
-      <div class="ord-hist__row ${i === list.length - 1 ? "is-latest" : ""}">
-        <span class="ord-hist__dot" style="background:${HIST_DOT[h.type] || "var(--c-text-faint)"}"></span>
-        <span class="ord-hist__lbl" title="${h.label}">${h.label}</span>
-        <span class="ord-hist__at">${String(h.at).slice(5).replace("-", ".")}</span>
-      </div>`)}
-  </div>`;
+  const row = (h, i) => {
+    const at = h.at ? String(h.at).slice(5).replace("-", ".") : "";
+    const label = String(h.label ?? "");
+    /* 빈 마디(' · ' 로 끝나거나 시작하는 글 · 공백뿐인 취소 사유 '주문취소 ·    · 수수료 …')는 그리지 않는다 — 그리면 남는 '·' 가
+       보이거나(끝) 빈 첫 마디가 숨김 칸을 차지해 첫 마디의 '·' 가 줄 첫머리에 섰다. 화면에서만 거르고 sr-only 는 저장된 글 그대로다. */
+    const [head = "", ...rest] = label.split(" · ").filter((t) => t.trim());
+    return html`<div class="ord-hist__row ${i === list.length - 1 ? "is-latest" : ""}" role="listitem"><span class="ord-hist__dot" aria-hidden="true" style="background:${HIST_DOT[h.type] || "var(--c-text-faint)"}"></span><div class="ord-hist__txt" aria-hidden="true"><span class="ord-hist__at">${at}</span><div class="ord-hist__line"><span class="ord-hist__head">${head}</span>${rest.map((t) => html`<span class="ord-hist__unit">${t}</span>`)}</div></div><span class="sr-only">${[label, at].filter(Boolean).join(", ")}</span></div>`;
+  };
+  return html`<div class="ord-hist" role="list" aria-label="처리 이력 ${list.length}건" tabindex="-1">${list.map(row)}</div>`;
 }
 
 /* ── 푸터 ─────────────────────────────────────────────────── */
