@@ -194,6 +194,24 @@ main { padding-block: 22px 8px; }
 footer { padding-block: 36px 52px; color: var(--muted); font-size: 13px; }
 footer p { max-width: 80ch; }
 footer p + p { margin-top: 6px; }
+/* 질문 카드 덧붙임 — 앞선 답 · 예시 표 · 캡처 · 문안 전문 */
+.xsrc { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.xchip { background: var(--surface-2); border-radius: 4px; padding: 0 6px; color: var(--ink-2); }
+.xex { margin-top: 12px; }
+.xcap { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.xscroll { overflow-x: auto; }
+.xex table { border-collapse: collapse; font-size: 13.5px; min-width: min(100%, 460px); font-variant-numeric: tabular-nums; }
+.xex th, .xex td { border-bottom: 1px solid var(--line); padding: 6px 14px 6px 0; text-align: left; white-space: nowrap; }
+.xex thead th { color: var(--muted); font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid var(--line-strong); }
+.xex tbody th { font-weight: 600; }
+.xshot { margin: 14px 0 0; max-width: 640px; }
+.xshot img { display: block; width: 100%; height: auto; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; }
+.xshot figcaption { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.xdoc { margin-top: 14px; padding: 14px 16px; background: var(--surface-2); border-radius: 8px; max-width: 75ch; }
+.xdoc__t { font-weight: 700; }
+.xdoc h4 { margin: 12px 0 2px; font-size: 13.5px; }
+.xdoc ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); }
+.xnote { margin-top: 10px; font-size: 13.5px; color: var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 8px 10px; max-width: 75ch; }
 </style>
 
 <header class="masthead" lang="ko">
@@ -349,6 +367,14 @@ function paraHtml(p) {
 }
 
 /* ── 그리기 ── */
+function extraHtml(q) {
+  const src = (q.src || []).length ? `<p class="xsrc"><span>앞선 답</span>${q.src.map(t => `<span class="xchip">${esc(t)}</span>`).join("")}</p>` : "";
+  const ex = q.ex ? `<div class="xex">${q.ex.cap ? `<p class="xcap">${esc(q.ex.cap)}</p>` : ""}<div class="xscroll"><table><thead><tr>${q.ex.head.map(h => `<th scope="col">${esc(h)}</th>`).join("")}</tr></thead><tbody>${q.ex.rows.map(r => `<tr>${r.map((c, i) => i ? `<td>${esc(c)}</td>` : `<th scope="row">${esc(c)}</th>`).join("")}</tr>`).join("")}</tbody></table></div></div>` : "";
+  const shots = (q.shots || []).map(x => `<figure class="xshot"><img src="${x.src}" alt="${esc(x.cap)}" loading="lazy"><figcaption>${esc(x.cap)}</figcaption></figure>`).join("");
+  const doc = q.doc ? `<div class="xdoc"><p class="xdoc__t">${esc(q.doc.title)}</p>${q.doc.sections.map(d => `<h4>${esc(d.h)}</h4><ul>${d.items.map(t => `<li>${esc(t)}</li>`).join("")}</ul>`).join("")}</div>` : "";
+  const note = q.note ? `<p class="xnote">${esc(q.note)}</p>` : "";
+  return src + ex + shots + doc + note;
+}
 const mkOf = (p, on) => p.multi ? (on ? "☑" : "☐") : (on ? "●" : "○");
 function qCard(q) {
   const d = A(q.id), st = qState(q), g = GROUPS.find(x => x.id === q.group);
@@ -373,6 +399,7 @@ function qCard(q) {
     <div class="dhead"><span class="qid">${q.id}</span><span class="grp${q.group === "block" ? " block" : ""}">${esc(g ? g.title : "")}</span><span class="state ${st}" data-slot="state">${STATE_TEXT.q[st]}</span></div>
     <h3 class="ch" id="h-${q.id}">${esc(q.title)}</h3>
     <p class="why">${esc(q.why)}</p>
+    ${extraHtml(q)}
     <div class="asks">${parts}${fields}
       <div class="fld"><label for="m-${q.id}">메모 · 다른 생각</label><textarea id="m-${q.id}" data-k="memo" rows="2" placeholder="고른 이유나 다른 답이 있으면 적어 주세요">${esc(d.texts.memo || "")}</textarea></div>
     </div>
@@ -450,7 +477,7 @@ function refresh() {
   const qd = QS.filter(isDone).length, td = ARTS.tos.filter(isDone).length, pd = ARTS.pv.filter(isDone).length;
   const fix = [...ARTS.tos, ...ARTS.pv].filter(a => aState(a) === "fix").length;
   const stat = (n, all, label) => `<div class="stat"><b>${n}<small> / ${all}</small></b><span>${label}</span><div class="bar"><i style="width:${all ? (n / all * 100).toFixed(1) : 0}%"></i></div></div>`;
-  $("#stats").innerHTML = stat(qd, QS.length, "답한 질문") + stat(td, ARTS.tos.length, "검토한 이용약관 조") + stat(pd, ARTS.pv.length, `검토한 처리방침 조${fix ? ` · 고칠 곳 ${fix}개 조` : ""}`);
+  $("#stats").innerHTML = stat(qd, QS.length, "답한 질문") + (!ARTS.tos.length ? "" : stat(td, ARTS.tos.length, "검토한 이용약관 조") + stat(pd, ARTS.pv.length, `검토한 처리방침 조${fix ? ` · 고칠 곳 ${fix}개 조` : ""}`));
   $("#tc-ask").textContent = `${qd}/${QS.length}`; $("#tc-tos").textContent = `${td}/${ARTS.tos.length}`; $("#tc-pv").textContent = `${pd}/${ARTS.pv.length}`;
   const items = itemsOf(UI.sec), shown = $$("#dlist .dec").length;
   $("#dsum").textContent = `${shown}개 표시 · ${SEC_NAME[UI.sec]} ${items.filter(isDone).length}/${items.length}`;
@@ -520,7 +547,7 @@ function flush() { Object.keys(timers).forEach(id => { clearTimeout(timers[id]);
 
 /* ── 복사 ── */
 function summaryText() {
-  const out = ["[올해의경조사 약관·처리방침 초안 v0.2 검토 — 답]", ""];
+  const out = [DATA.summary || "[올해의경조사 약관·처리방침 초안 v0.2 검토 — 답]", ""];
   out.push("■ 정할 것");
   GROUPS.forEach(g => {
     out.push("", `― ${g.title}`);
@@ -533,6 +560,7 @@ function summaryText() {
     });
   });
   ["tos", "pv"].forEach(doc => {
+    if (!ARTS[doc].length) return;
     out.push("", `■ ${doc === "tos" ? "이용약관" : "처리방침"} 조항 검토`);
     const not = [];
     ARTS[doc].forEach(a => {
@@ -689,6 +717,7 @@ async function connect() {
   });
 }
 function initHash() { const h = (location.hash || "").slice(1); if (SECS.includes(h)) UI.sec = h; else if (BY[h]) setTimeout(() => go(h), 0); }
+if (!ARTS.tos.length) $("#tabs").hidden = true;
 initHash(); events(); render(); connect();
 addEventListener("hashchange", () => { const h = (location.hash || "").slice(1); if (SECS.includes(h)) setSec(h); else if (BY[h]) go(h); });
 })();
