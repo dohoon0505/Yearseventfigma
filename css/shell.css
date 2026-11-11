@@ -151,7 +151,11 @@
 }
 
 /* ── Main content ───────────────────────────────────────── */
+/* position: relative — 본문 안 absolute 요소(화면낭독기용 .sr-only 등)의 기준을 이 스크롤 칸으로 잡는다.
+   없으면 위치를 잡아 줄 조상이 없는 .sr-only 의 기준이 문서가 되어 스크롤 칸 밖으로 삐져나왔다 — 창 전체가 한 번 더 굴러갔다
+   (2026-11-11 실측 1280x720: 거래처 목록 1,107px · 관리자 정산회계 954px · 포털 정산회계 294px). */
 .shell__main {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   background: var(--c-bg);
