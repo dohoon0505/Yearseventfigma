@@ -19,9 +19,10 @@ import { contactPhoneOk } from "./util/phone.js";
 /** @typedef {{id:string,no?:string,name:string,role:string,phone:string,message:string,isBilling:boolean}} Contact */
 /* ⚠️ Contact 의 키는 `id` 다. `no` 는 화면에 보이는 순번일 뿐이라 쓰기마다 다시 매겨진다 —
    삭제하면 뒤 번호가 전부 당겨지므로 `no` 로 대상을 지목하면 엉뚱한 사람이 바뀐다. */
-/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string,withdrawnAt?:string}} Client */
+/** @typedef {{id:string,accountId:string,companyName:string,bizNumber:string,ceoName:string,managerName:string,department:string,contact:string,email:string,address:string,status:string,joinDate:string,invoiceDay:string,clientNote:string,channel?:string,password?:string,withdrawnAt?:string,hiddenAt?:string}} Client */
 /* status 는 '활성' · '승인대기' · '반려' · '탈퇴' 넷(2026-10-22 운영자 결정 A — '정지' 는 없다 · admin-mock CLIENT_STATUSES).
-   withdrawnAt 은 탈퇴한 시각 "YYYY-MM-DD HH:mm"(탈퇴 레코드에만 · updateClient 가 비어 있으면 채운다). */
+   withdrawnAt 은 탈퇴한 시각 "YYYY-MM-DD HH:mm"(탈퇴 레코드에만 · updateClient 가 비어 있으면 채운다).
+   hiddenAt 은 목록에서 감춘 시각(store.hideClient — 탈퇴한 거래처(기록 유무와 관계없이 — 아이디·사업자 정보 5년 보관) · 지우지 않는다 · 2026-11-11 T20). */
 /* password 는 셀프 가입(register.js)·데모 시드(`demo1234`)·관리자의 임시비밀번호 발급이 채운다. 로그인은 언제나
    검사한다(login.js). 관리자는 비밀번호를 읽지 못하고 임시비밀번호 발급만 한다(admin-clients). */
 
@@ -508,6 +509,10 @@ function withWithdrawn(prevRec, nextRec, now = new Date()) {
   if (rec.status === WITHDRAWN && !parseAt(rec.withdrawnAt)) return { ...rec, withdrawnAt: fmtAt(now) };
   return rec;
 }
+/* 감춤도 되돌리지 않는다 — 감추기 전에 연 창의 낡은 사본(hiddenAt 없음)이 들어와도 저장소의 hiddenAt 을 그대로 둔다(withWithdrawn 과 같은 생각 · 2026-11-11). */
+function withHidden(prevRec, nextRec) {
+  return prevRec.hiddenAt && !nextRec.hiddenAt ? { ...nextRec, hiddenAt: prevRec.hiddenAt } : nextRec;
+}
 
 export const store = {
   hydrate,
@@ -751,7 +756,15 @@ export const store = {
   /** 거래처 레코드 저장 — 발급일 이력(invoiceDayLog)을 여기서 쌓고, 탈퇴는 되돌리지 않는다(withWithdrawn — 탈퇴한 시각도 채운다).
    *  `now`(선택)는 이력·탈퇴 시각 — 테스트가 시계를 못박을 때만 넘긴다. */
   updateClient(c, now = new Date()) {
-    this.setClients((prev) => prev.map((x) => (x.id === c.id ? withWithdrawn(x, withInvoiceDayLog(x, c, now), now) : x)));
+    this.setClients((prev) => prev.map((x) => (x.id === c.id ? withHidden(x, withWithdrawn(x, withInvoiceDayLog(x, c, now), now)) : x)));
+  },
+  /** 거래처를 **목록에서 감춘다**(약관 v0.3 T20 · V23 · 2026-11-11) — 지우지 않고 `hiddenAt`("YYYY-MM-DD HH:mm")만 단다.
+   *  **탈퇴한** 거래처는 주문이 없어도 늘 감춘다(아이디·사업자 정보는 탈퇴한 날부터 5년 보관 · 판정은 admin-clients `deleteKindOf`).
+   *  감춘 거래처는 거래처 목록·단가 화면에서만 빠진다 — 정산회계·대쉬보드·주문 목록은 지난 기록을 그대로 보이고(지난 달 숫자가
+   *  바뀌지 않는다), accountIdTaken 은 계속 세며(아이디를 다시 쓰지 않는다), 로그인은 탈퇴로 이미 막혀 있다. 되돌리는 화면은 없다
+   *  (감춘 기록은 서버 자료로만 본다 — V23 ①). hydrate 는 저장된 칸을 그대로 읽어 감춤이 새로고침 뒤에도 남는다. */
+  hideClient(id, now = new Date()) {
+    this.setClients((prev) => prev.map((x) => (x.id === id && !x.hiddenAt ? { ...x, hiddenAt: fmtAt(now) } : x)));
   },
   removeClient(id) {
     this.setClients((prev) => prev.filter((x) => x.id !== id));

@@ -249,7 +249,8 @@ export function mount(root, { nav }) {
         onClose: () => {
           termsDlg = null;
           const what = need.terms && need.privacy ? "이용약관과 개인정보 수집·이용" : need.terms ? "이용약관" : "개인정보 수집·이용";
-          showError(`${what}에 동의해야 서비스를 이용할 수 있습니다.`);
+          /* 동의하지 않으면 로그인할 수 없고, 그동안 거래명세서는 고객센터로 확인한다(약관 제5조 ⑦ · T6 · 2026-11-11). */
+          showError(`${what}에 동의해야 서비스를 이용할 수 있습니다. 거래명세서는 고객센터 ${CS_PHONE}에 문의해 확인할 수 있습니다.`);
         },
       });
       return;

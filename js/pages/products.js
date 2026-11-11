@@ -133,7 +133,10 @@ export function mount(root) {
           <p class="prod-card__price">${priceFor(p)}</p>
           <p class="prod-card__desc">${p.description}</p>
           ${p.category === IG_CAT
-            ? html`<p class="prod-card__note">일부 지역 · 장소는 3단화환 반입이 제한돼 오브제 · 근조바구니 · 쌀화환으로 대체 발송됩니다.</p>`
+            /* T11 · T25 · 2026-11-11: '대체 발송됩니다' 는 회사가 알아서 바꿔 보낸다는 약속으로 읽혀 뺐다 —
+               실제로는 주문 퍼널(order.js 2단계)이 배송지를 넣는 순간 intake-rules 로 그곳에 들일 수 있는
+               상품을 알리고, 고른 상품이 밖이면 다음 단계로 못 가게 막는다. */
+            ? html`<p class="prod-card__note">일부 지역 · 장소는 3단화환을 들일 수 없어요. 주문할 때 배송지를 넣으면 그곳에 보낼 수 있는 상품을 알려 드려요.</p>`
             : ""}
           <button class="prod-cardfav ${fav ? "is-on" : ""}" data-fav="${k}">${fav ? "즐겨찾기에 담겼습니다" : "즐겨찾기에 담기"}</button>
           <p class="prod-card__fine">실제 상품은 사진과 다를 수 있으며, 계절과 산지 사정에 따라 품종이 바뀔 수 있습니다.</p>

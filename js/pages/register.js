@@ -24,8 +24,8 @@ const EARLY = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);
 const LATE = INVOICE_DAYS.filter((d) => deadlineDayOf(d) !== 10);
 const span = (days) => `${days[0]}~${days[days.length - 1]}일`;
 const hm = (h) => `${String(h).padStart(2, "0")}:00`;
+/* '신규 가입 기업 경조사 상품 1회 무료 제공' 줄은 지웠다 — 가입 혜택 자체를 없앴다(T9 · V2 · 2026-11-11). 되살리지 말 것. */
 const BENEFITS = [
-  "신규 가입 기업 경조사 상품 1회 무료 제공",
   "실시간 주문·배송 현황 통합 관리",
   "거래명세서·계산서 자동 발급 및 월 후불 정산",
   "전담 운영팀 기업 맞춤 1:1 지원",
@@ -172,12 +172,10 @@ export function mount(root, { nav }) {
             ? html`<span class="rf-file__name">${state.form.bizLicense.name} · ${fileSizeLabel(state.form.bizLicense.size)}</span><span class="rf-file__re">다시 선택</span>`
             : html`<span class="rf-file__name rf-file__name--empty">파일을 선택해주세요 (이미지 또는 PDF)</span><span class="rf-file__re">파일 선택</span>`}
         </button>
-        <p class="rf__hint">가입 승인 심사에 쓰입니다. 사업자번호·대표자명이 등록증과 일치해야 합니다.</p>
+        <!-- 끝 문장 — 등록증에 대표자 주민등록번호가 찍혀 있을 수 있다(P6 · 2026-11-11). -->
+        <p class="rf__hint">가입 승인 심사에 쓰입니다. 사업자번호·대표자명이 등록증과 일치해야 합니다. 주민등록번호가 보이면 가리고 올려 주세요.</p>
       </div>
-      <button type="button" class="rf-sign">
-        <span class="rf-sign__l">${icon("check-circle", { size: 14 })} 계약서 전자서명</span>
-        <span class="rf-sign__r">서명하기 ${icon("arrow-right", { size: 10 })}</span>
-      </button>
+      <!-- 예전 '계약서 전자서명 · 서명하기' 버튼은 지웠다 — 눌러도 아무 일 없는 버튼이었고 따로 맺는 계약서가 없다(T2 · V20 · 2026-11-11). -->
     `;
   }
 
@@ -315,7 +313,8 @@ export function mount(root, { nav }) {
         <div class="rdone__icon">${icon("check", { size: 28 })}</div>
         <h2 class="rdone__title">가입이 완료되었습니다</h2>
         <p class="rdone__sub">
-          ${f.companyName ? html`<strong>${f.companyName}</strong>으로 ` : ""}제휴기업
+          ${/* 조사는 사람이 적은 회사명이 아니라 앞의 정해진 낱말('회사명')에 붙인다 — 예전 '<b>검토회사</b>으로' 처럼 받침에 따라 틀렸다(2026-11-11) */ ""}
+          ${f.companyName ? html`회사명(<strong>${f.companyName}</strong>)으로 ` : ""}제휴기업
           회원 등록이 완료되었습니다.<br />담당자 검토 후 승인 안내를 드리며, 승인 후에 로그인할 수 있습니다.
         </p>
         <div class="rdone__card">
@@ -329,12 +328,11 @@ export function mount(root, { nav }) {
             `
           )}
         </div>
+        <!-- 예전 첫 문장 '승인 완료 후 경조사 상품을 1회 무료로 …' 은 지웠다 — 가입 혜택을 없앴다(T9 · V2 · 2026-11-11).
+             남은 문장은 승인·반려 어느 쪽이든 알림톡이 가므로('가입 승인 안내' · '가입 반려 안내') '심사 결과' 로 잇는다. -->
         <div class="rdone__note">
           ${icon("info", { size: 14 })}
-          <p>
-            승인 완료 후 경조사 상품을 <strong>1회 무료</strong>로 이용하실 수
-            있습니다. 담당자 연락처(${f.contact})로 안내가 전송됩니다.
-          </p>
+          <p>가입 심사 결과는 담당자 연락처(${f.contact})로 안내해 드립니다.</p>
         </div>
         <button type="button" class="rdone__btn" data-action="to-login">
           로그인 페이지로 이동

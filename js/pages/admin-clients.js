@@ -4,6 +4,7 @@
    store.clients(영속). 모달은 HModal 규격(hm-field/hm-btn) + 커스텀 드롭다운.
    S-04(2026-10-16): 관리자가 등록해 아직 약관에 동의하지 않은 거래처를 목록(회사명 아래 배지 + 첫 명세서 일정)과
    정보 창(머리 칩 + 배너 + 임시비밀번호 즉시 발급)에서 늘 보인다 — 아래 '약관 동의 전' 블록.
+   약관 v0.3(2026-11-11): '거래처 삭제' 는 세 갈래다(바로 지움 · 잠김 · 목록에서 감추기 — 아래 deleteKindOf) · 계산서 이메일 필수(T27).
    ============================================================ */
 import { html, setHTML, on, qs, qsa } from "../dom.js";
 import { makeToast } from "../toast.js";
@@ -11,7 +12,7 @@ import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { onContactPhoneInput, contactPhoneOk, contactPhoneNeed, contactPhoneOdd, contactPhoneLong } from "../util/phone.js";
 import { pageTitle, tableGrid, openModal, makeDropdown, openLightbox } from "../ui.js";
-import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup } from "../util/dialog.js";
+import { openDialog, dlgRule, dlgRow, dlgActions, bindRadioGroup, linkReason } from "../util/dialog.js";
 import { autosize, openDeleteConfirm, bindOrdMenu } from "../util/order-screen.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { INVOICE_DAYS, CLIENT_CHANNELS, CLIENT_STATUSES } from "../data/admin-mock.js";
@@ -24,6 +25,7 @@ import { formatDateLabel } from "../util/date.js";
 import { ensurePostcode, openPostcode } from "../util/postcode.js";
 import { openContactsModal } from "../util/contacts-modal.js";
 import { setFocusClient, takeFocusClient } from "../session.js";
+import { b2bList } from "../data/b2b-mock.js";
 
 /* 거래처 상태는 넷이다(2026-10-22 운영자 답 A — '정지' 를 없애고 '탈퇴' 를 뒀다). 활성·승인대기·반려 사이는 지금처럼 양방향이고,
    **탈퇴는 되돌리지 않는다**(다시 쓰려면 새로 가입) — 탈퇴한 거래처는 상태 칸이 모두 잠긴다. 탈퇴는 끝나지 않은 정산이 없을 때만
@@ -57,7 +59,9 @@ const CARD_BILL = [
      그대로 보여 주고 조용히 바꾸지 않는다 — 그 값으로 이미 발급된 달이 있다. */
   { k: "invoiceDay", label: "발급일", type: "select", down: true, options: () => INVOICE_DAYS,
     ddLabel: (v) => (INVOICE_DAYS.includes(String(v)) ? `매월 ${v}일` : `매월 ${v}일 · 지금은 고를 수 없는 날`) },
-  { k: "email", label: "계산서 이메일", ph: "계산서를 수신할 이메일 주소" },
+  /* 계산서 이메일도 **필수**다(약관 v0.3 T27 · 2026-11-11) — 계산서가 이 주소로 가고, 거래 조건을 정하거나 바꾸면 이 주소로 정산·회계
+     담당자에게 알린다(V10-19). 형식 검사는 포털 회사정보 수정·가입 3단계와 같다(EMAIL_RE). */
+  { k: "email", label: "계산서 이메일", req: true, ph: "계산서를 수신할 이메일 주소" },
   { type: "static", label: "정산 일정" },
   { k: "channel", label: "매출 채널", type: "seg", options: CLIENT_CHANNELS,
     help: "'일반' 외 채널은 대쉬보드에서 B2B 합계와 분리해 자기 매출 카드를 갖습니다." },
@@ -70,8 +74,11 @@ const CARD_SALES = [
   { k: "salesMemo", label: "영업 메모", type: "textarea", ph: "예) 3월 방문 상담, 경조화환 월 20건 예상" },
 ];
 /** 저장 게이트 — [키, 사람이 읽을 이름]. 중복 사업자번호가 있으면 계정 구분이 여기 붙는다.
- *  사업장주소는 2026-10-30 운영자 결정 BB1 로 더했다(바로빌 공급받는자 주소 필수) — 포털 회사정보 수정(settlement.js)과 같은 넷이다. */
-const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"]];
+ *  사업장주소는 2026-10-30 운영자 결정 BB1 로 더했다(바로빌 공급받는자 주소 필수) · 계산서 이메일은 2026-11-11 약관 v0.3 T27 로 더했다 —
+ *  포털 회사정보 수정(settlement.js)과 같은 다섯이다. */
+const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"], ["email", "계산서 이메일"]];
+/* 포털 회사정보 수정(settlement.js)·가입 3단계와 같은 형식 검사 — 비어 있으면 위 필수가 먼저 말한다. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* 상태 점 색 — 화면마다 다르면 같은 상태를 다시 배워야 한다(주문 ORDER_STATUS_STYLE 과 같은 취지) */
 const STATUS_DOT = {
@@ -85,21 +92,54 @@ const STATUS_DOT = {
 /** 그 거래처에 등록된 담당자 수 — 목록 배지와 다이얼로그 제목이 같이 읽는다. */
 const contactCount = (id) => store.contactsOf(id).length;
 
-/** 거래처 삭제 확인의 문구 — **모달 안(⋯ 메뉴)과 목록이 같은 말을 해야 한다.**
+/* ── 거래처 삭제 = 감추기 (약관 v0.3 T20 · V23 · 2026-11-11) ─────────────────────────────
+   보관 기간이 남은 기록(주문·정산 · 반려한 가입 신청서 6개월 — P4)은 지우지 않는다. 그래서 '거래처 삭제' 자리는 세 갈래다:
+     delete — 보관할 기록이 하나도 없다(B2B 주문 0건 · 반려한 신청서 없음 · 탈퇴하지 않음) → 지금처럼 바로 지운다(store.removeClient)
+     locked — 기록이 있는데 탈퇴하지 않았다 → 잠근다(⋯ 메뉴 잠긴 항목 · 목록 잠긴 휴지통 — 누르면 이유 토스트)
+     hide   — 탈퇴했다(탈퇴한 계정의 아이디·사업자 정보도 보관 기록이다 — 아래 ⚠️) → '목록에서 감추기'(store.hideClient — 거래처 목록·단가 화면에서만 빠진다 ·
+              정산회계·대쉬보드·주문 목록은 지난 기록을 그대로 보인다 · 감춘 기록은 화면 없이 서버 자료로만 본다 — V23 ①)
+   판정은 이 함수 하나다 — 목록 휴지통 · 창의 ⋯ 메뉴 · 확인 창을 확정하는 순간이 같은 값을 본다. 주문은 취소한 주문도 센다(수수료 ·
+   보관 기록). '반려한 신청서' 는 반려 상태인 레코드다.
+   ⚠️ **탈퇴한 거래처는 주문이 없어도 늘 감춘다** — 탈퇴하면 접속 아이디·사업자 정보를 탈퇴한 날부터 5년 남기고 아이디는 다시 쓰지
+   못하게 한다(개인정보 동의서 '보관 기간' · V8/P4 · V19). 바로 지우면 store.accountIdTaken 이 그 아이디를 놓아 다른 가입이 같은
+   아이디를 쓸 수 있었다(검토 2026-11-11).
+   `withOrders` 는 목록이 한 번 그릴 때 미리 센 거래처 id 집합(줄마다 주문 전체를 훑지 않게) — 없으면 여기서 센다. */
+function deleteKindOf(client, withOrders) {
+  if (isWithdrawn(client)) return { kind: "hide" };
+  const hasOrders = withOrders ? withOrders.has(client.id) : b2bList().some((o) => o.clientId === client.id);
+  const rejected = client.status === "반려";
+  if (!hasOrders && !rejected) return { kind: "delete" };
+  return {
+    kind: "locked",
+    reason: `${hasOrders ? "주문·정산 기록이" : "반려한 가입 신청서가"} 있어 바로 지울 수 없습니다 — 탈퇴 처리한 뒤 목록에서 감출 수 있습니다`,
+  };
+}
+const ordersClientIds = () => new Set(b2bList().map((o) => o.clientId));
+/** 목록에 보이는 거래처 — 감춘 거래처(hiddenAt)를 뺀다. id 매기기(nextId)·아이디 중복·사업자번호 중복 안내는 감춘 거래처도 센다(지우지 않았다). */
+const listedClients = () => store.get().clients.filter((c) => !c.hiddenAt);
+
+/** 거래처 삭제·감추기 확인의 문구 — **모달 안(⋯ 메뉴)과 목록이 같은 말을 해야 한다.**
     예전엔 호출부가 둘인데 문구를 각자 넘겨, 한쪽만 고치면 조용히 갈렸다
-    (실제로 제목이 `주문서를 삭제할까요?` 인 채로 남아 거래처를 지울 때도 그렇게 물었다). */
-const deleteCopy = (client) => ({
-  eyebrow: client.accountId || client.companyName,
-  title: `${client.companyName} 거래처를 삭제할까요?`,
-  okLabel: "거래처 삭제",
-  /* 이미 탈퇴한 거래처에 '삭제 대신 탈퇴를 사용하세요' 는 맞지 않는다 — 기록을 남기려고 탈퇴한 계정이라, 지우면 그 기록이 함께
-     사라진다는 사실을 같은 자리에서 말한다(2026-10-22 운영자 답 A — 탈퇴는 지난 주문·정산 기록을 남긴다). */
-  desc: isWithdrawn(client)
-    ? html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
-      <b>탈퇴한 거래처</b>입니다 — 삭제하면 남겨 둔 지난 주문·정산 기록도 함께 사라집니다.`
-    : html`계정(아이디·비밀번호)·정산·주문 정보가 모두 삭제되며 되돌릴 수 없습니다.
-      거래를 끝내는 것이라면 삭제 대신 <b>탈퇴</b>를 사용하세요 — 탈퇴는 지난 주문·정산 기록을 남깁니다.`,
-});
+    (실제로 제목이 `주문서를 삭제할까요?` 인 채로 남아 거래처를 지울 때도 그렇게 물었다).
+    `kind` 는 deleteKindOf 의 delete | hide(locked 는 확인 창을 열지 않는다). 예전 두 문장('…정산·주문 정보가 모두 삭제되며' ·
+    탈퇴한 거래처 '남겨 둔 지난 주문·정산 기록도 함께 사라집니다')은 기록을 지우던 때의 말이라 바꿨다(T20). */
+const deleteCopy = (client, kind) => (kind === "hide"
+  ? {
+      eyebrow: client.accountId || client.companyName,
+      title: `${client.companyName} 거래처를 목록에서 감출까요?`,
+      okLabel: "목록에서 감추기",
+      /* 지우지 않는 동작이라 기본 힌트('…삭제됩니다')를 쓰지 않는다 */
+      hintOff: "확인에 체크해야 목록에서 감춰집니다",
+      hintOn: "목록에서 감출 수 있습니다",
+      /* 탈퇴한 거래처는 주문이 없어도 감춘다(아이디·사업자 정보 보관 — deleteKindOf ⚠️) — 그래서 무엇이 남는지 계정부터 말한다 */
+      desc: html`거래처 목록에서만 빠집니다. 계정(아이디)·사업자 정보와 지난 주문·정산 기록은 보관 기간 동안 그대로 남고(아이디는 다시 쓸 수 없습니다), 정산회계의 지난 달 숫자도 바뀌지 않습니다.`,
+    }
+  : {
+      eyebrow: client.accountId || client.companyName,
+      title: `${client.companyName} 거래처를 삭제할까요?`,
+      okLabel: "거래처 삭제",
+      desc: html`계정(아이디·비밀번호)과 단가가 지워지며 되돌릴 수 없습니다. 이 거래처에는 보관할 주문·정산 기록이 없습니다.`,
+    });
 
 /** 정산 일정 안내문 — 초기 렌더와 부분 갱신이 **같은 문장**을 쓰게 한 곳에 둔다.
     사본이 둘이던 때, 발급일 드롭다운을 건드리는 순간 두 문장이 갈렸다.
@@ -117,7 +157,9 @@ function invoiceHelpText(invoiceDay) {
     + (day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`)
     + `, 정산기한은 발급일이 속한 달의 말일입니다. `
     + `발급일을 바꾸면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다. `
-    + `발급일은 동의 기간이 ${MIN_CONSENT_DAYS}일 이상 남는 ${invoiceDayRangeLabel()} 중에서 고릅니다.`;
+    + `발급일은 동의 기간이 ${MIN_CONSENT_DAYS}일 이상 남는 ${invoiceDayRangeLabel()} 중에서 고릅니다. `
+    /* 발급일은 거래처가 고르는 값이다(가입 4단계 · 포털 회사정보 수정) — 직원은 요청을 받았을 때만 바꾼다(약관 v0.3 T28 · 2026-11-11). */
+    + `거래처가 요청한 때에만 바꾸세요.`;
 }
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "반려": "pill--gray", [WITHDRAWN]: "pill--danger" };
@@ -200,6 +242,8 @@ export function mount(root, { nav }) {
   const state = { tab: "all", search: "", expanded: new Set(), termsOnly: false };
   /* 목록 한 번 그리는 동안 같은 시각으로 판정한다(줄마다 new Date() 면 경계 시각에 줄끼리 갈린다). */
   let listNow = new Date();
+  /* 목록 한 번 그리는 동안 주문이 있는 거래처 id — 휴지통 칸의 세 갈래(deleteKindOf)를 줄마다 주문 전체를 훑지 않고 가린다. */
+  let listOrders = new Set();
   let activeModal = null;
   let saveTimer = null;
   const toast = makeToast();
@@ -233,9 +277,10 @@ export function mount(root, { nav }) {
   const matchesChild = (c, q) => (c.department || "").includes(q);
   const matchesParent = (c, q) => c.companyName.includes(q) || c.bizNumber.includes(q);
 
+  /* 목록은 감춘 거래처를 뺀 것(listedClients — 약관 v0.3 T20 · 2026-11-11)에서 센다 — 표 · 탭 건수 · 약관 칩 · 사업자번호 묶음 모두. */
   function filtered() {
     const q = state.search.trim();
-    return store.get().clients.filter((c) => {
+    return listedClients().filter((c) => {
       if (state.tab !== "all" && c.status !== state.tab) return false;
       if (state.termsOnly && !termsPending(c)) return false;
       if (q && !(matchesParent(c, q) || matchesChild(c, q))) return false;
@@ -251,7 +296,7 @@ export function mount(root, { nav }) {
        접힌 부모 한 줄이 더 정확한 요약이다. */
   function displayRows() {
     const q = state.search.trim();
-    const shared = sharedBizKeys(store.get().clients);
+    const shared = sharedBizKeys(listedClients());
     const rows = filtered();
     const out = [];
     const seen = new Set();
@@ -263,7 +308,7 @@ export function mount(root, { nav }) {
       if (seen.has(key)) return;
       seen.add(key);
       const members = rows.filter((x) => normalizeBiz(x.bizNumber) === key);
-      const all = store.get().clients.filter((x) => normalizeBiz(x.bizNumber) === key);
+      const all = listedClients().filter((x) => normalizeBiz(x.bizNumber) === key);
       const total = all.length;
       const autoOpen = !!q && members.some((m) => matchesChild(m, q));
       const open = state.expanded.has(key) || autoOpen;
@@ -277,6 +322,21 @@ export function mount(root, { nav }) {
   }
 
   const dash = html`<span class="cli-dash">—</span>`;
+  /* 관리 열의 휴지통 — 세 갈래(deleteKindOf · 약관 v0.3 T20 · 2026-11-11). 지울 수 있으면 예전 그대로 '삭제', 탈퇴한 거래처에 기록이 있으면
+     같은 자리의 '목록에서 감추기', 기록이 있는데 탈퇴하지 않았으면 **잠긴 칸**이다 — 정산담당 줄의 잠긴 삭제 칸(.tbl-lock)과 같은 모양이되
+     초점이 가는 버튼이다(창의 상태 칸·⋯ 메뉴의 잠긴 항목과 같은 수법: aria-disabled + 이유를 aria-describedby·title 로 · 누르면 이유 토스트). */
+  const delBtn = (c) => {
+    const k = deleteKindOf(c, listOrders);
+    if (k.kind === "locked") {
+      const why = `cli-delwhy-${c.id}`;
+      return html`<button type="button" class="tbl-lock" data-action="del-locked" data-id="${c.id}" aria-disabled="true"
+          aria-label="${c.companyName} 삭제" aria-describedby="${why}" title="${k.reason}">${icon("trash2", { size: 14 })}</button>
+        <span class="sr-only" id="${why}">${k.reason}</span>`;
+    }
+    return k.kind === "hide"
+      ? html`<button class="tbl-del" data-action="del" data-id="${c.id}" aria-label="${c.companyName} 목록에서 감추기" title="목록에서 감추기">${icon("trash2", { size: 14 })}</button>`
+      : html`<button class="tbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>`;
+  };
   const columns = [
     { label: "순번", width: "56px", align: "center", render: (r) => r.no },
     {
@@ -328,7 +388,7 @@ export function mount(root, { nav }) {
                 aria-label="${c.companyName} 담당자 관리" title="담당자 ${contactCount(c.id)}명">
                 ${icon("users", { size: 14 })}<span class="tbl-users__n">${contactCount(c.id) || "0"}</span></button>
               <button class="tbl-edit" data-action="edit" data-id="${c.id}" aria-label="수정">${icon("pencil", { size: 14 })}</button>
-              <button class="tbl-del" data-action="del" data-id="${c.id}" aria-label="삭제">${icon("trash2", { size: 14 })}</button>
+              ${delBtn(c)}
             </div>`;
       },
     },
@@ -336,6 +396,7 @@ export function mount(root, { nav }) {
 
   function tableBody() {
     listNow = new Date();
+    listOrders = ordersClientIds();
     const rows = displayRows();
     if (rows.length === 0) return html`<div class="admin-empty">조건에 맞는 거래처가 없습니다.</div>`;
     return tableGrid({
@@ -348,7 +409,7 @@ export function mount(root, { nav }) {
     return html`조회 <strong>${filtered().length}</strong>개 거래처`;
   }
   const tabCount = (v) => {
-    const clients = store.get().clients;
+    const clients = listedClients();
     return v === "all" ? clients.length : clients.filter((c) => c.status === v).length;
   };
   function tabsBody() {
@@ -376,7 +437,7 @@ export function mount(root, { nav }) {
   }
   /* '약관 동의 전만 보기' — 상태 탭을 늘리지 않고 탭 줄 오른쪽에 칩으로 둔다(시안 · 공용 `.bf-chip`).
      건수는 탭과 같이 **전체 목록**에서 센다. 0건이면 칩을 숨긴다(누를 이유가 없다). */
-  const termsCount = () => store.get().clients.filter(termsPending).length;
+  const termsCount = () => listedClients().filter(termsPending).length;
   function termsChipBody() {
     const n = termsCount();
     if (!n) return "";
@@ -567,6 +628,10 @@ export function mount(root, { nav }) {
     /* 접속 아이디는 유일해야 한다(2026-09-25 — 로그인이 아이디 하나로 거래처를 가린다 · 명세 5.2 UNIQUE).
        신규만 본다 — 등록한 뒤에는 아이디를 바꿀 수 없다(레일에서 읽기 전용). */
     const idTaken = () => !isEdit && store.accountIdTaken(form.accountId, form.id);
+    /* 계산서 이메일 형식(약관 v0.3 T27 · 2026-11-11) — 비어 있으면 missing 이 '비어 있음' 으로 세고, 글자가 있는데 틀리면 여기서 따로
+       말한다(포털 회사정보 수정과 같은 문장 · 수정 저장과 신규 등록이 같다). */
+    const emailBad = () => !!String(form.email ?? "").trim() && !EMAIL_RE.test(String(form.email).trim());
+    const EMAIL_WHY = "이메일 형식을 확인해 주세요 — 예) billing@company.com";
     const dirty = () => Object.keys(touched).length;
     /* 이력 점 색 — 무슨 종류의 변경이었는지 색으로 먼저 읽힌다(주문 HIST_DOT 과 같은 취지).
        한 색으로 고정하면 목록이 길어질수록 "무엇이 중요한 줄인가"가 사라진다. */
@@ -614,9 +679,13 @@ export function mount(root, { nav }) {
       return b ? { all: false, text: b.text } : null;
     };
 
+    /** 거래처 삭제의 갈래(deleteKindOf) — 저장된 레코드로 잰다(상태·주문은 저장소의 사실이다). ⋯ 메뉴를 그릴 때와 누를 때·확정할 때 다시 잰다. */
+    const delKind = () => deleteKindOf(storedRec());
+
     /* ── 헤더 ── */
     const hdBody = () => {
       const lk = stLock();
+      const dk = isEdit && menuOpen ? delKind() : null; // ⋯ 메뉴의 거래처 삭제 갈래 — 열 때 한 번 잰다
       const shared = sharedBizKeys(store.get().clients);
       const showDept = isEdit && form.department && shared.has(normalizeBiz(form.bizNumber));
       const meta = [form.accountId || "아이디 미정", isEdit ? `가입 ${form.joinDate}` : "신규 등록",
@@ -654,7 +723,7 @@ export function mount(root, { nav }) {
               aria-expanded="${menuOpen ? "true" : "false"}" aria-label="더보기">⋯</button>
             ${/* 주문 상세 ⋯ 메뉴와 같은 마크업·같은 키보드(order-screen bindOrdMenu) — 항목은 tabindex=-1 이라 메뉴 안은
                  화살표로 옮기고 Tab 은 메뉴를 닫고 나간다. 열고 닫는 키는 아래 bindOrdMenu 가 준다. */ ""}
-            ${menuOpen ? html`<div class="ord-menu" role="menu" aria-label="거래처 더보기">
+            ${menuOpen ? html`<div class="ord-menu ${dk.kind === "locked" ? "ord-menu--wide" : ""}" role="menu" aria-label="거래처 더보기">
               ${/* 탈퇴한 계정은 로그인할 수 없다(util/client portalBlock) — 임시비밀번호를 줘도 쓸 곳이 없어 잠근다(주문 메뉴의 잠긴 항목과 같은 모양) */ ""}
               ${isWithdrawn(storedRec())
                 ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" tabindex="-1" aria-disabled="true"
@@ -663,7 +732,15 @@ export function mount(root, { nav }) {
                     <span class="ord-menu__why" id="cli-pw-why">탈퇴한 계정은 로그인할 수 없습니다</span>
                   </button>`
                 : html`<button class="ord-menu__item" role="menuitem" tabindex="-1" data-action="reset-pw">임시비밀번호 발급</button>`}
-              <button class="ord-menu__item ord-menu__item--danger" role="menuitem" tabindex="-1" data-action="delete">거래처 삭제</button>
+              ${/* 거래처 삭제의 세 갈래(deleteKindOf · 약관 v0.3 T20) — 잠긴 갈래는 주문 상세의 잠긴 '주문서 삭제' 와 같은 모양(넓은 메뉴 ·
+                   자물쇠 + 아래 이유 · aria-disabled + aria-describedby · 누르면 이유 토스트) */ ""}
+              ${dk.kind === "locked"
+                ? html`<button class="ord-menu__item ord-menu__item--off" role="menuitem" tabindex="-1" aria-disabled="true"
+                    aria-describedby="cli-del-why" data-action="delete-locked">
+                    <span class="ord-menu__row"><span>거래처 삭제</span>${icon("lock", { size: 14 })}</span>
+                    <span class="ord-menu__why" id="cli-del-why">${dk.reason}</span>
+                  </button>`
+                : html`<button class="ord-menu__item ord-menu__item--danger" role="menuitem" tabindex="-1" data-action="delete">${dk.kind === "hide" ? "목록에서 감추기" : "거래처 삭제"}</button>`}
             </div>` : ""}
           </div>` : ""}
           <button class="ord-iconbtn hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
@@ -755,17 +832,21 @@ export function mount(root, { nav }) {
     const ftBody = () => {
       const m = missing();
       const bad = billPhoneBad();
+      const mailBad = emailBad();
       const taken = idTaken();
-      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}`
+      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}${mailBad ? ` · ${EMAIL_WHY}` : ""}`
         : bad ? billPhoneWhy()
+        : mailBad ? EMAIL_WHY
         : taken ? `접속 아이디 '${String(form.accountId).trim()}' 는 이미 쓰고 있습니다`
         : savedAt && !dirty() ? `저장됨 · ${savedAt}`
         : dirty() ? `수정한 항목 ${dirty()}개` : "변경 없음";
-      const cls = m.length || bad || taken ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
+      const blocked = m.length || bad || mailBad || taken;
+      const cls = blocked ? "is-dirty" : savedAt && !dirty() ? "is-saved" : dirty() ? "is-dirty" : "";
+      /* id — 막힌 이유를 이메일 칸에 잇는다(linkReason · 아래 syncEmailWhy). 창은 한 번에 하나라 겹치지 않는다. */
       return html`
-        <span class="ord-ft__stat ${cls}" data-slot="stat">${stat}</span>
+        <span class="ord-ft__stat ${cls}" data-slot="stat" id="cli-ft-stat">${stat}</span>
         <button class="hm-btn hm-btn--secondary" data-action="close">취소</button>
-        <button class="hm-btn hm-btn--primary" data-action="save" ${m.length || bad || taken ? "disabled" : ""}>
+        <button class="hm-btn hm-btn--primary" data-action="save" ${blocked ? "disabled" : ""}>
           ${!isEdit ? "등록" : dirty() ? "변경사항 저장" : "저장"}</button>`;
     };
 
@@ -839,7 +920,8 @@ export function mount(root, { nav }) {
     const banners = () => html`
       ${isEdit && form.status === "승인대기" ? html`
         <div class="cli-banner cli-banner--wait">
-          <span class="cli-banner__msg"><b>가입 승인 심사</b> · ① 사업자등록증의 사업자번호·대표자명 확인
+          ${/* ① 끝 괄호 — 사업자등록증에 주민등록번호가 보이면 가린 파일로 바꾼다(약관 v0.3 P6 · 2026-11-11 — 주민등록번호는 모으지 않는다) */ ""}
+          <span class="cli-banner__msg"><b>가입 승인 심사</b> · ① 사업자등록증의 사업자번호·대표자명 확인(주민등록번호가 보이면 가린 파일로 바꾸세요)
             ② 단가 조정 <em class="cli-banner__state">${priceState(form.id)}</em> ③ 승인</span>
           <span class="cli-banner__acts">
             <button class="cli-banner__btn cli-banner__btn--rej" data-action="reject">거부</button>
@@ -869,7 +951,9 @@ export function mount(root, { nav }) {
               <div class="cli-note__head"><b class="cli-note__t">거래 조건</b><span class="cli-note__cap">주문 화면 노출</span></div>
               <div class="cli-note__body">
                 <textarea data-cf="clientNote" rows="8" placeholder="예) 상품금액 75,000원으로 기재, 무조건 특대상품 발송">${form.clientNote ?? ""}</textarea>
-                <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.</p>
+                ${/* 거래 조건은 개별 약정이라 정하거나 바꾸면 알린다(약관 v0.3 T34 · V10-19 — 계산서 이메일로 · 보낸 날은 영업 메모에 · 2026-11-11) */ ""}
+                <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.
+                  정하거나 바꾸면 정산·회계 담당자에게 이메일로 알려 주세요.</p>
               </div>
             </div>
             ${cliCard("회사 정보", "계산서 발행 기준", CARD_COMPANY, form)}
@@ -947,7 +1031,13 @@ export function mount(root, { nav }) {
       const was = e.contains(document.activeElement) ? document.activeElement.dataset.action || "" : "";
       setHTML(e, ftBody());
       if (was) refocus(`[data-slot='ft'] [data-action='${was}']`, "[data-slot='ft'] [data-action='close']");
+      syncEmailWhy();
     };
+    /* 이메일 형식이 틀려 막혔으면 그 이유(푸터 저장 줄)를 이메일 칸에 잇는다 — 칸에 있는 화면낭독기 사용자가 이유를 듣게(linkReason ·
+       모양은 바꾸지 않는다). 풀리면 걷는다. 비어 있을 때는 잇지 않는다(열자마자 '틀림' 으로 읽히지 않게 — 필수 표시와 푸터가 말한다). */
+    function syncEmailWhy() {
+      linkReason(qs(panel, "[data-cf='email']"), qs(panel, "#cli-ft-stat"), emailBad());
+    }
     const renderBanner = () => {
       const e = slot("banner");
       if (!e) return;
@@ -998,6 +1088,7 @@ export function mount(root, { nav }) {
       if (st) st.textContent = invoiceHelpText(form.invoiceDay);
     }
     syncStatics();
+    syncEmailWhy(); // 열 때 이미 틀린 이메일(옛 기록)이면 칸에 이유를 잇는다
 
 
     /* 상시 편집 — 값은 write-through 하고 **재렌더하지 않는다** */
@@ -1142,18 +1233,28 @@ export function mount(root, { nav }) {
          레코드인데 form 의 이름을 부르면, 원장에서 회사명을 고치던 중(저장 안 함)일 때 '푸른누리협회수정중 거래처를 삭제할까요?'
          처럼 목록에 없는 이름을 물었다(실측 — 목록 휴지통 경로는 저장된 레코드라 제 이름이었다). */
       const rec = storedRec();
+      const dk = delKind();
+      /* 메뉴를 연 사이 잠겼다(그사이 주문이 생김 등) — 메뉴를 다시 열어 잠긴 항목 + 이유를 보이고 그 항목에 둔다(주문 상세와 같은 길). */
+      if (dk.kind === "locked") { menuOpen = true; renderHd(); qs(panel, "[data-action='delete-locked']")?.focus(); toast(dk.reason, "warn"); return; }
       openDeleteConfirm({
-        ...deleteCopy(rec),
+        ...deleteCopy(rec, dk.kind),
         onConfirm: () => {
-          const name = rec.companyName;
           const idx = editIndex(form.id);
-          store.removeClient(form.id);
+          /* 확정하는 순간 한 번 더 잰다 — 창을 연 사이 갈래가 바뀌었으면(지울 수 있던 거래처에 주문이 생김) 하지 않고 이유를 말한다. */
+          const again = delKind();
+          if (again.kind !== dk.kind) { toast(again.reason || "거래처 상태가 바뀌었습니다 · 다시 확인해 주세요", "warn"); return; }
+          removeOrHide(rec, dk.kind);
           closeModal();
           refreshList();
           focusAfterDelete(idx);
-          toast(`${name} 거래처를 삭제했습니다`, "warn");
         },
       });
+    });
+    /* 잠긴 '거래처 삭제'(aria-disabled) — 이유는 항목 아래 줄에 적혀 있고 aria-describedby 가 읽는다. 누르면 같은 이유를 토스트로도 말한다. */
+    on(panel, "click", "[data-action='delete-locked']", () => {
+      const dk = delKind();
+      if (dk.kind === "locked") { toast(dk.reason, "warn"); return; }
+      renderHd(); qs(panel, "[data-action='delete']")?.focus(); // 메뉴를 연 사이 풀렸다 — 지금 갈래의 항목으로
     });
 
     ensurePostcode().then((ok) => { const b = qs(panel, "[data-addr-find]"); if (b && ok) b.hidden = false; });
@@ -1202,7 +1303,12 @@ export function mount(root, { nav }) {
     on(panel, "click", "[data-action='save']", () => {
       if (missing().length) { toast("필수 항목을 채워야 저장됩니다", "warn"); return; }
       if (billPhoneBad()) { toast(billPhoneWhy(), "warn"); return; }
+      if (emailBad()) { toast(EMAIL_WHY, "warn"); return; }
       if (idTaken()) { toast("이미 쓰고 있는 접속 아이디입니다", "warn"); return; }
+      /* 이메일은 앞뒤 공백을 덜어 저장한다(포털 회사정보 수정과 같다 — 계산서가 가는 주소다). 칸도 같은 값으로 맞춘다. */
+      form.email = String(form.email ?? "").trim();
+      const emIn = qs(panel, "[data-cf='email']");
+      if (emIn && emIn.value !== form.email) emIn.value = form.email;
       const created = !isEdit;
       if (created) {
         form.accountId = String(form.accountId).trim(); // 로그인이 아이디를 trim 해 비교한다
@@ -1379,16 +1485,32 @@ export function mount(root, { nav }) {
      `openDeleteConfirm` 은 '되돌릴 수 없음' 체크를 해야 삭제가 열린다. */
   function openDelete(client) {
     closeModal();
+    const dk = deleteKindOf(client);
+    /* 표를 그린 사이 갈래가 바뀌었으면(잠김) 창을 열지 않고 표를 다시 그려 잠긴 칸을 보인다 */
+    if (dk.kind === "locked") { refreshList(); focusRowBtn(client.id, "del-locked", "edit"); toast(dk.reason, "warn"); return; }
     openDeleteConfirm({
-      ...deleteCopy(client),
+      ...deleteCopy(client, dk.kind),
       onConfirm: () => {
         const idx = editIndex(client.id);
-        store.removeClient(client.id);
+        const cur = findClient(client.id) || client;
+        const again = deleteKindOf(cur);
+        if (again.kind !== dk.kind) { refreshList(); focusRowBtn(client.id, "del-locked", "del", "edit"); toast(again.reason || "거래처 상태가 바뀌었습니다 · 다시 확인해 주세요", "warn"); return; }
+        removeOrHide(cur, dk.kind);
         refreshList();
         focusAfterDelete(idx);
-        toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
       },
     });
+  }
+  /** 거래처를 지우거나(보관할 기록 없음) 목록에서 감춘다(기록 있음 · 탈퇴) — 목록 휴지통과 창의 ⋯ 메뉴가 같이 쓴다(약관 v0.3 T20 · V23).
+   *  감춰도 지워도 목록에서 그 줄이 사라지므로 초점은 호출부의 focusAfterDelete(그 자리에 올라온 줄의 연필)가 같은 규칙으로 옮긴다. */
+  function removeOrHide(client, kind) {
+    if (kind === "hide") {
+      store.hideClient(client.id);
+      toast(`${client.companyName} 거래처를 목록에서 감췄습니다 · 지난 주문·정산 기록은 그대로 남습니다`, "warn");
+    } else {
+      store.removeClient(client.id);
+      toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");
+    }
   }
 
   render();
@@ -1402,7 +1524,7 @@ export function mount(root, { nav }) {
       /* 켜면 '약관 동의 전' 계정이 든 묶음을 펼친다(시안) — 접힌 채면 걸러 낸 자식이 묶음 줄 뒤에 숨는다.
          state.expanded 에 넣으므로 사용자가 다시 접을 수 있다(검색의 자동 펼침과 다르다). */
       if (state.termsOnly) {
-        const clients = store.get().clients;
+        const clients = listedClients();
         const shared = sharedBizKeys(clients);
         clients.filter(termsPending).forEach((c) => {
           const k = normalizeBiz(c.bizNumber);
@@ -1437,6 +1559,12 @@ export function mount(root, { nav }) {
       onClose: () => focusRowBtn(c.id, "contacts") });
     else if (a === "edit") openClientModal(c);
     else if (a === "del") openDelete(c);
+    /* 잠긴 휴지통(기록이 있는데 탈퇴하지 않은 거래처 · 약관 v0.3 T20) — 이유를 토스트로. 칸의 title·aria-describedby 가 같은 말을 한다. */
+    else if (a === "del-locked") {
+      const dk = deleteKindOf(c);
+      if (dk.kind === "locked") toast(dk.reason, "warn");
+      else { refreshList(); focusRowBtn(c.id, "del", "edit"); } // 그린 뒤 풀렸다(탈퇴 등) — 지금 갈래의 칸으로
+    }
     else if (a === "approve") approve(c);
     else if (a === "reject") openReject(c);
   });
@@ -1453,7 +1581,7 @@ export function mount(root, { nav }) {
 
   /* 단가 화면의 '승인하러 가기'로 돌아왔으면 그 거래처 창을 바로 연다 — 승인 배너가 거기 있다. */
   const back = takeFocusClient("clients");
-  if (back && findClient(back)) openClientModal(findClient(back));
+  if (back && findClient(back) && !findClient(back).hiddenAt) openClientModal(findClient(back)); // 감춘 거래처는 열지 않는다(목록에 없다)
 
   return () => {
     offClick();

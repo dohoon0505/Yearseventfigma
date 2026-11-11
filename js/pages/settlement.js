@@ -22,7 +22,9 @@
      창 안에서 첫 적용 발급일·동의 마감·작성일자 규칙을 실제 날짜로 말한다(가입 4단계와 같은 계산).
    · **필수는 회사명·사업자번호·대표자명·사업장주소**(시안의 '둘뿐'이 아니다 — 명세 4.2·관리자 거래처 창과 같다.
      대표자명은 거래명세서 공급받는자의 성명 칸에 찍힌다. 사업장주소는 2026-10-30 운영자 결정 BB1 로 더했다 — 바로빌 계산서
-     발급 규격에서 공급받는자 주소가 필수 칸이라 비어 있으면 자동 발급이 거부될 수 있다). 이메일은 비워도 저장된다.
+     발급 규격에서 공급받는자 주소가 필수 칸이라 비어 있으면 자동 발급이 거부될 수 있다). **계산서 이메일도 필수다**
+     (2026-11-11 약관 v0.3 T27 — 예전엔 비워도 저장됐다 · 빈 칸이면 푸터가 '필수 항목이 남았습니다 — 계산서 이메일').
+     사업자등록증 안내에 '주민등록번호가 보이면 가리고 올려 주세요.'(약관 v0.3 P6 — 개인정보 보호법 제24조의2).
    · **사업자등록증을 포털에서 올리고 바꾼다** — 바로 반영, 재심사·관리자 표시 없음.
    시안과 다르게 한 것: 이메일 캡션 '비어 있으면 정산 담당자에게 발송' 은 쓰지 않았다 — 그런 폴백은
    명세에 없고 담당자에게는 이메일 칸 자체가 없다. 사실인 것(정산 담당은 명세서·계산서 알림톡을 받는다)만 적는다.
@@ -66,11 +68,12 @@ const DAY_GROUPS = [
    (관리자 거래처 창의 발급일 드롭다운과 같은 문구). */
 const dayLabel = (v) => (INVOICE_DAYS.includes(String(v)) ? `매월 ${v}일` : `매월 ${v}일 · 지금은 고를 수 없는 날`);
 
-/* 저장 게이트 — [키, 사람이 읽을 이름]. 관리자 거래처 창의 REQUIRED 와 같은 넷이다(2026-10-07 결정 셋 + 2026-10-30 BB1 사업장주소). */
-const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"]];
+/* 저장 게이트 — [키, 사람이 읽을 이름]. 관리자 거래처 창의 REQUIRED 와 같은 다섯이다(2026-10-07 결정 셋 + 2026-10-30 BB1 사업장주소
+   + 2026-11-11 약관 v0.3 T27 계산서 이메일 — 계산서·거래 조건 안내(V10-19)를 받을 곳이라 비울 수 없다). */
+const REQUIRED = [["companyName", "회사명"], ["bizNumber", "사업자번호"], ["ceoName", "대표자명"], ["address", "사업장주소"], ["email", "계산서 이메일"]];
 /* 글자 칸 — 저장 때 trim 해서 쓴다. 발급일·사업자등록증은 바뀌었을 때만 싣는다(아래 save). */
 const TEXT_KEYS = ["companyName", "bizNumber", "ceoName", "address", "email"];
-/* 가입 3단계와 같은 형식 검사 — 비어 있으면 검사하지 않는다(이메일은 필수가 아니다). */
+/* 가입 3단계와 같은 형식 검사. 빈 칸은 위 REQUIRED 가 먼저 막는다(T27 — 예전엔 이메일만 비워도 저장됐다). */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /* 파일당 10MB(명세 9.5 — 서버가 다시 검사한다). 여기서 먼저 막아야 큰 PDF 를 고른 뒤 저장에서 실패하지 않는다. */
 const MAX_FILE = 10 * 1024 * 1024;
@@ -520,7 +523,7 @@ export function mount(root, { nav }) {
             ${dlgRow({ k: "사업자등록증", top: true, v: html`
               <div class="setco-stack">
                 <div class="setco-inline" data-slot="attach">${attachCell()}</div>
-                <p class="dlg-hintline">이미지 또는 PDF(10MB 이하) · 사업자번호와 대표자명이 위 입력값과 같아야 합니다</p>
+                <p class="dlg-hintline">이미지 또는 PDF(10MB 이하) · 사업자번호와 대표자명이 위 입력값과 같아야 합니다 · 주민등록번호가 보이면 가리고 올려 주세요</p>
               </div>` })}
           </div>
           <input type="file" hidden data-license-file accept="image/*,application/pdf" />
@@ -533,10 +536,10 @@ export function mount(root, { nav }) {
                 ${dayPickerMarkup({ id: "setco-day", label: "발급일" })}
                 <p class="dlg-hintline" data-slot="dayhint" aria-live="polite">${dayHint()}</p>
               </div>` })}
-            ${dlgRow({ k: "이메일", htmlFor: "setco-email", v: input("email", { ph: "예) billing@company.com", type: "email", cls: "ord-in--plain" }) })}
+            ${dlgRow({ k: "이메일", req: true, htmlFor: "setco-email", v: input("email", { ph: "예) billing@company.com", type: "email", cls: "ord-in--plain" }) })}
             ${dlgRow({ k: "정산 담당", top: true, v: billCell })}
           </div>
-          <p class="dlg-note setco-note">필수는 <b>회사명 · 사업자번호 · 대표자명 · 사업장주소</b>입니다 — 이메일은 비어 있어도 저장됩니다.</p>
+          <p class="dlg-note setco-note">필수는 <b>회사명 · 사업자번호 · 대표자명 · 사업장주소 · 계산서 이메일</b>입니다.</p>
         </section>`,
       hint: st0.text,
       hintBlock: st0.block,

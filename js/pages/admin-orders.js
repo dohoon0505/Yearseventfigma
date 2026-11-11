@@ -288,7 +288,8 @@ export function mount(root, { nav }) {
   /* 주문정보 — **등록 모달(2단계 '상품 · 단가')이 쓰는 서술자**다. 상세 모달은 시안 S-06 배치라 아래
      `orderInfoBody()` 가 따로 그린다(서술자를 바꾸면 등록 모달이 같이 바뀐다 — 등록은 다른 모달이다).
      4번째 칸이 주문금액. 상품을 고르면 거래처 계약 단가로 채워지고, **관리자가 고칠 수 있다**
-     (2026-09-25 결정 — 가입 혜택 '1회 무료'를 0원 주문으로 처리한다. 예전엔 계약단가 보호로 잠가 뒀다).
+     (2026-09-25 결정 — 그때 이유는 가입 혜택 '1회 무료' 0원 주문이었다. 예전엔 계약단가 보호로 잠가 뒀다. 혜택은 2026-11-11 약관
+      v0.3 V2 로 없앴고, 고치는 기능은 약관 제18조 ⑥ 의 경우(따로 정한 조건 · 거래처 요청 · 추가 배송비 · 배송 사고 등)로 남는다).
      입력은 order-fields.js `readWonInput` — 숫자 외 문자를 지우지 않고 거부한다. 등록 모달의 '단가 기준' 줄이
      계약단가와 다르면 그렇다고 말한다.
      2번째 칸은 거래처 대표 연락처 — B2B 에는 ordererPhone 이 없다. */
@@ -1702,13 +1703,15 @@ export function mount(root, { nav }) {
     };
   }
 
-  /* 배송완료 알림(T2)·접수 확인(T1) 이력 줄 — 누구에게 갔는지 이름을 함께 남긴다(시안 S-06 '이력에 받는 사람').
-     데모라 실제 발송은 없고, 명세 5.3 규칙으로 '보낼 사람' 을 정해 적는다. 받을 사람이 없으면 그렇다고 적는다(M58 '못 보냄'). */
+  /* 배송완료 알림(T2)·접수 확인(T1) 이력 줄 — 몇 명에게 갔는지만 남기고 **사람 이름은 남기지 않는다**(약관 v0.3 P2 · 2026-11-11 —
+     처리 이력은 오래 남는 기록이라 받는분·담당자 이름을 쌓지 않는다 · 예전 시안 S-06 '이력에 받는 사람' 의 '첫 사람 외 N명' 을 바꿨다).
+     누구에게 가는지는 화면의 '알림 수신' 칸(이력이 아니다)이 말한다. 이미 저장된 옛 줄은 고치지 않는다.
+     데모라 실제 발송은 없고, 명세 5.3 규칙으로 '보낼 사람' 을 정해 센다. 받을 사람이 없으면 그렇다고 적는다(M58 '못 보냄'). */
   const deliveredEntries = (o) => {
     const list = notifyPeople(o);
     return [
       histEntry("delivered", "배송완료로 변경"),
-      histEntry("delivered", list.length ? `배송완료 알림 · ${peopleShort(list)}` : "배송완료 알림 · 받을 사람 없음"),
+      histEntry("delivered", list.length ? `배송완료 알림 · ${list.length}명` : "배송완료 알림 · 받을 사람 없음"),
     ];
   };
 
@@ -1904,7 +1907,8 @@ export function mount(root, { nav }) {
     } else {
       add.push(histEntry("status", `${next}로 변경`));
       const rq = next === "주문접수" ? requesterOf(rec) : null;
-      if (rq) add.push(histEntry("status", `주문접수 알림 · ${rq.name}`));
+      /* 받는 사람의 이름 대신 '요청자'(약관 v0.3 P2 — 위 deliveredEntries 와 같은 이유) · 요청자를 모르는 시드 주문은 이 줄을 쓰지 않는다 */
+      if (rq) add.push(histEntry("status", "주문접수 알림 · 요청자"));
     }
     rec.history = [...(st.history || []), ...add];
     if (!b2bUpsert(rec, { note })) { toast(SAVE_FAIL, "warn"); syncDirty(); return false; }
@@ -2034,10 +2038,11 @@ export function mount(root, { nav }) {
                   ? `이 주문의 취소 수수료 ${won(fee)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`
                   : `이 주문 금액 ${won(saved.amount)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`,
               })}
+              ${/* 기본 삭제 문장(util/dialog openDeleteConfirm)과 같은 뜻 — 화면에서 빠질 뿐 기록은 보관 기간 동안 남긴다(약관 v0.3 T20 · 2026-11-11) */ ""}
               ${sdlgNote({
-                title: "삭제는 되돌릴 수 없습니다",
-                body: cancelled ? "목록과 정산 근거에서 함께 사라집니다."
-                  : "목록과 정산 근거에서 함께 사라집니다. 기록을 남겨야 한다면 삭제 대신 주문취소를 사용하세요.",
+                title: "목록과 정산에서 빠지며 되돌릴 수 없습니다",
+                body: cancelled ? "기록은 보관 기간 동안 남겨 둡니다."
+                  : "기록은 보관 기간 동안 남겨 둡니다. 목록에 남겨야 한다면 삭제 대신 주문취소를 사용하세요.",
               })}
             </div>`,
           checkLabel: "명세서에서 빠지는 것과 되돌릴 수 없음을 확인했습니다",

@@ -40,6 +40,10 @@ export const withdrawnDay = (client) => String((client && client.withdrawnAt) ||
 export const WITHDRAWN_LOCK = "탈퇴한 계정은 되돌릴 수 없습니다 — 다시 쓰려면 새로 가입합니다";
 /** 탈퇴를 막을 때 앞말 — 뒤에 `reason`(어느 달이 왜) 이 붙는다. */
 export const WITHDRAW_BLOCK_LEAD = "끝나지 않은 정산이 있어 탈퇴할 수 없습니다";
+/** 그 뒤 할 일 한 마디 — 약관 v0.3 T29(2026-11-11 — 탈퇴 요청은 바로 받아 기록하고 직원이 챙긴다) · 기록 자리는 거래처 정보 창
+ *  '영업 메모'(V10-18 — 요청 날짜·요청한 사람·받은 직원 · '거래 조건' 칸이 아니다). 이유(어느 달이 왜) **뒤**에 붙인다 — 앞말에 붙이면
+ *  '…처리하세요 · 9월분 입금 전' 처럼 이유가 할 일 뒤에 매달렸다(검토 2026-11-11). */
+export const WITHDRAW_BLOCK_TAIL = "요청은 영업 메모에 적어 두고 정산이 끝나는 날 처리하세요";
 /** 탈퇴한 거래처의 주문을 정산에 닿게 고치려 할 때의 이유(정본) — 주문 상세의 저장 줄(빨강) · 배송일시 안내 title · 확인 창 안 빨간 상자. */
 export const WITHDRAWN_ORDER_LOCK = "탈퇴한 거래처의 주문은 금액 · 상품을 바꾸거나 다른 달로 옮길 수 없습니다 — 지난 기록은 그대로 남깁니다";
 /** 같은 이유의 짧은 말 — 배송일시 줄 안내 자리(좁다). */
@@ -84,7 +88,7 @@ function monthsToScan(clientId) {
  * 이 거래처를 지금 탈퇴 처리할 수 없는 이유 — 막을 것이 없으면 null(이미 탈퇴한 거래처도 null — 호출부가 isWithdrawn 을 먼저 본다).
  * @returns {null | {
  *   reason: string,   // "9월분 입금 전 · 10월 주문 12건 정산 전 — 11월 1일 명세서 · 배송 전 주문 3건"
- *   text: string,     // WITHDRAW_BLOCK_LEAD + " · " + reason — 토스트 · title · 화면낭독기 설명에 그대로 쓴다
+ *   text: string,     // WITHDRAW_BLOCK_LEAD + " · " + reason + " — " + WITHDRAW_BLOCK_TAIL — 토스트 · title · 화면낭독기 설명에 그대로 쓴다
  *   months: { ym: string, status: string, word: string }[],   // 막는 달(오름차순) — word 는 SCHEDULED 면 "정산 전"
  *   open: number,     // 배송 전 주문(접수대기·주문접수) 건수
  * }}
@@ -131,7 +135,7 @@ export function withdrawBlockOf(client, now = new Date()) {
   const list = parts.map((p) => p.text);
   if (open) list.push(`배송 전 주문 ${open}건`);
   const reason = list.join(" · ");
-  return { reason, text: `${WITHDRAW_BLOCK_LEAD} · ${reason}`, months, open };
+  return { reason, text: `${WITHDRAW_BLOCK_LEAD} · ${reason} — ${WITHDRAW_BLOCK_TAIL}`, months, open };
 }
 
 /**

@@ -83,6 +83,7 @@
 .admin-rowact .tbl-users:focus-visible,
 .admin-rowact .tbl-edit:focus-visible,
 .admin-rowact .tbl-del:focus-visible,
+.admin-rowact .tbl-lock:focus-visible, /* 거래처 목록의 잠긴 휴지통(초점이 가는 버튼 · 2026-11-11 약관 v0.3 T20) — 휴지통과 같은 자리 */
 .admin-rowact .btn-reject:focus-visible {
   outline: 2px solid var(--c-indigo); outline-offset: -2px; box-shadow: none;
 }

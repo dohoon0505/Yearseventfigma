@@ -870,7 +870,9 @@ sessionStorage.setItem("yeop.session.v1", "admin");
     const pOld = probe("2026-10-16T09:30", { BILLING_STORE: dump, BILLING_ACT: "oldPrivacy" });
     eq("⑪ D6 옛 저장본의 시드 거래처 — 개인정보 동의 칸을 시드로 채우지 않는다(C001) · 칸이 있는 레코드는 그대로(C002)",
       [pOld.P.C001, pOld.P.C002], [[null, null], base.P.C002]);
-    eq("⑪ D6 빈 저장소의 시드 — 가입일 09:00 · 지금 버전으로 동의(데모 첫 로그인에 게이트가 없다)", [base.P.C001, base.P.C002], [["2024-12-11 09:00", "2026-10-23"], ["2026-01-08 09:00", "2026-10-23"]]);
+    /* 버전은 손으로 적지 않고 privacy.js 를 따라간다 — 판을 올릴 때마다(2026-11-11 V8 · 2026-10-23 → 2026-11-11) 이 줄이 깨졌다. */
+    const { PRIVACY_VERSION: PV } = await import(R + "data/privacy.js");
+    eq("⑪ D6 빈 저장소의 시드 — 가입일 09:00 · 지금 버전으로 동의(데모 첫 로그인에 게이트가 없다)", [base.P.C001, base.P.C002], [["2024-12-11 09:00", PV], ["2026-01-08 09:00", PV]]);
   } finally { try { fs.unlinkSync(dump); } catch { /* 없으면 그만 */ } }
 }
 
@@ -907,7 +909,7 @@ const nw = (s) => [s.notice.t3.why, s.notice.t4 && s.notice.t4.why];
   eq("⑧ 안내 도달에 '정지 중 마감' 칸이 없다", "suspendedAtDeadline" in so("C011", LAST).notice, false);
 }
 {
-  /* B — 0원 주문만 있는 달(가입 혜택 '1회 무료')은 내역서가 없다: 고이메모리얼(C007) 3달 전 · 새솔테크(C020) 지난달(F) */
+  /* B — 0원 주문만 있는 달(따로 정한 거래 조건 · 예전 메모는 가입 혜택 '1회 무료')은 내역서가 없다: 고이메모리얼(C007) 3달 전 · 새솔테크(C020) 지난달(F) */
   const ZM = "2026-07";
   const z = so("C007", ZM);
   eq("⑧ 0원 주문만 있는 달 — NONE · 내역서 없음(발급 때 금액 없음 · 동의·계산서·입금 칸 비움)",

@@ -581,41 +581,7 @@
   gap: 14px;
 }
 
-.rf-sign {
-  margin-top: 4px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: 7px;
-  border: 1px solid var(--c-divider);
-  background: var(--c-surface-hover);
-  transition: all 0.15s;
-}
-.rf-sign:hover {
-  border-color: var(--c-border-strong);
-  background: var(--c-fill-2);
-}
-.rf-sign__l {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  color: var(--c-text-2);
-}
-.rf-sign__l .icon {
-  color: var(--c-text-muted);
-}
-.rf-sign__r {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--fs-11);
-  font-weight: var(--fw-medium);
-  color: var(--c-text-ghost);
-}
+/* 예전 '계약서 전자서명' 버튼 규칙(.rf-sign*)은 버튼과 함께 지웠다(T2 · V20 · 2026-11-11). */
 
 /* ── nav buttons ────────────────────────────────────────── */
 .rbtns {

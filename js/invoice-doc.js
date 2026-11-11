@@ -23,8 +23,16 @@
    ③ 취소 수수료 줄 — `items[i].kind === "fee"` 인 줄은 회색 바탕(#f3f3f3) · 글자 #555 · 주문상품 칸 굵게(600).
    두 필드는 **선택**이다 — 넘기지 않으면 예전과 한 글자도 다르지 않게 그린다(옛 공개 토큰 본문 · 리포트 인쇄 공용
    printInvoiceDoc 영향 없음). 문서 데이터는 util/invoice-data.js `invoiceDocData` 한 곳에서 만든다.
+
+   ── 2026-11-11 약관 v0.3 V21 — 예외 둘을 더했다(글자뿐 · 서식·장 나눔은 그대로) ──
+   ⑤ 거래내역 표 머리 '결제금액' → '주문금액'(T25 — 주문할 때 돈을 내지 않는다 · 포털 EXCEL 머리도 같은 낱말).
+   ⑥ 인쇄 창 글꼴을 우리 서버에서(B6 · V15 — 예전 cdn.jsdelivr.net). 인쇄 창은 about:blank 라 상대 주소가 깨져
+      이 모듈 주소 기준의 절대 주소(FONT_CSS)를 쓴다 — 앱(/)·공개 열람(/invoice/)·관리자 리포트 어디서 불러도 같은 파일이다.
    ============================================================ */
 import { html, escapeHtml } from "./dom.js";
+
+/* 인쇄 창이 불러오는 글꼴 css — 세 페이지(index.html · delivery/ · invoice/)가 쓰는 fonts/pretendard/pretendard.css 와 같은 파일. */
+const FONT_CSS = new URL("../fonts/pretendard/pretendard.css", import.meta.url).href;
 
 /* 페이지당 거래내역 행수(A4 1123px 기준 실측 여유값).
    1페이지는 정보표가 있어 적고, 이어지는 페이지는 헤더만 있어 더 담는다.
@@ -118,7 +126,7 @@ function txTable(rows, continued) {
             <th style="${S.th}text-align:center;">발송인</th>
             <th style="${S.th}">배송지 정보</th>
             <th style="${S.th}">주문상품</th>
-            <th style="${S.th}text-align:center;">결제금액</th>
+            <th style="${S.th}text-align:center;">주문금액</th>
           </tr>
         </thead>
         <tbody>
@@ -252,7 +260,7 @@ export function printInvoiceDoc(el, title) {
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <link rel="stylesheet" href="${escapeHtml(FONT_CSS)}" />
   <style>
     @page { size: A4; margin: 0; }
     html, body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

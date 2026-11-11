@@ -1763,6 +1763,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .sdlg-notes { display: flex; flex-direction: column; gap: 10px; }
 .sdlg-notes[hidden] { display: none; }
 .modal-panel--sdlg6 .dlg-ft__hint { word-break: keep-all; } /* '…바뀝니\n다' 처럼 낱말 가운데서 끊기지 않게 */
+.modal-panel--cancelfee .dlg-ft__hint { word-break: keep-all; } /* 주문취소 창 기본 힌트(약관 v0.3 T15 · 2026-11-11)가 480 창에서 '그 밖은 진\n행' 처럼 끊겼다 */
 .sdlg-del { display: flex; flex-direction: column; gap: 18px; }
 .sdlg-del > [hidden] { display: none; }
 

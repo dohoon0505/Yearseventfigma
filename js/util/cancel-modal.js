@@ -44,8 +44,13 @@ const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
 const feeText = (n) => (n ? Number(n).toLocaleString("ko-KR") : "");
 
 /* 푸터 좌측 기본 힌트(시안) — 막는 조건이 생기면 이 자리가 '왜 못 누르는지'를 말한다.
-   버튼만 흐려 두면 사용자는 이유를 찾아 화면을 헤맨다. */
-const HINT_BASE = "제작 착수 전이면 수수료 0원";
+   버튼만 흐려 두면 사용자는 이유를 찾아 화면을 헤맨다.
+   글자는 약관 제26조를 따른다(약관 v0.3 T15 · V18 · 2026-11-11 — 예전 '제작 착수 전이면 수수료 0원' 은 정한 적 없는 규칙이었다).
+   품절·업체(협력 화원 포함) 사정 취소는 0원이라고 **알려 주기만** 하고 프로그램으로 막지 않는다(V18 — 직원이 정한다).
+   ⚠️ 약관은 기업 거래처에만 걸린다(T1) — 그 약속을 B2C 에 걸지 않게 B2C 는 범위만 말한다. 이 창은 B2B 만 `settle`(수수료가 붙는
+      달 이름)을 넘기므로(admin-orders.js · B2C 는 정산이 없다) 그것으로 가른다. */
+const HINT_B2B = "품절·업체 사정 취소는 0원 · 그 밖은 진행 정도에 따라 0원~주문금액";
+const HINT_B2C = "진행 정도에 따라 0원~주문금액";
 
 /**
  * @param {{orderNo:string, amount:number, settle?:string|false,
@@ -54,6 +59,7 @@ const HINT_BASE = "제작 착수 전이면 수수료 0원";
  *   기준은 취소하는 순간 저장될 금액이다 — 두 상세 창(B2B·B2C)은 작성 중인 수정을 취소와 함께 저장하므로 작업본 금액을 넘긴다.
  *   넘으면 '주문 취소하기' 를 잠그고 푸터가 이유를 말한다(판정은 data/order-rules `cancelFeeError` — 쓰기 함수와 같은 함수).
  *   settle 에 달 이름('2026년 10월' — 취소한 달)을 넘기면 "그 달 정산에 가산된다"는 안내를 띄운다(B2B).
+ *   푸터 기본 힌트도 settle 로 가른다 — 넘기면 약관 제26조 글자(HINT_B2B), 안 넘기면 범위만(HINT_B2C).
  *   달을 이름으로 말하는 이유: 수수료가 붙는 달(취소한 달)과 주문의 귀속월(배송한 달)이 다를 수 있다.
  *   onClose(선택) — 창이 닫힌 뒤(✕·돌아가기·ESC·취소 확정 모두 · 삭제 확인 창 openDeleteConfirm 의 onClose 와 같은 자리).
  *   확정은 onConfirm 이 상세 창 머리를 다시 그린 **뒤** 창을 닫으므로, 창이 돌려줄 버튼(···)이 그사이 DOM 에서 떨어져 초점이
@@ -64,6 +70,7 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
   /* fee 는 마지막으로 받아들인 값(숫자). feeBad 는 지금 칸의 글자가 거부된 상태인지 — 그동안은 취소를 막는다
      (되돌릴 수 없는 동작이라 칸에 보이는 값과 청구될 값이 다를 수 있는 순간에 누르게 두지 않는다). */
   const form = { reason: CANCEL_REASONS[0], etc: "", fee: 0, feeBad: false };
+  const hintBase = settle ? HINT_B2B : HINT_B2C; // B2B 만 settle 을 넘긴다(위 HINT_B2B 주석)
   const isEtc = () => form.reason === "기타";
   /* 받아들인 수수료가 주문금액을 넘는가 — 칸의 글자는 그대로 두고(되돌리면 적은 값이 사라진다) 취소만 막는다. */
   const overCap = () => !!cancelFeeError(amount, form.fee);
@@ -117,9 +124,10 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
     eyebrowNum: true,
     title: "주문을 취소할까요?",
     width: 480,
+    panelClass: "modal-panel--cancelfee", // 푸터 힌트를 낱말 단위로 꺾는다(components.css — 모양은 그대로)
     bodyClass: "dlg-body--sections",
     body,
-    hint: HINT_BASE,
+    hint: hintBase,
     onClose,
     actions: dlgActions({
       cancel: "돌아가기",
@@ -158,7 +166,7 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
       feeWhy = true;
     } else {
       goBtn.disabled = false;
-      d.setHint(HINT_BASE);
+      d.setHint(hintBase);
     }
     linkReason(feeIn, hintEl, feeWhy);
     if (!feeWhy && overCap()) feeIn.setAttribute("aria-invalid", "true");

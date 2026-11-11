@@ -28,7 +28,7 @@ const won = (n) => Number(n).toLocaleString("ko-KR") + "원";
 
 /* 적용 단가 — 카탈로그 정가(`p.price`)가 아니라 **이 거래처의 계약 단가**를 쓴다.
    예전엔 이 화면만 정가를 써서, 같은 거래처가 '상품 규격 안내'에서는 계약가를
-   보고 결제 화면에서는 정가를 보는 어긋남이 있었다(관리자 기업별 상품단가 참조). */
+   보고 주문 확인 화면에서는 정가를 보는 어긋남이 있었다(관리자 기업별 상품단가 참조). */
 const appliedOf = (p) => store.appliedPrice((currentClient() || {}).id || null, p);
 /* 발송인 프로필이 리본에 찍히는 글자. 고정문구는 2026-09-17 부터 **저장 시점 필수**라 새 프로필은 늘
    값이 있고, 이 폴백은 그 이전에 저장된 레코드(빈 고정문구)가 빈 이름으로 찍히는 것만 막는다.
@@ -65,10 +65,17 @@ const timePhase = (d) => {
 };
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 const fmtYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/* 즉시배송 목표 — 영업시간 접수는 접수 + IMM_HOURS 시간, 영업 전·뒤 접수는 (오늘 · 다음 날) IMM_NEXT.
+   피커 자동입력(applyImmSlot) · 안내문(renderDelivNote) · 확인 줄(dateLabel)이 같은 값을 쓴다 — 문장에 숫자를 손으로 적지 말 것. */
+const IMM_HOURS = 4;
+const IMM_NEXT = { h: 12, m: 30 };
+const hhmm = (h, m) => `${pad2(h)}:${pad2(m)}`;
+/* 시각 → 안내 낱말('낮 12시 30분' · '오전 11시' · '오후 1시 30분'). */
+const koClock = (h, m) => `${h < 12 ? "오전" : h === 12 ? "낮" : "오후"} ${h > 12 ? h - 12 : h}시${m ? ` ${m}분` : ""}`;
 /* 영업시간(biz) 즉시배송 예상 슬롯: 접수시각 + 4시간(분 30분 단위 반올림), 마감(18:30) 초과 시 마감으로 클램프.
    드롭다운·안내문구·확인화면이 모두 이 값을 공유한다. */
 const immBizSlot = () => {
-  const d = new Date(Date.now() + 4 * 36e5);
+  const d = new Date(Date.now() + IMM_HOURS * 36e5);
   d.setMinutes(Math.round(d.getMinutes() / 30) * 30, 0, 0); // 60분이면 자동으로 다음 시로 넘어감
   const closeT = BIZ.closeH * 60 + BIZ.closeM;
   if (d.getHours() * 60 + d.getMinutes() > closeT) { d.setHours(BIZ.closeH); d.setMinutes(BIZ.closeM); }
@@ -219,7 +226,8 @@ function markup() {
               </div>
               <button class="pick-btn" data-ribbon-pick type="button">${raw(PICK_SVG)}간편선택</button>
             </div>
-            <p class="warn-line"><b>배송 시작 후 문구변경 시 비용이 청구될 수 있어요.</b> 한 번 더 확인해 주세요.</p>
+            <!-- V16 · 2026-11-11: 리본 문구는 배송이 출발한 뒤에도 바꿀 수 있고 비용은 협의 — '청구될'이 아니라 '생길 수 있어요(금액은 협의)'. 아래 cta-hint 도 같은 말. -->
+            <p class="warn-line"><b>배송 시작 후 문구변경 시 비용이 생길 수 있어요(금액은 협의).</b> 한 번 더 확인해 주세요.</p>
           </div>
           <div class="sec-gap">
             <div class="sec-label">보내는분</div>
@@ -272,14 +280,16 @@ function markup() {
             <button class="btn-back" data-goto="3">이전</button>
             <button class="btn-next" data-submit>주문 접수하기</button>
           </div>
-          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 청구될 수 있어요 · 문의 ${CS_PHONE}</p>
+          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 생길 수 있어요(금액은 협의) · 문의 ${CS_PHONE}</p>
         </section>
 
         <!-- 완료 -->
         <section class="panel panel-done" data-panel="done">
           <div class="done-ic">${raw(DONE_SVG)}</div>
           <h2>주문이 접수되었어요</h2>
-          <p class="d-sub">배송이 시작되면 알림으로 알려드릴게요.<br />진행 상황은 실시간 주문내역에서 확인할 수 있어요.</p>
+          <!-- V22 · 2026-11-11: '배송 시작' 알림은 없다 — 주문은 회사가 확인할 때(주문접수) 맺어지고 그때 T1 주문 접수 알림이 간다.
+               4단계 '배송이 끝나면 문자로 알려드려요'는 그대로 둔다(M67). -->
+          <p class="d-sub">회사가 주문을 확인하면 주문 접수 알림을 보내 드려요.<br />진행 상황은 실시간 주문내역에서 확인할 수 있어요.</p>
           <div class="done-box" data-done-box></div>
           <div class="done-redirect" data-redirect>
             <p class="done-redirect__label"><b class="num" data-redirect-n>5</b>초 후 <b>실시간 주문내역</b>으로 이동합니다</p>
@@ -533,8 +543,8 @@ export function mount(root, { nav }) {
     }
     if (ph === "afterClose") base.setDate(base.getDate() + 1);
     state.date = fmtYMD(base);
-    state.hour = "12";
-    state.min = "30";
+    state.hour = pad2(IMM_NEXT.h);
+    state.min = pad2(IMM_NEXT.m);
     dpDate.renderTrigger(); ddHour.renderTrigger(); ddMin.renderTrigger();
   }
   /* 선택한 배송 모드의 안내문구 (모드·시간대별) */
@@ -543,9 +553,16 @@ export function mount(root, { nav }) {
     const ph = timePhase(new Date());
     let lines = [], tone = "ok";
     if (state.deliv === "imm") {
-      if (ph === "afterClose") lines = ["금일 영업시간이 종료되어 다음 날 오전에 배송됩니다."];
-      else if (ph === "beforeOpen") lines = ["영업 시작(09:00) 후 순차 배송되어 오늘 낮 12시 30분경 배송돼요."];
-      else { const d = immBizSlot(); lines = [`영업시간 내 접수 건은 4시간 이내(오늘 ${pad2(d.getHours())}:${pad2(d.getMinutes())}경)에 배송해 드려요.`]; }
+      /* '목표' 말로 적는다(T10 · T25 · 2026-11-11 — 배송 시각은 목표이며 보장하지 않는다). 영업시간 접수에
+         '접수 뒤 약 4시간'만 적으면 마감 4시간 전 뒤 접수가 마감으로 당겨지는 것(immBizSlot)과 어긋나 '늦어도'
+         마감 시각을 함께 적는다. 영업 뒤의 옛 '다음 날 오전'은 실제 자동입력 시각(IMM_NEXT)과 달랐다. */
+      const next = koClock(IMM_NEXT.h, IMM_NEXT.m);
+      if (ph === "afterClose") lines = [`오늘 영업시간이 끝나 다음 날 ${next}경 도착을 목표로 합니다.`];
+      else if (ph === "beforeOpen") lines = [`영업 시작(${hhmm(BIZ.openH, 0)}) 뒤 차례로 보내 오늘 ${next}경 도착을 목표로 합니다.`];
+      else {
+        const d = immBizSlot();
+        lines = [`영업시간에 접수한 주문은 오늘 ${hhmm(d.getHours(), d.getMinutes())}경 도착을 목표로 합니다(접수 뒤 약 ${IMM_HOURS}시간 · 늦어도 ${hhmm(BIZ.closeH, BIZ.closeM)}).`];
+      }
     }
     if (!lines.length) { note.classList.remove("show"); setHTML(note, ""); return; }
     note.className = `imm-note imm-note--${tone} show`;
@@ -640,9 +657,9 @@ export function mount(root, { nav }) {
     const ph = timePhase(new Date()); // imm
     if (ph === "afterClose") {
       const t = new Date(); t.setDate(t.getDate() + 1);
-      return `익일 빠른배송 · ${t.getMonth() + 1}월 ${t.getDate()}일 (${DOW[t.getDay()]}) 12:30`;
+      return `익일 빠른배송 · ${t.getMonth() + 1}월 ${t.getDate()}일 (${DOW[t.getDay()]}) ${hhmm(IMM_NEXT.h, IMM_NEXT.m)}`;
     }
-    if (ph === "beforeOpen") return "즉시배송 · 오늘 12:30";
+    if (ph === "beforeOpen") return `즉시배송 · 오늘 ${hhmm(IMM_NEXT.h, IMM_NEXT.m)}`;
     return `즉시배송 · 오늘 ${state.hour}:${state.min}`;
   }
   /* 주문 접수 재확인 모달 — '계산서 발급동의'와 동일 패턴(되돌릴 수 없어 한 번 더 확인). */
@@ -677,7 +694,7 @@ export function mount(root, { nav }) {
         <section>
           ${dlgRule({ t: "접수 내용", cap: "접수 후에는 리본 문구·보내는분을 고칠 수 없어요" })}
           <div class="dlg-rows">
-            ${dlgRow({ k: "결제 금액", v: val(won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee), "dlg-val--won") })}
+            ${dlgRow({ k: "주문 금액", v: val(won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee), "dlg-val--won") })}
             ${dlgRow({ k: "배송", v: val(dateLabel()) })}
             ${dlgRow({ k: "배송지", top: true, v: val(state.addr) })}
             ${dlgRow({ k: "받는분", v: val(state.toName) })}
@@ -878,7 +895,9 @@ export function mount(root, { nav }) {
         <span class="cv" data-cf-notify>${notifyLabel()}</span>
         <span class="cf-noedit"></span></div>
     `);
-    /* 결제 금액: 추가 배송비가 있으면 상품/배송비 내역을 함께 표기 */
+    /* 주문 금액: 추가 배송비가 있으면 상품/배송비 내역을 함께 표기.
+       화면 낱말은 '결제 금액'이 아니라 '주문 금액'이다(T25 · 2026-11-11 — 주문할 때 돈을 내지 않는다.
+       확인 창 · 완료 화면 · 실시간 주문내역 표 머리도 같은 낱말). */
     const total = appliedOf(p) + df.fee;
     setHTML($("[data-cf-pay]"), html`
       ${df.fee > 0
@@ -887,7 +906,7 @@ export function mount(root, { nav }) {
             <div class="cf-brk__row"><span class="k">추가 배송비 <em>${df.region} 지역</em></span><span class="v num">+${won(df.fee)}</span></div>
           </div>`
         : ""}
-      <div class="cf-amount__total"><span>결제 금액</span><b class="num">${won(total)}</b></div>
+      <div class="cf-amount__total"><span>주문 금액</span><b class="num">${won(total)}</b></div>
     `);
   }
   /* 배송완료 알림 명단 — 관리자 등록 모달의 notifySnapshot 과 **같은 모양**으로 남긴다(명세 5.3):
@@ -905,7 +924,7 @@ export function mount(root, { nav }) {
     ];
   }
   /* 접수 = **실제 B2B 주문을 만든다**(2026-10-16 운영자 결정 — 포털 접수가 관리자 주문관리·실시간 주문내역·
-     정산에 모두 나타난다). 금액은 화면에 보인 결제 금액(적용 단가 + 추가 배송비) 그대로다.
+     정산에 모두 나타난다). 금액은 화면에 보인 주문 금액(적용 단가 + 추가 배송비) 그대로다.
      담당자(우리 직원)는 미지정으로 둔다 — 관리자가 열면 지정 다이얼로그가 자동으로 뜬다(자동 배정 금지). */
   /** 주문의 배송일시 문자열("YYYY-MM-DDTHH:mm") — 접수 레코드와 접수 막기(intakeBlockOf)가 같은 값을 본다. */
   function deliverAtOf() { return `${state.date}T${state.hour}:${state.min}`; }
@@ -947,7 +966,7 @@ export function mount(root, { nav }) {
       <div class="cf-row"><span class="cl">배송</span><span class="cv">${dateLabel()}<small>${state.addr}</small></span></div>
       <div class="cf-row"><span class="cl">담당자</span><span class="cv">${c ? `${c.name} (${c.phone})` : "담당자 없음"}</span></div>
       <div class="cf-row"><span class="cl">배송완료 알림</span><span class="cv">${notifyLabel()}${notifyExtraDetail() ? html`<small>${notifyExtraDetail()}</small>` : ""}</span></div>
-      <div class="cf-row"><span class="cl">결제 금액</span><span class="cv num done-amount">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</span></div>
+      <div class="cf-row"><span class="cl">주문 금액</span><span class="cv num done-amount">${won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee)}</span></div>
     `);
     $$("[data-panel]").forEach((p) => p.classList.remove("on"));
     $('[data-panel="done"]').classList.add("on");

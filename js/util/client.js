@@ -42,8 +42,9 @@ export function portalBlock(client) {
       return null;
     case "승인대기":
       return "가입 승인 심사 중입니다. 승인 안내를 받은 뒤 로그인할 수 있습니다.";
+    /* 반려된 계정의 다시 신청은 다른 아이디로 새로 가입하는 길이다(T3 · 2026-11-11 — 반려된 접속 아이디도 '쓰는 중' 으로 남는다 · V19). */
     case "반려":
-      return `가입이 반려되었습니다${client.rejectReason ? ` (사유: ${client.rejectReason})` : ""}. 고객센터(${CS_PHONE})로 문의해 주세요.`;
+      return `가입이 반려되었습니다${client.rejectReason ? ` (사유: ${client.rejectReason})` : ""}. 다시 신청하시려면 다른 아이디로 새로 가입해 주세요. 고객센터(${CS_PHONE})로 문의해 주세요.`;
     case WITHDRAWN:
       return `탈퇴한 계정입니다. 다시 이용하시려면 다른 아이디로 새로 가입해 주세요. 궁금한 점은 고객센터(${CS_PHONE})로 문의해 주세요.`;
     default:

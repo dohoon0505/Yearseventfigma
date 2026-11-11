@@ -164,12 +164,13 @@ export const dlgActions = ({ cancel = "취소", ok, okIcon, okClass = "hm-btn--p
  *   guard(d)   삭제 버튼을 누른 순간 한 번 더 판정 — false 를 돌려주면 창을 닫지 않고 onConfirm 도 부르지 않는다
  *              (창 안에 이유를 그리는 것은 호출부 몫이다 — 서버 409 의 데모 대역).
  *   onClose()  창이 닫힌 뒤(✕·돌아가기·ESC·삭제 모두) — 창을 연 버튼이 그사이 다시 그려져 초점이 body 로 빠질 때 호출부가 되돌린다.
+ *   hintOff    체크 전 힌트(2026-11-11 — 거래처 '목록에서 감추기' 만 쓴다: 지우지 않는 동작에 '…삭제됩니다' 라고 말하지 않게 · 약관 v0.3 T20).
  */
-export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm, body, checkLabel, width, hintOn, guard, onClose }) {
+export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel, onConfirm, body, checkLabel, width, hintOn, hintOff, guard, onClose }) {
   let ack = false;
   /* 힌트 두 문장은 상수로 묶는다 — 초기 렌더와 토글이 각자 문자열을 적으면
      한쪽만 고쳐져 푸터가 버튼 상태와 다른 말을 하게 된다. */
-  const HINT_OFF = "확인에 체크해야 삭제됩니다";
+  const HINT_OFF = hintOff ?? "확인에 체크해야 삭제됩니다";
   const HINT_ON = hintOn ?? "삭제를 진행할 수 있습니다";
   const d = openDialog({
     /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호(tabular-nums),
@@ -183,8 +184,10 @@ export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel
        `.dlg-check`(16px)가 이미 자기 여백을 갖고 있어 flex `gap:20px` 이 **더해진다**
        (경고가 붙는 B2B 경로에서 32/36px 로 벌어졌다). 간격은 한 곳에서만 준다. */
     body: html`
-      ${body ?? html`<p class="dlg-desc">${desc ?? html`목록과 정산 근거에서 함께 사라지며 되돌릴 수 없습니다.
-        기록을 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
+      ${/* 주문 삭제의 기본 문장(약관 v0.3 T20 · 2026-11-11) — 화면(목록·정산)에서 빠질 뿐 기록은 보관 기간 동안 남긴다(저장 방식은 서버 몫).
+           예전 '정산 근거에서 함께 사라지며' 는 기록까지 없어진다는 말로 읽혔다. 주문취소 권유는 '목록에 남기는' 길로 남긴다. */ ""}
+      ${body ?? html`<p class="dlg-desc">${desc ?? html`목록과 정산에서 빠지며 되돌릴 수 없습니다. 기록은 보관 기간 동안 남겨 둡니다.
+        목록에 남겨야 한다면 삭제 대신 <b>주문취소</b>를 사용하세요.`}</p>
       ${note ? html`<div class="dlg-note">${note}</div>` : ""}`}
       <button class="dlg-check" data-action="ack" aria-pressed="false">
         <span class="dlg-check__box" aria-hidden="true"></span>

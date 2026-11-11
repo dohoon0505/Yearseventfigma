@@ -41,7 +41,7 @@ css/
 js/
   main.js               # store.hydrate() → buildSprite() → router.start()
   router.js             # 해시 라우터 · 화면 전환마다 closeAllModals()
-  store.js              # 전역 상태 + localStorage 영속 (키 `yeop.store.v4`)
+  store.js              # 전역 상태 + localStorage 영속 (키 `yeop.store.v5`)
   session.js            # 로그인 세션
   shell.js              # 앱 셸(헤더/사이드바) 렌더 · 네비 정의
   dom.js                # html`` 템플릿(XSS 이스케이프) · setHTML · on() 이벤트 위임
@@ -66,9 +66,10 @@ js/
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
-docs/legal/             # 이용약관 전문·개인정보 처리방침 **초안**(운영자 검토 중 · 앱에 아직 안 넣음) + 검토 카드 원본
+docs/legal/             # 이용약관 전문·개인정보 처리방침 **초안** v0.3(약관 전문은 앱에 아직 안 넣음 — 새 개인정보 동의서와 시안 없이 고칠 화면 글자는 2026-11-11 앱에 넣음) + 검토 카드 원본
+fonts/pretendard/       # 글꼴 Pretendard woff 넷(400·500·600·700) + pretendard.css + LICENSE.txt(SIL OFL 1.1) — 세 페이지와 인쇄 창이 부른다
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
-tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 252케이스 · 정산 금액 변경 기록 402케이스
+tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 255케이스 · 정산 금액 변경 기록 413케이스
 serve.mjs               # 개발용 정적 서버
 ```
 
@@ -138,6 +139,6 @@ serve.mjs               # 개발용 정적 서버
   저장소를 비우는 편이 좋습니다(비우지 않으면 새로 넣은 데모 거래처 — 예: 탈퇴 예시 C028 — 가 목록에 보이지 않습니다).
 - **색은 `tokens.css` 토큰만** 씁니다. raw hex 는 인쇄창 2곳(`invoice-doc.js`·`report-doc.js`)과
   엑셀 ARGB(`util/xlsx.js`)만 예외입니다 — 그 창은 `tokens.css` 를 로드하지 않습니다.
-- 데스크톱 전용(관리자 콘솔·거래처 포털). 단 배송완료 리포트(`delivery/`)는 배송완료 SMS 링크로 열려 **모바일 폭 기준**이고(본문 480px), 공개 거래명세서(`invoice/`)는 고정 A4 문서라 좁은 화면에서 가로 스크롤합니다. 한국어 전용. 폰트는 Pretendard(CDN).
+- 데스크톱 전용(관리자 콘솔·거래처 포털). 단 배송완료 리포트(`delivery/`)는 배송완료 SMS 링크로 열려 **모바일 폭 기준**이고(본문 480px), 공개 거래명세서(`invoice/`)는 고정 A4 문서라 좁은 화면에서 가로 스크롤합니다. 한국어 전용. 폰트는 Pretendard — 저장소 `fonts/pretendard/` 에서 화면 파일과 함께 냅니다(2026-11-11 · 예전 CDN · 거래명세서 인쇄 창도 같은 파일).
 - 작업 규약은 [CLAUDE.md](CLAUDE.md), 세션 인계는 [HANDOFF.md](HANDOFF.md),
   백엔드 계약은 [docs/backend-spec.md](docs/backend-spec.md) 를 보세요.

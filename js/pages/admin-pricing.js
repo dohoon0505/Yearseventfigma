@@ -58,7 +58,7 @@ function parseAmount(raw) {
 }
 
 export function mount(root, { nav }) {
-  const clients = () => store.get().clients;
+  const clients = () => store.get().clients.filter((c) => !c.hiddenAt); // 목록에서 감춘 거래처는 고르지 않는다(약관 v0.3 T20 · 2026-11-11 — store.hideClient)
   /* 거래처 관리의 승인 심사에서 '단가 조정'으로 넘어왔으면 그 거래처로 연다(가입 신청 → 단가 조정 → 승인). */
   const focus = takeFocusClient("pricing");
   const state = {

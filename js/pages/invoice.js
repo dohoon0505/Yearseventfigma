@@ -586,7 +586,8 @@ export function mount(root) {
     meta("FAX", sup.fax);
     push([]);
     band("■ 거래 내역");
-    push([{ v: "배송요청일시", s: XS.th }, { v: "발송인", s: XS.th }, { v: "배송지", s: XS.th }, { v: "주문상품", s: XS.th }, { v: "결제금액", s: XS.th }]); rowHeights[R] = 24;
+    /* '주문금액' — 문서(invoice-doc.js) 표 머리와 같은 낱말(약관 v0.3 T25 · V21 · 2026-11-11 — 예전 '결제금액' · 주문할 때 돈을 내지 않는다). */
+    push([{ v: "배송요청일시", s: XS.th }, { v: "발송인", s: XS.th }, { v: "배송지", s: XS.th }, { v: "주문상품", s: XS.th }, { v: "주문금액", s: XS.th }]); rowHeights[R] = 24;
     /* 거래가 없는 달의 자리표시 줄(value 없음)은 표 줄이 아니다. */
     const lines = d.items.filter((it) => typeof it.value === "number");
     if (lines.length) {

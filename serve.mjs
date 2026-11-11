@@ -20,6 +20,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
+  ".woff": "font/woff", // fonts/pretendard/*.woff — 글꼴을 우리 서버에서 낸다(2026-11-11 약관 v0.3 B6)
   ".pdf": "application/pdf", // 문서 생성물을 브라우저에서 바로 확인하기 위함
 };
 
