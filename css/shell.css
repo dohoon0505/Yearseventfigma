@@ -39,7 +39,10 @@
 }
 
 /* ── Sidebar ────────────────────────────────────────────── */
+/* position: relative — 포털 사이드바 맨 아래 '사이트 정보' 칸의 사업자 정보 판(.site-pop — K-1 시안)이 이 칸을 기준으로 메뉴 옆에 선다.
+   판은 DOM 으로는 사이드바 안(버튼 바로 뒤 — Tab 순서)이지만 기준이 사이드바 바깥이라 사이드바의 스크롤 칸에 잘리지 않는다. */
 .shell__body {
+  position: relative;
   display: flex;
   flex: 1;
   overflow: hidden;

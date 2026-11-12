@@ -3038,3 +3038,127 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* 되돌릴 수 없는 주 버튼(입금 확인 · 발급완료로 저장 — 거래처에 알림이 나간다)은 검정(시안). 주황 주 버튼과 구분된다. */
 .hm-btn--ink { background: var(--c-dark); color: var(--c-surface); }
 .hm-btn--ink:hover:not(:disabled) { background: var(--c-dark-hover); }
+
+/* ============================================================
+   사이트 정보 칸 — 서비스 운영사 사업자 정보 · 이용약관 · 개인정보 처리방침(시안 'K-01 사이트 아래 사업자 정보' 2026-11-11 ·
+   명세 2.5 · 6.10). 그리는 쪽은 js/util/site-info-ui.js, 값은 js/data/site-info.js.
+   두 자리가 같은 링크 조각(.site-doc)을 써서 공용 층에 둔다 — 로그인·가입 화면 아래(.site-foot · auth.css 화면)와
+   포털 왼쪽 메뉴 맨 아래(.site-sec · .site-op · 판 .site-pop — 셸). 글자 12px · 항목 이름 --c-text-4(바탕 --c-surface-2 위 5.3:1) ·
+   값 --c-text(14:1) — AA. 키보드 초점은 전역 인디고 링 그대로(링크 모서리만 3px).
+   ============================================================ */
+.site-doc {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--fs-12); line-height: 18px; font-weight: var(--fw-medium); color: var(--c-text-2);
+  border-radius: 3px;
+}
+/* '개인정보 처리방침' 은 맨 앞에 굵게 — 다른 고지(이용약관 · 사업자 정보)와 구분한다(표준 개인정보 보호지침 제20조 ①). */
+.site-doc--privacy { font-weight: var(--fw-bold); color: var(--c-text-strong); }
+.site-doc:hover { text-decoration: underline; text-underline-offset: 2px; }
+.site-ext { stroke-width: 2.2; }
+
+/* ── 로그인 · 가입 화면 아래 칸 ─────────────────────── */
+/* position: relative — 읽는 중 뼈대의 화면낭독기용 숨은 글자(.sr-only)가 굴러가는 칸(.auth__panel) 밖으로 새지 않게(.shell__main 과 같은 까닭). */
+.site-foot {
+  position: relative; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 24px 28px;
+  border-top: 1px solid var(--c-border);
+  text-align: center;
+}
+@media (min-width: 1024px) {
+  .site-foot { padding: 14px 32px 16px; }
+}
+/* 칸 자체는 '다시 불러오기' 를 누른 뒤 그 버튼이 사라지는 동안 초점을 붙잡아 두는 자리일 뿐이다(tabindex=-1) — 링을 그리지 않는다. */
+.site-foot:focus { outline: none; }
+.site-foot__links { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 18px; }
+.site-foot__info { width: 100%; }
+.site-foot__dl {
+  margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px;
+  font-size: var(--fs-12); line-height: 18px;
+}
+.site-foot__item { display: inline-flex; align-items: baseline; gap: 4px; max-width: 100%; white-space: nowrap; }
+/* 긴 주소만 제 칸 안에서 줄바꿈한다(시안 '긴 값'). 나머지 항목은 한 덩어리로 다음 줄에 넘어간다. */
+.site-foot__item--wrap { white-space: normal; }
+.site-foot__item dt { flex-shrink: 0; color: var(--c-text-4); }
+.site-foot__item dd { margin: 0; min-width: 0; color: var(--c-text); }
+.site-foot__item .site-foot__extra { margin-left: 2px; color: var(--c-text-4); }
+.site-foot__item .site-foot__ftc { margin-left: 4px; }
+.site-ftc {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-weight: var(--fw-semibold); color: var(--c-text);
+  text-decoration: underline; text-underline-offset: 2px; border-radius: 3px;
+}
+.site-foot__fail { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: var(--fs-12); line-height: 18px; }
+.site-foot__fail p { margin: 0; color: var(--c-text); }
+.site-foot__fail .site-foot__cs { color: var(--c-text-4); }
+.site-foot__retry {
+  font: inherit; font-weight: var(--fw-semibold); color: var(--c-text);
+  text-decoration: underline; text-underline-offset: 2px; border-radius: 3px;
+}
+.site-foot__skel { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; padding: 4px 0; }
+.site-foot__bar { display: block; height: 10px; border-radius: 5px; background: var(--c-skeleton); }
+.site-foot__bar--1 { width: 92%; max-width: 720px; }
+.site-foot__bar--2 { width: 80%; max-width: 640px; }
+.site-foot__bar--3 { width: 40%; max-width: 260px; }
+
+/* ── 포털 왼쪽 메뉴 맨 아래(로그아웃 아래) ─────────────────── */
+.site-sec {
+  flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 16px 14px; border-top: 1px solid var(--c-border);
+}
+.site-op {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 8px 10px 8px 12px; border-radius: var(--r-lg);
+  background: var(--c-surface-2); text-align: left;
+  transition: background-color 0.15s;
+}
+.site-op:hover { background: var(--c-fill-hover); }
+.site-op[aria-expanded="true"] { background: var(--c-fill-press); }
+.site-op__txt { min-width: 0; display: flex; flex-direction: column; }
+.site-op__k { font-size: var(--fs-11); line-height: 16px; color: var(--c-text-4); }
+.site-op__v { font-size: var(--fs-13); line-height: 19px; font-weight: var(--fw-semibold); color: var(--c-text); }
+.site-op__more { flex-shrink: 0; display: inline-flex; align-items: center; gap: 1px; font-size: var(--fs-12); color: var(--c-text-2); }
+.site-sec__links { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 2px; }
+
+/* 사업자 정보 판 — 메뉴 옆(기준은 .shell__body · shell.css). role="dialog" aria-modal="false": 열면 판 제목으로 초점,
+   Esc · ✕ · 바깥 누름으로 닫는다. 판 자체(tabindex=-1)는 판 안 글자를 눌러도 초점이 판에 남게 하는 자리라 링을 그리지 않는다.
+   max-height 는 짧은 창에서 판이 셸 머리 밑으로 들어가지 않게 하는 안전판이다(평소엔 닿지 않는다). */
+.site-pop {
+  position: absolute; left: calc(var(--sidebar-w) + 8px); bottom: 14px; z-index: 40;
+  width: 380px; max-height: calc(100% - 28px); overflow-y: auto;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px;
+  box-shadow: var(--sh-pop); padding: 18px 20px 16px;
+}
+.site-pop:focus { outline: none; }
+.site-pop__hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.site-pop__id { min-width: 0; }
+.site-pop__eyebrow { font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--c-text-4); }
+.site-pop__title {
+  margin-top: 2px; font-size: var(--fs-17); font-weight: var(--fw-bold); letter-spacing: -0.01em;
+  color: var(--c-text-strong); text-wrap: pretty;
+}
+/* 열 때 초점이 가는 제목 — 마우스로 열면 링이 없고 키보드로 열면 링이 선다(포털 거래명세서 동의 카드 제목과 같은 수법). */
+.site-pop__title:focus { outline: none; }
+.site-pop__title:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 4px; border-radius: 4px; }
+.site-pop__desc { margin-top: 4px; font-size: var(--fs-13); color: var(--c-text-4); }
+.site-pop__x {
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--r-pill);
+  display: grid; place-items: center; background: var(--c-surface-2); color: var(--c-text-3);
+  transition: background 0.15s, color 0.15s;
+}
+.site-pop__x:hover { background: var(--c-fill-3); color: var(--c-text-strong); }
+.site-pop__dl { margin: 14px 0 0; border-top: 1px solid var(--c-fill-1); }
+.site-pop__row {
+  display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--c-fill-1); font-size: var(--fs-13); line-height: 1.5;
+}
+.site-pop__row dt { color: var(--c-text-4); }
+.site-pop__row dd { margin: 0; color: var(--c-text); text-wrap: pretty; }
+.site-pop__extra { display: block; font-size: var(--fs-12); color: var(--c-text-4); }
+.site-pop__ft { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.site-pop__ftc {
+  display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 14px;
+  border-radius: var(--r-pill); border: 1px solid var(--c-border);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text);
+}
+.site-pop__cap { font-size: var(--fs-12); color: var(--c-text-4); }

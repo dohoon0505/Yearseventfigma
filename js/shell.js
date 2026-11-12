@@ -6,6 +6,7 @@ import { html, setHTML, on, qs, qsa } from "./dom.js";
 import { nav } from "./router.js";
 import { clearRole } from "./session.js";
 import { currentClientName } from "./util/client.js";
+import { mountSiteSection } from "./util/site-info-ui.js";
 
 const MENU = [
   {
@@ -62,6 +63,7 @@ const ADMIN_MENU = [
 
 let shellEl = null; // <div class="shell">
 let offClick = null;
+let offSite = null; // 포털 사이드바 맨 아래 '사이트 정보' 칸(K-1) — 관리자 셸에는 없다
 let currentVariant = null;
 let deadlineTimer = null;
 
@@ -162,6 +164,8 @@ function buildShell(variant = "enterprise") {
     clearRole();
     nav("#/login");
   });
+  /* 사이트 정보 칸 — 로그아웃 아래(시안 'K-01 사이트 아래 사업자 정보' 2026-11-11). 관리자 콘솔은 같은 셸이지만 두지 않는다(요청서 K-1). */
+  if (variant !== "admin") offSite = mountSiteSection(qs(wrap, ".shell__sidebar"));
   return wrap;
 }
 
@@ -170,6 +174,7 @@ function buildShell(variant = "enterprise") {
 export function mountShell(appRoot, variant = "enterprise") {
   if (!shellEl || !appRoot.contains(shellEl) || currentVariant !== variant) {
     if (offClick) { offClick(); offClick = null; }
+    if (offSite) { offSite(); offSite = null; }
     stopDeadlineTimer();
     appRoot.innerHTML = "";
     shellEl = buildShell(variant);
@@ -197,6 +202,7 @@ export function unmountShell() {
     offClick();
     offClick = null;
   }
+  if (offSite) { offSite(); offSite = null; }
   stopDeadlineTimer();
   shellEl = null;
   currentVariant = null;

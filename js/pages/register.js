@@ -9,6 +9,7 @@ import { openTermsDialog, openPrivacyDialog, termsStamp } from "../util/terms-di
 import { TERMS_VERSION } from "../data/terms.js";
 import { PRIVACY_VERSION } from "../data/privacy.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
+import { siteFooter, bindSiteFooter } from "../util/site-info-ui.js";
 import {
   INVOICE_DAYS, MIN_CONSENT_DAYS, ISSUE_HOUR, DEADLINE_HOUR, deadlineDayOf, consentWindowHours,
   periodOf, periodLabel, issueDate, agreeDeadline, dueDate, periodEnd, fmtKoShortY, fmtKoShortTimeY,
@@ -503,6 +504,9 @@ export function mount(root, { nav }) {
             <div class="auth__form-wrap register__wrap">
               <div class="register__col" data-slot="wizard"></div>
             </div>
+
+            <!-- 사이트 정보 칸 — 로그인 화면과 같은 칸(시안 'K-01' 이 권함 · 명세 6.10 '로그인 · 가입' · 2026-11-12 사용자 결정 '붙인다') -->
+            ${siteFooter()}
           </div>
         </div>
       </div>
@@ -597,8 +601,11 @@ export function mount(root, { nav }) {
     renderWizard();
   });
 
+  const offSite = bindSiteFooter(root);
+
   return () => {
     if (termsDlg) termsDlg.close();
+    offSite();
     offInput();
     offClick();
     offFile();

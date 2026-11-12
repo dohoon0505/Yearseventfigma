@@ -61,7 +61,8 @@ js/
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
   data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
   data/privacy.js       # 개인정보 수집·이용 동의서 단일 소스 — 약관과 따로 + PRIVACY_VERSION (가입·첫 로그인 게이트 공용)
-  data/contact.js       # 고객센터 번호(1668-1840)·카카오톡 채널('올해의경조사' · 1:1 채팅 주소) 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내)
+  data/contact.js       # 고객센터 번호(1668-1840)·받는 시간(CS_HOURS)·카카오톡 채널('올해의경조사' · 1:1 채팅 주소) 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내·사이트 정보 칸)
+  data/site-info.js     # 사이트 아래 사업자 정보 칸의 값 — 데모는 자리표시(실제 값은 서버 설정 · 명세 6.10) · 거래명세서 공급자 칸과 같은 출처
   util/*.js             # 공용 로직 — 아래 표 참조
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
@@ -92,6 +93,7 @@ serve.mjs               # 개발용 정적 서버
 | `order-settle-dialog.js` | 명세서가 나간 달의 주문 금액을 바꿀 때 '저장 전 금액 변경 확인' 창(사유 선택) |
 | `actor.js` | 지금 처리하는 사람(`currentActor`) — 정산 금액 변경·계산서·입금 기록의 '누가' |
 | `terms-dialog.js` | 이용약관 열람·동의 게이트 다이얼로그 (`openTermsDialog`) |
+| `site-info-ui.js` | '사이트 정보' 칸(시안 K-01) — 로그인·가입 화면 아래 칸(`siteFooter`·`bindSiteFooter`) · 포털 왼쪽 메뉴 아래 운영사 버튼과 사업자 정보 판(`mountSiteSection`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |
 | `phone.js` · `image.js` · `postcode.js` · `xlsx.js` | 연락처 포맷 · 첨부 축소 · 주소검색 · 엑셀 |

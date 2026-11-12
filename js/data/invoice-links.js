@@ -18,10 +18,13 @@
    ============================================================ */
 import { INVOICE_DB } from "./invoice-mock.js";
 import { periodLabel } from "./settlement-rules.js";
+import { SITE_INFO_DEMO } from "./site-info.js";
 
 /** 공급자·입금계좌는 **자리표시**다(2026-10-03 결정 · 알림 체계 M61). 이 저장소·데모 사이트는 공개라 실제 값을 두지 않는다 —
- *  실서비스 값은 서버 설정값으로 둔다(명세 9.4 · 5.4). 문서·알림톡(T6~T8 #{입금계좌})은 서버가 그 값을 채운다. */
-export const SUPPLIER = { company: "예시플라워", bizNumber: "000-00-00000", ceo: "홍길동", email: "billing@example.com", fax: "02-0000-0000" };
+ *  실서비스 값은 서버 설정값으로 둔다(명세 9.4 · 5.4). 문서·알림톡(T6~T8 #{입금계좌})은 서버가 그 값을 채운다.
+ *  상호 · 대표자 · 사업자등록번호는 사이트 아래 사업자 정보 칸과 **같은 출처**다(명세 9.1 끝 · 6.10) — site-info.js 에서 가져온다
+ *  (두 곳에 손으로 적으면 한쪽만 바뀐다). 이메일은 계산서 공급자 이메일이라 따로다. */
+export const SUPPLIER = { company: SITE_INFO_DEMO.company, bizNumber: SITE_INFO_DEMO.bizNumber, ceo: SITE_INFO_DEMO.ceo, email: "billing@example.com", fax: "02-0000-0000" };
 export const ACCOUNT = "예시은행 000-0000-0000-00 예금주 홍길동(예시플라워)";
 /** 문서의 '계산서 발행' 칸 어휘 — 포털 거래명세서·관리자 정산·공개 링크가 **한 벌**을 쓴다.
  *  예전엔 관리자가 표 배지값('동의하기')을 그대로 PDF 에 흘렸다. 전 품목 면세라 '계산서' 다. */

@@ -11,6 +11,7 @@ import { TERMS_VERSION } from "../data/terms.js";
 import { PRIVACY_VERSION } from "../data/privacy.js";
 import { portalBlock } from "../util/client.js";
 import { CS_PHONE, CS_TEL } from "../data/contact.js";
+import { siteFooter, bindSiteFooter } from "../util/site-info-ui.js";
 
 const STATS = [
   { value: "2,400+", label: "제휴 기업" },
@@ -60,14 +61,15 @@ export function mount(root, { nav }) {
         <!-- 우측 폼 패널 -->
         <div class="auth__panel">
           <div class="auth__panel-inner">
-            <div class="auth__topbar">
+            <!-- 1024 폭 이상에서는 줄째 감춘다(login__topbar — 로고·회원가입이 감춰진 빈 64px 줄을 사이트 정보 칸에 내준다 · K-1 시안) -->
+            <div class="auth__topbar login__topbar">
               <img class="auth__topbar-logo" src="./assets/logo.png" alt="올해의경조사" />
               <button type="button" class="auth__topbar-link" data-action="register">
                 회원가입 ${icon("arrow-right", { size: 11 })}
               </button>
             </div>
 
-            <div class="auth__form-wrap">
+            <div class="auth__form-wrap login__wrap">
               <div class="auth__form-col">
                 <div class="auth__title">
                   <h1>로그인</h1>
@@ -138,12 +140,16 @@ export function mount(root, { nav }) {
                 </p>
               </div>
             </div>
+
+            <!-- 사이트 정보 칸 — 사업자 정보 · 이용약관 · 개인정보 처리방침(시안 'K-01' · 명세 2.5 · 6.10). 사이트 첫 화면이라 늘 펼쳐 둔다. -->
+            ${siteFooter()}
           </div>
         </div>
       </div>
     `
   );
 
+  const offSite = bindSiteFooter(root);
   const form = qs(root, "[data-form='login']");
   const errorSlot = qs(root, "[data-slot='error']");
   const pwInput = qs(root, "#login-pw");
@@ -278,5 +284,6 @@ export function mount(root, { nav }) {
     offInput();
     offEye();
     offNav();
+    offSite();
   };
 }
