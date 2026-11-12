@@ -37,7 +37,7 @@ css/
   base.css              # 리셋·타이포·포커스링·아이콘
   components.css        # 공용 컴포넌트 (btn/card/input/modal/table-grid/주문·거래처 모달…)
   shell.css             # 헤더 + 사이드바
-  pages/*.css           # 페이지별 스타일 (12개)
+  pages/*.css           # 페이지별 스타일 (13개 — legal.css 는 약관·처리방침 읽는 화면)
 js/
   main.js               # store.hydrate() → buildSprite() → router.start()
   router.js             # 해시 라우터 · 화면 전환마다 closeAllModals()
@@ -59,7 +59,8 @@ js/
   data/invoice-mock.js  # 거래명세서 시드 INVOICE_DB 만 (b2b-mock 이 배송완료 주문으로 옮긴다)
   data/billing-entries.js  # 주문 한 건이 어느 달에 얼마를 보태는지 — 정산·변경 기록의 단일 기여 규칙 (import 0)
   data/settlement-rules.js # 정산 규칙 단일 소스 — 발행일·동의 마감·자동 동의·작성일자 (import 0 · node 테스트)
-  data/terms.js         # 이용약관(발췌) 단일 소스 — 자동 동의 조항 + TERMS_VERSION (가입·첫 로그인 게이트 공용)
+  data/terms.js         # 이용약관 전문 단일 소스 — TERMS_DOC(md 에서 tools/build-legal.mjs 가 만듦) + TERMS_VERSION + 중요 내용 요약 (읽는 화면·동의 창·가입 공용)
+  data/privacy-policy.js # 개인정보 처리방침 전문 — PRIVACY_POLICY_DOC(같은 도구 · 동의받는 글이 아니라 판 없음)
   data/privacy.js       # 개인정보 수집·이용 동의서 단일 소스 — 약관과 따로 + PRIVACY_VERSION (가입·첫 로그인 게이트 공용)
   data/contact.js       # 고객센터 번호(1668-1840)·받는 시간(CS_HOURS)·카카오톡 채널('올해의경조사' · 1:1 채팅 주소) 단일 소스 (로그인 안내·계정 차단 문구·주문 안내·'내역이 다르면' 안내·사이트 정보 칸)
   data/site-info.js     # 사이트 아래 사업자 정보 칸의 값 — 데모는 자리표시(실제 값은 서버 설정 · 명세 6.10) · 거래명세서 공급자 칸과 같은 출처
@@ -67,10 +68,11 @@ js/
 assets/                 # 이미지 (PNG·JPG) — 로고·사이드바 아이콘·접수 가이드 사진
 delivery/ invoice/      # 로그인 없는 공개 페이지 (각자 단독 index.html · 라우터 미경유)
 docs/backend-spec.md    # 백엔드 연동 명세서 **정본** (docx 는 생성물, 커밋 안 함)
-docs/legal/             # 이용약관 전문·개인정보 처리방침 **초안** v0.3(약관 전문은 앱에 아직 안 넣음 — 새 개인정보 동의서와 시안 없이 고칠 화면 글자는 2026-11-11 앱에 넣음) + 검토 카드 원본
+docs/legal/             # 이용약관 전문·개인정보 처리방침 v0.3 md — **글의 정본**(2026-11-12 앱에 넣음 · 공개 읽는 화면 #/legal/terms · #/legal/privacy · tools/build-legal.mjs 로 js 데이터를 만든다) + 검토 카드 원본
 fonts/pretendard/       # 글꼴 Pretendard woff 넷(400·500·600·700) + pretendard.css + LICENSE.txt(SIL OFL 1.1) — 세 페이지와 인쇄 창이 부른다
 tools/build-docs.py     # 명세서 → Word 생성 (외부 라이브러리 없음)
-tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 255케이스 · 정산 금액 변경 기록 413케이스
+tools/build-legal.mjs   # docs/legal md → js/data/terms.js · privacy-policy.js 의 '@generated' 칸 (--check 는 비교만)
+tools/test-*.mjs        # node 회귀 테스트 — 주문 문자 파서 39케이스 · 정산 규칙 275케이스 · 정산 금액 변경 기록 413케이스
 serve.mjs               # 개발용 정적 서버
 ```
 
@@ -92,7 +94,8 @@ serve.mjs               # 개발용 정적 서버
 | `invoice-data.js` | 거래명세서 문서 빌더 **하나** — 관리자 PDF · 포털 미리보기/PDF/EXCEL · 공개 링크가 같은 문서 |
 | `order-settle-dialog.js` | 명세서가 나간 달의 주문 금액을 바꿀 때 '저장 전 금액 변경 확인' 창(사유 선택) |
 | `actor.js` | 지금 처리하는 사람(`currentActor`) — 정산 금액 변경·계산서·입금 기록의 '누가' |
-| `terms-dialog.js` | 이용약관 열람·동의 게이트 다이얼로그 (`openTermsDialog`) |
+| `terms-dialog.js` | 이용약관 · 개인정보 동의서 — 동의 게이트(960 두 칸 · 요약 확인 · 약관 · 개인정보 체크 셋)와 읽기 창 (`openTermsDialog` · 시안 K-03) |
+| `legal-doc.js` | 약관·처리방침 본문 조각(`docBody` — 읽는 화면과 동의 창 공용) · 차례 · 판 · 미리 알림 · 회사 정보 자리표시 채우기 |
 | `site-info-ui.js` | '사이트 정보' 칸(시안 K-01) — 로그인·가입 화면 아래 칸(`siteFooter`·`bindSiteFooter`) · 포털 왼쪽 메뉴 아래 운영사 버튼과 사업자 정보 판(`mountSiteSection`) |
 | `biz.js` | 사업자번호 정규화 · 공유 사업자번호 판정 · 표시명 |
 | `date.js` | 날짜 파서·범위 · 주문 행 색(`orderRowTone`)·정렬 랭크 |

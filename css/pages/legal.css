@@ -1,0 +1,161 @@
+/* ============================================================
+   legal.css — 이용약관 · 개인정보 처리방침을 읽는 공개 화면 (#/legal/terms · #/legal/privacy · pages/legal.js)
+   시안 'K-03 약관 전문 · 동의 창' 의 '읽는 화면' 16장. 로그인 셸 밖이라 셸 규칙이 닿지 않는다(머리·차례·본문 카드 모두 여기).
+   본문 글 조각(.lgd-*)은 동의 창과 같은 조각이라 components.css 에 있다. 색은 토큰만.
+   ============================================================ */
+.lg {
+  --lg-hd-h: 64px; --lg-bar-h: 0px;
+  height: 100%; display: flex; flex-direction: column;
+  background: var(--c-surface-2); font-size: var(--fs-14); line-height: 1.5; color: var(--c-text);
+}
+.lg.has-bar { --lg-bar-h: 44px; }
+
+/* ── 위쪽 머리 ─────────────────────────────────────────── */
+.lg-hd {
+  flex: 0 0 var(--lg-hd-h); display: flex; align-items: center; gap: 20px; padding: 0 32px;
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border);
+}
+.lg-hd__logo { height: 28px; width: auto; object-fit: contain; }
+.lg-hd__sep { width: 1px; height: 20px; background: var(--c-divider); flex: 0 0 auto; }
+/* 두 문서 전환 — 주소가 따로라 링크다(지금 문서 aria-current="page"). 모양은 시안의 세그먼트 그대로. */
+.lg-switch { display: inline-flex; gap: 2px; padding: 2px; background: var(--c-surface-2); border-radius: var(--r-lg); }
+.lg-switch__a {
+  height: 32px; padding: 0 14px; border-radius: var(--r-md); display: inline-flex; align-items: center;
+  font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-text-4); white-space: nowrap;
+}
+.lg-switch__a:hover { color: var(--c-text-strong); }
+.lg-switch__a[aria-current="page"] {
+  font-weight: var(--fw-bold); color: var(--c-text-strong); background: var(--c-surface); box-shadow: var(--sh-seg);
+}
+/* 이웃 칸(2px 간격)이 링의 한 변을 덮지 않게(다이얼로그 규격 초점 줄 ② — 세그먼트와 같은 처방) */
+.lg-switch__a:focus-visible { position: relative; z-index: 1; }
+.lg-hd__r { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lg-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: var(--r-pill);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.lg-btn--dark { background: var(--c-dark); color: var(--c-surface); }
+.lg-btn--dark:hover { background: var(--c-dark-hover); }
+.lg-btn--line { border: 1px solid var(--c-border-strong); background: var(--c-surface); color: var(--c-text-2); }
+.lg-btn--line:hover { background: var(--c-surface-hover); color: var(--c-text-strong); }
+
+/* ── 지난 판 · 시행 예정 판 바 ─────────────────────────── */
+.lg-barslot { flex: 0 0 auto; }
+.lg-barslot[hidden] { display: none; }
+.lg-bar {
+  height: var(--lg-bar-h); display: flex; align-items: center; gap: 10px; padding: 0 32px;
+  border-bottom: 1px solid var(--c-border); font-size: var(--fs-14); color: var(--c-text-strong);
+}
+.lg-bar b { font-weight: var(--fw-bold); }
+.lg-bar--past { background: var(--c-fill-hover); }
+.lg-bar--upcoming { background: var(--c-blue-soft); border-bottom-color: var(--c-blue-line); }
+.lg-bar__tag {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+  background: var(--c-blue); color: var(--c-surface); font-size: var(--fs-12); font-weight: var(--fw-bold);
+}
+.lg-bar__sub { color: var(--c-text-2); }
+.lg-bar__now {
+  margin-left: auto; display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: var(--r-pill);
+  background: var(--c-dark); color: var(--c-surface); font-size: var(--fs-13); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.lg-bar__now:hover { background: var(--c-dark-hover); }
+
+/* ── 본문 칸(굴러간다) ─────────────────────────────────── */
+.lg-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.lg-grid {
+  width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 32px 32px; /* 맨 아래까지 굴리면 카드 밑 32px(시안 '맨 아래' 프레임) */
+  display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 32px; align-items: start;
+}
+
+/* 차례 — 늘 붙어 있고(sticky) 목록만 따로 굴러간다. 높이는 화면에서 머리 · 바 · 위아래 여백을 뺀 만큼(시안). */
+.lg-toc {
+  position: sticky; top: 24px; display: flex; flex-direction: column;
+  max-height: calc(100vh - var(--lg-hd-h) - var(--lg-bar-h) - 52px);
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-2xl); overflow: hidden;
+}
+.lg-toc__hd { flex: 0 0 auto; padding: 16px 18px 12px; border-bottom: 1px solid var(--c-fill-1); }
+.lg-toc__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.lg-toc__leg { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: var(--fs-12); color: var(--c-text-4); }
+.lg-toc__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-orange-ink-strong); flex-shrink: 0; }
+.lg-toc__list { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 10px 14px; scrollbar-width: thin; }
+.lg-toc__ch {
+  margin: 12px 0 2px; padding: 0 8px;
+  font-size: var(--fs-12); font-weight: var(--fw-bold); line-height: 1.45; color: var(--c-text-muted);
+}
+.lg-toc__a {
+  display: block; padding: 5px 22px 5px 8px; border-radius: var(--r-md);
+  font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-2);
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 6px 6px;
+}
+.lg-toc__a:hover { background-color: var(--c-surface-2); color: var(--c-text-strong); }
+/* 굵게 보일 중요 내용이 있는 조 — 줄 끝 점(차례 머리의 견본과 같은 색) */
+.lg-toc__a.is-imp { background-image: radial-gradient(circle, var(--c-orange-ink-strong) 2.6px, transparent 3px); }
+.lg-toc__a.is-del { color: var(--c-text-faint); }
+.lg-toc__a.is-cur { background-color: var(--c-sidebar-active-bg); color: var(--c-orange-ink); font-weight: var(--fw-semibold); }
+
+/* 본문 카드 */
+.lg-doc {
+  min-width: 0; max-width: 780px; padding: 36px 48px 40px;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-2xl);
+}
+.lg-doc__t { margin: 0; font-size: 30px; font-weight: var(--fw-bold); letter-spacing: -0.02em; line-height: 1.5; color: var(--c-text-strong); }
+.lg-doc__t:focus { outline: none; }
+.lg-doc__t:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 4px; border-radius: 4px; }
+.lg-doc__intro { margin: 8px 0 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); word-break: keep-all; }
+
+/* 미리 알림 — 본문 맨 위 호박색 카드(포털 미리 알림 K-5 와 같은 문장) */
+.lg-note {
+  margin-bottom: 28px; padding: 16px 18px 18px;
+  background: var(--c-warn-bg); border: 1px solid var(--c-amber-line); border-radius: 12px;
+}
+.lg-note__eb { margin: 0; font-size: var(--fs-12); font-weight: var(--fw-bold); color: var(--c-amber-ink); }
+.lg-note__t { margin: 4px 0 0; font-size: var(--fs-18); font-weight: var(--fw-semibold); letter-spacing: -0.01em; color: var(--c-text-strong); }
+.lg-note__list { margin: 8px 0 0; padding-left: 18px; list-style: disc; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-body); word-break: keep-all; }
+.lg-note__consent { margin: 8px 0 0; font-size: var(--fs-14); line-height: 1.6; font-weight: var(--fw-semibold); color: var(--c-text-strong); word-break: keep-all; }
+.lg-note__links { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.lg-note__a {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: var(--r-pill);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold);
+  background: var(--c-dark); color: var(--c-surface); border: 1px solid var(--c-dark);
+}
+.lg-note__a:hover { background: var(--c-dark-hover); }
+.lg-note__a[aria-current="page"] { background: var(--c-surface); color: var(--c-text-2); border-color: var(--c-border-strong); }
+.lg-note__a[aria-current="page"]:hover { background: var(--c-surface-hover); color: var(--c-text-strong); }
+
+/* 맨 아래 — 판 · 시행일 + 이전 판 */
+.lg-foot {
+  margin-top: 36px; padding: 16px 18px; background: var(--c-surface-2); border-radius: 12px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lg-foot__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.lg-foot__txt { margin: 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-2); }
+.lg-foot__txt b { font-weight: var(--fw-semibold); color: var(--c-text-strong); } /* 숫자 폭은 시안대로 기본(검증 1) */
+.lg-foot__prev {
+  display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2); cursor: pointer;
+}
+.lg-foot__prev:hover { color: var(--c-text-strong); border-color: var(--c-text-faint); }
+.lg-foot__chev { display: inline-flex; }
+.lg-foot__panel[hidden] { display: none; }
+.lg-foot__none { margin: 0; padding-top: 12px; border-top: 1px solid var(--c-divider-cool); font-size: var(--fs-14); color: var(--c-text-2); }
+.lg-foot__list { padding-top: 4px; border-top: 1px solid var(--c-divider-cool); display: flex; flex-direction: column; }
+.lg-foot__ver {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--c-divider-cool);
+  font-size: var(--fs-14); color: var(--c-text);
+}
+.lg-foot__ver b { font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.lg-foot__range { color: var(--c-text-4); }
+.lg-foot__go { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-blue); }
+.lg-foot__ver:hover .lg-foot__go { text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── 좁은 화면(시안 밖 — 데스크톱 기준이라 한 칸으로 쌓는다 · 새 모양 없음) ── */
+@media (max-width: 899px) {
+  .lg-hd { flex: 0 0 auto; min-height: var(--lg-hd-h); flex-wrap: wrap; gap: 10px 16px; padding: 12px 16px; }
+  .lg-hd__sep { display: none; }
+  .lg-hd__r { margin-left: 0; flex-wrap: wrap; }
+  .lg-bar { height: auto; min-height: var(--lg-bar-h); flex-wrap: wrap; padding: 8px 16px; }
+  .lg-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px 16px 40px; }
+  .lg-toc { position: static; max-height: 280px; }
+  .lg-doc { max-width: none; padding: 24px 20px 28px; }
+}

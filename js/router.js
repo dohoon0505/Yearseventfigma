@@ -13,6 +13,10 @@ const routes = [
   { hash: "#/", redirect: "#/login" },
   { hash: "#/login",          load: () => import("./pages/login.js"),      shell: false },
   { hash: "#/register",       load: () => import("./pages/register.js"),   shell: false },
+  // ── 공개 읽는 화면 — 이용약관 · 개인정보 처리방침(시안 K-03 · 2026-11-12). 로그인 셸 밖이고 역할 없이 열린다(requiresAuth 없음).
+  //    사이트 아래 칸·포털 메뉴 아래·동의 창의 링크가 새 창으로 연다. 두 문서는 주소가 따로다(같은 페이지 모듈이 해시로 고른다). ──
+  { hash: "#/legal/terms",    load: () => import("./pages/legal.js"),      shell: false },
+  { hash: "#/legal/privacy",  load: () => import("./pages/legal.js"),      shell: false },
   // ── Enterprise — 역할이 있어야 열린다(requiresAuth). 비로그인 딥링크는 로그인 뒤 원래 주소로 돌아온다(2026-09-17).
   //    예전엔 가드가 없어 주소만 치면 util/client.js 폴백으로 첫 거래처(한빛과학)의 명세서가 보였다 — 공개 사이트다. ──
   { hash: "#/app",            load: () => import("./pages/order.js"),      shell: true, nav: "#/app",            requiresAuth: true },

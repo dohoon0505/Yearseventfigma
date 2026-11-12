@@ -15,7 +15,10 @@ import {
   editLockDayOf, noticeState,
 } from "../js/data/settlement-rules.js";
 import * as RULES from "../js/data/settlement-rules.js";
-import { TERMS, TERMS_VERSION } from "../js/data/terms.js";
+import { TERMS_DOC, TERMS_VERSION, TERMS_SUMMARY, SETTLEMENT_ARTICLE_TITLE } from "../js/data/terms.js";
+import { PRIVACY_POLICY_DOC } from "../js/data/privacy-policy.js";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { PRIVACY, PRIVACY_VERSION } from "../js/data/privacy.js";
 
 let pass = 0, fail = 0;
@@ -315,28 +318,77 @@ eq("안내: 반환에 '정지 중 마감' 칸이 없다", "suspendedAtDeadline" 
   eq("안내 → 동의: 평소 → 마감에 자동 동의", [st4.mode, st4.autoAgreeHold].join(","), "auto,");
 }
 
-/* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 버전 고정 문장이라 파생하지 않는다) ── */
-const clause2 = TERMS[0].items[1];
+/* ── 약관 본문이 규칙과 같은 숫자를 말하는지 (terms.js 는 판이 매겨진 고정 문장이라 파생하지 않는다) ──
+   2026-11-12 사용자 결정(K-03 이식 · 계획 E-22 앞당김): 약관이 정산 조항 한 조에서 **전문**(TERMS_DOC — docs/legal/tos-draft-v0.3.md 에서
+   tools/build-legal.mjs 가 만든다)이 됐다. 정산 조항은 조 번호가 아니라 **조 제목**으로 찾는다(SETTLEMENT_ARTICLE_TITLE). */
+const settleArt = TERMS_DOC.articles.find((a) => a.title === SETTLEMENT_ARTICLE_TITLE);
+const clause = (settleArt ? settleArt.paras : []).map((p) => p.text);
+const clause2 = clause[1] || "";
 const early = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);
 const late = INVOICE_DAYS.filter((d) => deadlineDayOf(d) !== 10);
+eq("약관 전문: 정산 조항을 조 제목으로 찾는다", settleArt ? settleArt.title : null, "거래명세서 및 계산서 발급 동의");
+eq("약관 전문: 정산 조항은 제28조(명세·알림이 부르는 번호 — V3 조 번호 그대로)", settleArt ? settleArt.no : null, 28);
 eq("약관 ②: 이른 무리 범위", clause2.includes(`${early[0]}일~${early[early.length - 1]}일인 경우 발급월 10일`), true);
 eq("약관 ②: 늦은 무리 범위", clause2.includes(`${late[0]}일~${late[late.length - 1]}일인 경우 발급월 28일`), true);
 eq("약관 ②: 최소 동의 기간", clause2.includes(`${MIN_CONSENT_DAYS}일 이상`), true);
 eq("약관 ②: 마감 시각", clause2.includes(`13:00`) && DEADLINE_HOUR === 13, true);
-eq("약관 ⑤: 무리 범위가 ②와 같다", TERMS[0].items[4].includes(`${early[0]}일~${early[early.length - 1]}일`) && TERMS[0].items[4].includes(`${late[0]}일~${late[late.length - 1]}일`), true);
-eq("약관 ⑥: '수정할 수 없다' 가 남아 있지 않다", /취소·수정할 수 없/.test(TERMS[0].items[5]), false);
-/* 2026-10-23 운영자 결정 D4 — ①에 미발급 단서 · ②④에서 '이의' 절차를 빼고 오류 알림·고친 금액 · 버전을 올려 다시 동의. ③⑤⑥항은 그대로 */
-eq("약관 D4: 버전을 올렸다(모든 거래처가 다음 로그인 때 다시 동의)", TERMS_VERSION, "2026-10-23");
-eq("약관 D4: 항 수·번호는 그대로(6항 — '④항(자동 동의)' 로 부른다)", TERMS[0].items.length, 6);
+eq("약관 ⑤: 무리 범위가 ②와 같다", (clause[4] || "").includes(`${early[0]}일~${early[early.length - 1]}일`) && (clause[4] || "").includes(`${late[0]}일~${late[late.length - 1]}일`), true);
+eq("약관 ⑥: '수정할 수 없다' 가 남아 있지 않다", /취소·수정할 수 없/.test(clause[5] || ""), false);
+/* 2026-10-23 운영자 결정 D4 — ①에 미발급 단서 · ②④에서 '이의' 절차를 빼고 오류 알림·고친 금액. ③⑤⑥항은 그대로 */
+eq("약관 전문: 판을 올렸다(게시한 날 — 2026-11-12 사용자 결정 · 모든 거래처가 다음 로그인 때 다시 동의)", TERMS_VERSION, "2026-11-12");
+eq("약관 D4: 항 수·번호는 그대로(6항 — '④항(자동 동의)' 로 부른다)", settleArt ? settleArt.paras.map((p) => p.n).join("") : "", "①②③④⑤⑥");
 eq("약관 D4 ①: 거래 없는 달·0원 거래만 있는 달은 발급하지 않는다(결정 B 와 같은 말)",
-  TERMS[0].items[0].endsWith("다만 전월에 거래가 없거나 금액이 0원인 거래만 있는 경우에는 거래명세서를 발급하지 않는다."), true);
-eq("약관 D4: '이의' 라는 낱말이 남아 있지 않다", TERMS.some((sec) => sec.items.some((t) => t.includes("이의"))), false);
+  (clause[0] || "").endsWith("다만 전월에 거래가 없거나 금액이 0원인 거래만 있는 경우에는 거래명세서를 발급하지 않는다."), true);
+/* '이의' 는 **낱말** 단위로 본다 — 낱말 속 글자('사이의' 등)는 걸리지 않게, 낱말이 '이의' 로 시작하는지(이의 · 이의를 · 이의신청)만 본다(계획 E-22). */
+const termsTexts = [
+  ...TERMS_DOC.chapters.map((c) => c.title),
+  ...TERMS_DOC.articles.flatMap((a) => [a.title, ...a.paras.flatMap((p) => [p.text, ...p.items.map((it) => it.text)])]),
+  ...TERMS_DOC.buchik,
+  ...TERMS_SUMMARY.flatMap((s) => [s.title, s.text]),
+];
+const IUI_WORD = /(^|[^가-힣])이의/;
+eq("약관 D4: '이의' 라는 낱말이 전문 · 요약 어디에도 없다", termsTexts.filter((t) => IUI_WORD.test(t)).length, 0);
+eq("약관 D4: 낱말 검사가 '이의' 를 잡는다(검사 자체 확인)", ["이의를 제기", "(이의신청)", "동의 또는 이의의"].every((t) => IUI_WORD.test(t)), true);
+eq("약관 D4: 낱말 속 글자는 잡지 않는다(검사 자체 확인 — '사이의')", IUI_WORD.test("회사와 거래처 사이의 분쟁"), false);
 eq("약관 D4 ②: 동의만 요구한다('동의하여야 한다')", clause2.includes("계산서 발급에 동의하여야 한다."), true);
 eq("약관 D4 ②: 다르면 기한 전에 알리고 회사가 확인한 뒤 고친다",
   clause2.includes("명세서 내용이 사실과 다르면 이 기한 전에 회사에 알려야 하며, 회사는 확인한 뒤 명세서를 고친다."), true);
 eq("약관 D4 ④: 동의의 의사표시가 없으면 · 고친 경우 고친 금액으로",
-  TERMS[0].items[3], "제2항 기한까지 동의의 의사표시가 없는 경우, 거래처는 해당 명세서 금액(제2항에 따라 고친 경우 고친 금액)으로 계산서 발급에 동의한 것으로 본다.");
-eq("약관 D4 ③: 그대로(기한 전날 별도 고지)", TERMS[0].items[2], "회사는 제2항 기한 전날 담당자에게 기한과 미응답 시 처리 내용을 별도로 고지한다.");
+  clause[3], "제2항 기한까지 동의의 의사표시가 없는 경우, 거래처는 해당 명세서 금액(제2항에 따라 고친 경우 고친 금액)으로 계산서 발급에 동의한 것으로 본다.");
+eq("약관 D4 ③: 그대로(기한 전날 별도 고지)", clause[2], "회사는 제2항 기한 전날 담당자에게 기한과 미응답 시 처리 내용을 별도로 고지한다.");
+
+/* ── 약관 전문의 짜임 · 중요 내용(2026-11-12 K-03) ──
+   조 40개(제19조 · 제33조는 '(삭제)' — V3 번호를 당기지 않는다) · 장 7개 · 부칙 시행일 2026-10-31(V1 — 판과 다르다) ·
+   굵게 보일 중요 항 ①~⑦ 은 동의 창 요약 ①~⑦ 과 **같은 조**를 가리킨다(번호가 어긋나면 요약이 다른 조를 '중요 ③' 이라 부른다). */
+eq("약관 전문: 조 40개 · 장 7개", `${TERMS_DOC.articles.length}·${TERMS_DOC.chapters.length}`, "40·7");
+eq("약관 전문: 조 번호가 1~40 빠짐없이", TERMS_DOC.articles.map((a) => a.no).join(","), Array.from({ length: 40 }, (_, i) => i + 1).join(","));
+eq("약관 전문: '(삭제)' 조는 제19조 · 제33조(자리만 · 항 없음)", TERMS_DOC.articles.filter((a) => a.deleted).map((a) => `${a.no}:${a.paras.length}`).join(","), "19:0,33:0");
+eq("약관 전문: 부칙 시행일(V1)", TERMS_DOC.effective, "2026-10-31");
+eq("약관 전문: 장이 조를 빈틈없이 나눈다", TERMS_DOC.chapters.every((c, i) => c.from === (i ? TERMS_DOC.chapters[i - 1].to + 1 : 1)) && TERMS_DOC.chapters[TERMS_DOC.chapters.length - 1].to === 40, true);
+const impAt = (n) => TERMS_DOC.articles.flatMap((a) => a.paras.filter((p) => p.imp === n).map((p) => `${a.no}${p.n}`)).join("·");
+eq("약관 중요: ①~⑦ 자리(머리 '화면에서 굵게 보일 중요 내용' 순서)", [1, 2, 3, 4, 5, 6, 7].map(impAt).join(" | "), "28④ | 29⑪ | 29② | 27② | 26① | 14②·14③ | 34④·34⑤");
+eq("약관 요약: 일곱 가지 · 번호 ①~⑦", TERMS_SUMMARY.map((s) => s.n).join(""), "①②③④⑤⑥⑦");
+eq("약관 요약: n번째 요약은 '중요 n' 이 붙은 조를 가리킨다(괄호 속 조·항까지)", TERMS_SUMMARY.every((s, i) => {
+  const at = impAt(i + 1).split("·");
+  const ref = s.ref.replace(/제(\d+)조 /, "").split("·").map((h) => `${s.art}${"①②③④⑤⑥⑦⑧⑨⑩⑪⑫"[Number(h.replace(/\D/g, "")) - 1]}`);
+  return at.every((x) => x.startsWith(String(s.art))) && ref.join("·") === at.join("·");
+}), true);
+/* 앱 데이터가 md(정본)와 같은지 — tools/build-legal.mjs --check(다시 쓰지 않고 비교만) */
+let built = "";
+try { built = execFileSync(process.execPath, [fileURLToPath(new URL("./build-legal.mjs", import.meta.url)), "--check"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); } catch (e) { built = `FAIL ${e.stderr || e.message}`; }
+eq("약관·처리방침 앱 데이터 = docs/legal md(build-legal --check)", built.startsWith("FAIL"), false);
+/* 처리방침 — 동의서 문안을 글자 그대로 옮긴 네 곳(privacy.js 머리 주석 · 처리방침 머리 주석 — 한쪽을 고치면 함께) */
+const ppArt = (no) => PRIVACY_POLICY_DOC.articles.find((a) => a.no === no);
+const dashes = (no, n) => ((ppArt(no) || { paras: [] }).paras.find((p) => p.n === n) || { items: [] }).items.filter((it) => it.k === "dash").map((it) => it.text).join(" / ");
+const pvLines = (t) => (PRIVACY.items.find((x) => x.t === t) || { lines: [] }).lines.join(" / ");
+eq("처리방침: 조 20개 · 시행일(V1)", `${PRIVACY_POLICY_DOC.articles.length}·${PRIVACY_POLICY_DOC.effective}`, "20·2026-10-31");
+eq("처리방침 제2조 ① = 동의서 '모으는 항목'", dashes(2, "①"), pvLines("모으는 항목"));
+eq("처리방침 제4조 ① = 동의서 '쓰는 목적'", dashes(4, "①"), pvLines("쓰는 목적"));
+eq("처리방침 제7조 ② = 동의서 '보관 기간'", dashes(7, "②"), pvLines("보관 기간"));
+eq("처리방침 제10조 ① = 동의서 '맡기는 업체'", dashes(10, "①"), pvLines("맡기는 업체"));
+eq("처리방침 제5조 ②: 세 칸 표(누구의 정보 · 항목 · 근거)", (() => { const p = ppArt(5).paras.find((x) => x.n === "②"); return p && p.table ? `${p.table.head.join("·")}:${p.table.rows.length}` : null; })(), "누구의 정보·항목·근거:14");
+eq("약관·처리방침: 실제 회사 값 없음 — 회사 정보는 자리표시 그대로(화면이 사이트 정보 칸 값으로 채운다)",
+  JSON.stringify([TERMS_DOC, PRIVACY_POLICY_DOC]).includes("[회사 정보 — 게시본에서 채움: 상호]"), true);
 
 /* ── 개인정보 수집·이용 동의서(2026-10-23 운영자 결정 D6 — 약관과 따로 · 문안은 운영자 확정 낱말 그대로) ──
    2026-11-11 판(V8 — 새 동의서 문안 확정 · B3 협력 화원 · B4 동의서에 없던 정보 · P2 주문을 낸 사람 이름 5년 · P4 보관 기간). 기대 문장은

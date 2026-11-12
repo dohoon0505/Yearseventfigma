@@ -760,9 +760,29 @@
 .rf-file__re { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--c-blue); }
 .rf__req { color: var(--c-danger-ink); margin-left: 2px; }
 
-/* ── 가입 4단계(정산 방식): 이용약관 동의 행 — 공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의와 같은 장치) ── */
-.rf--agree { margin-top: 12px; }
-.rf--agree__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+/* ── 가입 4단계(정산 방식): 확인 행 셋(요약 확인 · 약관 · 개인정보) — 공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의와 같은 장치) ──
+   간격은 시안 K-03(2026-11-11)대로 카드 본문 gap(16px) 하나로 준다 — 행 사이 16 · 체크와 '약관 보기' 줄 사이 8(.rf gap 6 + 2). */
+.rf--agree { margin-top: 0; }
+.rf--agree .dlg-check { margin-top: 0; }
+.rf--agree__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+/* 요약 확인 줄에는 '보기' 링크가 없다 — 오류 문구가 왼쪽에 서지 않고 다른 두 줄처럼 오른쪽에 서게(검증 1) */
+.rf--agree-sum .rf--agree__row { justify-content: flex-end; }
+/* 이용약관 중요 내용 요약 — 페이지 안에 펼쳐 둔다(시안 K-03 '가입 4단계 · 요약 확인을 받는 자리'). 상자는 발급 안내(.rf-inv)와 같은 모양이고
+   글은 동의 창의 요약과 같다(data/terms.js TERMS_SUMMARY). */
+/* 특이도를 올린다 — 같은 상자 클래스 .rf-inv(margin-top 4 · gap 12)가 이 파일 뒤에 있어 같은 특이도면 진다(검증 1: 간격 12 · 위 20px) */
+.rf-inv.rf-sum { margin-top: 0; gap: 10px; }
+.rf-sum__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rf-sum__hd b { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.rf-sum__hd span { font-size: var(--fs-11); color: var(--c-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rf-sum__note { margin: 0; font-size: var(--fs-12); line-height: 1.6; color: var(--c-text-2); word-break: keep-all; }
+.rf-sum__note b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.rf-sum__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rf-sum__list li {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0 4px;
+  font-size: var(--fs-12); line-height: 1.6; color: var(--c-text-3); word-break: keep-all;
+}
+.rf-sum__n { font-weight: var(--fw-bold); color: var(--c-orange-ink-strong); }
+.rf-sum__list li span b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .rf__link {
   background: none; border: 0; padding: 0;
   font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-blue);

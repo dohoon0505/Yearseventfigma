@@ -13,31 +13,27 @@
    값이 빈 항목은 줄째 뺀다 · 못 읽으면 링크 둘 + 고객센터 줄(앱 안의 상수 CS_PHONE · CS_HOURS)과 '다시 불러오기' ·
    읽는 동안 0.3초가 지나면 같은 높이의 뼈대(그 안에 오면 뼈대 없이 바로).
 
-   ⚠️ '이용약관' · '개인정보 처리방침' 링크는 원래 K-3(약관·처리방침 읽는 공개 화면)을 **새 창**으로 연다. K-3 시안이 오기 전이고
-   앱에 처리방침 글이 아직 없어서, 그때까지는 누르면 '서비스를 여는 날 게시합니다' 짧은 안내만 띄운다(2026-11-12 사용자 결정).
-   그래서 지금은 `<a>` 가 아니라 `<button>` 이다(누르면 페이지가 아니라 안내가 나온다 — 화면낭독기에도 그대로 말한다).
-   K-3 이 들어오면 `<a href target="_blank" rel="noopener">` + aria-label '… (새 창)' 으로 바꾼다(시안 그대로).
+   '이용약관' · '개인정보 처리방침' 링크는 약관·처리방침 읽는 공개 화면(#/legal/terms · #/legal/privacy — pages/legal.js · 시안 K-03)을
+   **새 창**으로 연다(`<a target="_blank">` + aria-label '… (새 창)' — 시안 K-01). 2026-11-12 K-03 이 들어오기 전에는 '서비스를 여는 날
+   게시합니다' 안내만 띄우는 `<button>` 이었다 — 그 안내는 지웠다(되살리지 말 것).
+   ⚠️ 포털 칸의 두 링크만 `rel="opener"` 다 — 데모의 로그인은 sessionStorage 라서, 크롬은 opener 없이 연 새 창에 그 값을 넘기지 않는다
+   (그러면 포털에서 연 읽는 화면이 '로그인' 만 보이고 시안의 '회사 배지 + 포털로 돌아가기' 가 서지 않는다). 같은 사이트의 우리 화면이라
+   opener 를 넘겨도 다른 사이트가 이 창을 건드릴 길은 없다. 로그인 · 가입 칸은 아직 로그인 전이라 시안대로 `rel="noopener"`.
    ============================================================ */
 import { html, setHTML, on, qs, el } from "../dom.js";
 import { icon } from "../icons.js";
-import { makeToast } from "../toast.js";
 import { CS_PHONE, CS_HOURS } from "../data/contact.js";
 import { siteInfoRows, ftcUrl, peekSiteInfo, loadSiteInfo } from "../data/site-info.js";
 
 const SKELETON_AFTER = 300; // ms — 이보다 빨리 오면 뼈대 없이 바로 그린다(시안)
 const FTC_LABEL = "사업자정보 확인 — 공정거래위원회 누리집 (새 창)";
-/** K-3 전까지 두 링크가 띄우는 안내 — 사람이 적는 이름 뒤에 조사를 붙이지 않는다(정해진 낱말에만). */
-const DOC_NOTICE = {
-  terms: "이용약관 전문은 서비스를 여는 날 게시합니다.",
-  privacy: "개인정보 처리방침은 서비스를 여는 날 게시합니다.",
-};
 
 const ext = () => icon("external-link", { size: 10, cls: "site-ext" });
 
-/** 링크 둘 — 처리방침을 맨 앞에 굵게(시안). 로그인·가입 칸과 포털 칸이 같은 조각을 쓴다. */
-const docLinks = () => html`
-  <button type="button" class="site-doc site-doc--privacy" data-si-doc="privacy">개인정보 처리방침${ext()}</button>
-  <button type="button" class="site-doc" data-si-doc="terms">이용약관${ext()}</button>`;
+/** 링크 둘 — 처리방침을 맨 앞에 굵게(시안). 로그인·가입 칸과 포털 칸이 같은 조각을 쓴다(rel 만 다르다 — 머리 주석). */
+const docLinks = (rel = "noopener") => html`
+  <a class="site-doc site-doc--privacy" href="#/legal/privacy" target="_blank" rel="${rel}" aria-label="개인정보 처리방침 (새 창)">개인정보 처리방침${ext()}</a>
+  <a class="site-doc" href="#/legal/terms" target="_blank" rel="${rel}" aria-label="이용약관 (새 창)">이용약관${ext()}</a>`;
 
 const ftcLink = (url, cls) => html`<a class="${cls}" href="${url}" target="_blank" rel="noopener" aria-label="${FTC_LABEL}">사업자정보 확인${ext()}</a>`;
 
@@ -78,7 +74,6 @@ export function bindSiteFooter(root) {
   const foot = qs(root, "[data-site-foot]");
   if (!foot) return () => {};
   const slot = qs(foot, "[data-slot='site-info']");
-  const toast = makeToast();
   let alive = true;
   let skel = null;
   let seq = 0;           // 늦게 온 옛 응답이 새 응답을 덮지 않게
@@ -91,7 +86,7 @@ export function bindSiteFooter(root) {
     if (!refocus) return;
     /* 다시 불러오기로 누른 버튼이 다시 그리며 떨어졌다 — 초점을 잃었을 때만 그 자리 가까운 조작으로(없으면 칸 자체에 붙잡는다). */
     if (!lost()) { refocus = false; return; }
-    const next = kind === "fail" ? qs(slot, "[data-si-retry]") : kind === "ok" ? qs(slot, ".site-ftc") || qs(foot, "[data-si-doc]") : null;
+    const next = kind === "fail" ? qs(slot, "[data-si-retry]") : kind === "ok" ? qs(slot, ".site-ftc") || qs(foot, ".site-doc") : null;
     (next || foot).focus({ preventScroll: true });
     if (kind !== "busy") refocus = false;
   };
@@ -119,15 +114,12 @@ export function bindSiteFooter(root) {
   }
 
   const offRetry = on(foot, "click", "[data-si-retry]", () => { refocus = true; load(true); });
-  const offDoc = on(foot, "click", "[data-si-doc]", (e, t) => toast(DOC_NOTICE[t.dataset.siDoc], "warn"));
   load(false);
 
   return () => {
     alive = false;
     clearTimeout(skel);
     offRetry();
-    offDoc();
-    toast.destroy();
   };
 }
 
@@ -162,11 +154,10 @@ export function mountSiteSection(sidebar) {
   const sec = el(html`
     <section class="site-sec" aria-label="사이트 정보">
       <div class="site-sec__op" data-slot="site-op" hidden></div>
-      <div class="site-sec__links">${docLinks()}</div>
+      <div class="site-sec__links">${docLinks("opener")}</div>
     </section>`);
   sidebar.appendChild(sec);
   const opSlot = qs(sec, "[data-slot='site-op']");
-  const toast = makeToast();
   let alive = true;
 
   const btn = () => qs(opSlot, "[data-si-op]");
@@ -202,7 +193,6 @@ export function mountSiteSection(sidebar) {
 
   const offOp = on(sec, "click", "[data-si-op]", () => (isOpen() ? close(true) : open()));
   const offX = on(sec, "click", "[data-si-close]", () => close(true));
-  const offDoc = on(sec, "click", "[data-si-doc]", (e, t) => toast(DOC_NOTICE[t.dataset.siDoc], "warn"));
   /* 바깥 누름 — 누르는 순간(pointerdown)에 닫는다. 누른 곳의 클릭은 그대로 간다. */
   const onDown = (e) => {
     if (!isOpen()) return;
@@ -240,12 +230,11 @@ export function mountSiteSection(sidebar) {
 
   return () => {
     alive = false;
-    offOp(); offX(); offDoc();
+    offOp(); offX();
     document.removeEventListener("pointerdown", onDown, true);
     document.removeEventListener("keydown", onKey);
     sec.removeEventListener("focusout", onOut);
     window.removeEventListener("hashchange", onHash);
-    toast.destroy();
     sec.remove();
   };
 }

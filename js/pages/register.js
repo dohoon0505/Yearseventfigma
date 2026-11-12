@@ -6,7 +6,7 @@ import { icon } from "../icons.js";
 import { store, MSG_RECEIVE, newContactId } from "../store.js";
 import { contactPhoneOk, contactPhoneNeed } from "../util/phone.js";
 import { openTermsDialog, openPrivacyDialog, termsStamp } from "../util/terms-dialog.js";
-import { TERMS_VERSION } from "../data/terms.js";
+import { TERMS_VERSION, TERMS_SUMMARY } from "../data/terms.js";
 import { PRIVACY_VERSION } from "../data/privacy.js";
 import { attachmentOf, fileSizeLabel } from "../util/image.js";
 import { siteFooter, bindSiteFooter } from "../util/site-info-ui.js";
@@ -57,6 +57,9 @@ export function mount(root, { nav }) {
       /* 거래명세서 발급일 — 빈 값으로 시작한다(고르지 않으면 4단계를 넘길 수 없다). 문자열로 저장한다
          (관리자 드롭다운이 문자열을 넘기고 선택 표시가 엄격 비교다). */
       invoiceDay: "",
+      /* 중요 내용 요약 확인 — 약관 동의와 따로 받는다(시안 K-03 · 2026-11-12). 체크 없이는 가입이 끝나지 않는다.
+         따로 저장하지는 않는다 — 명세·계획에 정한 칸이 없다(약관 동의 기록이 같은 순간에 남는다). */
+      summaryAck: false,
       /* 이용약관 동의 — 사업자등록증과 같은 게이트다. 체크 없이는 가입이 끝나지 않는다(2026-09-17 결정). */
       termsAgreed: false,
       /* 개인정보 수집·이용 동의 — 약관과 **따로** 받는다(2026-10-23 운영자 결정 D6). 체크 없이는 가입이 끝나지 않는다. */
@@ -180,7 +183,8 @@ export function mount(root, { nav }) {
     `;
   }
 
-  /* 4단계 — 발급일 + 발급 안내 + 약관 동의 + 개인정보 수집·이용 동의(2026-10-23 결정 D6). 발급일을 바꾸면 안내만 부분 갱신한다(셀렉트 포커스 유지). */
+  /* 4단계 — 발급일 + 발급 안내 + 약관 중요 내용 요약(펼쳐 둔다) + 확인 셋(요약 확인 · 약관 · 개인정보 — 시안 K-03 2026-11-12 · 개인정보는 2026-10-23 결정 D6).
+     발급일을 바꾸면 안내만 부분 갱신한다(셀렉트 포커스 유지). */
   function invoiceStep() {
     const v = state.form.invoiceDay;
     const err = state.errors.invoiceDay;
@@ -198,12 +202,27 @@ export function mount(root, { nav }) {
           : html`<p class="rf__hint">가입 후에도 정산회계 조회 › 회사정보 수정에서 바꿀 수 있습니다. 바꾸면 다음 달 발급분부터 적용됩니다.</p>`}
       </div>
       <div class="rf-inv" data-slot="inv-guide">${invGuide()}</div>
-      <!-- 이용약관 동의 — 자동 동의 조항(data/terms.js)을 읽고 체크해야 가입이 끝난다(2026-09-17 결정).
-           공용 .dlg-check 를 그대로 쓴다(계산서 발급 동의·삭제 확인과 같은 장치). 재렌더 없이 클래스만 토글. -->
-      <div class="rf rf--agree" data-field="termsAgreed">
-        <button type="button" class="dlg-check ${state.form.termsAgreed ? "is-on" : ""}" data-action="terms-ack" aria-pressed="${state.form.termsAgreed ? "true" : "false"}">
+      <!-- 이용약관 중요 내용 요약 — 페이지 안에 펼쳐 둔다(시안 K-03 '가입 4단계 · 요약 확인을 받는 자리' · 발급 안내 상자와 같은 모양).
+           글은 동의 창의 요약과 같은 data/terms.js TERMS_SUMMARY(약관 본문이 아님을 함께 밝힌다). -->
+      <div class="rf-inv rf-sum" role="region" aria-label="이용약관 중요 내용 요약">
+        <div class="rf-sum__hd"><b>이용약관 중요 내용 요약</b><span>판 ${TERMS_VERSION}</span></div>
+        <p class="rf-sum__note" role="note"><b>이 요약은 약관 본문이 아닙니다.</b> 정확한 내용은 괄호 안 조의 본문을 보세요.</p>
+        <ol class="rf-sum__list">${TERMS_SUMMARY.map((x) => html`
+          <li><b class="rf-sum__n">${x.n}</b><span><b>${x.title}</b> (${x.ref}) ${x.text}</span></li>`)}</ol>
+      </div>
+      <!-- 요약 확인 · 이용약관 · 개인정보 — 체크 셋(시안). 공용 .dlg-check(role=checkbox)를 그대로 쓴다. 재렌더 없이 클래스·aria 만 토글. -->
+      <div class="rf rf--agree rf--agree-sum" data-field="summaryAck">
+        <button type="button" class="dlg-check ${state.form.summaryAck ? "is-on" : ""}" role="checkbox" data-action="summary-ack" aria-checked="${state.form.summaryAck ? "true" : "false"}">
           <span class="dlg-check__box" aria-hidden="true"></span>
-          <span>위 발급 방식과 이용약관(거래명세서·계산서 발급 동의 조항)을 읽었고 동의합니다</span>
+          <span>중요 내용 요약을 읽고 확인했습니다</span>
+        </button>
+        ${state.errors.summaryAck ? html`<div class="rf--agree__row"><p class="rf__msg rf__msg--error">${icon("alert-circle", { size: 11 })} ${state.errors.summaryAck}</p></div>` : ""}
+      </div>
+      <!-- 이용약관 동의 — 전문(data/terms.js)은 '약관 보기' 읽기 창(요약 · 전문 탭)에서 본다. 체크해야 가입이 끝난다(2026-09-17 결정). -->
+      <div class="rf rf--agree" data-field="termsAgreed">
+        <button type="button" class="dlg-check ${state.form.termsAgreed ? "is-on" : ""}" role="checkbox" data-action="terms-ack" aria-checked="${state.form.termsAgreed ? "true" : "false"}">
+          <span class="dlg-check__box" aria-hidden="true"></span>
+          <span>위 발급 방식과 이용약관을 읽었고 동의합니다</span>
         </button>
         <div class="rf--agree__row">
           <button type="button" class="rf__link" data-action="terms-view">약관 보기</button>
@@ -213,7 +232,7 @@ export function mount(root, { nav }) {
       <!-- 개인정보 수집·이용 동의 — 약관과 따로 받는다(2026-10-23 운영자 결정 D6 · 법무 부탁 2). 약관 줄과 **같은 부품**이다
            (.rf--agree + .dlg-check + 보기 링크 + 오류 줄 — 새 모양 없음). 본문은 data/privacy.js. -->
       <div class="rf rf--agree" data-field="privacyAgreed">
-        <button type="button" class="dlg-check ${state.form.privacyAgreed ? "is-on" : ""}" data-action="privacy-ack" aria-pressed="${state.form.privacyAgreed ? "true" : "false"}">
+        <button type="button" class="dlg-check ${state.form.privacyAgreed ? "is-on" : ""}" role="checkbox" data-action="privacy-ack" aria-checked="${state.form.privacyAgreed ? "true" : "false"}">
           <span class="dlg-check__box" aria-hidden="true"></span>
           <span>개인정보 수집·이용에 동의합니다</span>
         </button>
@@ -414,6 +433,7 @@ export function mount(root, { nav }) {
     } else if (state.step === LAST) {
       const next = {};
       if (!INVOICE_DAYS.includes(state.form.invoiceDay)) next.invoiceDay = "발급일을 선택해주세요";
+      if (!state.form.summaryAck) next.summaryAck = "중요 내용 요약을 읽고 확인해주세요";
       if (!state.form.termsAgreed) next.termsAgreed = "이용약관에 동의해주세요";
       if (!state.form.privacyAgreed) next.privacyAgreed = "개인정보 수집·이용에 동의해주세요";
       state.errors = next;
@@ -545,21 +565,23 @@ export function mount(root, { nav }) {
     }
   });
 
+  /* 4단계 확인 셋 — 누른 채 둔 Enter 의 자동 반복은 버린다(반복마다 켜졌다 꺼졌다 했다 — 검증 2 · 떼었다 누르면 그대로 · Space 는 해당 없음) */
+  const offAckKey = on(root, "keydown", ".rf--agree .dlg-check", (e) => { if (e.repeat && e.key === "Enter") e.preventDefault(); });
   const offClick = on(root, "click", "[data-action]", (e, t) => {
     const action = t.dataset.action;
     if (action === "to-login") nav("#/login");
     else if (action === "next") goNext();
     else if (action === "prev") goPrev();
-    else if (action === "terms-ack" || action === "privacy-ack") {
-      /* 두 동의 줄은 같은 부품이다 — 다시 그리지 않고 클래스·aria 만 토글하고, 켜면 그 줄의 오류만 걷는다. */
-      const key = action === "terms-ack" ? "termsAgreed" : "privacyAgreed";
+    else if (action === "summary-ack" || action === "terms-ack" || action === "privacy-ack") {
+      /* 세 확인 줄은 같은 부품이다 — 다시 그리지 않고 클래스·aria 만 토글하고(초점은 그 자리), 켜면 그 줄의 오류만 걷는다. */
+      const key = action === "summary-ack" ? "summaryAck" : action === "terms-ack" ? "termsAgreed" : "privacyAgreed";
       state.form[key] = !state.form[key];
       t.classList.toggle("is-on", state.form[key]);
-      t.setAttribute("aria-pressed", String(state.form[key]));
+      t.setAttribute("aria-checked", String(state.form[key]));
       if (state.form[key] && state.errors[key]) {
         delete state.errors[key];
         const er = qs(root, `[data-field='${key}'] .rf__msg`);
-        if (er) er.remove();
+        if (er) (key === "summaryAck" ? er.closest(".rf--agree__row") : er).remove();
       }
     } else if (action === "terms-view") {
       termsDlg = openTermsDialog({ onClose: () => { termsDlg = null; } });
@@ -608,6 +630,7 @@ export function mount(root, { nav }) {
     offSite();
     offInput();
     offClick();
+    offAckKey();
     offFile();
     offDay();
   };

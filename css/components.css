@@ -2942,12 +2942,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* (예전 정산 상태 배지 `.settle-badge*`·`.settle-stack`·`.settle-td__sub` 는 S-01·S-03 이식으로 관리자·포털 정산 표가
    한 줄 단계 셀 `.settle-mark*`(아래)로 바뀌어 쓰는 곳이 없어져 지웠다 — 2026-10-16 통합 점검. 되살리지 말고 settleMark 를 쓸 것.) */
 
-/* ── 이용약관 다이얼로그(util/terms-dialog.js) 본문 조각 ── */
-.terms-sec { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-xl); background: var(--c-surface-2); }
-.terms-sec__t { display: block; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
-.terms-sec__list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
-.terms-sec__list li { font-size: 13px; line-height: 1.55; color: var(--c-text-4); word-break: keep-all; }
-.terms-sec + .dlg-check { margin-top: 14px; }
+/* (예전 이용약관 다이얼로그 본문 조각 `.terms-sec*` 는 K-03 동의 창(맨 아래 '.tdlg-*' · '.lgd-*')으로 바뀌어 지웠다 — 2026-11-12. 되살리지 말 것.) */
 
 /* ══ S-01 — 정산 단계 한 줄 상태 셀 (.settle-mark*) ══════════════════════════════
    관리자 정산회계(S-01)·포털 정산회계(S-03) **공용**. 마크업은 js/util/settle-mark.js `settleMark()` 한 곳이다.
@@ -3162,3 +3157,206 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text);
 }
 .site-pop__cap { font-size: var(--fs-12); color: var(--c-text-4); }
+
+/* ============================================================
+   K-03 약관 본문 — 이용약관 · 개인정보 처리방침 글(.lgd-*) (시안 'K-03 약관 전문 · 동의 창' 2026-11-11)
+   읽는 화면(pages/legal.js · legal.css)과 동의 창의 '이용약관 전문' 탭(util/terms-dialog.js)이 **같은 조각**(util/legal-doc.js docBody)을
+   써서 공용 층에 둔다. 크기 둘 — 읽는 화면 기본(15.5px) · 동의 창 `.lgd--sm`(14.5px). 굵게 보일 중요 항(.is-imp)은 그 항 전체를
+   한 치수 크고 굵게 + 옅은 주황 면 + 머리 '중요 ①' 표(.lgd-imp). '(삭제)' 조는 흐린 제목(.is-deleted).
+   ============================================================ */
+.lgd { --lgd-fs: 15.5px; --lgd-fs-imp: 16.5px; --lgd-fs-dot: 14.5px; }
+.lgd--sm { --lgd-fs: 14.5px; --lgd-fs-imp: 15.5px; --lgd-fs-dot: 13.5px; }
+.lgd-ch {
+  margin: 36px 0 0; padding-top: 20px; border-top: 1px solid var(--c-divider);
+  font-size: var(--fs-13); font-weight: var(--fw-bold); letter-spacing: 0.02em; color: var(--c-text-muted);
+}
+.lgd-art { margin-top: 28px; }
+.lgd-art__hd { display: flex; align-items: baseline; gap: 12px; }
+.lgd-art__h {
+  margin: 0; display: flex; align-items: baseline; gap: 8px;
+  font-size: var(--fs-18); font-weight: var(--fw-semibold); letter-spacing: -0.01em; line-height: 1.5; color: var(--c-text-strong);
+  border-radius: 4px;
+}
+.lgd-art__no { font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.lgd-art.is-deleted .lgd-art__h { color: var(--c-text-faint); }
+/* 조 제목 · 부칙 머리 · 머리말은 차례·요약이 옮겨 주는 초점 자리다(조작 컨트롤이 아니다) — 키보드로 옮겨 왔을 때만 링(시안 offset 4px). */
+.lgd-art__h:focus, .lgd-bu__h:focus, .lgd-pre:focus { outline: none; }
+.lgd-art__h:focus-visible, .lgd-bu__h:focus-visible, .lgd-pre:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 4px; border-radius: 4px; }
+.lgd-art__back { margin-left: auto; flex: 0 0 auto; }
+.lgd-art__back:empty { display: none; }
+.lgd-back {
+  display: inline-flex; align-items: center; gap: 3px; border-radius: 3px;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-blue);
+}
+.lgd-back:hover { text-decoration: underline; text-underline-offset: 2px; }
+.lgd-p { margin-top: 10px; }
+.lgd-p.is-imp { padding: 10px 14px 12px; background: var(--c-orange-soft); border-radius: var(--r-xl); }
+.lgd-imp {
+  display: block; margin-bottom: 4px;
+  font-size: var(--fs-12); font-weight: var(--fw-bold); letter-spacing: 0.02em; color: var(--c-orange-ink-strong);
+}
+.lgd-p__t {
+  margin: 0; font-size: var(--lgd-fs); line-height: 1.8; color: var(--c-text); word-break: keep-all; overflow-wrap: anywhere;
+}
+.lgd-p--n > .lgd-p__t { padding-left: 1.6em; text-indent: -1.6em; }
+.lgd-p.is-imp > .lgd-p__t { font-size: var(--lgd-fs-imp); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.lgd-p strong { font-weight: inherit; }
+/* 호(1.) · 목록(• ·) — 매달린 들여쓰기. 맨 글 줄(tx)은 항 글과 같은 자리에서 시작한다. */
+.lgd-it {
+  margin: 3px 0 0; padding-left: 1.4em; text-indent: -1.4em;
+  font-size: var(--lgd-fs); line-height: 1.75; color: var(--c-text); word-break: keep-all; overflow-wrap: anywhere;
+}
+.lgd-p--n > .lgd-it { padding-left: 3em; }
+.lgd-it--tx { padding-left: 0; text-indent: 0; }
+.lgd-p--n > .lgd-it--tx { padding-left: 1.6em; }
+.lgd-it--dot { font-size: var(--lgd-fs-dot); color: var(--c-text-3); }
+.lgd-p.is-imp > .lgd-it { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.lgd-p.is-imp > .lgd-it:not(.lgd-it--dot) { font-size: var(--lgd-fs-imp); }
+.lgd-p.is-imp > .lgd-it--dot { color: var(--c-text-3); }
+/* 세 칸 표(처리방침 제5조 ② — 누구의 정보 · 항목 · 근거) */
+.lgd-tbl {
+  width: 100%; margin-top: 10px; table-layout: fixed; border-collapse: separate; border-spacing: 0;
+  border: 1px solid var(--c-divider); border-radius: var(--r-xl); overflow: hidden;
+  font-size: 13.5px; line-height: 1.6; color: var(--c-text); word-break: keep-all; overflow-wrap: anywhere;
+}
+.lgd-tbl__c1 { width: 31.4%; }
+.lgd-tbl__c2 { width: 28.6%; }
+.lgd-tbl__c3 { width: 40%; }
+.lgd-tbl th {
+  padding: 8px 12px; text-align: left; vertical-align: top;
+  background: var(--c-surface-2); font-weight: var(--fw-semibold); color: var(--c-text-2);
+}
+.lgd-tbl td { padding: 8px 12px; vertical-align: top; border-top: 1px solid var(--c-divider); }
+.lgd-tbl th + th, .lgd-tbl td + td { border-left: 1px solid var(--c-divider); }
+.lgd-tbl td:last-child { color: var(--c-text-2); }
+/* 처리방침 머리말 */
+.lgd-pre { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; font-size: var(--lgd-fs); line-height: 1.8; color: var(--c-text); word-break: keep-all; }
+.lgd-pre p { margin: 0; }
+/* 부칙 */
+.lgd-bu { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--c-divider); }
+.lgd-bu__h { margin: 0; font-size: var(--fs-18); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.lgd-bu p { margin: 10px 0 0; font-size: var(--lgd-fs); line-height: 1.8; color: var(--c-text); word-break: keep-all; }
+
+/* 동의 창 안(작은 크기) — 장은 선 없는 작은 회색 머리, 조 제목 16px, 항 사이 8px(시안) */
+.lgd--sm .lgd-ch { margin: 24px 0 0; padding-top: 0; border-top: 0; font-size: var(--fs-12); letter-spacing: 0; }
+.lgd--sm .lgd-art { margin-top: 18px; }
+.lgd--sm .lgd-art__h { display: block; font-size: var(--fs-16); letter-spacing: 0; }
+.lgd--sm .lgd-p { margin-top: 8px; }
+.lgd--sm .lgd-imp { margin-bottom: 2px; letter-spacing: 0; }
+.lgd--sm .lgd-p__t { line-height: 1.75; }
+.lgd--sm .lgd-it { margin-top: 2px; line-height: 1.7; }
+.lgd--sm .lgd-bu { margin-top: 24px; padding-top: 16px; }
+.lgd--sm .lgd-bu__h { font-size: var(--fs-16); }
+.lgd--sm .lgd-bu p { margin-top: 8px; line-height: 1.75; }
+
+/* ============================================================
+   K-03 동의 창 — 첫 로그인 게이트(960 두 칸) · 가입 4단계 읽기 창(약관 760 · 동의서 560) (.tdlg-* · util/terms-dialog.js)
+   공용 다이얼로그 셸(openDialog — 머리·푸터 고정)에 rawBody 로 두 칸을 넣는다. 왼쪽 글 칸(.tdlg-pane)만 굴러가고 오른쪽 확인 칸은 늘 보인다.
+   창 높이: 게이트는 화면의 88%(시안 — 1440x900 792px · 1280x720 634px), 읽기 창은 시안 값(약관 720 · 동의서 640)을 넘지 않는다.
+   ============================================================ */
+.modal-panel--terms { height: 88vh; }
+.modal-panel--terms-rd { height: min(88vh, 720px); }
+.modal-panel--terms-pv { height: min(88vh, 640px); }
+.tdlg {
+  flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr);
+}
+.tdlg--reader { grid-template-columns: minmax(0, 1fr); }
+.tdlg__l { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.tdlg__desc { flex: 0 0 auto; margin: 0; padding: 14px 24px 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-4); word-break: keep-all; }
+/* 탭 — 밑줄(고른 탭 주황 2px) · 화살표로 옮긴다(roving tabindex). 탭 목록(role=tablist)과 '개인정보 처리방침' 링크는 한 줄의 형제다
+   (링크를 tablist 안에 두지 않는다 — 검증 2). 탭의 margin-bottom -1px 이 목록 밖으로 1px 나와 줄 밑선을 덮는 것은 예전과 같다. */
+.tdlg-tabs { flex: 0 0 auto; display: flex; align-items: center; gap: 18px; padding: 10px 24px 0; border-bottom: 1px solid var(--c-fill-1); }
+.tdlg-tablist { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.tdlg-tab {
+  padding: 8px 2px 10px; margin-bottom: -1px; border-bottom: 2px solid transparent;
+  font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--c-text-4); white-space: nowrap;
+}
+.tdlg-tab:hover { color: var(--c-text-strong); }
+.tdlg-tab[aria-selected="true"] { font-weight: var(--fw-bold); color: var(--c-text-strong); border-bottom-color: var(--c-orange); }
+.tdlg-policy {
+  margin-left: auto; padding-bottom: 8px; display: inline-flex; align-items: center; gap: 3px; border-radius: 3px;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2); white-space: nowrap;
+}
+.tdlg-policy:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* 굴러가는 글 칸 — tabindex=0(키보드로 굴린다). 칸이 창 가장자리까지 차서 링은 안쪽에 그린다(바깥이면 창 overflow 에 잘린다). */
+.tdlg-pane { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 24px 28px; }
+.tdlg-pane:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
+/* 오른쪽 확인 칸 — 설명 + 체크 셋. 1280x720 에서도 넘치지 않지만, 글자를 키운 화면에서 버튼이 밀리지 않게 혼자 굴러간다. */
+.tdlg__r {
+  min-height: 0; overflow-y: auto; border-left: 1px solid var(--c-fill-1);
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.tdlg__lead { margin: 0; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-2); word-break: keep-all; }
+.tdlg__lead b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.tdlg-checks { display: flex; flex-direction: column; gap: 8px; }
+.tdlg-checks .dlg-check { margin-top: 0; line-height: 1.5; }
+/* 요약 · 동의서 글 */
+.tdlg-sum__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tdlg-sum__hd b { font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.tdlg-sum__hd span { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tdlg-note {
+  margin: 10px 0 0; padding: 10px 14px; background: var(--c-surface-2); border-radius: var(--r-xl);
+  font-size: 13.5px; line-height: 1.6; color: var(--c-text-2); word-break: keep-all;
+}
+.tdlg-note b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.tdlg-sum__list, .tdlg-con__list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.tdlg-sum__list > li {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 6px; padding: 12px 0; border-bottom: 1px solid var(--c-fill-1);
+}
+.tdlg-sum__n { font-size: var(--fs-15); font-weight: var(--fw-bold); line-height: 1.5; color: var(--c-orange-ink-strong); }
+.tdlg-sum__b, .tdlg-con__b { min-width: 0; }
+.tdlg-sum__t { margin: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.5; color: var(--c-text-strong); word-break: keep-all; }
+.tdlg-sum__ref {
+  padding: 0; border-radius: 3px; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-blue);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.tdlg-sum__ref:hover { color: var(--c-blue-hover); }
+.tdlg-sum__x { margin: 4px 0 0; font-size: var(--fs-14); line-height: 1.65; color: var(--c-text-body); word-break: keep-all; }
+.tdlg-con__list > li {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 0 6px; padding: 12px 0; border-bottom: 1px solid var(--c-fill-1);
+}
+.tdlg-con__no { font-size: var(--fs-14); font-weight: var(--fw-bold); line-height: 1.5; color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.tdlg-con__t { margin: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.5; color: var(--c-text-strong); }
+.tdlg-con__ln { margin: 3px 0 0; padding-left: 1em; text-indent: -1em; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-body); word-break: keep-all; }
+/* 전문 탭의 '조 바로 가기' — 글 칸 맨 위에 붙어 있어(sticky) 어디를 읽든 고를 수 있다(시안의 '전문을 읽는 중 — 제28조' 프레임). 굴리면 지금 조를 따라간다. */
+.tdlg-jump {
+  position: sticky; top: -18px; z-index: 1; /* 크롬은 굴림 칸의 안쪽 여백(18px) 아래를 sticky 0 으로 친다 — 칸 맨 위에 붙이려고 그만큼 올린다 */
+  margin-top: -18px; padding: 18px 0 12px; background: var(--c-surface); /* 위 여백까지 덮어 굴러가는 글이 비치지 않게 · 옆은 글과 같은 폭(선도 글 폭 — 시안) */
+  display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--c-fill-1);
+}
+.tdlg-jump__k { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-4); white-space: nowrap; }
+.tdlg-jump__box { position: relative; flex: 1; min-width: 0; display: flex; }
+.tdlg-jump__sel {
+  -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 36px; padding: 0 34px 0 12px;
+  border: 1px solid var(--c-border); border-radius: var(--r-lg); background: var(--c-surface);
+  font: inherit; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text);
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden; cursor: pointer;
+}
+/* 고르는 칸은 전역 초점 링에서 빠지는 글자칸(select)이다 — 드롭다운 트리거와 같은 모양(인디고 테두리 + 옅은 그림자)으로 초점을 말한다. */
+.tdlg-jump__sel:focus { outline: none; border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.tdlg-jump__ic { position: absolute; right: 12px; top: 11px; color: var(--c-text-muted); pointer-events: none; }
+.modal-panel--terms .dlg-ft__hint { word-break: keep-all; } /* '요약 확인 · 약관 …' 이 낱말 가운데서 끊기지 않게 */
+.modal-panel--terms .dlg-hd__t { word-break: keep-all; } /* 좁은 창에서 '필요합 / 니다' 처럼 낱말 가운데서 끊기지 않게(검증 2) */
+/* 휴대폰 폭(시안 밖 — 데스크톱 기준이라 한 칸으로 쌓는다 · 새 모양 없음 · 2026-11-12 검증 2 로 고침).
+   게이트는 '왼쪽 글 칸만 굴러가는' 고정 분할을 푼다 — 창 높이에서 머리·푸터·확인 칸을 빼면 글 칸이 46~120px 로 눌리고(375x667 ·
+   390x844 실측) 탭 줄이 확인 칸 위로 겹쳐 그려졌다. 대신 창 본문(.tdlg) 전체가 굴러가고, 글 칸은 화면 높이의 절반쯤을 제 높이로
+   가져 그 안에서 굴러가며, 확인 칸은 그 아래 제 높이로 선다(Tab 이 체크로 가면 본문이 그 자리로 굴러간다).
+   푸터 힌트는 버튼 위 한 줄로 올린다(옆에 두면 폭 70px 에 다섯 줄로 꺾였다). 읽기 창(.tdlg--reader)은 칸이 하나라 그대로 둔다. */
+@media (max-width: 760px) {
+  .modal-panel--terms, .modal-panel--terms-rd, .modal-panel--terms-pv { height: calc(100vh - 48px); }
+  .modal-panel--terms .dlg-hd, .modal-panel--terms .dlg-ft { padding-left: 16px; padding-right: 16px; }
+  .tdlg { grid-template-columns: minmax(0, 1fr); }
+  .tdlg__desc { padding: 12px 16px 0; }
+  .tdlg-tabs { flex-wrap: wrap; gap: 0 14px; padding: 8px 16px 0; }
+  .tdlg-tablist { flex-wrap: wrap; gap: 0 14px; }
+  .tdlg-policy { margin-left: 0; padding: 8px 0; }
+  .tdlg-pane { padding-left: 16px; padding-right: 16px; } /* 위 18px 은 그대로 — '조 바로 가기' 의 sticky top·margin-top(-18px)과 짝이다 */
+  /* 격자가 아니라 블록으로 쌓는다 — auto 행은 두 칸의 min-height:0 때문에 창 높이에 맞춰 줄어 확인 칸이 글 칸 위에 겹쳐 섰다(실측) */
+  .tdlg:not(.tdlg--reader) { display: block; overflow-y: auto; }
+  .tdlg:not(.tdlg--reader) .tdlg-pane { flex: 0 0 auto; height: clamp(240px, 55vh, 480px); }
+  .tdlg__r { border-left: 0; border-top: 1px solid var(--c-fill-1); overflow: visible; padding: 14px 16px 18px; }
+  .modal-panel--terms-gate .dlg-ft { flex-wrap: wrap; row-gap: 10px; }
+  .modal-panel--terms-gate .dlg-ft__hint { flex: 1 0 100%; }
+  .modal-panel--terms-gate .dlg-ft__acts { margin-left: auto; }
+}
