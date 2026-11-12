@@ -210,6 +210,62 @@
    (처음 그릴 땐 전역 링이 흰 면에서 1.1:1 이었다.) */
 .modal-panel--pick .pick-opt:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
 
+/* ── 주문 접수 확인 창 · 모달 레이어(.page-order 밖 · 시안 'K-02 주문 접수 확인 창' 2026-11-11) ──
+   공용 다이얼로그(util/dialog.js — 머리·푸터 고정, 본문만 굴러감) 960px 안을 두 칸으로 나눈다(1fr 1fr · 간격 32px · 위 정렬).
+   왼쪽 '접수 내용' 은 공용 dlgRule · dlgRow 그대로, 오른쪽은 세 묶음 안내 + 공용 체크(.dlg-check · role=checkbox).
+   창 높이는 시안 612px(1440x900 · 1280x720 같은 값 — 오른쪽 칸이 더 길어 긴 주문도 같다)이고 1280x720 상한(88vh = 634) 안이다 —
+   굴리지 않고 체크까지 보인다. 더 낮은 창이면 본문만 굴러간다(머리 · 막힌 이유 · 두 버튼은 그대로).
+   ⚠️ 옛 이름 `.modal-panel--ordconfirm` 은 공용 규격으로 합쳐진 이름이다(CLAUDE.md) — 되살리지 않고 새 이름을 쓴다. */
+.modal-panel--ordsubmit .ordsub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 32px; align-items: start; }
+.modal-panel--ordsubmit .ordsub__col { min-width: 0; }
+.modal-panel--ordsubmit .dlg-val { font-variant-numeric: tabular-nums; } /* 날짜·시각·번지 숫자 폭을 고르게(시안 — 금액만이 아니다) */
+/* 오른쪽 룰의 '이용약관 전문'(새 창) — 동의 창의 '개인정보 처리방침' 링크와 같은 모양 */
+.modal-panel--ordsubmit .ordsub-terms {
+  display: inline-flex; align-items: center; gap: 3px; border-radius: 3px;
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-2); white-space: nowrap;
+}
+.modal-panel--ordsubmit .ordsub-terms:hover { text-decoration: underline; text-underline-offset: 2px; }
+.modal-panel--ordsubmit .ordsub-info {
+  margin-top: 12px; display: flex; flex-direction: column;
+  font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-2); word-break: keep-all;
+}
+.modal-panel--ordsubmit .ordsub-info b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+/* 첫 묶음만 굵은 제목 줄 — 예외('다만 …')를 같은 묶음 안에 붙여 제한만 읽히지 않게(시안) */
+.modal-panel--ordsubmit .ordsub-grp { padding-bottom: 12px; border-bottom: 1px solid var(--c-fill-1); }
+.modal-panel--ordsubmit .ordsub-grp__t { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
+.modal-panel--ordsubmit .ordsub-grp__p { margin-top: 4px; }
+.modal-panel--ordsubmit .ordsub-grp__p--but { margin-top: 6px; }
+.modal-panel--ordsubmit .ordsub-line { padding: 12px 0; border-bottom: 1px solid var(--c-fill-1); }
+.modal-panel--ordsubmit .ordsub-line--last { padding-bottom: 0; border-bottom: 0; }
+/* 카카오톡 채널 이름 — 1:1 채팅 새 창 링크(거래명세서 · 정산회계와 같은 주소 · 이름 바로 뒤에 조사를 붙이지 않는다 — contact.js) */
+.modal-panel--ordsubmit .ordsub-kakao {
+  display: inline-flex; align-items: center; gap: 2px; border-radius: 3px;
+  font-weight: var(--fw-semibold); color: var(--c-text-strong); text-decoration: underline; text-underline-offset: 2px;
+}
+.modal-panel--ordsubmit .ordsub-num { font-variant-numeric: tabular-nums; }
+/* 체크 문구는 낱말 가운데서 꺾지 않는다('안 / 내를' — 시안 그림은 꺾였다 · 줄 수는 같다) · 줄 높이는 시안 1.5 */
+.modal-panel--ordsubmit .dlg-check { line-height: 1.5; word-break: keep-all; }
+/* 상자 안 ✓ 는 줄 높이 1(시안 — 11px). 위 1.5 를 물려받으면 16.5px 줄의 가운데에 서서 ✓ 가 1px 위로 떴다(검증 1 · 배율 3 실측).
+   공용 .dlg-check__box 에 넣지 않는다 — 다른 체크 창(삭제 확인 · 동의 창)도 1px 바뀐다. */
+.modal-panel--ordsubmit .dlg-check__box { line-height: 1; }
+.modal-panel--ordsubmit .dlg-ft__hint { word-break: keep-all; } /* 한 칸(480)에서 '접수할 수 있어요' 가 낱말 가운데서 끊기지 않게 */
+/* 창 폭이 1040px 아래면 한 칸으로 접는다(시안 구현 메모) — 모양은 시안의 '한 칸 · 480' 참고 프레임(폭 480 · 두 묶음 사이 20px).
+   체크가 본문 아래로 밀려 굴려야 보이지만 푸터의 이유 문장은 늘 보인다. 휴대폰 폭에서는 공용 `max-width: calc(100vw - 48px)` 이 줄인다. */
+@media (max-width: 1039.98px) {
+  .modal-panel--dlg.modal-panel--ordsubmit { width: 480px; }
+  .modal-panel--ordsubmit .ordsub { grid-template-columns: minmax(0, 1fr); gap: 20px 0; }
+}
+/* 휴대폰 폭(시안 밖 — 동의 창 게이트와 같은 처방 · components.css 'K-03 동의 창' 끝): 푸터 이유 문장을 버튼 위 한 줄로 올리고
+   좌우 여백을 16px 로 — 옆에 두면 폭 70px 에 다섯 줄로 꺾였다(390x844 실측).
+   ⚠️ 경계는 760 이 아니라 **창이 480 보다 좁아지는 폭**(480 + 오버레이 좌우 24 × 2 = 528 미만)이다. 동의 창(960)의 760 을 그대로 옮겼더니
+   529~760 에서 480 창이 그대로인데 여백 16 · 푸터 두 단(97px)이 되어 시안 '한 칸 480'(여백 24 · 푸터 68)과 달랐다(검증 1). */
+@media (max-width: 527.98px) {
+  .modal-panel--ordsubmit .dlg-hd, .modal-panel--ordsubmit .dlg-ft, .modal-panel--ordsubmit .ordsub { padding-left: 16px; padding-right: 16px; }
+  .modal-panel--ordsubmit .dlg-ft { flex-wrap: wrap; row-gap: 10px; }
+  .modal-panel--ordsubmit .dlg-ft__hint { flex: 1 0 100%; }
+  .modal-panel--ordsubmit .dlg-ft__acts { margin-left: auto; }
+}
+
 /* ── 확인 단계 ── */
 .page-order .confirm-list { border-top: 1px solid var(--c-divider); margin-top: 28px; }
 .page-order .cf-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 4px; border-bottom: 1px solid var(--c-divider); }

@@ -17,7 +17,8 @@ import { BIZ, hourOptions, minOptions } from "../util/date.js";
 import { fmtPhone, phoneOk } from "../util/phone.js";
 import { RIBBON_GROUPS } from "../data/ribbon-phrases.js";
 import { parseOrderUrl, AUTOFILL_HINT } from "../data/order-autofill.js";
-import { CS_PHONE } from "../data/contact.js";
+import { CS_PHONE, CS_KAKAO_NAME, CS_KAKAO_URL } from "../data/contact.js";
+import { icon } from "../icons.js";
 import { b2bUpsert, b2bNewId, b2bNextOrderNo } from "../data/b2b-mock.js";
 import { intakeBlockOf } from "../util/settlement.js";
 import { histEntry } from "../data/order-history.js";
@@ -662,8 +663,16 @@ export function mount(root, { nav }) {
     if (ph === "beforeOpen") return `즉시배송 · 오늘 ${hhmm(IMM_NEXT.h, IMM_NEXT.m)}`;
     return `즉시배송 · 오늘 ${state.hour}:${state.min}`;
   }
-  /* 주문 접수 재확인 모달 — '계산서 발급동의'와 동일 패턴(되돌릴 수 없어 한 번 더 확인). */
+  /* 주문 접수 확인 창(시안 'K-02 주문 접수 확인 창' 2026-11-11 · 요청서 K-2 · 명세 3.2 — 전자상거래법 제17조 제6항 · 약관 제26조 제4항).
+     960px 두 칸 — 왼쪽 '접수 내용' 여섯 줄(창이 묻는 '이대로' 를 먼저 본다), 오른쪽 '주문 전에 확인해 주세요' 세 묶음(물릴 수 없음과 그 예외 ·
+     고치거나 취소하는 길 · 취소 수수료)과 확인 체크 하나. 읽는 순서 = 내용 → 조건 → 체크 → 버튼. 창 폭이 1040px 아래면 480 한 칸으로 접는다(order.css).
+     체크는 창을 열 때마다 꺼진 채로 시작하고, 켜기 전에는 '주문 접수하기' 가 잠기고 푸터가 빨간 글씨로 이유를 말한다(공용 다이얼로그 규격 '푸터 힌트').
+     ⚠️ 확인한 사실(시각)을 주문에 남기지 않는다 — 운영자가 아직 정하지 않았다(시안 '운영자 확인' · 명세 3.2). 정하면 createOrder 의 레코드에 더한다.
+     ⚠️ 거래 조건(물리는 방법·기한 · 불만·분쟁 처리)은 창에 다시 적지 않고 '이용약관 전문'(읽는 화면 #/legal/terms · 새 창)으로 보낸다 — 시안. */
+  const SUBMIT_HINT_OFF = "안내를 확인하고 체크해야 접수할 수 있어요";
+  const SUBMIT_HINT_ON = "리본 문구와 보내는분을 한 번 더 확인하세요";
   let submitModal = null;
+  let submitSeq = 0; /* 푸터 이유 문장 id — 체크의 aria-describedby 가 가리킨다 */
   function openSubmitConfirm() {
     if (submitModal) return;
     /* 접수 게이트: 미완료·무효 스텝이 있으면(예: 청첩 측근 미선택, 상품 미선택) 접수를 막고
@@ -682,17 +691,21 @@ export function mount(root, { nav }) {
        고르게 하므로 평소엔 걸리지 않는다 — 날짜 제한이 바뀌어도 이 문이 지킨다. */
     const blk = intakeBlockOf(currentClient(), deliverAtOf(), new Date());
     if (blk) { go(2); showToast(blk.reason); return; }
-    /* 접수하면 리본 문구·보내는분을 고칠 수 없다 — 그래서 확인 창이 그 둘을 **다시 보여 준다**(2026-09-26,
-       공용 다이얼로그로 옮기며). 예전엔 상품·금액 한 줄만 보여 줘 마지막 확인이 이름뿐이었다. */
+    /* 접수하면 포털에서 직접 고칠 수 없다 — 그래서 확인 창이 접수 내용을 **다시 보여 준다**(2026-09-26, 공용 다이얼로그로 옮기며 —
+       예전엔 상품·금액 한 줄만 보여 줘 마지막 확인이 이름뿐이었다). 캡션은 K-02 에서 '접수한 뒤에는 포털에서 직접 고칠 수 없어요' 로
+       바꿨다 — 오른쪽 '출발하기 전에 알려 주면 고칠 수 있음' 과 부딪히지 않게(예전 '리본 문구·보내는분을 고칠 수 없어요'). */
     const val = (v, cls = "") => html`<span class="dlg-val ${cls}">${v || "-"}</span>`;
+    const ext = (size) => icon("external-link", { size, cls: "site-ext" });
+    let ack = false;
     submitModal = openDialog({
       eyebrow: state.product.product,
       title: "이대로 주문을 접수할까요?",
-      width: 480,
-      bodyClass: "dlg-body--sections",
+      width: 960,
+      panelClass: "modal-panel--ordsubmit",
+      bodyClass: "ordsub",
       body: html`
-        <section>
-          ${dlgRule({ t: "접수 내용", cap: "접수 후에는 리본 문구·보내는분을 고칠 수 없어요" })}
+        <section class="ordsub__col">
+          ${dlgRule({ t: "접수 내용", cap: "접수한 뒤에는 포털에서 직접 고칠 수 없어요" })}
           <div class="dlg-rows">
             ${dlgRow({ k: "주문 금액", v: val(won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee), "dlg-val--won") })}
             ${dlgRow({ k: "배송", v: val(dateLabel()) })}
@@ -701,12 +714,50 @@ export function mount(root, { nav }) {
             ${dlgRow({ k: "리본 문구", top: true, v: val(state.ribbon) })}
             ${dlgRow({ k: "보내는분", top: true, v: val(state.sender) })}
           </div>
+        </section>
+        <section class="ordsub__col">
+          ${/* 이용약관 읽는 화면을 새 창으로 — 쓰던 주문과 이 창이 그대로 남는다. ⚠️ rel="opener": 데모 로그인이 sessionStorage 라 크롬은
+               opener 없이 연 새 창에 넘기지 않아 읽는 화면이 '로그인' 만 보인다(포털 메뉴 아래 두 링크와 같은 까닭 — util/site-info-ui.js 머리). */ ""}
+          ${dlgRule({ t: "주문 전에 확인해 주세요", cap: html`<a class="ordsub-terms" href="#/legal/terms" target="_blank" rel="opener" aria-label="이용약관 전문 (새 창)">이용약관 전문${ext(11)}</a>` })}
+          <div class="ordsub-info">
+            <div class="ordsub-grp">
+              <p class="ordsub-grp__t">접수한 뒤에는 주문을 물릴 수 없어요</p>
+              <p class="ordsub-grp__p">주문을 받은 뒤 만드는 상품이라 시간이 지나면 다시 팔 수 없어요. 그래서 전자상거래법에 따라 주문을 물리는 것(청약철회)이 제한돼요.</p>
+              <p class="ordsub-grp__p ordsub-grp__p--but"><b>다만</b> 받은 상품이 안내나 주문 내용과 다르면 물릴 수 있어요(받은 날부터 3개월, 그 사실을 안 날부터 30일 안).</p>
+            </div>
+            <p class="ordsub-line"><b>고치거나 취소하려면</b> 배송이 출발하기 전에 카카오톡 채널 <a class="ordsub-kakao" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" aria-label="${`카카오톡 채널 ${CS_KAKAO_NAME} 1:1 채팅 (새 창)`}">${CS_KAKAO_NAME}${ext(10)}</a> 또는 고객센터 <b class="ordsub-num">${CS_PHONE}</b>에 알려 주세요. 리본 문구는 출발한 뒤에도 바꿀 수 있어요(비용은 협의).</p>
+            <p class="ordsub-line ordsub-line--last"><b>취소 수수료</b>는 제작·배송이 진행된 정도에 따라 0원부터 주문 금액까지예요. 상품 품절이나 업체 사정으로 취소하면 받지 않아요. 배송을 마친 주문은 취소할 수 없어요.</p>
+          </div>
+          <button type="button" class="dlg-check" role="checkbox" aria-checked="false" data-action="ack-submit">
+            <span class="dlg-check__box" aria-hidden="true"></span>
+            <span>주문 제작 상품이라 접수한 뒤에는 물릴 수 없다는 것과 취소 수수료 안내를 확인했어요</span>
+          </button>
         </section>`,
-      hint: "리본 문구와 보내는분을 한 번 더 확인하세요",
-      actions: dlgActions({ cancel: "돌아가기", ok: "주문 접수하기" }),
+      hint: SUBMIT_HINT_OFF,
+      hintBlock: true,
+      actions: dlgActions({ cancel: "돌아가기", ok: "주문 접수하기", disabled: true }),
       onClose: () => { submitModal = null; },
     });
-    on(submitModal.panel, "click", "[data-action='ok']", () => {
+    const p = submitModal.panel;
+    const chk = qs(p, "[data-action='ack-submit']");
+    const okBtn = qs(p, "[data-action='ok']");
+    /* 체크는 푸터 이유 문장으로 설명된다(시안 aria-describedby) — 켜고 끌 때 그 문장이 바뀐다. */
+    const hintEl = qs(p, "[data-slot='dlghint']");
+    hintEl.id = `ordsub-hint-${++submitSeq}`;
+    chk.setAttribute("aria-describedby", hintEl.id);
+    /* 다시 그리지 않고 클래스·aria 만 바꾼다 — 누른 체크에 초점이 남는다(동의 창 terms-dialog 와 같은 수법). */
+    on(p, "click", "[data-action='ack-submit']", () => {
+      ack = !ack;
+      chk.classList.toggle("is-on", ack);
+      chk.setAttribute("aria-checked", ack ? "true" : "false");
+      okBtn.disabled = !ack;
+      submitModal.setHint(ack ? SUBMIT_HINT_ON : SUBMIT_HINT_OFF, !ack);
+    });
+    /* 누른 채 둔 Enter 의 자동 반복은 버린다 — 버튼은 Enter keydown 마다 눌려 꾹 누르면 반복마다 켜졌다 꺼졌다 한다
+       (동의 창과 같은 막기 · 떼었다 누르면 그대로 먹힌다 · Space 는 뗄 때 한 번이라 해당 없다). */
+    on(p, "keydown", "[data-action='ack-submit']", (e) => { if (e.repeat && e.key === "Enter") e.preventDefault(); });
+    on(p, "click", "[data-action='ok']", () => {
+      if (!ack) return;
       submitModal.close();
       submit();
     });
