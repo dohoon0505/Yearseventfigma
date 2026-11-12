@@ -27,7 +27,15 @@ import { openModal } from "../ui.js";
  *                          잠긴 달로 드는 등록 — 사용자 답 3). 비어 있지 않으면 푸터가 그 말을 빨간 글자로 하고 버튼을 잠근다.
  *                          entryFocus?(stepEl) → Element|null (선택) — '이전'·'다음' 으로 이 스텝이 다시 보일 때 초점을 둘 요소.
  *                          없거나 null 이면 셸 기본값(스텝의 첫 조작 가능 요소)이다. 셸은 무엇을 고르는지 모른다 — 고른 칸을
- *                          아는 것은 스펙이다(B2C 1단계 = 고른 주문경로 카드 · B2B 1단계는 기본값이 접힌 줄의 '다른 거래처 선택').
+ *                          아는 것은 스펙이다(B2C 1단계 = 고른 주문경로 카드 · B2B 1단계는 기본값이 접힌 줄의 '다시 고르기').
+ *                          status?() → { text, tone, head? } | null (선택 · B2B 두 단계 — 시안 O-01) — 푸터 왼쪽 글을 스펙이 통째로 정한다.
+ *                          tone: "dirty"(남은 필수 · 호박) | "block"(막힘 · 빨강) | "saved"(준비됨 · 초록) | ""(회색). head 가 있으면 굵은
+ *                          첫 줄 + 작은 둘째 줄(잠긴 달 — 어느 달 때문인지 + 정본 이유). 버튼 잠금은 그대로 required()·block() 이 정한다
+ *                          (글만 스펙 몫 — 잠금 규칙을 둘로 나누지 않는다). 없으면(B2C) 예전 글('필수 N건 — …' / block / hint) 그대로.
+ *  - panelClass            패널에 더할 클래스(선택 · B2B 'ordnew--b2b' — 시안 O-01 밀도·레일은 이 스코프다. B2C 는 넘기지 않아 그대로)
+ *  - railLabel             레일(aside)의 접근명(선택)
+ *  - autofillIcon          '자동작성' pill 의 아이콘 이름(선택 · B2B 'sparkle' — 시안 O-01. 없으면 예전 'file-text')
+ *  - footInMain            true 면 푸터를 본문 열 아래에만 둔다 — 다크 레일이 창 바닥까지(선택 · B2B 시안 O-01 · 상세 창 S-06 과 같은 짜임)
  *  - rail(stepIdx)         288px 레일 본문(마크업만)
  *  - submitLabel           마지막 버튼 문구
  *  - onSubmit()            등록. 채번·upsert·이력·목록 갱신은 호출부 책임
@@ -56,7 +64,7 @@ export function openOrderCreate(spec) {
     <div class="ordnew-hd__r">
       ${spec.autofill
         ? html`<button type="button" class="ordnew-auto" data-action="autofill">
-            ${icon("file-text", { size: 14 })} 자동작성</button>`
+            ${icon(spec.autofillIcon || "file-text", { size: 14 })} 자동작성</button>`
         : ""}
       <button class="hm__x" data-action="close" aria-label="닫기">${icon("x", { size: 14 })}</button>
     </div>`;
@@ -72,37 +80,50 @@ export function openOrderCreate(spec) {
   const stepLabel = (s, i) =>
     `${i + 1}단계 / ${steps.length} · ${s.title}${s.cap ? ` — ${s.cap}` : ""}`;
 
-  /* ── 푸터: 색이 상태를 말한다 ── */
+  /* ── 푸터: 색이 상태를 말한다 ──
+     스텝이 status() 를 주면(B2B — 시안 O-01) 주 버튼이 왼쪽 글을 설명으로 잇는다(`aria-describedby`) — 잠긴 버튼에 초점이 가면
+     '왜 못 누르는지' 를 읽는다. 주지 않으면(B2C) 마크업이 예전 그대로다(id · aria-describedby 없음 — 이식 검증 1의 15).
+     이 자리는 live 가 아니다(입력마다 떠들지 않게 — CLAUDE.md '다이얼로그 규격'). */
   const ftBody = () => {
     const m = missing();
     const b = blocked();
-    const stat = m.length
-      ? `필수 ${m.length}건 — ${m.join(" · ")}`
-      : b || (steps[step].hint ? steps[step].hint() : "");
+    const st = steps[step].status ? steps[step].status() : null;
+    const stat = st
+      ? html`<span class="ord-ft__stat${st.tone ? ` is-${st.tone}` : ""}${st.head ? " has-head" : ""}" id="ordnew-ftstat" data-slot="ftstat">${st.head
+        ? html`<b class="ord-ft__head">${st.head}</b>` : ""}<span class="ord-ft__txt">${st.text}</span></span>`
+      : html`<span class="ord-ft__stat ${m.length ? "is-dirty" : b ? "is-block" : "is-saved"}" data-slot="ftstat">${m.length
+        ? `필수 ${m.length}건 — ${m.join(" · ")}`
+        : b || (steps[step].hint ? steps[step].hint() : "")}</span>`;
     return html`
-      <span class="ord-ft__stat ${m.length ? "is-dirty" : b ? "is-block" : "is-saved"}" data-slot="ftstat">${stat}</span>
+      ${stat}
       <button class="hm-btn hm-btn--secondary" data-action="${step === 0 ? "close" : "back"}">
         ${step === 0 ? "취소" : "이전"}</button>
-      <button class="hm-btn hm-btn--primary" data-action="${isLast() ? "submit" : "next"}" ${m.length || b ? "disabled" : ""}>
+      <button class="hm-btn hm-btn--primary" data-action="${isLast() ? "submit" : "next"}" ${st ? html`aria-describedby="ordnew-ftstat"` : ""} ${m.length || b ? "disabled" : ""}>
         ${isLast() ? (spec.submitLabel || "주문 등록") : "다음"}</button>`;
   };
 
-  const body = () => html`
-    <div class="hm__head ordnew-hd" data-slot="hd">${hdBody()}</div>
-    <div class="ordnew-grid">
-      <aside class="ord-side ordnew-rail">
-        <div class="ordnew-railbody" data-slot="railbody">${spec.rail ? spec.rail(step) : ""}</div>
-      </aside>
+  /* footInMain(선택 · B2B — 시안 O-01): 푸터를 본문 열 아래에만 세우고 다크 레일을 창 바닥까지 내린다(주문 상세 S-06 과 같은 짜임).
+     레일이 푸터 높이(71px)만큼 길어져 명단이 길어도 레일이 덜 구른다(1280x720 · 추가 수신자 셋 — 시안 b5 는 굴림 0).
+     넘침은 여전히 `.ord-pane`(본문)과 `.ordnew-railbody`(레일)가 각자 받는다 — 둘을 묶은 칸은 구르지 않는다. 없으면(B2C) 예전 짜임. */
+  const paneBody = () => html`
       <div class="ord-pane">
         ${steps.map((s, i) => html`
           <section class="ordnew-pane" data-step="${i}" role="group" aria-label="${stepLabel(s, i)}"
             ${i === 0 ? "" : "hidden"}>${s.render()}</section>`)}
-      </div>
+      </div>`;
+  const footBody = () => html`<div class="hm__foot ord-ft" data-slot="ft">${ftBody()}</div>`;
+  const body = () => html`
+    <div class="hm__head ordnew-hd" data-slot="hd">${hdBody()}</div>
+    <div class="ordnew-grid">
+      <aside class="ord-side ordnew-rail" ${spec.railLabel ? html`aria-label="${spec.railLabel}"` : ""}>
+        <div class="ordnew-railbody" data-slot="railbody">${spec.rail ? spec.rail(step) : ""}</div>
+      </aside>
+      ${spec.footInMain ? html`<div class="ordnew-main">${paneBody()}${footBody()}</div>` : paneBody()}
     </div>
-    <div class="hm__foot ord-ft" data-slot="ft">${ftBody()}</div>`;
+    ${spec.footInMain ? "" : footBody()}`;
 
   const modal = openModal({
-    panelClass: "modal-panel--ordnew",
+    panelClass: `modal-panel--ordnew ${spec.panelClass || ""}`.trim(),
     labelledBy: "modal-title",
     body: body(),
     onEsc: () => onEscHook(),
@@ -118,7 +139,23 @@ export function openOrderCreate(spec) {
     const e = qs(modal.panel, `[data-slot='${slot}']`);
     if (e) setHTML(e, typeof inner === "string" ? html`${inner}` : inner);
   };
-  const syncFooter = () => put("ft", ftBody());
+  /* 푸터는 **제자리에서 고친다** — 버튼을 새로 만들지 않는다(글 · 클래스 · 속성만). 예전엔 입력마다·칸을 떠날 때마다 푸터를 통째로
+     갈아 끼워, 금액 칸을 떠나는 순간(focusout → 다시 그림) 마우스로 누르던 '주문 등록'·'이전' 이 DOM 에서 떨어져 그 클릭이 사라졌다
+     (mousedown 과 mouseup 이 다른 요소 — 이식 검증 2의 1). 버튼 수가 달라지는 일은 없지만 그때는 예전처럼 통째로 다시 그린다. */
+  const syncAttrs = (o, n) => {
+    [...o.attributes].forEach((a) => { if (!n.hasAttribute(a.name)) o.removeAttribute(a.name); });
+    [...n.attributes].forEach((a) => { if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value); });
+    if (o.innerHTML !== n.innerHTML) o.innerHTML = n.innerHTML;
+  };
+  const syncFooter = () => {
+    const ft = qs(modal.panel, "[data-slot='ft']");
+    if (!ft) return;
+    const tmp = document.createElement("div");
+    setHTML(tmp, ftBody());
+    const now = [...tmp.children], was = [...ft.children];
+    if (now.length !== was.length || now.some((n, i) => n.tagName !== was[i].tagName)) { setHTML(ft, ftBody()); return; }
+    was.forEach((o, i) => syncAttrs(o, now[i]));
+  };
   const rerenderRail = () => { put("railbody", spec.rail ? spec.rail(step) : ""); };
   const rerenderStep = (key) => {
     const i = steps.findIndex((s) => s.key === key);

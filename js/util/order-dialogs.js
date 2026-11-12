@@ -93,7 +93,7 @@ export function openRowPicker(o) {
   /* 직접 입력 칸은 목록 **밖**에 둔다 — 라디오그룹 안에 텍스트 입력이 섞이지 않고,
      목록이 스크롤해도 적고 있는 칸이 시야에서 사라지지 않는다.
      ⚠️ 숨김은 `.dlg-rows` 래퍼에 건다. `.dlg-row { display: grid }` 는 같은 특이도의
-     `[hidden]` 을 이겨(뒤 선언 우선) 행이 그대로 보인다 — `.ordnew-req__man` 과 같은 함정. */
+     `[hidden]` 을 이겨(뒤 선언 우선) 행이 그대로 보인다 — `.ordnew-reqin`(예전 `.ordnew-req__man`)과 같은 함정. */
   const manualFields = () => html`
     <div class="dlg-rows" data-slot="manf" ${pick === MANUAL ? "" : "hidden"}>
       ${dlgRow({

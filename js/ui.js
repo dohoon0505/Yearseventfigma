@@ -417,12 +417,15 @@ export function openLightbox({ src, alt = "", caption = "" } = {}) {
    rootEl 은 .dd-trigger + .dd-panel 을 포함해야 한다. 값 목록은 options() 로 지연 평가.
    문서 click/ESC 로 바깥 닫힘을 등록하며, 한 번에 하나의 .dd 만 열린다. destroy() 로
    모든 리스너 해제(페이지 cleanup 에서 호출). 거래명세서 등 다른 페이지 재사용 예정. */
-export function makeDropdown(root, { unit = "", options, get, set, label } = {}) {
+export function makeDropdown(root, { unit = "", options, get, set, label, optHtml } = {}) {
   const trigger = root.querySelector(".dd-trigger");
   const panel = root.querySelector(".dd-panel");
   /* 표시 텍스트: label 이 있으면 값→라벨 매핑(값≠표시, 예: 담당자 index→"이름 · 직위"),
      없으면 기존처럼 값+단위. label 미전달 시 완전 하위호환. */
   const fmt = (v) => (label ? label(v) : v + unit);
+  /* optHtml(선택) — 펼친 목록의 한 줄만 다르게 그린다(관리자 B2B 등록의 주문상품: 상품명 + 오른쪽 적용 단가 · 시안 O-01).
+     **이미 이스케이프한 HTML 문자열**을 돌려줘야 한다(innerHTML 로 들어간다). 트리거 글자는 그대로 label 이다. */
+  const optFmt = (v) => (optHtml ? optHtml(v) : fmt(v));
   /* title 도 같이 채운다 — 좁은 칸(주문 모달 상품)에서 말줄임되면 전문을 볼 길이 없다 */
   const renderTrigger = () => { const t = fmt(get()); trigger.textContent = t; trigger.title = t; };
   const close = () => {
@@ -433,7 +436,7 @@ export function makeDropdown(root, { unit = "", options, get, set, label } = {})
   function open() {
     document.querySelectorAll(".dd.open").forEach((d) => { if (d !== root) d.classList.remove("open"); });
     panel.innerHTML = options()
-      .map((v) => `<button type="button" class="dd-opt ${v === get() ? "sel" : ""}" role="option" aria-selected="${v === get()}" data-v="${v}">${fmt(v)}</button>`)
+      .map((v) => `<button type="button" class="dd-opt ${v === get() ? "sel" : ""}" role="option" aria-selected="${v === get()}" data-v="${v}">${optFmt(v)}</button>`)
       .join("");
     root.classList.add("open");
     trigger.setAttribute("aria-expanded", "true");
@@ -447,6 +450,10 @@ export function makeDropdown(root, { unit = "", options, get, set, label } = {})
     set(o.dataset.v);
     renderTrigger();
     close();
+    /* 키보드(Enter·Space — click 의 detail 0)로 골랐으면 트리거로 초점을 돌려준다 — 닫힌 목록 안에 남은 초점은 다음 그리기에 body 로
+       빠져 다음 Tab 이 화면 맨 앞부터였다(관리자 B2B 등록 발송 프로필 · 이식 검증 2 '기존 결함'). 마우스로 고른 경우는 예전 그대로다
+       (트리거가 `:focus` 모양으로 남지 않게). set() 이 초점을 다른 곳(새 창 등)으로 옮겼거나 트리거가 다시 그려져 떨어졌으면 건드리지 않는다. */
+    if (e.detail === 0 && panel.contains(document.activeElement) && trigger.isConnected) trigger.focus({ preventScroll: true });
   };
   const onDoc = (e) => { if (!root.contains(e.target)) close(); };
   const onKey = (e) => { if (e.key === "Escape") close(); };

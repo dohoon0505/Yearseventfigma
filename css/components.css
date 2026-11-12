@@ -1894,7 +1894,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .dlg-row:last-child { border-bottom: 0; }
 /* ⚠️ `display:grid` 가 UA 의 `[hidden]{display:none}` 을 이긴다 — 조건부 행(주문취소의
-   '기타' 사유 칸)을 숨기려면 여기서 못박아야 한다(`.ordnew-req__man` 과 같은 함정). */
+   '기타' 사유 칸)을 숨기려면 여기서 못박아야 한다(`.ordnew-reqin` — 예전 `.ordnew-req__man` — 과 같은 함정). */
 .dlg-row[hidden] { display: none; }
 .dlg-rows[hidden] { display: none; }
 .dlg-row--top { align-items: start; }
@@ -2703,87 +2703,142 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ordnew-chan__card.is-on .ordnew-chan__n { color: var(--c-orange-ink); }
 .ordnew-chan__d { font-size: var(--fs-13); color: var(--c-text-muted); }
 
-/* 거래처 검색 · 목록 (B2B step1) */
+/* ══ 관리자 B2B 주문 등록 — 시안 'O-01 관리자 B2B 주문 등록'(2026-10-17 · 이식 2026-11-12) ══════════════════════
+   시안 프레임은 1280x720(창 1203x662) · 1440x900(1240x828)이고 치수는 그 값이다. 1280x720 에서 1단계·2단계 모두 본문 스크롤 0.
+   ⚠️ 셸 공용 클래스(`.ord-pane`·`.ordnew-pane`·`.ord-card__head`·`.ord-row`·`.ordnew-rail`·`.ordnew-railbody`·`.ordnew-mgr`·`.ord-ft__stat`)의
+      밀도는 **`.ordnew--b2b` 스코프**다(셸 spec.panelClass) — B2C 등록 창(admin-b2c.js)은 같은 셸을 쓰고 이 이식에서 바뀌지 않는다(요청서
+      O-2 시안 대기 — O-2 가 'O-1 과 같은 셸' 을 그리면 그때 스코프를 걷는다). `.ordnew-cli*`·`.ordnew-clirow*`·`.ordnew-req*`·`.ordnew-reqin*`·
+      `.ordnew-fact*`·`.ordnew-r*`·`.ordnew-ntl*`·`.ordnew-ntr*`·`.ordnew-amt*`·`.ordnew-basis*`·`.ordnew-pf*`·`.ordnew-dtw` 는 B2B 만 쓴다.
+   시안 색 → 토큰: 고른 줄·칩(시안 검정 테두리) → 이 창이 처음부터 쓰던 주황 `is-sel`·`is-on`(시안 '주문서 등록 모달' 이식 때의 대응 그대로 —
+      B2C 칩과 같은 모양) · 주 버튼(#0066cc) → `hm-btn--primary` · #7a4c00/#f0dcc0/#fff8ef → --c-amber-ink/--c-amber-line/--c-warn-soft-bg ·
+      #b3261e/#fdecea/#e3b5b0 → --c-danger-ink/--c-danger-bg/--c-danger-border · #1d7a3c → --c-success-ink · #5c5c61 → --c-text-3 ·
+      #8a8a8e → --c-text-muted · #f5f5f7 → --c-surface-2 · #f0f0f0 → --c-fill-1 · #e0e0e0 → --c-border · #272729 → --c-rail ·
+      다크 레일 위 #a1a1a6 → --c-rail-muted(새) · #ffb4a8 → --c-rail-danger(새) · #ffcf80 → --c-toast-warn · rgba(255,255,255,.12/.14) →
+      --c-rail-2/--c-rail-line · rgba(255,255,255,.32) → --c-rail-line-strong(새) · #0066cc 글자 → --c-blue. */
+
+/* 창 모서리 18px(시안 — 공용 `.modal-panel` 12px 를 이 창에서만 덮는다 · 상세 창 S-06 등 큰 창 공통으로 바꾸는 일은 사용자 몫).
+   패널이 overflow:hidden 이라 다크 레일 아래 모서리도 같이 둥글린다(이식 검증 1의 3). */
+.modal-panel--ordnew.ordnew--b2b { border-radius: 18px; }
+/* 푸터 버튼(시안) — 사이 12 · 취소/이전 좌우 18 · 주 버튼 좌우 24 · 굵기 600(공용 `.ord-ft .hm-btn` 22 · `.hm-btn` 700 · 이식 검증 1의 5).
+   높이 40 은 공용 그대로. */
+.ordnew--b2b .ord-ft { gap: 12px; }
+.ordnew--b2b .ord-ft .hm-btn--secondary { padding: 0 18px; }
+.ordnew--b2b .ord-ft .hm-btn--primary { padding: 0 24px; font-weight: var(--fw-semibold); }
+/* 본문 열 = 본문(스크롤) + 푸터 — 셸 spec.footInMain(B2B). 레일은 창 바닥까지 간다(상세 창 `.ord-main` 과 같은 짜임). */
+.ordnew-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.ordnew-main > .ord-pane { flex: 1 1 auto; }
+/* 머리 — 34px 회색 원 ✕ · 회색 면 '자동작성'(시안 · B2C 는 예전 모양 그대로) */
+.ordnew--b2b .ordnew-hd .ordnew-hd__l h3 { line-height: 1.3; }
+/* 부제 14px — 공용 `.hm__head p`(0,1,1 · 12.5px)가 `.ordnew-hd__sub`(0,1,0)를 이겨 B2C 는 12.5px 로 남아 있다(그대로 둔다). */
+.ordnew--b2b .ordnew-hd .ordnew-hd__sub { margin-top: 3px; font-size: var(--fs-14); line-height: 1.5; color: var(--c-text-3); }
+.ordnew--b2b .ordnew-auto {
+  border: 0; background: var(--c-surface-2); color: var(--c-text-strong);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold);
+}
+.ordnew--b2b .ordnew-auto:hover { background: var(--c-fill-press); color: var(--c-text-strong); }
+.ordnew--b2b .ordnew-hd .hm__x {
+  width: 34px; height: 34px; flex: 0 0 34px; margin: 0; border-radius: var(--r-pill);
+  background: var(--c-surface-2); color: var(--c-text-strong);
+}
+.ordnew--b2b .ordnew-hd .hm__x:hover { background: var(--c-fill-press); }
+/* 본문 — 여백 16/14 · 카드 사이 14 (예전 22/20 · 20) */
+.ordnew--b2b .ord-pane { padding: 16px 28px 14px; gap: 14px; }
+.ordnew--b2b .ordnew-pane { gap: 14px; }
+.ordnew--b2b .ord-card__head { padding: 9px 18px; }
+/* 줄 — 라벨 80px · 위아래 7px(예전 96px · 10px) */
+.ordnew--b2b .ord-row { grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr); gap: 0 12px; padding: 7px 18px; }
+.ordnew--b2b .ord-row--full { grid-template-columns: 80px minmax(0, 1fr); }
+.ordnew--b2b .ord-row--top .ord-k { padding-top: 8px; }
+.ordnew--b2b .ord-k { color: var(--c-text-3); }
+/* 배송지는 값 글자(17px semibold), 요청사항은 16px 보통 — 줄 높이 1.5 · 안쪽 5px(시안) */
+.ordnew--b2b textarea.ord-in { min-height: 36px; padding: 5px 8px; line-height: 1.5; }
+.ordnew--b2b textarea.ordnew-addr { font-weight: var(--fw-semibold); letter-spacing: -0.015em; }
+.ordnew--b2b textarea.ordnew-reqtxt { font-size: var(--fs-16); }
+
+/* ── 1단계 ── */
+/* 거래처 검색 · 목록 */
 .ordnew-clisrch {
-  display: flex; align-items: center; gap: 8px; margin: 12px 20px 10px;
+  display: flex; align-items: center; gap: 8px; margin: 12px 18px 8px;
   height: 40px; padding: 0 13px; border-radius: var(--r-pill);
   background: var(--c-surface-2); border: 1px solid var(--c-border-field);
 }
 .ordnew-clisrch:focus-within { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+/* 감싼 것이 `<label>` 이고 입력이 알약 높이를 다 쓴다(시안) — 아이콘·여백을 눌러도 입력에 초점이 간다
+   (예전 div + 23px 입력은 창으로 갔다 · 이식 검증 1의 8). */
+label.ordnew-clisrch { cursor: text; }
 .ordnew-clisrch__ic { color: var(--c-text-faint); flex: 0 0 auto; }
 .ordnew-clisrch input {
-  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  flex: 1; min-width: 0; height: 38px; border: 0; background: none; outline: none;
   font-size: var(--fs-14); color: var(--c-text);
 }
 /* 컨테이너가 포커스를 표시하므로 내부 링은 끈다 — 전역 :focus-visible 은 2026-10-19 부터 outline(인디고)이고 글자칸은
    base.css 가 이미 뺀다. 이 줄은 그 위에 두는 안전판이다(box-shadow 는 예전 전역 링의 흔적). */
 .ordnew-clisrch input:focus-visible { box-shadow: none; outline: none; }
 .ordnew-clisrch input::placeholder { color: var(--c-text-faint); }
-/* 요청자·담당자를 카드로 떼어낸 뒤로 이 목록에 규칙이 둘 붙었다.
-   ⚠️ 높이 — 1단계가 이제 카드 셋(거래처·요청자·담당자)이다. 목록은 **고르기 전에만**
-      펼쳐져 있고(고르면 한 줄로 접힌다) 검색이 있으므로, 훑어보기에 필요한 만큼만 준다.
-   ⚠️ 모서리 — 이 목록이 거래처 카드의 **마지막 자식**이다. `.ord-card` 는 18px 둥근
-      모서리에 overflow 를 걸 수 없으므로(드롭다운이 나가야 한다) 면을 칠하는 마지막
-      요소가 스스로 둥근다 — 여기서는 스크롤바가 카드 우하단 곡선을 1px 옆에서
-      사각으로 가로지른다. 18px − 테두리 1px = 안쪽 **17px**. */
+/* ⚠️ 높이 — 목록은 **고르기 전에만** 펼쳐져 있고(고르면 한 줄로 접힌다) 검색이 있으므로 훑어보기에 필요한 만큼만 준다
+      (1440x900 168px · 세로 820 이하 120px — 시안 그대로).
+   ⚠️ 모서리 — 이 목록이 거래처 카드의 **마지막 자식**이다. `.ord-card` 는 18px 둥근 모서리에 overflow 를 걸 수 없으므로(드롭다운이
+      나가야 한다) 면을 칠하는 마지막 요소가 스스로 둥근다 — 18px − 테두리 1px = 안쪽 **17px**. */
 .ordnew-clilist {
   /* 위쪽 패딩 0 이면 첫 행의 포커스 아웃라인 윗변이 스크롤러에 잘린다. */
-  max-height: 168px; overflow-y: auto; padding: 5px 12px 6px;
+  max-height: 168px; overflow-y: auto; padding: 4px 12px 8px;
+  display: flex; flex-direction: column; gap: 2px;
   border-radius: 0 0 17px 17px;
 }
 .ordnew-cli {
-  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
-  padding: 11px 14px; border-radius: var(--r-lg); border: 1px solid transparent; background: none;
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 8px 12px; border-radius: 9px; border: 1px solid transparent; background: none;
 }
 .ordnew-cli:hover { background: var(--c-surface-hover); }
 .ordnew-cli.is-on { background: var(--c-orange-soft); border-color: var(--c-orange); }
+.ordnew-cli__main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .ordnew-cli__nm {
   font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ordnew-cli__sub { font-size: var(--fs-13); color: var(--c-text-muted); white-space: nowrap; }
+.ordnew-cli__sub { font-size: var(--fs-13); color: var(--c-text-3); white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
 .ordnew-cli__badge {
-  flex: 0 0 auto; padding: 2px 8px; border-radius: var(--r-pill);
-  background: var(--c-fill-1); color: var(--c-text-3); font-size: var(--fs-12);
+  flex: 0 0 auto; display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+  background: var(--c-surface-2); color: var(--c-text-3); font-size: var(--fs-12);
 }
-.ordnew-cli__ch { margin-left: auto; flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-faint); }
-.ordnew-cli__empty { padding: 26px 16px; text-align: center; font-size: var(--fs-13); color: var(--c-text-ghost); line-height: 1.7; }
-/* 고른 뒤 접힌 한 줄 — 목록·검색이 차지하던 230px 을 요청자·담당자 카드에 넘겨 준다 */
-.ordnew-clipick {
-  display: flex; align-items: baseline; gap: 10px; padding: 13px 20px 15px; min-width: 0;
+.ordnew-cli__ch { flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-muted); }
+.ordnew-cli__empty { padding: 22px 12px; text-align: center; font-size: var(--fs-14); color: var(--c-text-3); line-height: 1.7; word-break: keep-all; }
+/* 줄 높이 normal(시안 51px 줄 — 1.35 면 55.8px 라 1280x720 의 120px 목록에 보이는 줄이 2.26 → 2.07 · 이식 검증 1의 9). */
+.ordnew--b2b .ordnew-cli__main { line-height: normal; }
+/* 고른 뒤 — 머리 없는 한 줄(시안 O-01 · 예전엔 '거래처' 카드 안의 한 줄이었다). 카드 머리 39px 까지 요청자·담당자 카드에 넘겨 준다. */
+.ordnew-clirow {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: 8px 10px 8px 18px; border: 1px solid var(--c-border); border-radius: var(--r-2xl);
 }
-.ordnew-clipick__nm {
-  flex: 0 0 auto; font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+.ordnew-clirow__k { flex: 0 0 66px; font-size: var(--fs-14); color: var(--c-text-3); }
+.ordnew-clirow__nm { flex: 0 1 auto; min-width: 0; font-size: var(--fs-17); font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--c-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ordnew-clirow__sub {
+  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-3); font-variant-numeric: tabular-nums;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ordnew-clipick__sub {
-  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.ordnew-clirow__btn {
+  flex: 0 0 auto; height: 32px; padding: 0 13px; border-radius: var(--r-pill);
+  border: 1px solid var(--c-border-input-2); background: var(--c-surface);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-text-strong);
 }
-.ordnew-clipick__btn {
-  flex: 0 0 auto; min-height: 32px; padding: 0 13px; border-radius: var(--r-pill);
-  border: 1px solid var(--c-border-input); background: var(--c-surface);
-  font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-text-3);
-}
-.ordnew-clipick__btn:hover { border-color: var(--c-border-strong); color: var(--c-text-strong); }
+.ordnew-clirow__btn:hover { background: var(--c-surface-2); }
 
-/* ── 주문 요청자 · 주문 담당자 (등록 모달 1단계) ──────────────
-   ⚠️ 예전엔 거래처 카드 맨 아랫줄의 작은 '선택' 버튼 두 개였다. 요청자는 필수인데
-      이관 거래처 19곳 중 18곳이 담당자 0명이라, 그 버튼은 거의 언제나 다이얼로그를
-      열어 '직접 입력' 행을 찾아 누르는 4클릭 우회로였다 — 예외가 주경로였다.
-      그래서 **카드로 떼어 내고 목록·입력 칸을 그 자리에 펼친다**. */
-/* 담당자가 많은 거래처(관리자가 추가할 수 있다)에서도 카드가 무한히 자라지 않게
-   목록 자체가 스크롤한다 — 3명 + '직접 입력' 까지는 스크롤이 생기지 않는 높이다. */
+/* ── 주문 요청자 (등록 모달 1단계) ──────────────
+   ⚠️ 예전엔 거래처 카드 맨 아랫줄의 작은 '선택' 버튼 두 개였다. 요청자는 필수인데 그 버튼은 거의 언제나 다이얼로그를 열어
+      '직접 입력' 행을 찾아 누르는 4클릭 우회로였다 — 예외가 주경로였다. 그래서 **카드로 떼어 내고 목록·입력 칸을 그 자리에 펼친다**.
+   목록은 **두 칸 격자**다(시안 O-01). 담당자 수가 짝수면 '직접 입력' 이 한 줄을 다 쓴다(`.is-wide`). 담당자가 많은 거래처에서도
+   카드가 무한히 자라지 않게 목록 자체가 스크롤한다(네 줄까지는 스크롤이 생기지 않는 높이). */
 .ordnew-req {
-  display: flex; flex-direction: column; gap: 5px; padding: 11px 20px 5px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 10px 18px;
   max-height: 208px; overflow-y: auto;
 }
 .ordnew-req__row {
-  display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 44px;
-  text-align: left; padding: 10px 13px; border-radius: var(--r-lg);
-  border: 1px solid var(--c-border-input); background: var(--c-surface);
+  display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 40px;
+  text-align: left; padding: 8px 12px; border-radius: 9px;
+  border: 1px solid var(--c-border); background: var(--c-surface);
   transition: background 0.15s, border-color 0.15s;
 }
+.ordnew-req__row.is-wide { grid-column: 1 / -1; }
 .ordnew-req__row:hover { border-color: var(--c-border-strong); background: var(--c-surface-hover); }
 .ordnew-req__row.is-sel { border-color: var(--c-orange); background: var(--c-orange-soft); }
 .ordnew-req__nm {
@@ -2791,22 +2846,57 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .ordnew-req__row.is-sel .ordnew-req__nm { color: var(--c-orange-ink); }
 .ordnew-req__sub {
-  /* 13px 에 `--c-text-muted`(#888)는 3.5:1 로 AA 미달이다. 이 줄은 '알림 수신 꺼짐'
-     같은 판단 근거를 나르므로 `--c-text-4`(5.7:1)로 올린다. */
-  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-4);
+  /* 13px 에 `--c-text-muted`(#888)는 3.5:1 로 AA 미달이다. 이 줄은 '알림 수신 꺼짐' 같은 판단 근거를 나르므로 --c-text-3 로 올린다. */
+  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ordnew-req__ph {
-  flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-3); font-variant-numeric: tabular-nums;
 }
-.ordnew-req__lead { padding: 12px 20px 4px; font-size: var(--fs-13); line-height: 1.6; color: var(--c-text-muted); }
+/* 연락처가 없는(또는 맞지 않는) 담당자 — 번호 자리가 빨간 '연락처 없음' · 그 줄을 고르면 줄 전체가 막힌 모양(시안 a5). */
+.ordnew-req__row.is-nophone .ordnew-req__ph { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
+.ordnew-req__row.is-sel.is-nophone { border-color: var(--c-danger-ink); background: var(--c-danger-bg); }
+.ordnew-req__row.is-sel.is-nophone .ordnew-req__nm { color: var(--c-danger-ink); }
+.ordnew-req__lead { padding: 12px 18px; font-size: var(--fs-13); line-height: 1.6; color: var(--c-text-3); }
+/* 직접 입력 두 칸 — '요청자 이름' · '연락처'(둘 다 필수 · M03). 회색 면 칸(시안) — 막힌 칸은 흰 면 + 빨간 테두리. */
+.ordnew-reqin {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr) 50px minmax(0, 1fr);
+  align-items: center; gap: 0 12px; padding: 2px 18px 10px;
+}
+.ordnew-reqin[hidden] { display: none; }
+.ordnew-req + .ordnew-reqin { padding-top: 2px; }
+.ordnew-reqin__k { font-size: var(--fs-14); color: var(--c-text-3); }
+.ordnew-reqin .ordnew-reqin__in {
+  min-width: 0; height: 38px; padding: 0 10px; font-size: var(--fs-16);
+  background: var(--c-surface-2); border-color: transparent;
+}
+.ordnew-reqin .ordnew-reqin__in.is-warn { background: var(--c-surface); border-color: var(--c-danger-border); }
+.ordnew-reqin .ordnew-reqin__in:focus { background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+/* 요약 — 두 사실(주문 접수·취소 안내 / 배송완료 알림)을 점 표지와 함께 나란히. 넘치면 줄을 바꾼다. */
+.ordnew-req__sum {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 22px;
+  padding: 9px 18px 11px; border-top: 1px solid var(--c-fill-1);
+  font-size: var(--fs-13); line-height: 1.5; word-break: keep-all;
+}
+.ordnew-req__sum[hidden] { display: none; }
+.ordnew-fact { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; color: var(--c-text-3); }
+.ordnew-fact__dot {
+  flex: 0 0 16px; width: 16px; height: 16px; align-self: center; border-radius: 50%;
+  display: inline-grid; place-items: center; background: var(--c-text-muted);
+  color: var(--c-surface); font-size: 10px; font-weight: var(--fw-bold); line-height: 1;
+}
+.ordnew-fact.is-ok { color: var(--c-text-strong); }
+.ordnew-fact.is-ok .ordnew-fact__dot { background: var(--c-success-ink); }
+.ordnew-fact.is-warn { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
+.ordnew-fact.is-warn .ordnew-fact__dot { background: var(--c-danger-ink); }
+
 /* 이 세 컨트롤은 1단계의 주 조작 수단이라 키보드 초점을 인디고로 그렸다 — 그때 전역 `:focus-visible` 링은
    `--ring`(주황 9% 알파)이라 흰 카드 위에서 사실상 안 보였다(대비 1.1:1). 2026-10-19 부터 전역 링(base.css)도
    인디고 2px · 바깥 2px 라 아래 바깥 묶음은 전역과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다, CLAUDE.md 초점 줄 ·
    `box-shadow: none` 은 옛 전역 링의 흔적). 목록 끝 잘림은 그 아래 `scroll-margin` 이, 스크롤 칸 안 조작은 안쪽(-2px) 묶음이 맡는다. */
 .ordnew-req__row:focus-visible,
 .ordnew-mgr__chip:focus-visible,
-.ordnew-clipick__btn:focus-visible,
+.ordnew-clirow__btn:focus-visible,
 .ordnew-cli:focus-visible,
 /* 2026-10-19 — 같은 1.1:1 이 남아 있던 위저드 조작(B2B·B2C 공용 셸). 주문경로 카드(B2C 1단계) · 결제 상태 칸 ·
    머리의 자동작성 · ✕. 결제 상태 칸은 켜진 칸이 검정 면이라 안쪽 링(검정 위 인디고 3.0:1)보다 바깥이 보인다.
@@ -2821,7 +2911,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    (2026-10-19 실측 3.5~4px). `scroll-margin` 이 초점 스크롤에 링 자리 + 2px 를 더 내게 한다(담당자 관리 창 토글과 같은 수법). */
 .ordnew-cli,
 .ordnew-req__row { scroll-margin: 6px; }
-/* 2단계 본문(`.ord-pane` 이 스크롤 칸)의 배송일시 트리거(칸을 가득 채운다) · 보내는분 '선택' — 안쪽(-2px).
+/* 2단계 본문(`.ord-pane` 이 스크롤 칸)의 배송일시 트리거(칸을 가득 채운다) · 보내는분 '선택'(B2C) — 안쪽(-2px).
+   (B2B 발송 프로필은 2026-11-12 부터 주문상품과 같은 드롭다운 트리거라 `.ord-card .dd-trigger:focus` 모양으로 말한다.)
    그릴 땐 바깥이면 칸 끝에서 잘렸다(1280x720 실측 '선택' 아랫변 3px). 2026-10-19 전역 `scroll-margin` 뒤로는 Tab·Shift+Tab 으로
    들어올 때 바깥이어도 안 잘리고(검토 실측 1280x720·1280x620), 초점을 둔 채 본문을 굴려 끝에 걸칠 때만 잘린다 — 지우지 않는다.
    `box-shadow: none` 은 피커가 열린 채 트리거에 초점이 오면 열림 표시 그림자(`--ring-field`)도 지운다(실측 · 이 규칙이 생긴 때부터 같다). */
@@ -2833,23 +2924,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    그때의 전역 링(box-shadow)을 덮어 초점 표시가 아예 없었다(1.4:1 은 그 그림자다) — 그림자는 그대로 두고 바깥 링만 더한다.
    2026-10-19 부터 전역 링(base.css · outline)과 같은 값이다(떼도 같다 — 실측 · 지우지 않는다). */
 .modal-panel--ordnew .ord-ft .hm-btn:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
-/* 확정된 요청자 한 줄 — '연락처가 없으면 배송완료 알림을 못 보낸다'는 사실이 1단계에
-   보이는 유일한 자리다(레일의 알림 명단은 2단계에서만 그려진다). */
-.ordnew-req__sum {
-  padding: 2px 20px 12px; font-size: var(--fs-13); line-height: 1.6;
-  color: var(--c-text-muted); word-break: keep-all;
-}
-/* `--c-warn-soft-ink`(#e65100)는 흰 면에서 3.8:1 로 AA 미달이다 — 흰 면의 경고 잉크는
-   `.ord-note__body` 가 쓰는 `--c-danger-ink`(5.9:1)가 이 레포의 선례다. */
-.ordnew-req__sum.is-warn { color: var(--c-danger-ink); font-weight: var(--fw-medium); }
-/* ⚠️ `.ord-row { display: grid }` 가 같은 특이도의 `[hidden]` 을 이기므로(뒤 선언 우선)
-   숨김은 클래스를 낀 (0,2,0)으로 못박는다 — `.ordnew-pane[hidden]` 과 같은 이유. */
-.ordnew-req__man[hidden] { display: none; }
-/* 요약 한 줄이 뒤따르므로 `.ord-card .ord-row:last-child { border-bottom: 0 }` 이 걸리지
-   않는다 — 그대로 두면 카드를 가로지르는 1px 선이 남고 요약이 카드 밖 꼬리처럼 보인다. */
-.ordnew-req__man { border-bottom: 0; }
 
-/* 담당자 칩 — 내부 직원은 5명뿐이다. 다이얼로그를 열 이유가 없다.
+/* 담당자 칩 — 내부 직원은 5명뿐이다. 다이얼로그를 열 이유가 없다(B2B·B2C 같은 마크업).
    담당자가 늘면 줄바꿈으로 자라므로, 세 줄을 넘기면 카드 대신 칩 목록이 스크롤한다
    (요청자 목록과 같은 이유 — 카드 하나가 1단계 전체를 밀어내면 안 된다). */
 .ordnew-mgr {
@@ -2859,6 +2935,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
      가로지르지 않게 스스로 둥근다(18px − 테두리 1px = 안쪽 17px). */
   border-radius: 0 0 17px 17px;
 }
+.ordnew--b2b .ordnew-mgr { padding: 10px 18px; }
 .ordnew-mgr__chip {
   display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 14px;
   border-radius: var(--r-pill); border: 1px solid var(--c-border-input); background: var(--c-surface);
@@ -2875,31 +2952,227 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    올리지 않으므로, 파일 앞쪽 `@media (max-height:820px)` 블록에 적으면 뒤에 오는
    같은 특이도(0,1,0)의 기본 선언이 이겨 통째로 죽는다(실제로 죽어 있었다).
    1단계는 카드 셋이라 13~14" 노트북에서 담당자 카드가 폴드 아래로 사라진다 — 목록이
-   먼저 양보한다(검색이 있으므로 목록은 훑어보는 용도다). */
+   먼저 양보한다(검색이 있으므로 목록은 훑어보는 용도다). 시안 O-01 1280x720 = 120px · 1440x900 = 168px.
+   (B2B 칩 줄 여백은 위 `.ordnew--b2b .ordnew-mgr`(0,2,0)이 이긴다 — 시안 10px 이 이미 이 축소만큼 촘촘하다.) */
 @media (max-height: 820px) {
   .ordnew-clilist { max-height: 120px; }
-  .ordnew-req { max-height: 150px; }
+  .ordnew-req { max-height: 158px; }
   .ordnew-mgr { padding: 9px 20px; }
-  .ordnew-req__sum { padding: 2px 20px 9px; }
 }
 
-/* 단가 기준 한 줄 — 계약과 다르면 경고색으로 */
-.ordnew-basis { font-size: var(--fs-14); color: var(--c-text-muted); }
+/* ── 2단계 ── */
+/* 주문금액 — [칸] 원. '원' 은 칸 밖이다(상세 창 S-06 과 같은 수법 — 칸에는 숫자만). 오른쪽 맞춤 · 숫자 폭 고르게.
+   상품·배송지 변경으로 직원 금액을 덮었으면 호박 면(`is-over`), 자동 금액과 다르면 호박 테두리(`is-manual`), 받을 수 없는 글자는
+   빨강(`is-bad` — 공용 `.ord-in.is-bad` 테두리 + 빨간 면). 초점이 오면 평소 초점 모양이 이긴다. */
+.ordnew-amt { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ordnew-amt .ordnew-amt__in { flex: 1; min-width: 0; text-align: right; color: var(--c-text-strong); }
+.ordnew-amt .ordnew-amt__in.is-manual { border-color: var(--c-amber-line); }
+.ordnew-amt .ordnew-amt__in.is-over { background: var(--c-warn-soft-bg); border-color: var(--c-amber-line); }
+.ordnew-amt .ordnew-amt__in.is-bad { background: var(--c-danger-bg); }
+.ordnew-amt .ordnew-amt__in:focus { background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.ordnew-amt .ordnew-amt__in.is-bad:focus { border-color: var(--c-danger); box-shadow: var(--ring-error); }
+.ordnew-amt__unit { flex: 0 0 auto; font-size: var(--fs-15); color: var(--c-text-3); }
+/* 단가 기준 — 금액이 무엇으로 만들어졌는지(계약/기준단가 + 추가 배송비 · 지역). 직접 입력 · 다시 채움은 호박, 받을 수 없는 금액은 빨강. */
+.ordnew--b2b .ordnew-basisrow { align-items: baseline; padding: 9px 18px; }
+.ordnew-basis {
+  min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px;
+  padding: 0 8px; font-size: var(--fs-14); line-height: 1.45; color: var(--c-text-3); word-break: keep-all;
+}
+.ordnew-basis__t.is-warn { color: var(--c-amber-ink); font-weight: var(--fw-semibold); }
+.ordnew-basis__t.is-bad { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
+.ordnew-basis__sub { font-size: var(--fs-13); color: var(--c-text-3); }
+.ordnew-basis__undo {
+  /* 줄 높이 normal(시안 15px — 상속 1.45 면 18.8px 라 단가 기준 줄이 4px 커졌다 · 이식 검증 1의 11) */
+  padding: 0; border: 0; background: none; font-size: var(--fs-13); font-weight: var(--fw-semibold); line-height: normal;
+  color: var(--c-blue); text-decoration: underline; text-underline-offset: 2px;
+}
+.ordnew-basis__undo:hover { color: var(--c-blue-hover); }
+/* 거래처 대표 연락처 — 읽기 전용 값 + 회색 꼬리표 */
+.ordnew-rep { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 0 8px; }
+.ordnew-rep b {
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-2); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.ordnew-rep span { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-3); white-space: nowrap; }
+/* 펼친 주문상품 목록 — 상품명 | 적용 단가(계약단가면 파랑 '· 계약'). 트리거는 상품명만(ui.js makeDropdown optHtml). */
+/* 목록 모양은 시안(모서리 11 · 최대 224 · 줄 8/10 · 줄 모서리 7 · 진한 글자 · 고른 줄은 옅은 면 + 굵게 — 공용 dd 는 파란 면 흰 글자)이고
+   이 창의 두 목록(주문상품 · 발송 프로필)에만 건다(이식 검증 1의 12 · 공용 `.modal-panel .dd-*` 는 그대로). */
+.ordnew--b2b .ord-fdd .dd-panel { border-radius: 11px; max-height: 224px; }
+.ordnew--b2b .ord-fdd .dd-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 10px; border-radius: 7px; color: var(--c-text-strong);
+}
+.ordnew--b2b .ord-fdd .dd-opt.sel,
+.ordnew--b2b .ord-fdd .dd-opt.sel:hover { background: var(--c-surface-2); color: var(--c-text-strong); font-weight: var(--fw-semibold); }
+.ordnew--b2b .ord-fdd .dd-opt__l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ordnew--b2b .ord-fdd .dd-opt__l.is-none { color: var(--c-text-3); white-space: normal; }
+.ordnew--b2b .ord-fdd .dd-opt__r { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--c-text-muted); }
+.ordnew--b2b .ord-fdd .dd-opt__r.is-con { color: var(--c-blue); }
+.ordnew--b2b .ord-fdd .dd-opt__r.is-amber { color: var(--c-amber-ink); }
+/* '발주정보' 카드 머리 오른쪽 — 정산 달 안내(배송일시의 달). 명세서가 나간 달이면 호박, 등록할 수 없는 달이면 빨강(시안 O-01). */
+.ordnew-ymcap { min-width: 0; text-align: right; }
+.ordnew-ymcap.is-open { color: var(--c-amber-ink); font-weight: var(--fw-semibold); }
+.ordnew-ymcap.is-block { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
+/* 배송일시 칸 — 피커 + (요청서 O-3 '즉시배송' 버튼 자리 · 이 이식에서는 비어 있다). 오른쪽 끝 달력 표지, 등록할 수 없는 달이면
+   빨간 면 + 자물쇠(칸·카드 머리·푸터 세 곳이 같은 달을 말한다). 표지는 마스크 그림이라 색은 토큰이다. */
+.ordnew-dtw { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ordnew-dtw .ord-dtp { flex: 1; min-width: 0; }
+.ordnew-dtw .ord-dtp__trigger { padding: 0 8px; letter-spacing: -0.015em; }
+.ordnew-dtw .ord-dtp__trigger::after {
+  content: ""; flex: 0 0 15px; width: 15px; height: 15px; background: var(--c-text-muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4M16 2v4'/%3E%3Crect width='18' height='18' x='3' y='4' rx='3'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4M16 2v4'/%3E%3Crect width='18' height='18' x='3' y='4' rx='3'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ordnew-dtw.is-empty .ord-dtp__trigger { font-weight: var(--fw-normal); color: var(--c-text-faint); }
+.ordnew-dtw.is-blocked .ord-dtp__trigger { background: var(--c-danger-bg); border-color: var(--c-danger-border); }
+.ordnew-dtw.is-blocked .ord-dtp__trigger::after {
+  flex-basis: 14px; width: 14px; height: 14px; background: var(--c-danger-ink);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+}
+.ordnew-dtw .ord-dtp.is-open .ord-dtp__trigger { background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+/* 발송 프로필 — 주문상품과 같은 드롭다운(값 + 오른쪽 '선택/변경' · 시안 O-01 · 예전엔 '리본 보내는분 명의' 작은 창). 카드 마지막 줄이라
+   목록은 **위로** 연다 — 카드 안 드롭다운을 아래로 뒤집는 `.modal-panel--ordnew .ord-card .dd-panel`(0,3,0)보다 한 단계 높게(0,4,0 — 시·분
+   패널과 같은 수법). '선택/변경' 은 트리거 글자를 makeDropdown 이 통째로 쓰므로 `::after`(공용 갈매기 표지 자리)가 data-act 로 그린다 —
+   오른쪽 자리를 비워 말줄임과 겹치지 않게. */
+.modal-panel--ordnew .ord-card .ordnew-pfdd .dd-panel { top: auto; bottom: calc(100% + 6px); }
+.modal-panel--ordnew .ord-card .ordnew-pfdd .dd-trigger { padding-right: 52px; }
+.modal-panel--ordnew .ord-card .ordnew-pfdd .dd-trigger.is-empty { font-weight: var(--fw-normal); color: var(--c-text-faint); }
+.modal-panel--ordnew .ord-card .ordnew-pfdd .dd-trigger::after,
+.modal-panel--ordnew .ord-card .ordnew-pfdd.open .dd-trigger::after {
+  content: attr(data-act); right: 8px; width: auto; height: auto; border: 0; transform: translateY(-50%);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); letter-spacing: 0; line-height: 1; color: var(--c-blue);
+}
 
-/* 다크 레일 위 알림 수신자 행 */
-.ordnew-nt { display: flex; flex-direction: column; gap: 7px; }
-.ordnew-nt__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.ordnew-nt__who { display: flex; flex-direction: column; min-width: 0; }
-.ordnew-nt__who b {
-  font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-surface);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* 푸터 왼쪽(셸 status) — 남은 필수는 호박(--c-amber-ink · 흰 면 7.3:1 — 예전 --c-warn-soft-ink 3.8:1 은 B2C 에 그대로),
+   준비되면 초록, 잠긴 달은 굵은 첫 줄 + 작은 둘째 줄(정본 이유). 두 줄까지 접히고 낱말 단위로 꺾는다. */
+.ordnew--b2b .ord-ft__stat { min-width: 0; line-height: 1.4; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; color: var(--c-text-3); }
+.ordnew--b2b .ord-ft__stat.is-dirty { color: var(--c-amber-ink); }
+.ordnew--b2b .ord-ft__stat.is-saved { color: var(--c-success-ink); }
+.ordnew--b2b .ord-ft__stat.is-block { color: var(--c-danger-ink); }
+.ord-ft__head { display: block; font-size: var(--fs-14); font-weight: var(--fw-semibold); }
+.ord-ft__txt { display: block; }
+.ord-ft__stat.has-head .ord-ft__txt { font-size: var(--fs-13); }
+
+/* ── 다크 레일(B2B) — 거래처 · 거래 조건 · 배송완료 알림 명단 요약 · 맨 아래 안내 ──
+   레일 본문(`.ordnew-railbody`) 하나만 스크롤한다(두 번째 스크롤러 금지 — 아래 `.rail-card__note` 주석). 명단 머리는 그 스크롤에
+   붙어 있다(sticky top 0 — 그래서 레일 본문의 위 여백을 0 으로 두고 첫 블록이 18px 를 갖는다). */
+.ordnew--b2b .ordnew-rail { padding: 0; gap: 0; }
+.ordnew--b2b .ordnew-railbody { padding: 0 20px 18px; gap: 14px; }
+.ordnew-rcli { display: flex; flex-direction: column; gap: 5px; padding-top: 18px; }
+.ordnew-rcli__k { font-size: var(--fs-12); color: var(--c-rail-muted); }
+.ordnew-rcli__nm { font-size: 19px; font-weight: var(--fw-semibold); letter-spacing: -0.015em; line-height: 1.35; color: var(--c-surface); word-break: keep-all; }
+.ordnew-rcli__nm.is-empty { color: var(--c-rail-muted); }
+.ordnew-rcli__meta { font-size: var(--fs-13); line-height: 1.5; color: var(--c-rail-ink); font-variant-numeric: tabular-nums; }
+/* 토막 묶음 — ' · ' 자리에서만 꺾는다(모양 없음 · 포털 정산회계 `.st-nw` 와 같은 수법 · 이식 검증 2의 5). */
+.ordnew-nw { white-space: nowrap; }
+/* 거래 조건 — 있을 때만(시안 O-01). 머리는 다크 면 경고 톤(--c-toast-warn), 본문은 흰 글자. 자체 스크롤은 두지 않는다(레일이 받는다). */
+.ordnew-rterm { padding: 10px 13px 11px; background: var(--c-rail-2); border: 1px solid var(--c-rail-line); border-radius: 11px; }
+.ordnew-rterm__k { display: block; font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--c-toast-warn); }
+.ordnew-rterm__v { margin-top: 3px; font-size: var(--fs-14); line-height: 1.55; color: var(--c-surface); white-space: pre-line; word-break: keep-all; }
+.ordnew-ntl { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--c-rail-line); }
+.ordnew-ntl__hd {
+  position: sticky; top: 0; z-index: 1; margin: 0 -20px; padding: 12px 20px 6px; background: var(--c-rail);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
 }
-.ordnew-nt__who span { font-size: var(--fs-11); color: var(--c-rail-ink); }
-.ordnew-nt__auto {
-  margin-left: 5px; padding: 1px 6px; border-radius: var(--r-pill);
-  background: var(--c-rail-2); color: var(--c-rail-ink); font-size: var(--fs-11); font-style: normal;
+.ordnew-ntl__t { font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-surface); }
+.ordnew-ntl__cnt { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-surface); white-space: nowrap; }
+.ordnew-ntl__cnt.is-zero { color: var(--c-rail-danger); }
+.ordnew-ntl__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+/* 한 줄 = 구분(74px · 담당자는 '자동') | 이름 | 번호. 둘째 줄은 상태(번호 없음 · 같은 번호 · 이 주문에서 끔). 끈 줄·잠긴 줄은 흐리게. */
+.ordnew-ntr {
+  display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline;
+  padding: 2px 0; line-height: 1.45;
 }
-.ordnew-nt .toggle { flex: 0 0 auto; transform: scale(0.84); transform-origin: right center; }
+.ordnew-ntr__k { display: flex; align-items: baseline; gap: 4px; font-size: var(--fs-12); color: var(--c-rail-muted); white-space: nowrap; }
+.ordnew-ntr__auto {
+  padding: 0 5px; border-radius: var(--r-pill); background: var(--c-rail-2);
+  font-size: 10px; line-height: 15px; font-style: normal; color: var(--c-rail-ink);
+}
+.ordnew-ntr__nm { min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ordnew-ntr__ph { font-size: var(--fs-12); color: var(--c-rail-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ordnew-ntr.is-dim .ordnew-ntr__nm { color: var(--c-rail-muted); }
+/* 끈 줄의 번호는 이름보다 한 단계 더 흐리다(시안 #8a8a8e — 이식 검증 1의 10). */
+.ordnew-ntr.is-dim .ordnew-ntr__ph { color: var(--c-text-muted); }
+.ordnew-ntr__note { grid-column: 2 / -1; font-size: var(--fs-12); line-height: 1.4; color: var(--c-rail-muted); }
+.ordnew-ntr__note.is-warn { color: var(--c-toast-warn); }
+.ordnew-ntl__zero { margin-top: 2px; font-size: var(--fs-13); line-height: 1.5; color: var(--c-rail-danger); word-break: keep-all; }
+.ordnew-ntl__zero[hidden], .ordnew-ntl__full[hidden] { display: none; }
+.ordnew-ntl__acts { display: flex; gap: 8px; margin-top: 4px; }
+.ordnew-ntl__edit {
+  flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: var(--r-pill);
+  background: var(--c-rail-2); border: 0; color: var(--c-surface); font-size: var(--fs-13); font-weight: var(--fw-semibold);
+}
+.ordnew-ntl__edit:hover { background: var(--c-rail-line); }
+.ordnew-ntl__add {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 12px; border-radius: var(--r-pill);
+  background: transparent; border: 1px solid var(--c-rail-line-strong); color: var(--c-surface);
+  font-size: var(--fs-13); font-weight: var(--fw-semibold); white-space: nowrap;
+}
+.ordnew-ntl__add:hover:not(:disabled) { background: var(--c-rail-2); }
+.ordnew-ntl__add:disabled { border-color: var(--c-rail-line); color: var(--c-text-muted); cursor: not-allowed; }
+.ordnew-ntl__full { font-size: var(--fs-12); line-height: 1.5; color: var(--c-rail-muted); }
+.ordnew-rnote { margin-top: auto; font-size: var(--fs-12); line-height: 1.55; color: var(--c-rail-muted); word-break: keep-all; }
+
+/* ── 작은 창 '배송완료 알림 명단'(openDialog 640 · 시안 O-01) ── 창은 body 에 붙어 `.modal-panel--ntlist` 스코프다.
+   패널 상한은 오버레이 안쪽 전체(위아래 24px — 시안 · 거래명세서 동의 창 `.modal-panel--ivagree` 와 같은 처방) — 공용 88vh 면 1280x720 에서
+   추가 수신자 다섯 줄을 쓸 때 본문이 36px 더 구른다. 넘침은 본문(`.dlg-body`)만 받는다(머리·푸터 고정). */
+.modal-panel--dlg.modal-panel--ntlist { max-height: calc(100vh - 48px); }
+.modal-panel--ntlist .dlg-body { padding: 16px 24px 20px; gap: 18px; }
+/* 창 아래 숫자('N명에게 발송 · …')는 검정 — 0명이면 공용 막는 색(빨강). */
+.modal-panel--ntlist .dlg-ft__hint { color: var(--c-text-strong); font-size: var(--fs-14); line-height: 1.45; }
+.modal-panel--ntlist .dlg-ft__hint.is-block { color: var(--c-danger-ink); }
+.ntl-lead { color: var(--c-text-2); line-height: 1.55; word-break: keep-all; } /* 낱말 가운데서 꺾지 않게('같 / 은 번호' — 이식 검증 1의 7) */
+/* 머리 소제목 14px · 버튼 '완료' 좌우 22(시안 — openDialog 공용 13px · 24 를 이 창에서만 덮는다 · 이식 검증 1의 6). */
+.modal-panel--ntlist .dlg-hd__eyebrow { font-size: var(--fs-14); color: var(--c-text-3); }
+.modal-panel--ntlist .dlg-ft .hm-btn--ink { padding: 0 22px; }
+/* 이 주문에 들어온 사람 — 구분 76 | 이름(+자동·요청자) / 상태 줄 | 켜짐·꺼짐 + 스위치 */
+.ntl-row {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; gap: 0 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--c-fill-1);
+}
+.ntl-row__k { font-size: var(--fs-13); color: var(--c-text-3); }
+.ntl-row__who { min-width: 0; }
+.ntl-row__nmw { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ntl-row__nm { min-width: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ntl-row__nm.is-dim { color: var(--c-text-3); }
+.ntl-tag {
+  flex: 0 0 auto; padding: 1px 7px; border-radius: var(--r-pill); background: var(--c-fill-1);
+  font-size: var(--fs-11); font-style: normal; color: var(--c-text-3);
+}
+.ntl-row__sub { display: block; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.ntl-row__sub.is-amber, .ntl-ex__msg.is-amber { color: var(--c-amber-ink); }
+.ntl-row__sub.is-red, .ntl-ex__msg.is-red { color: var(--c-danger-ink); }
+.ntl-row__sw { display: flex; align-items: center; gap: 8px; }
+.ntl-row__st { min-width: 26px; text-align: right; font-size: var(--fs-12); color: var(--c-text-3); }
+/* 추가 수신자 — 이름 | 연락처 | 켜짐·꺼짐 + 스위치 | 지우기. 회색 면 칸(시안) — 번호 없음은 호박, 형식 오류는 빨강. */
+.ntl-ex { padding: 9px 0; border-bottom: 1px solid var(--c-fill-1); }
+.ntl-ex__line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto 32px; align-items: center; gap: 0 10px; }
+.modal-panel--ntlist .ntl-in {
+  min-width: 0; height: 38px; padding: 0 11px; font-size: var(--fs-15);
+  background: var(--c-surface-2); border-color: transparent;
+}
+.modal-panel--ntlist .ntl-in.is-amber { background: var(--c-warn-soft-bg); border-color: var(--c-amber-line); }
+.modal-panel--ntlist .ntl-in.is-red { background: var(--c-danger-bg); border-color: var(--c-danger-border); }
+.modal-panel--ntlist .ntl-in:focus { background: var(--c-surface); border-color: var(--c-indigo); box-shadow: var(--ring-field); }
+.ntl-ex__msg { margin-top: 5px; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-3); }
+.ntl-ex__msg[hidden], .ntl-none[hidden], .ntl-full[hidden] { display: none; }
+.ntl-del {
+  width: 32px; height: 32px; border-radius: var(--r-pill); border: 0; background: transparent;
+  display: grid; place-items: center; color: var(--c-text-3); transition: background 0.15s, color 0.15s;
+}
+.ntl-del:hover { background: var(--c-danger-bg); color: var(--c-danger-ink); }
+.ntl-none { padding: 14px 0 2px; font-size: var(--fs-14); color: var(--c-text-3); }
+.ntl-num { font-variant-numeric: tabular-nums; }
+.ntl-addrow { display: flex; align-items: center; gap: 12px; padding-top: 12px; }
+.ntl-add {
+  flex: 0 0 auto; height: 36px; padding: 0 15px; border-radius: var(--r-pill);
+  border: 1px dashed var(--c-border-input-2); background: var(--c-surface);
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
+}
+.ntl-add:hover:not(:disabled) { background: var(--c-surface-2); }
+.ntl-add:disabled { border-color: var(--c-border); color: var(--c-text-faint); cursor: not-allowed; }
+.ntl-full { font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-3); }
 
 /* 자동작성 — 링크 한 칸과 그 자리에서 답하는 안내 두 줄 */
 .dlg-auto { display: flex; flex-direction: column; gap: 10px; }
