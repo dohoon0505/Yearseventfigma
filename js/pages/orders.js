@@ -129,7 +129,7 @@ export function mount(root, { nav }) {
     },
     {
       label: "사진", width: "60px", align: "center",
-      render: (r) => html`<button class="orders-photo ${r.hasPhoto ? "has" : "no"}" data-action="detail" data-id="${r.id}" title="${r.hasPhoto ? "사진 있음 — 클릭하여 상세 보기" : "사진 없음 — 클릭하여 주문 정보 보기"}" aria-label="주문 상세">${icon("camera", { size: 16 })}</button>`,
+      render: (r) => html`<button class="orders-photo ${r.hasPhoto ? "has" : "no"}" data-action="detail" data-id="${r.id}" title="${r.hasPhoto ? "사진 있음(클릭하여 상세 보기)" : "사진 없음(클릭하여 주문 정보 보기)"}" aria-label="주문 상세">${icon("camera", { size: 16 })}</button>`,
     },
   ];
 
@@ -276,7 +276,7 @@ export function mount(root, { nav }) {
       openLightbox({
         src: deliveryPhoto(order),
         alt: "배송 완료 현장사진",
-        caption: `${order.product} — ${order.date} 배송사진`,
+        caption: `${order.product} · ${order.date} 배송사진`,
       })
     );
   }

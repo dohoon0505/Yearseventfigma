@@ -139,7 +139,7 @@ export function mount(root) {
             ? html`<p class="prod-card__note">일부 지역 · 장소는 3단화환을 들일 수 없어요. 주문할 때 배송지를 넣으면 그곳에 보낼 수 있는 상품을 알려 드려요.</p>`
             : ""}
           <button class="prod-cardfav ${fav ? "is-on" : ""}" data-fav="${k}">${fav ? "즐겨찾기에 담겼습니다" : "즐겨찾기에 담기"}</button>
-          <p class="prod-card__fine">실제 상품은 사진과 다를 수 있으며, 계절과 산지 사정에 따라 품종이 바뀔 수 있습니다.</p>
+          <p class="prod-card__fine">실제 상품은 사진과 다를 수 있으며, 계절과 산지 사정에 따라 품종이 변경될 수 있습니다.</p>
         </div>
       </div>
     `;
@@ -241,7 +241,7 @@ export function mount(root) {
       }, 2200);
     } else if (a === "zoom") {
       const p = findProduct(state.selKey);
-      if (p) openLightbox({ src: SAMPLE[p.category], alt: `${p.product} 샘플 사진`, caption: `${p.product} — ${priceFor(p)}` });
+      if (p) openLightbox({ src: SAMPLE[p.category], alt: `${p.product} 샘플 사진`, caption: `${p.product} · ${priceFor(p)}` });
     }
   });
 

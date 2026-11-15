@@ -390,7 +390,7 @@ export function openStaffPicker({ current, names, onPick, toast, eyebrow }) {
   /* 껍데기는 `openRowPicker` 하나다 — 고아 행·radiogroup·확인 게이트·
      `onPick === false` 의 토스트 생략이 세 다이얼로그에서 갈리지 않게. */
   return openRowPicker({
-    eyebrow: eyebrow || "주문 담당자", eyebrowNum: !!eyebrow,
+    eyebrow: eyebrow || "주문 담당자",
     title: "담당자 지정",
     hint: "배송완료 알림도 이 담당자에게 전달됩니다",
     width: 440,
@@ -622,7 +622,7 @@ export function railV2({ order, imgInner, cap = "저장 시 배송완료 전환"
     <aside class="ord-side">
       <div class="ord-side__h">
         <b class="ord-side__t">처리</b>
-        <span class="ord-side__cap" title="주문접수 상태에서 사진·인수자를 함께 저장하면 배송완료로 바뀌고 알림톡이 자동 발송됩니다">${cap}</span>
+        <span class="ord-side__cap" title="주문접수 상태에서 사진·인수자를 함께 저장하면 배송완료로 변경되고 알림톡이 자동 발송됩니다">${cap}</span>
       </div>
       <div class="ord-drop ${order.image ? "has" : ""}" data-slot="imgbox" data-action="img-zoom"
         title="${order.image ? "클릭하여 크게 보기" : "클릭하여 업로드"}">${imgInner}</div>

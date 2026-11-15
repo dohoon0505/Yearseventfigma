@@ -121,7 +121,6 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
 
   const d = openDialog({
     eyebrow: orderNo,
-    eyebrowNum: true,
     title: "주문을 취소할까요?",
     width: 480,
     panelClass: "modal-panel--cancelfee", // 푸터 힌트를 낱말 단위로 꺾는다(components.css — 모양은 그대로)

@@ -26,7 +26,7 @@ export const MANUAL = "__manual";
 /**
  * 단일 선택 행 리스트 다이얼로그.
  * @param {object} o
- *  - eyebrow, eyebrowNum     헤더 에어브로(주문번호·거래처명). **없으면 에어브로 줄을 그리지 않는다** —
+ *  - eyebrow                 헤더 에어브로(주문번호·거래처명). **없으면 에어브로 줄을 그리지 않는다** —
  *                            `desc` 를 에어브로 자리에 올리지 않는다(그 문장은 푸터 힌트 몫이다).
  *  - title, width            (width 는 px 숫자 — 폭만 다른 클래스를 세 개 만들지 않는다)
  *  - listH                   목록 자체 스크롤 높이(기본 280 · 시안: 담당자 280·요청자 288·프로필 272)
@@ -82,7 +82,6 @@ export function openRowPicker(o) {
           v: r.v,
           name: r.name,
           sub: subOf(r),
-          subNum: !!r.subNum,
           badge: r.meta,
           sel: pick === r.v,
           orphan: r.orphan,
@@ -111,7 +110,6 @@ export function openRowPicker(o) {
 
   const d = openDialog({
     eyebrow: o.eyebrow,
-    eyebrowNum: o.eyebrowNum,
     title: o.title,
     width: o.width || 440,
     body: html`
@@ -353,8 +351,8 @@ export function openAutofill({ toast, onApply }) {
     if (mode !== "text" && res.kind !== mode) {
       showErr(
         mode === "obit"
-          ? "청첩장 링크입니다. '청첩장 자동입력'으로 바꾸거나 부고장 링크를 넣으세요."
-          : "부고장 링크입니다. '부고장 자동입력'으로 바꾸거나 청첩장 링크를 넣으세요.",
+          ? "청첩장 링크입니다. '청첩장 자동입력'으로 변경하거나 부고장 링크를 넣으세요."
+          : "부고장 링크입니다. '부고장 자동입력'으로 변경하거나 청첩장 링크를 넣으세요.",
       );
       return;
     }

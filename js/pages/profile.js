@@ -166,7 +166,7 @@ export function mount(root) {
                 slot: "ptable",
                 title: "발송인 프로필",
                 count: html`<span data-slot="pcount">${profiles().length}</span>`,
-                desc: "화환 리본에 찍히는 발신인입니다. 고정문구를 적어두면 주문할 때마다 다시 쓰지 않아도 됩니다.",
+                desc: "화환 리본에 표기되는 발신인입니다. 고정문구를 적어두면 주문할 때마다 다시 쓰지 않아도 됩니다.",
                 addAction: "new-profile",
                 addLabel: "프로필 등록",
                 table: profileTable(),
@@ -219,11 +219,11 @@ export function mount(root) {
     const missing = () => REQUIRED.filter(([k]) => !trim(form[k])).map(([, label]) => label);
     const ok = () => missing().length === 0;
 
-    const HINT_OK = "주문 화면에서 문구는 다시 고칠 수 있습니다";
+    const HINT_OK = "주문 화면에서 문구는 다시 수정할 수 있습니다";
     /* ⚠️ 버튼만 흐려 두지 않는다 — **무엇이** 남았는지 그 자리에서 말한다(규약).
        시안의 고정 문구("성함과 연락처는 필수입니다")를 그대로 쓰면 고정문구가 빠졌을 때
        막힌 이유를 거짓으로 말하게 된다. */
-    const hintNo = () => `필수 항목이 남았습니다 — ${missing().join(" · ")}`;
+    const hintNo = () => `필수 항목이 남았습니다: ${missing().join(" · ")}`;
 
     const previewBody = () => html`
       <p class="pf-pv__k">리본 미리보기</p>
@@ -375,8 +375,8 @@ export function mount(root) {
          없음'). 지금 등록·수정 창은 그런 번호를 받지 않으므로 예전에 저장된 줄만 해당한다. 초점은 누른 '지정' 그대로다(다시 그리지 않는다). */
       if (c && !contactPhoneOk(c.phone)) {
         toast(trim(c.phone)
-          ? `${who(c.name)}님은 연락처가 맞지 않아(${contactPhoneNeed(c.phone)}) 정산 · 회계 담당으로 지정할 수 없습니다 — 수정에서 연락처를 먼저 고치세요`
-          : `${who(c.name)}님은 연락처가 없어 정산 · 회계 담당으로 지정할 수 없습니다 — 수정에서 연락처를 먼저 입력하세요`, "warn");
+          ? `${who(c.name)}님은 연락처가 맞지 않아(${contactPhoneNeed(c.phone)}) 정산 · 회계 담당으로 지정할 수 없습니다. 수정에서 연락처를 먼저 고치세요`
+          : `${who(c.name)}님은 연락처가 없어 정산 · 회계 담당으로 지정할 수 없습니다. 수정에서 연락처를 먼저 입력하세요`, "warn");
         return;
       }
       const idx = rowIndexOf("contact", t.dataset.id); // 다시 그리기 전 순번 — 그 줄의 칸은 '담당' 표지가 된다(focusCol)

@@ -229,9 +229,9 @@ export const isPastOverdue = (period, now) => now.getTime() >= overdueAt(period)
 /** 잠긴 이유 — 명세 6.4 '정산 잠금' 의 정본 문구 3종(2026-10-15 결정 — 귀속월 배송일 기준). 화면이 지어내지 않는다.
  *  editLock: 수정 마감 뒤 · 동의 전 / agreed: 동의된 달(AGREED·ISSUED·PAID·OVERDUE) / zero: 0원으로 계산서 없이 닫는(닫힌) 달 */
 export const LOCK_REASON = {
-  editLock: "배송일이 지난 달 · 수정 마감(마감 안내 시각)이 지났습니다 — 금액 조정은 동의 뒤 수정계산서로",
-  agreed: "배송일이 지난 달 · 동의를 마쳤습니다 — 금액 조정은 수정계산서로",
-  zero: "배송일이 지난 달 · 0원이라 계산서 없이 닫는 달입니다 — 금액을 바꿀 수 없습니다",
+  editLock: "배송일이 지난 달 · 수정 마감(마감 안내 시각)이 지났습니다. 금액 조정은 동의 뒤 수정계산서로 합니다",
+  agreed: "배송일이 지난 달 · 동의를 마쳤습니다. 금액 조정은 수정계산서로 합니다",
+  zero: "배송일이 지난 달 · 0원이라 계산서 없이 닫는 달입니다. 금액을 변경할 수 없습니다",
 };
 /** 잠긴 이유의 **짧은 말**(시안 S-06 — 금액 칸 옆 한 줄). 정본은 언제나 LOCK_REASON 이고 화면은 그것을 title·보조기술용
  *  글로 함께 둔다. zero 는 시안에 짧은 말이 없어 두지 않는다(settlementOf 의 lockShort 가 null → 정본 전체를 쓴다). */
@@ -244,20 +244,20 @@ export const LOCK_SHORT = {
  *  시각에 자동 동의된 꼴이 된다. 발행 전 달(이번 달·다음 달)은 그대로 받는다. 판정은 util/settlement `settlementImpactOf`.
  *  0원 주문만 있던 달도 NONE 이다(2026-10-22 운영자 결정 B — 내역서를 내지 않는다) — 그 달로 들어오는 주문도 이 이유로 막는다
  *  (그 달에 있던 0원 주문의 금액을 올리는 저장은 아래 issuedZeroReason). */
-export const issuedEmptyReason = (period) => `${splitPeriod(period).m1}월은 명세서 발행이 지난 달입니다 — 배송일을 확인해 주세요`;
+export const issuedEmptyReason = (period) => `${splitPeriod(period).m1}월은 명세서 발행이 지난 달입니다. 배송일을 확인해 주세요`;
 /** 위 이유의 짧은 말(칸 옆 한 줄용). 정본은 issuedEmptyReason. */
 export const ISSUED_EMPTY_SHORT = "명세서 발행이 지난 달";
 /** 0원 주문만 있어 명세서를 내지 않은 달(NONE — 2026-10-22 운영자 결정 B)에서 그 달에 있던 0원 주문의 금액을 올리는 저장을 막는 이유.
  *  받으면 명세서·발급 안내(T3) 없이 '발급 때 0원 → 지금 X원' 이 된다(위 issuedEmptyReason 과 같은 까닭). 판정은 util/settlement
  *  `settlementImpactOf`. 상품만 바꾸거나 다른 달로 옮기거나 지우는 것은 받는다. */
-export const issuedZeroReason = (period) => `${splitPeriod(period).m1}월은 0원 주문만 있어 명세서를 내지 않은 달입니다 — 금액을 올릴 수 없습니다`;
+export const issuedZeroReason = (period) => `${splitPeriod(period).m1}월은 0원 주문만 있어 명세서를 발행하지 않은 달입니다. 금액을 올릴 수 없습니다`;
 /** 위 이유의 짧은 말. 정본은 issuedZeroReason. */
-export const ISSUED_ZERO_SHORT = "명세서를 내지 않은 달";
+export const ISSUED_ZERO_SHORT = "명세서를 발행하지 않은 달";
 /** 탈퇴한 거래처로는 새 주문(등록 위저드 · 포털 접수)을 받지 않는 이유(2026-10-22 운영자 결정 A — 탈퇴는 되돌리지 않는다 ·
  *  끝나지 않은 정산이 없을 때만 받았으므로 새 주문이 들어오면 로그인할 수 없는 거래처에 명세서·자동 동의가 걸린다).
  *  판정은 util/settlement `intakeBlockOf`. 화면은 이미 막는다(등록 위저드는 활성 거래처만 고르고 · 탈퇴 계정은 로그인할 수 없다) —
  *  이 이유는 그 문이 바뀌어도 지키는 마지막 문이다. 이미 있는 주문을 고치는 길은 util/withdraw.js `orderImpactOf` 가 막는다. */
-export const WITHDRAWN_INTAKE_REASON = "탈퇴한 거래처라 새 주문을 받을 수 없습니다 — 다시 쓰려면 새로 가입합니다";
+export const WITHDRAWN_INTAKE_REASON = "탈퇴한 거래처라 새 주문을 받을 수 없습니다. 다시 이용하려면 새로 가입해야 합니다";
 /** 위 이유의 짧은 말. 정본은 WITHDRAWN_INTAKE_REASON. */
 export const WITHDRAWN_INTAKE_SHORT = "탈퇴한 거래처";
 /** 자동 동의를 막는 이유(명세 6.6 `autoAgreeHold`) → 관리자 정산 표 낱말. 약관 동의 전 **하나뿐**이다.

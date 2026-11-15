@@ -46,7 +46,7 @@ import { setHTML, on, qs, qsa, html } from "../dom.js";
 import { icon } from "../icons.js";
 import { invoiceDoc, printInvoiceDoc } from "../invoice-doc.js";
 import { issueLink, publicInvoiceUrl, DOC_STAMP } from "../data/invoice-links.js";
-import { fmtAt, fmtKoShortY, fmtKoShortTimeY, periodLabel, periodEnd } from "../data/settlement-rules.js";
+import { fmtAt, fmtKoShortY, fmtKoShortTimeY, periodLabel, periodEnd, invoiceDayOf } from "../data/settlement-rules.js";
 import { CS_PHONE, CS_KAKAO, CS_KAKAO_URL } from "../data/contact.js";
 import { currentClient } from "../util/client.js";
 import { takeFocusSection } from "../session.js";
@@ -253,7 +253,7 @@ export function mount(root) {
      말한다(시안은 '자동이면 …' 이지만 1차 자동 결정을 지킨다).
      ⚠️ html`` 은 Date 를 String(date) 로 찍는다 — 반드시 포맷해서 넣는다. */
   function writtenOf(s, now) {
-    if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송한 달 말일`;
+    if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송완료 기준 달의 말일`;
     if (s.agreedAt) return `${fmtKoShortY(s.agreedAt, now)} · 동의한 날`;
     if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
     return `동의한 날 · 자동이면 ${fmtKoShortY(s.deadline, now)}`;
@@ -284,8 +284,8 @@ export function mount(root) {
       const closed = s.status === "PAID";
       const when = fmtKoShortTimeY(s.zeroCloseAt, now);
       return {
-        badge: ["0원 · 계산서 없음", "gray"], title: "고쳐져서 청구 금액이 0원이 되었습니다",
-        body: `발급 뒤 내역이 고쳐져 이 달은 계산서 발급 동의가 필요 없습니다. ${when} 마감에 계산서 없이 ${closed ? "닫혔습니다" : "닫힙니다"}.`,
+        badge: ["0원 · 계산서 없음", "gray"], title: "청구 금액이 0원으로 변경되었습니다",
+        body: `발급 뒤 내역이 수정되어 이 달은 계산서 발급 동의가 필요 없습니다. ${when} 마감에 계산서 없이 ${closed ? "닫혔습니다" : "닫힙니다"}.`,
         facts: [["남은 거래", s.count ? `${s.count}건 · 0원 주문` : "0건"], ["마감", `${when} · 계산서 없이 닫힘`]],
         btn: "none", help: HELP_DIFF,
       };
@@ -310,10 +310,10 @@ export function mount(root) {
       if (s.changed) {
         /* 금액이 바뀐 달(시안 c-changed-before). 수정 마감이 지난 뒤는 시안에 없는 상태라 같은 사실을 지난 일로 말한다. */
         return {
-          badge: ["동의 필요", "orange"], title: "금액이 바뀌었습니다. 확인하고 동의해 주세요",
-          body: `발급 뒤 내역이 고쳐졌습니다. 지금 금액으로 계산서(면세)가 발급되며, ${s.editable
-            ? `수정 마감(${lock}) 뒤에는 금액이 더 바뀌지 않습니다.`
-            : `수정 마감(${lock})이 지나 금액이 더 바뀌지 않습니다.`}`,
+          badge: ["동의 필요", "orange"], title: "금액이 변경되었습니다. 확인하고 동의해 주세요",
+          body: `발급 뒤 내역이 수정되었습니다. 지금 금액으로 계산서(면세)가 발급되며, ${s.editable
+            ? `수정 마감(${lock}) 뒤에는 금액이 더 변경되지 않습니다.`
+            : `수정 마감(${lock})이 지나 금액이 더 변경되지 않습니다.`}`,
           facts: [["발급 때 금액", won(s.issuedAmount)], due, auto, written],
           btn: "on", help: HELP_DIFF,
         };
@@ -321,7 +321,7 @@ export function mount(root) {
       return {
         badge: ["동의 필요", "orange"], title: "금액을 확인하고 동의해 주세요",
         /* 수정 마감 전이면 직원이 아직 금액을 고칠 수 있다는 사실을 덧붙인다(editable = now < editLockAt — 시안 lockLeft > 0). */
-        body: `동의하면 이 금액으로 계산서(면세)가 발급됩니다. 동의 후에는 내용을 바꿀 수 없습니다.${s.editable ? ` 수정 마감(${lock})까지는 금액이 바뀔 수 있습니다.` : ""}`,
+        body: `동의하면 이 금액으로 계산서(면세)가 발급됩니다. 동의 후에는 내용을 변경할 수 없습니다.${s.editable ? ` 수정 마감(${lock})까지는 금액이 변경될 수 있습니다.` : ""}`,
         facts: [due, auto, written],
         btn: "on",
       };
@@ -332,7 +332,7 @@ export function mount(root) {
     if (s.status === "AGREED") {
       return {
         badge: ["발급 중", "gray"], title: auto ? "마감 시각에 자동 동의되었습니다" : "계산서 발급에 동의했습니다",
-        body: "계산서를 발급하고 있습니다. 발급되면 정산·회계 담당자에게 카톡으로 알려 드립니다.",
+        body: "계산서를 발급하고 있습니다. 발급되면 정산·회계 담당자에게 카카오톡으로 알려 드립니다.",
         facts: [["동의 일시", agreed], ["작성일자", writtenOf(s, now)]], btn: "none",
       };
     }
@@ -373,7 +373,7 @@ export function mount(root) {
     if (s.status === "NONE") return html`<p class="iv-strip">거래가 없는 달이라 PDF · EXCEL · 열람링크를 쓸 수 없습니다</p>`;
     if (s.docStamp) {
       const chg = amountChangeLine(s);
-      return html`<p class="iv-strip iv-strip--draft">${DOC_STAMP} — PDF · EXCEL · 열람링크에 출력 시각과 함께 찍힙니다${chg ? ` · ${chg}` : ""}</p>`;
+      return html`<p class="iv-strip iv-strip--draft">'${DOC_STAMP}' 문구가 PDF · EXCEL · 열람링크에 출력 시각과 함께 표기됩니다${chg ? ` · ${chg}` : ""}</p>`;
     }
     return "";
   }
@@ -386,7 +386,7 @@ export function mount(root) {
     /* '로그인 뒤에도' 는 로그인 화면을 거쳐 왔을 때만 붙인다 — 이미 로그인돼 있었으면 거짓이 된다.
        못 찾았을 때 연 달은 latestInvoiceKey — 오늘이 속한 달까지 중 가장 최근 명세서다(시안 문장). */
     const [t, b] = a.ok
-      ? ["카톡 알림에서 바로 열었습니다.", a.viaLogin ? `로그인 뒤에도 알림이 가리킨 ${label} 명세서를 그대로 열었습니다.` : `알림이 가리킨 ${label} 명세서를 열었습니다.`]
+      ? ["카카오톡 알림에서 바로 열었습니다.", a.viaLogin ? `로그인 뒤에도 알림이 가리킨 ${label} 명세서를 그대로 열었습니다.` : `알림이 가리킨 ${label} 명세서를 열었습니다.`]
       : ["알림 주소의 달을 찾지 못했습니다.", `오늘이 속한 달까지 중 가장 최근 명세서(${label})를 열었습니다.`];
     return html`
       <div class="iv-arrive" role="status" data-slot="arrive">
@@ -396,6 +396,9 @@ export function mount(root) {
   }
 
   function render() {
+    /* 부제의 발급일은 그 거래처의 **지금(앞으로 적용될)** 발급일이다(invoiceDayOf — 정산회계 조회 '매월 N일 명세서 발급' 칩과
+       같은 값). 두 자리로 적는다(2026-11-15 사용자 지시 '매월 01일 …' — 01 은 1일 거래처의 예시라 날짜는 거래처마다 다르다). */
+    const dd = String(invoiceDayOf(currentClient())).padStart(2, "0");
     setHTML(
       root,
       html`
@@ -403,7 +406,7 @@ export function mount(root) {
           ${pageHead({
             imgSrc: "./assets/nav-invoice.png",
             title: "거래명세서 조회",
-            desc: "배송한 달을 골라 내려받거나 발급에 동의합니다",
+            desc: `매월 ${dd}일 전월 이용분에 대하여 명세서를 발급합니다. 발급에 동의하면 계산서가 자동으로 발급됩니다.`,
           })}
           ${arrivalBar()}
           <div class="iv-cols">
@@ -413,10 +416,10 @@ export function mount(root) {
               <div class="iv-card iv-listcard">
                 <div class="iv-year">
                   <button type="button" class="iv-ystep" data-action="prev-year" aria-label="이전 해">‹</button>
-                  <div class="iv-year__l"><b data-slot="year">${state.year}년</b><span>배송한 달 기준</span></div>
+                  <div class="iv-year__l"><b data-slot="year">${state.year}년</b><span>배송완료 기준</span></div>
                   <button type="button" class="iv-ystep" data-action="next-year" aria-label="다음 해">›</button>
                 </div>
-                <div class="iv-months" data-slot="months" role="group" aria-label="배송한 달">${monthsBody()}</div>
+                <div class="iv-months" data-slot="months" role="group" aria-label="월 선택(배송완료 기준)">${monthsBody()}</div>
               </div>
               <div class="iv-card iv-sum">
                 <div class="iv-sum__top" data-slot="sumtop">${sumTop()}</div>
@@ -618,7 +621,7 @@ export function mount(root) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1500);
-      toast(d.stamp ? `EXCEL을 내려받습니다 · 2행에 '${d.stamp.text} · 출력 시각'` : "EXCEL 파일을 내려받았습니다");
+      toast(d.stamp ? `EXCEL을 내려받습니다 · 2행에 '${d.stamp.text} · 출력 시각'이 표기됩니다` : "EXCEL 파일을 내려받았습니다");
     } catch (err) {
       console.error("EXCEL 생성 오류:", err);
       toast("EXCEL 생성 중 오류가 발생했습니다", "warn");
@@ -651,7 +654,7 @@ export function mount(root) {
       /* 화면을 연 채 마감(13:00)이 지나 카드가 옛 갈래('동의 필요' + 살아 있는 버튼)로 남아 있었다 — 눌러도 아무 일이 없었다
          (2026-10-17 실측). 지금 값으로 다시 그리고, 창을 연 사이 마감이 지났을 때와 같은 말로 알린다. */
       renderMonth();
-      toast(s0.mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 바뀌었습니다", "warn");
+      toast(s0.mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 변경되었습니다", "warn");
       refocus(false);
       return;
     }
@@ -671,7 +674,7 @@ export function mount(root) {
        말하면 오늘 동의하는 사람에게 다른 날짜를 보여 주게 된다. 1~7일 그룹은 배송한 달 말일 그대로(동의 시점과 무관). */
     const writtenNow = s0.group === "early" ? writtenOf(s0, now) : `${fmtKoShortY(now)} · 동의한 날(오늘)`;
     const recapBody = (s) => html`
-      <div><span>귀속 · 배송한 달</span><b>${period}</b></div>
+      <div><span>귀속 · 배송완료 기준</span><b>${period}</b></div>
       <div><span>거래 건수</span><b class="num">${s.count}건</b></div>
       <div><span>작성일자</span><b>${writtenNow}</b></div>
       ${err
@@ -681,7 +684,7 @@ export function mount(root) {
     const ackLabel = () => (err ? `새 금액 ${won(shown)}을 확인했고 되돌릴 수 없음에 동의합니다` : "금액을 확인했고 되돌릴 수 없음에 동의합니다");
     const errBox = () => html`
       <div class="iv-agerr" role="alert">
-        <b class="iv-agerr__t">금액이 바뀌었습니다. 다시 확인해 주세요</b>
+        <b class="iv-agerr__t">금액이 변경되었습니다. 다시 확인해 주세요</b>
         <p class="iv-agerr__p">동의하려던 금액 ${won(err.was)} → 지금 ${won(shown)}${err.at ? ` (${fmtKoShortTimeY(err.at, now)} 수정)` : ""}. 새 금액을 확인하고 다시 체크해 주세요.</p>
       </div>`;
     let closingByCode = false;
@@ -696,7 +699,7 @@ export function mount(root) {
       body: html`
         <div data-slot="agerr" hidden></div>
         <p class="dlg-desc"><b>동의 후에는 되돌릴 수 없습니다.</b> 이 금액 그대로 계산서(면세)가 발급되고,
-          명세서 내용은 더 이상 바뀌지 않습니다.</p>
+          명세서 내용은 더 이상 변경되지 않습니다.</p>
         <div class="iv-recap" data-slot="recap">${recapBody(s0)}</div>
         ${line ? html`<div class="iv-line"><b>${line[0]}</b>${line[1]}</div>` : ""}
         <button type="button" class="dlg-check" data-action="ack" role="checkbox" aria-checked="false">
@@ -776,7 +779,7 @@ export function mount(root) {
       closeByCode();
       renderMonth();
       if (!res) {
-        toast(settle().mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 바뀌었습니다", "warn");
+        toast(settle().mode === "auto" ? "동의 마감이 지나 자동 동의로 처리되었습니다" : "동의할 수 없는 상태로 변경되었습니다", "warn");
         refocus(false);
         return;
       }
@@ -834,7 +837,7 @@ export function mount(root) {
         if (!el) throw new Error("invoice doc not rendered");
         /* 팝업이 막히면 printInvoiceDoc 이 경고창을 띄우고 false — '내려받습니다' 토스트를 함께 띄우면 거짓이 된다. */
         if (printInvoiceDoc(el, `거래명세서_${state.year}_${state.month}`) === false) return;
-        toast(d.stamp ? `PDF를 내려받습니다 · '${d.stamp.text} · ${d.stamp.printedAt} 출력'이 찍힙니다` : "PDF 다운로드를 시작했습니다");
+        toast(d.stamp ? `PDF를 내려받습니다 · '${d.stamp.text} · ${d.stamp.printedAt} 출력'이 표기됩니다` : "PDF 다운로드를 시작했습니다");
       } catch (err) { console.error("PDF 생성 오류:", err); toast("PDF 생성 중 오류가 발생했습니다", "warn"); }
       return;
     }

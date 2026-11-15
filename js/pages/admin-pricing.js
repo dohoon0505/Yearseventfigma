@@ -208,7 +208,7 @@ export function mount(root, { nav }) {
     return html`
       <div class="prc-pend__hd">
         <b class="prc-pend__t">저장 전 변경 ${keys.length}건</b>
-        <span class="prc-pend__cap">${nameOf(cid)} · 저장하면 포털 상품 안내와 주문서 적용 단가가 함께 바뀝니다</span>
+        <span class="prc-pend__cap">${nameOf(cid)} · 저장하면 포털 상품 안내와 주문서 적용 단가가 함께 변경됩니다</span>
       </div>
       <ul class="prc-pend__list">
         ${keys.map((k) => {

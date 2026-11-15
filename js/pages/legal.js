@@ -43,7 +43,7 @@ export function mount(root, { nav }) {
   const kind = location.hash === "#/legal/privacy" ? "privacy" : "terms";
   const M = META[kind];
   const prevTitle = document.title;
-  document.title = `${M.title} — 올해의경조사`;
+  document.title = `${M.title} | 올해의경조사`;
   const role = getRole();
   let info = peekSiteInfo();
   const state = { view: "current", pastVer: null, prevOpen: false, active: null };
@@ -133,7 +133,7 @@ export function mount(root, { nav }) {
       ? html`
         <div class="lg-bar lg-bar--${b.kind}">
           ${b.kind === "upcoming" ? html`<span class="lg-bar__tag">시행 예정</span><b>아직 시행 전인 판입니다</b>` : html`<b>지난 판입니다</b>`}
-          <span class="lg-bar__sub">— ${b.text}</span>
+          <span class="lg-bar__sub">(${b.text})</span>
           <a class="lg-bar__now" href="${M.hash}" data-action="now">지금 판 보기</a>
         </div>`
       : html``);

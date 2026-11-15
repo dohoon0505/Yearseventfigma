@@ -197,5 +197,5 @@
   }
 
   // 문서 제목에 수령인 반영 (문자 목록에서 식별 용이)
-  if (receiver) document.title = "배송완료 리포트 · " + receiver + " — 올해의경조사";
+  if (receiver) document.title = "배송완료 리포트 · " + receiver + " | 올해의경조사";
 })();

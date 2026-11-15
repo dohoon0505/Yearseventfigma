@@ -374,22 +374,27 @@ export function mount(root, { nav }) {
    *  여기 넣지 않는다 — 저장을 누르면 그 두 칸만 되돌리고 메모를 남긴다(사용자 답 2 · 결정 F: 다른 칸 저장까지 막히면 안 된다). */
   const preBlockOf = (imp) => (imp && imp.lock && (imp.moved || !imp.lock.isOld) ? imp.lock : null);
   /** LOCK_REASON 의 꼬리('금액 조정은 동의 뒤 수정계산서로') — 상태별 꼬리를 그대로 쓴다(정본 낱말을 짓지 않는다). */
-  const tailOf = (r) => { const t = String(r || ""); const i = t.indexOf(" — "); return i >= 0 ? t.slice(i + 3) : t; };
-  /** 막힌 달 문장 — '9월은 수정 마감이 지난 달이라 이 주문을 다른 달로 옮길 수 없습니다 — 금액 조정은 동의 뒤 수정계산서로'.
+  const tailOf = (r) => {
+    /* 정본 문장은 두 문장('… 지났습니다. 금액 조정은 …') — 2026-11-15 문장 잇는 '—' 금지로 바뀌었다. 옛 ' — ' 도 받는다. */
+    const t = String(r || "");
+    for (const sep of [" — ", ". "]) { const i = t.indexOf(sep); if (i >= 0) return t.slice(i + sep.length); }
+    return t;
+  };
+  /** 막힌 달 문장 — '9월은 수정 마감이 지난 달이라 이 주문을 다른 달로 옮길 수 없습니다. 금액 조정은 동의 뒤 수정계산서로 합니다'.
    *  발행이 지난 거래 없는 달은 규칙 모듈의 이유 그대로(issuedEmptyReason — 사용자 답 3). `verb` 는 '다른 달로 옮길' 등. */
   function lockSentence(lock, verb) {
     /* 탈퇴한 거래처의 주문(util/withdraw.js orderImpactOf) — 달이 아니라 거래처 때문이라 그 이유 그대로. */
     if (lock.withdrawn) return lock.reason;
     if (lock.s.status === "NONE" && !lock.isOld) return lock.reason;
-    return `${monthNo(lock.ym)}월은 ${closedMonthWord(lock.s)}이라 이 주문을 ${verb} 수 없습니다 — ${tailOf(lock.s.lockReason)}`;
+    return `${monthNo(lock.ym)}월은 ${closedMonthWord(lock.s)}이라 이 주문을 ${verb} 수 없습니다. ${tailOf(lock.s.lockReason)}`;
   }
   /** 저장 순간 막혔을 때의 제목 — 확인 창 안의 빨간 안내 · 토스트. */
   function lockTitle(lock) {
-    if (lock.withdrawn) return "저장하지 못했습니다 — 탈퇴한 거래처의 주문입니다";
-    if (lock.s.status === "NONE" && !lock.isOld) return `저장하지 못했습니다 — ${lock.reason}`;
-    if (lock.s.status === "AWAITING_AGREEMENT") return `저장하지 못했습니다 — 그사이 수정 마감(${fmtKoShortTime(lock.s.editLockAt)})이 지났습니다`;
-    if (lock.s.zeroEdited) return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월이 0원으로 닫혔습니다`;
-    return `저장하지 못했습니다 — 그사이 ${monthNo(lock.ym)}월 정산의 동의가 끝났습니다`;
+    if (lock.withdrawn) return "탈퇴한 거래처의 주문이라 저장하지 못했습니다";
+    if (lock.s.status === "NONE" && !lock.isOld) return `저장하지 못했습니다. ${lock.reason}`;
+    if (lock.s.status === "AWAITING_AGREEMENT") return `그사이 수정 마감(${fmtKoShortTime(lock.s.editLockAt)})이 지나 저장하지 못했습니다`;
+    if (lock.s.zeroEdited) return `그사이 ${monthNo(lock.ym)}월이 0원으로 닫혀 저장하지 못했습니다`;
+    return `그사이 ${monthNo(lock.ym)}월 정산의 동의가 끝나 저장하지 못했습니다`;
   }
   /** 금액·상품 중 저장되지 않을 값('3단화환(고급형) 130,000원') — 바꾸지 않았으면 "". */
   function unsavedVals(stored) {
@@ -501,7 +506,7 @@ export function mount(root, { nav }) {
           aria-describedby="${AMT_WHY}" />
         <span class="ord-amtf__unit">원</span>
         <span class="ord-amtf__why ord-amtf__why--open" id="${AMT_WHY}"
-          title="${m}월 명세서가 이미 나간 주문입니다 — 고치면 거래처가 보는 명세서 금액이 바로 바뀝니다(${at}까지)">${m}월 명세서 나감 · 수정 마감 ${at}</span>`;
+          title="${m}월 명세서가 이미 발행된 주문입니다. 고치면 거래처가 보는 명세서 금액이 바로 변경됩니다(${at}까지)">${m}월 명세서 발행됨 · 수정 마감 ${at}</span>`;
     }
     return html`
       <input class="ord-in ord-amtf__in" id="${AMT_ID}" data-f="amount" value="${wonNum(editing.amount)}" inputmode="numeric" />
@@ -563,7 +568,7 @@ export function mount(root, { nav }) {
         tip = `${s0.lockReason} · 같은 달 안의 날짜·시각 변경은 금액 영향이 없어 저장됩니다`;
         tone = "is-lock";
       } else {
-        text = "다른 달로 옮기면 두 달 정산이 함께 바뀜";
+        text = "다른 달로 옮기면 두 달 정산이 함께 변경됨";
         tip = `배송일을 다른 달로 옮기면 이 주문 금액이 ${monthNo(s0.period)}월 명세서에서 빠지고 새 달 정산에 듭니다. 두 달 모두 고칠 수 있어야 저장됩니다`;
         tone = "is-open";
       }
@@ -1005,7 +1010,7 @@ export function mount(root, { nav }) {
   /* 같은 번호 표시 — '할다운 줄과 같은 번호'. 사람이 적은 이름 바로 뒤에 조사를 붙이지 않는다(받침에 따라 틀린 말이 된다 — CLAUDE.md
      'UI 판단 기준') · 조사는 '줄' 에 붙인다(시안 '할다운과 같은 번호' 를 이렇게 바꿨다). */
   const dupWord = (r) => `${r.dupOf} 줄과 같은 번호`;
-  const ZERO_NOTIFY = "배송완료 알림을 받을 연락처가 없습니다 — 수신자를 한 명 이상 켜 주세요";
+  const ZERO_NOTIFY = "배송완료 알림을 받을 연락처가 없습니다. 수신자를 한 명 이상 켜 주세요";
   const notifyCountText = (n) => (n ? `${n}명에게 발송` : "받지 않음");
 
   /* 슬롯 하나만 갈아 끼우는 부분 갱신 — `card({ slot })` 이 만든 래퍼를 노린다.
@@ -1033,18 +1038,18 @@ export function mount(root, { nav }) {
   const F = (mark, text, tone) => ({ mark, text, tone });
   function reqFacts() {
     if (!cDraft || !cDraft.clientId) return [];
-    const OFF_TXT = "배송완료 알림은 받지 않습니다 — 이 주문의 명단에서 껐습니다";
+    const OFF_TXT = "배송완료 알림은 받지 않습니다. 이 주문의 명단에서 껐습니다";
     const ct = cRequester();
     if (ct) {
       if (!phoneOk(ct.phone)) {
-        return [F("!", `${ct.name} 담당자는 연락처가 ${trim(ct.phone) ? "맞지 않습니다" : "없습니다"} — 담당자 관리에서 연락처를 먼저 등록하거나 직접 입력을 고르세요`, "warn")];
+        return [F("!", `${ct.name} 담당자는 연락처가 ${trim(ct.phone) ? "맞지 않습니다" : "없습니다"}. 담당자 관리에서 연락처를 먼저 등록하거나 직접 입력을 고르세요`, "warn")];
       }
       const recv = ct.message === MSG_RECEIVE;
       return [
-        F("✓", recv ? "주문 접수·취소 안내를 받습니다" : "주문 접수·취소 안내는 받습니다 — 알림 수신 설정과 관계없이", "ok"),
-        !recv ? F("–", "배송완료 알림은 받지 않습니다 — 담당자 설정에서 알림 수신을 꺼 두었습니다", "off")
+        F("✓", recv ? "주문 접수·취소 안내를 받습니다" : "알림 수신 설정과 관계없이 주문 접수·취소 안내는 받습니다", "ok"),
+        !recv ? F("–", "배송완료 알림은 받지 않습니다. 담당자 설정에서 알림 수신을 꺼 두었습니다", "off")
           : cDraft.notifyOff.includes(`ct:${ct.id}`) ? F("–", OFF_TXT, "off")
-          : F("✓", "배송완료 알림도 받습니다 — 2단계 명단에 자동으로 들어갑니다", "ok"),
+          : F("✓", "배송완료 알림도 받습니다. 2단계 명단에 자동으로 들어갑니다", "ok"),
       ];
     }
     if (!cReqManualOn()) return [];
@@ -1052,11 +1057,11 @@ export function mount(root, { nav }) {
     if (nm && ok) {
       return [F("✓", "주문 접수·취소 안내를 받습니다", "ok"),
         cDraft.notifyOff.includes("requester") ? F("–", OFF_TXT, "off")
-          : F("✓", "배송완료 알림도 받습니다 — 2단계 명단에 들어가고, 이 주문에서만 끌 수 있습니다", "ok")];
+          : F("✓", "배송완료 알림도 받습니다. 2단계 명단에 들어가고, 이 주문에서만 끌 수 있습니다", "ok")];
     }
-    if (!nm && !ph) return [F("!", "요청자 이름과 연락처를 적어 주세요 — 연락처는 주문 접수·취소 안내를 받는 번호입니다", "info")];
-    if (ph && !ok) return [F("!", "번호 형식이 맞지 않습니다 — 010-0000-0000 처럼 적어 주세요", "warn")];
-    if (!ph) return [F("!", "요청자 연락처를 적어야 다음 단계로 넘어갑니다 — 주문 접수·취소 안내를 받는 번호입니다", "warn")];
+    if (!nm && !ph) return [F("!", "요청자 이름과 연락처를 적어 주세요. 연락처는 주문 접수·취소 안내를 받는 번호입니다", "info")];
+    if (ph && !ok) return [F("!", "번호 형식이 맞지 않습니다. 010-0000-0000 처럼 적어 주세요", "warn")];
+    if (!ph) return [F("!", "요청자 연락처를 적어야 다음 단계로 넘어갑니다. 주문 접수·취소 안내를 받는 번호입니다", "warn")];
     return [F("!", "요청자 이름을 적어야 다음 단계로 넘어갑니다", "warn")];
   }
   const factsBody = (facts) => html`${facts.map((f) => html`<span class="ordnew-fact is-${f.tone}"><span class="ordnew-fact__dot" aria-hidden="true">${f.mark}</span><span>${f.text}</span></span>`)}`;
@@ -1126,7 +1131,7 @@ export function mount(root, { nav }) {
     createModal.rerenderStep("s2");
     createModal.rerenderRail(); createModal.syncFooter(); createModal.markTouched();
     focusCliPick(); // 위 슬롯 갈이로 누른 줄이 사라졌다 — 그 자리의 '다시 고르기' 로
-    if (had) toast("거래처를 바꿔 요청자·주문상품·금액·알림 설정을 비웠습니다 — 배송지·받는분·리본문구는 그대로");
+    if (had) toast("거래처를 변경해 요청자·주문상품·금액·알림 설정을 비웠습니다(배송지·받는분·리본문구는 그대로)");
   }
 
   /* '단가 기준' 줄(시안 O-01) — 금액이 무엇으로 만들어졌는지 말한다. 비교 기준(자동 금액)에 추가 배송비를 넣으므로 배송비가 붙은 금액을
@@ -1138,17 +1143,17 @@ export function mount(root, { nav }) {
     const auto = unit + fee;
     const isCon = cIsContract(cDraft.product);
     const comp = `${isCon ? "계약단가" : "기준단가"} ${won(unit)}${fee ? ` + 추가 배송비 ${won(fee)}(${region})` : ""}`;
-    if (cAmtBad === "bad") return { text: "숫자만 적을 수 있습니다 — 금액에 쓸 수 없는 글자가 있습니다", tone: "bad", sub: `자동 금액 ${won(auto)}` };
+    if (cAmtBad === "bad") return { text: "숫자만 적을 수 있습니다. 금액에 쓸 수 없는 글자가 있습니다", tone: "bad", sub: `자동 금액 ${won(auto)}` };
     if (cAmtBad === "empty") return { text: "주문금액이 비어 있습니다", tone: "bad", sub: `자동 금액 ${won(auto)} = ${comp}` };
     if (cAmtBad === "over") return { text: "주문금액은 1,000만원까지 적을 수 있습니다", tone: "bad" };
     if (cOver) {
-      const lead = cOver.cause === "배송지" ? "배송지가 바뀌어 금액을 다시 채웠습니다"
-        : cOver.cause === "상품선택" ? "상품을 골라 금액을 채웠습니다" : "상품이 바뀌어 금액을 다시 채웠습니다";
-      return { text: `${lead} — 직접 입력한 ${won(cOver.from)} → ${won(cOver.to)}`,
+      const lead = cOver.cause === "배송지" ? "배송지가 변경되어 금액을 다시 채웠습니다"
+        : cOver.cause === "상품선택" ? "상품을 골라 금액을 채웠습니다" : "상품이 변경되어 금액을 다시 채웠습니다";
+      return { text: `${lead}(직접 입력한 ${won(cOver.from)} → ${won(cOver.to)})`,
                tone: "warn", sub: comp, restore: `직접 입력한 ${won(cOver.from)}으로 되돌리기` };
     }
     const cur = Number(cDraft.amount) || 0;
-    if (cur !== auto) return { text: `자동 금액(${won(auto)})과 다름 — 직접 입력한 금액`, tone: "warn", sub: `자동 금액 = ${comp}` };
+    if (cur !== auto) return { text: `직접 입력한 금액이라 자동 금액(${won(auto)})과 다름`, tone: "warn", sub: `자동 금액 = ${comp}` };
     return { text: `${comp} 적용${isCon ? "" : " · 계약단가 미등록"}`, tone: "" };
   }
   const basisBody = () => {
@@ -1198,12 +1203,13 @@ export function mount(root, { nav }) {
     if (!ym || !cDraft.clientId) return { text: "화원에 전달되는 내용", tone: "" };
     const m = monthNo(ym);
     const l = cLock();
-    /* 수정 마감이 지난 달은 시안 낱말 '수정 마감 지남'(카드 머리 한 줄이 좁다) — 그 밖은 공용 낱말(closedMonthWord) 그대로. */
+    /* 막힌 달은 공용 낱말(closedMonthWord — 넷 다 '…달')로 한 문장 '9월은 {낱말}이라 …'(2026-11-15 — 예전 '9월 정산 · 수정 마감 지남 —
+       이 달 배송분은 …' 은 문장을 잇는 '—' 를 쓰지 않으려 바꿨다 · 시안의 줄임 '수정 마감 지남' 도 그때 뺐다). */
     if (l) {
       const word = closedMonthWord(l.s);
-      return { text: `${m}월 정산 · ${word === "수정 마감이 지난 달" ? "수정 마감 지남" : word} — 이 달 배송분은 등록할 수 없습니다`, tone: "block" };
+      return { text: `${m}월은 ${word}이라 이 달 배송분은 등록할 수 없습니다`, tone: "block" };
     }
-    if (cIssuedOpen()) return { text: `${m}월 정산 · 명세서가 이미 나간 달 — 배송완료하면 ${m}월 명세서 금액이 바뀝니다`, tone: "open" };
+    if (cIssuedOpen()) return { text: `${m}월 정산 · 명세서가 이미 발행된 달이라 배송완료하면 ${m}월 명세서 금액이 변경됩니다`, tone: "open" };
     return { text: `화원에 전달되는 내용 · ${m}월 정산`, tone: "" };
   }
   /** 정산 달 캡션 + 배송일시 칸 모양(빨강·자물쇠 / 빈 칸) — 배송일시를 고를 때마다. 칸은 다시 그리지 않는다. */
@@ -1322,24 +1328,24 @@ export function mount(root, { nav }) {
     if (add && w.extras.length < NT_MAX) w.extras.push(newExtra());
     const cl = cClient();
     const fixedSub = (r) => {
-      if (r.st === "LOCK") return { text: "발송 프로필을 고르면 들어갑니다 — 그 전에는 켤 수 없습니다", tone: "" };
+      if (r.st === "LOCK") return { text: "발송 프로필을 고르면 들어갑니다. 그 전에는 켤 수 없습니다", tone: "" };
       if (r.st === "NONUM") {
         const text = r.key === "recipient"
-          ? (r.on ? "번호 없음 · 발송 안 함 — 발주정보에 받는분 연락처를 적으면 보냅니다" : "번호 없음 · 꺼 둠")
+          ? (r.on ? "번호 없음 · 발송 안 함(발주정보에 받는분 연락처를 적으면 보냅니다)" : "번호 없음 · 꺼 둠")
           : r.key === "sender" ? "프로필에 번호가 없습니다 · 발송 안 함" : "번호 없음 · 발송 안 함";
         return { text, tone: "amber" };
       }
       if (r.st === "BAD") return { text: `${trim(r.phone)} · 번호 형식 오류 · 발송 안 함`, tone: "red" };
       if (r.st === "OFF") return { text: `${trim(r.phone)} · 이 주문에서 끔`, tone: "" };
-      if (r.st === "DUP") return { text: `${trim(r.phone)} · ${dupWord(r)} — 한 번만 보냅니다`, tone: "" };
+      if (r.st === "DUP") return { text: `${trim(r.phone)} · ${dupWord(r)}라 한 번만 보냅니다`, tone: "" };
       return { text: `${trim(r.phone)} · ${r.src}`, tone: "" };
     };
     const exMsg = (r) => ({
-      EMPTY: { text: "빈 줄 — 완료하면 저장하지 않습니다", tone: "" },
-      NONUM: { text: "번호를 적지 않았습니다 · 발송 안 함 — 줄은 남습니다", tone: "amber" },
-      BAD: { text: "번호 형식이 맞지 않습니다 · 발송 안 함 — 010-0000-0000 처럼 적어 주세요", tone: "red" },
-      OFF: { text: "이 주문에서 끔 — 꺼진 채로 저장됩니다", tone: "" },
-      DUP: { text: r.dupOf ? `${dupWord(r)} — 한 번만 보냅니다` : "", tone: "" },
+      EMPTY: { text: "빈 줄이라 완료하면 저장하지 않습니다", tone: "" },
+      NONUM: { text: "번호를 적지 않았습니다 · 발송 안 함(줄은 남습니다)", tone: "amber" },
+      BAD: { text: "번호 형식이 맞지 않습니다 · 발송 안 함(010-0000-0000 처럼 적어 주세요)", tone: "red" },
+      OFF: { text: "이 주문에서 끔(꺼진 채로 저장됩니다)", tone: "" },
+      DUP: { text: r.dupOf ? `${dupWord(r)}라 한 번만 보냅니다` : "", tone: "" },
     }[r.st] || { text: "", tone: "" });
     const fixedRow = (r) => {
       const sub = fixedSub(r);
@@ -1398,7 +1404,7 @@ export function mount(root, { nav }) {
         </section>
         <section class="ntl-sec">
           <div class="dlg-rule"><b class="dlg-rule__t">추가 수신자</b><span class="dlg-rule__cap ntl-num" data-slot="ntcap">${n0}/${NT_MAX}</span></div>
-          <p class="ntl-none" data-slot="ntnone" ${n0 ? "hidden" : ""}>아직 없습니다 — 배송 사진을 함께 받을 분을 최대 ${NT_MAX}명까지 넣을 수 있습니다.</p>
+          <p class="ntl-none" data-slot="ntnone" ${n0 ? "hidden" : ""}>아직 없습니다. 배송 사진을 함께 받을 분을 최대 ${NT_MAX}명까지 넣을 수 있습니다.</p>
           <div class="ntl-exs" data-slot="ntexs">${R0.rows.filter((r) => r.extra).map(exRow)}</div>
           <div class="ntl-addrow">
             <button type="button" class="ntl-add" data-action="ntl-add" ${n0 >= NT_MAX ? html`disabled aria-describedby="ntl-full"` : ""}>+ 수신자 추가 (${n0}/${NT_MAX})</button>
@@ -1561,7 +1567,7 @@ export function mount(root, { nav }) {
         /* 시안 O-01 noCli 는 한 줄('‘검색어’로 찾은 거래처가 없습니다')이다. 사람이 적은 검색어 바로 뒤에 조사를 붙이지 않는다(받침에 따라
            '로/으로' 가 갈린다 — CLAUDE.md 'UI 판단 기준') — 조사는 정해진 낱말 '결과' 에. 활성만 찾는다는 까닭은 같은 줄 뒤에(승인대기·
            반려·탈퇴 거래처를 찾는 사람이 이유를 헤매지 않게). */
-        return html`<p class="ordnew-cli__empty">‘${cQuery}’ 검색 결과가 없습니다 — 주문은 활성 거래처에만 등록합니다</p>`;
+        return html`<p class="ordnew-cli__empty">‘${cQuery}’ 검색 결과가 없습니다. 주문은 활성 거래처에만 등록합니다</p>`;
       }
       /* 줄 = 이름 / 사업자번호 · 담당자 N명(시안 O-01 — 요청자를 고를 수 있는지 고르기 전에 보인다) · 거래 조건 배지 · 채널. */
       return html`${rows.map((c) => { const nc = store.contactsOf(c.id).length; return html`
@@ -1602,10 +1608,10 @@ export function mount(root, { nav }) {
             <button type="button" class="ordnew-req__row ordnew-req__row--man ${man ? "is-sel" : ""} ${cts.length % 2 === 0 ? "is-wide" : ""}"
               role="radio" aria-checked="${man ? "true" : "false"}" data-creq-pick="${MANUAL}">
               <span class="ordnew-req__nm">직접 입력</span>
-              <span class="ordnew-req__sub">담당자 프로필에 없는 요청자 — 이 주문에만 기록됩니다</span>
+              <span class="ordnew-req__sub">담당자 프로필에 없는 요청자는 이 주문에만 기록됩니다</span>
             </button>
           </div>`
-          : html`<p class="ordnew-req__lead">이 거래처에는 등록된 담당자가 없습니다 — 주문을 요청한 분을 직접 적어 주세요.</p>`}
+          : html`<p class="ordnew-req__lead">이 거래처에는 등록된 담당자가 없습니다. 주문을 요청한 분을 직접 적어 주세요.</p>`}
         <div class="ordnew-reqin" data-slot="creqman" ${man ? "" : "hidden"}>
           <label class="ordnew-reqin__k" for="creq-name">요청자 이름</label>
           <input class="ord-in ordnew-reqin__in" id="creq-name" data-creq="requesterName" value="${cDraft.requesterName}"
@@ -1777,7 +1783,7 @@ export function mount(root, { nav }) {
         </div>
         ${note ? html`<div class="ordnew-rterm"><span class="ordnew-rterm__k">거래 조건</span><p class="ordnew-rterm__v">${c.clientNote}</p></div>` : ""}
         ${i === 1 && c ? notifyBlock() : ""}
-        <p class="ordnew-rnote">거래처를 바꾸면 요청자·주문상품·금액·알림 설정을 비웁니다. 배송지·받는분·리본문구는 그대로 둡니다.</p>`;
+        <p class="ordnew-rnote">거래처를 변경하면 요청자·주문상품·금액·알림 설정을 비웁니다. 배송지·받는분·리본문구는 그대로 둡니다.</p>`;
     };
 
     /* 1단계 필수 — 거래처 · 주문 요청자(목록에서 고른 담당자면 그 연락처 · 직접 입력이면 이름과 연락처 — M03). */
@@ -1797,11 +1803,11 @@ export function mount(root, { nav }) {
       const m = missing1();
       const ct = cRequester();
       if (ct && !phoneOk(ct.phone)) {
-        return { text: `필수 1건 — 요청자 연락처 · ${ct.name} 담당자는 연락처가 ${trim(ct.phone) ? "맞지 않습니다" : "없습니다"}`, tone: "block" };
+        return { text: `필수 1건: 요청자 연락처 · ${ct.name} 담당자는 연락처가 ${trim(ct.phone) ? "맞지 않습니다" : "없습니다"}`, tone: "block" };
       }
       const ph = trim(cDraft.requesterPhone);
-      if (!ct && cReqManualOn() && ph && !phoneOk(ph)) return { text: `필수 ${m.length}건 — ${m.join(" · ")} · 번호 형식이 맞지 않습니다`, tone: "block" };
-      if (m.length) return { text: `필수 ${m.length}건 — ${m.join(" · ")}`, tone: "dirty" };
+      if (!ct && cReqManualOn() && ph && !phoneOk(ph)) return { text: `필수 ${m.length}건: ${m.join(" · ")} · 번호 형식이 맞지 않습니다`, tone: "block" };
+      if (m.length) return { text: `필수 ${m.length}건: ${m.join(" · ")}`, tone: "dirty" };
       return { text: `요청자 ${trim(cDraft.requesterName)} · ${ph} · 담당 ${cDraft.manager || "미지정"}`, tone: "" };
     };
     /* 2단계 필수(명세 3.6 · M32 · M22 · M03) — 주문상품(골랐는데 금액 칸 글자를 받을 수 없으면 '주문금액') · 배송일시(날짜와 시각) · 배송지 ·
@@ -1830,7 +1836,7 @@ export function mount(root, { nav }) {
       }
       const m = missing2();
       if (m.length === 1 && m[0] === "알림 받을 번호") return { text: ZERO_NOTIFY, tone: "block" };
-      if (m.length) return { text: `필수 ${m.length}건 — ${m.join(" · ")}`, tone: "dirty" };
+      if (m.length) return { text: `필수 ${m.length}건: ${m.join(" · ")}`, tone: "dirty" };
       const io = cIssuedOpen();
       return { text: `${won(Number(cDraft.amount) || 0)} · 알림 ${rosterOf().count}명 · 담당 ${cDraft.manager || "미지정"}${io ? ` · 배송완료하면 ${monthNo(io.ym || ymOf(cDraft.deliverAt))}월 명세서에 더해집니다` : ""}`, tone: "saved" };
     };
@@ -2085,7 +2091,7 @@ export function mount(root, { nav }) {
     const cl = cClient();
     openSettleConfirm({
       eyebrow: `${cl ? displayName(cl, sharedBizKeys(clients())) : ""} · 등록 전 확인`,
-      title: "명세서 금액이 바뀝니다. 등록할까요?",
+      title: "명세서 금액이 변경됩니다. 등록할까요?",
       months: monthRows(imp),
       what: whatOf(imp, null, probe),
       notes: [confirmNote(imp, "등록하는")],
@@ -2224,7 +2230,7 @@ export function mount(root, { nav }) {
       return { label: monthWord({ ym: m.ym, s }), amt: s.amount, sheet: isSheet(s) };
     });
     const josa = (l) => (l.endsWith("서") ? "가" : "이");
-    if (rows.some((r) => r.sheet)) return `${rows.map((r) => `${r.label}${josa(r.label)} ${won(r.amt)}`).join(", ")}으로 바뀌었습니다`;
+    if (rows.some((r) => r.sheet)) return `${rows.map((r) => `${r.label}${josa(r.label)} ${won(r.amt)}`).join(", ")}으로 변경되었습니다`;
     return `${rows.map((r) => `${r.label}(발급 전)이 ${won(r.amt)}`).join(", ")}으로 다시 계산되었습니다`;
   }
   /** 확인 창의 달 한 줄 보조 — '10월 1일 10:00 발급 · 동의대기 · 수정 마감 10월 9일 10:00' / '발급 전 · 11월 1일 10:00 발행'. */
@@ -2265,9 +2271,9 @@ export function mount(root, { nav }) {
     const s = iss[0].s;
     const at = fmtKoShortTime(s.editLockAt);
     return {
-      title: `${verb} 순간 거래처가 보는 ${iss.map((m) => `${monthNo(m.ym)}월`).join("·")} 명세서가 바뀝니다`,
-      body: s.noRecipient ? `수정 마감 ${at} 뒤에는 금액을 바꿀 수 없습니다.`
-        : `수정 마감 ${at}에 마감 하루 전 안내가 최종 금액으로 나갑니다. 그 뒤에는 금액을 바꿀 수 없습니다.`,
+      title: `${verb} 순간 거래처가 보는 ${iss.map((m) => `${monthNo(m.ym)}월`).join("·")} 명세서가 변경됩니다`,
+      body: s.noRecipient ? `수정 마감 ${at} 뒤에는 금액을 변경할 수 없습니다.`
+        : `수정 마감 ${at}에 마감 하루 전 안내가 최종 금액으로 나갑니다. 그 뒤에는 금액을 변경할 수 없습니다.`,
     };
   }
   /** 확인 창 안 빨간 안내(서버 409 대역) — 제목 + [고정된 금액 · 적은 값이 어디 남는지, 정본 이유]. */
@@ -2278,7 +2284,7 @@ export function mount(root, { nav }) {
     return {
       title: what === "저장" ? lockTitle(lock) : lockTitle(lock).replace("저장하지", `${what}하지`),
       body: [`${fixed}${keep}`.trim(), lock.reason].filter(Boolean),
-      hint: vals ? "창을 닫으면 주문금액 칸이 잠긴 모습으로 바뀝니다" : "창을 닫으면 막힌 이유가 저장 줄에 남습니다",
+      hint: vals ? "창을 닫으면 주문금액 칸이 잠깁니다" : "창을 닫으면 막힌 이유가 저장 줄에 남습니다",
     };
   }
 
@@ -2322,7 +2328,7 @@ export function mount(root, { nav }) {
     let lockSeen = null;
     openSettleConfirm({
       eyebrow: `${editing.orderNo} · ${clientName(stored)} · 저장 전 확인`,
-      title: "명세서 금액이 바뀝니다. 저장할까요?",
+      title: "명세서 금액이 변경됩니다. 저장할까요?",
       months: monthRows(imp),
       what: whatOf(imp, stored, mergedNow()),
       notes: [confirmNote(imp)],
@@ -2352,8 +2358,8 @@ export function mount(root, { nav }) {
   function unbillErr(u, what = "저장") {
     const m = monthNo(u.ym);
     return {
-      title: `${what}하지 못했습니다 — 그사이 ${m}월 정산이 잠겼습니다`,
-      body: [`다시 누르면 배송완료로 바꾸되 이 주문 금액은 ${m}월 정산에 넣지 않습니다.`, u.reason],
+      title: `그사이 ${m}월 정산이 잠겨 ${what}하지 못했습니다`,
+      body: [`다시 누르면 배송완료로 처리하되 이 주문 금액은 ${m}월 정산에 넣지 않습니다.`, u.reason],
       hint: "창을 닫고 다시 누르세요",
     };
   }
@@ -2437,7 +2443,7 @@ export function mount(root, { nav }) {
     const cur = flow.indexOf(editing.status);
     const to = flow.indexOf(next);
     if (to < 0 || to === cur) return;
-    if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 쓰세요", "warn"); return; }
+    if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 사용하세요", "warn"); return; }
     if (next === "배송완료" && !canComplete()) { toast("현장사진과 인수자를 먼저 입력하세요", "warn"); return; }
     /* 배송완료의 근거(사진·인수자)는 **상태와 함께 저장**한다. canComplete() 는 작성 중인 값(editing)을 보는데
        b2bSetStatus 는 저장된 레코드에만 상태를 쓴다 — 저장 안 한 사진·인수자로 스테퍼를 누르면 '배송완료 · 사진
@@ -2456,14 +2462,14 @@ export function mount(root, { nav }) {
        고친 배송일로 판정한다(mergedNow — 주문접수 + 사진 + 인수자면 저장이 곧 배송완료다). 같은 달 안의 날짜·시각 변경은 정산 달이 같아
        그대로 받는다. */
     if (ymOf(editing.deliverAt) !== ymOf(st.deliverAt)) {
-      toast("배송일시를 다른 달로 바꾼 내용을 먼저 저장하세요 · 배송완료는 저장된 배송일의 달로 정산합니다", "warn");
+      toast("배송일시를 다른 달로 변경한 내용을 먼저 저장하세요 · 배송완료는 저장된 배송일의 달로 정산합니다", "warn");
       return;
     }
     /* 배송완료는 그 달 정산에 금액이 든다(2026-10-23 운영자 결정 D2 — 배송 전 주문은 어느 달에도 금액이 없다). 그래서 저장 버튼과
        **같은 판정**(judge — settlementImpactOf)을 지난다(D3): 명세서가 나간 달인데 아직 고칠 수 있으면 같은 확인 창(openSettleConfirm)을,
        잠긴 달 · 발행이 지난 거래 없는 달이면 막지 않고 '정산에 넣지 않음' 표지를 단다. 발행 전 달이면 바로 쓴다. */
     const imp = judge(st, completedOf(st), new Date());
-    if (imp.lock) { toast(lockMsg(imp.lock, "배송완료로 바꿀"), "warn"); return; } // 지금 규칙으로는 탈퇴한 거래처의 주문뿐이다
+    if (imp.lock) { toast(lockMsg(imp.lock, "배송완료로 처리할"), "warn"); return; } // 지금 규칙으로는 탈퇴한 거래처의 주문뿐이다
     if (imp.confirm.length) { openStepConfirm(imp, st); return; }
     writeStep(next, st, imp, "");
   }
@@ -2501,7 +2507,7 @@ export function mount(root, { nav }) {
     refreshList();
     refreshAmtBox(); // 배송완료가 되어 명세서가 나간 달에 금액을 보태게 됐으면 금액 칸이 '명세서 나감' 모양으로(amtOpenOf)
     renderHd(); renderSum(); renderHist(); syncDirty(); // 사진·인수자가 함께 저장됐으면 '수정한 항목' 에서 빠진다 · 요약은 '배송 완료'
-    const head = !done ? `${next}(으)로 변경했습니다`
+    const head = !done ? `${next}로 변경했습니다`
       : rec.notified ? "배송완료로 전환 · 거래처 알림톡이 발송됩니다" : "배송완료로 전환 · 받을 사람이 없어 알림톡은 나가지 않습니다";
     /* 정산 꼬리 — 저장 버튼과 같은 규칙(settleAfter). 표지를 달았으면 그 까닭과 할 일(운영 담당이 바로빌에서 처리 — D3). */
     const tail = !done ? "" : mark ? unbilledWhy(mark)
@@ -2518,12 +2524,12 @@ export function mount(root, { nav }) {
     let pending = imp;
     openSettleConfirm({
       eyebrow: `${editing.orderNo} · ${clientName(st)} · 배송완료 전 확인`,
-      title: "명세서 금액이 바뀝니다. 배송완료로 바꿀까요?",
+      title: "명세서 금액이 변경됩니다. 배송완료로 처리할까요?",
       months: monthRows(imp),
       what: whatOf(imp, st, completedOf(st)),
-      notes: [confirmNote(imp, "배송완료로 바꾸는")],
-      okLabel: "배송완료로 바꾸고 명세서에 반영",
-      hint: "바꾸면 바로 반영됩니다 · 상태는 되돌릴 수 없습니다",
+      notes: [confirmNote(imp, "배송완료로 처리하는")],
+      okLabel: "배송완료 처리하고 명세서에 반영",
+      hint: "처리하면 바로 반영됩니다 · 상태는 되돌릴 수 없습니다",
       recheck: () => {
         if (!editing) return null;
         const st2 = findOrder(editing.id) || st;
@@ -2614,8 +2620,8 @@ export function mount(root, { nav }) {
               ${sdlgMonths({
                 months: monthRows(imp),
                 what: cancelled
-                  ? `이 주문의 취소 수수료 ${won(fee)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`
-                  : `이 주문 금액 ${won(saved.amount)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 바뀝니다`,
+                  ? `이 주문의 취소 수수료 ${won(fee)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 변경됩니다`
+                  : `이 주문 금액 ${won(saved.amount)}이 ${lbl}에서 빠집니다 · 거래처가 보는 명세서가 바로 변경됩니다`,
               })}
               ${/* 기본 삭제 문장(util/dialog openDeleteConfirm)과 같은 뜻 — 화면에서 빠질 뿐 기록은 보관 기간 동안 남긴다(약관 v0.3 T20 · 2026-11-11) */ ""}
               ${sdlgNote({

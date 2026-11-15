@@ -232,7 +232,7 @@ export function mount(root, { nav }) {
        먼저 주면 게이트가 떠 있는 동안 주소창으로 포털에 들어갈 수 있었다(라우터 가드는 역할만 본다). */
     /* 개인정보 수집·이용 동의도 같은 게이트에서 따로 받는다(2026-10-23 운영자 결정 D6 — 약관과 따로 · 버전 PRIVACY_VERSION).
        받아야 할 것만 보인다(consentNeedOf — 약관만 · 개인정보만 · 둘 다). 2026-10-23 약관 개정(D4)으로 예전에 동의한 거래처도
-       다음 로그인 때 약관을 다시 받는다(renew — 설명 첫 문장이 '바뀌었습니다' 를 말한다). */
+       다음 로그인 때 약관을 다시 받는다(renew — 설명 첫 문장이 '변경되었습니다' 를 말한다). */
     const need = consentNeedOf(c);
     if (need.terms || need.privacy) {
       termsDlg = openTermsDialog({

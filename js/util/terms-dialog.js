@@ -47,7 +47,7 @@ const summaryPane = () => html`
       <li>
         <span class="tdlg-sum__n" aria-hidden="true">${s.n}</span>
         <div class="tdlg-sum__b">
-          <p class="tdlg-sum__t"><span class="sr-only">${s.n} </span>${s.title} <button type="button" class="tdlg-sum__ref" data-goto-art="${s.art}" aria-label="${`${s.ref} 본문 보기 — 이용약관 전문 탭`}">(${s.ref})</button></p>
+          <p class="tdlg-sum__t"><span class="sr-only">${s.n} </span>${s.title} <button type="button" class="tdlg-sum__ref" data-goto-art="${s.art}" aria-label="${`이용약관 전문 탭에서 ${s.ref} 본문 보기`}">(${s.ref})</button></p>
           <p class="tdlg-sum__x">${s.text}</p>
         </div>
       </li>`)}</ol>
@@ -219,7 +219,6 @@ function openReader({ doc, onClose }) {
   let off = () => {};
   const dlg = openDialog({
     eyebrow: privacy ? `개인정보 · ${PRIVACY_VERSION}` : `이용약관 · ${TERMS_VERSION}`,
-    eyebrowNum: true,
     /* 동의서 제목은 운영자가 확정한 낱말 그대로(PRIVACY.title — 2026-10-23 결정 D6). 아래 설명 문장은 문안 밖 화면 문구 — 동의서 쪽은
        2026-10-23 운영자가 지금 그대로 확정했고(E2), 약관 쪽은 시안 K-03 의 글이다. */
     title: privacy ? PRIVACY.title : "이용약관",
@@ -269,10 +268,9 @@ function openGate({ need, renew, onAgree, onClose }) {
   const what = both ? "이용약관과 개인정보 수집·이용" : want.terms ? "이용약관" : "개인정보 수집·이용";
   const rT = !!(renew && renew.terms && want.terms);
   const rP = !!(renew && renew.privacy && want.privacy);
-  const again = rT && rP ? "이용약관과 개인정보 동의서가 바뀌었습니다. " : rT ? "이용약관이 바뀌었습니다. " : rP ? "개인정보 동의서가 바뀌었습니다. " : "";
+  const again = rT && rP ? "이용약관과 개인정보 동의서가 변경되었습니다. " : rT ? "이용약관이 변경되었습니다. " : rP ? "개인정보 동의서가 변경되었습니다. " : "";
   const dlg = openDialog({
     eyebrow: both ? `이용약관 ${TERMS_VERSION} · 개인정보 ${PRIVACY_VERSION}` : want.terms ? `이용약관 · ${TERMS_VERSION}` : `개인정보 · ${PRIVACY_VERSION}`,
-    eyebrowNum: true, // 판 날짜 숫자 폭을 고르게(시안)
     title: both ? "약관·개인정보 동의가 필요합니다" : want.terms ? "약관 동의가 필요합니다" : "개인정보 동의가 필요합니다",
     width: 960,
     panelClass: "modal-panel--terms modal-panel--terms-gate",
@@ -281,7 +279,7 @@ function openGate({ need, renew, onAgree, onClose }) {
       <div class="tdlg">
         ${leftColumn({ tabs, id, policyLink: want.privacy })}
         <div class="tdlg__r">
-          <p class="tdlg__lead">${again}서비스를 계속 이용하려면 아래 ${what}에 동의가 필요합니다. <b>한 번만</b> 받으며, ${want.terms && !want.privacy ? "약관" : "내용"}이 바뀌면 다시 안내합니다.</p>
+          <p class="tdlg__lead">${again}서비스를 계속 이용하려면 아래 ${what}에 동의가 필요합니다. <b>한 번만</b> 받으며, ${want.terms && !want.privacy ? "약관" : "내용"}이 변경되면 다시 안내합니다.</p>
           <div class="tdlg-checks">
             ${want.terms ? check("ack-summary", "중요 내용 요약을 읽고 확인했습니다") : ""}
             ${want.terms ? check("ack", "이용약관 전문을 읽었고 동의합니다") : ""}

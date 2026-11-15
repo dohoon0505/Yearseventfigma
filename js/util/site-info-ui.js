@@ -26,7 +26,7 @@ import { CS_PHONE, CS_HOURS } from "../data/contact.js";
 import { siteInfoRows, ftcUrl, peekSiteInfo, loadSiteInfo } from "../data/site-info.js";
 
 const SKELETON_AFTER = 300; // ms — 이보다 빨리 오면 뼈대 없이 바로 그린다(시안)
-const FTC_LABEL = "사업자정보 확인 — 공정거래위원회 누리집 (새 창)";
+const FTC_LABEL = "사업자정보 확인 (공정거래위원회 누리집 · 새 창)";
 
 const ext = () => icon("external-link", { size: 10, cls: "site-ext" });
 

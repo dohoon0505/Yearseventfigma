@@ -362,7 +362,7 @@ function zeroMonth(clientId, ym) {
       ribbonPhrase: pick(RIBBON.obit, r[5]), ribbonSender: `${companyOf(clientId)} 임직원 일동`,
       image: "", notified: true, product: "근조바구니", amount: 0, status: "배송완료",
       receiver: pick(RECEIVERS.obit, r[6]), manager: pick(STAFF, r[7]),
-      request: "", memo: "[예시] 따로 정한 거래 조건 — 0원 처리", cancelFee: 0, cancelReason: "",
+      request: "", memo: "[예시] 따로 정한 거래 조건에 따라 0원 처리", cancelFee: 0, cancelReason: "",
     };
   });
 }
@@ -392,14 +392,14 @@ function zeroMonth(clientId, ym) {
 /* 0원 사유는 약관 제18조 ⑥ 이 금액을 고칠 수 있게 한 경우로 적는다 — 배송 사고로 청구하지 않음(제34조) · 옮겨 적다 생긴 잘못(제16조 ④) ·
    따로 정한 조건(제6조). 예전 사유 '가입 혜택 1회 무료 · 첫 화환 무료' 는 혜택을 없애(2026-11-11 약관 v0.3 V2) 바꿨다. */
 const SINGLE_MONTHS = [
-  { clientId: "C019", monthsAgo: 1, product: "3단화환(고급형)", amount: 0, was: 60000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 행사가 끝난 뒤 도착해 청구하지 않음" },
-  { clientId: "C027", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, was: 50000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 배송지를 옮겨 적다 틀려 청구하지 않음" },
-  { clientId: "C020", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, memo: "[예시] 따로 정한 거래 조건 — 0원 처리" },
+  { clientId: "C019", monthsAgo: 1, product: "3단화환(고급형)", amount: 0, was: 60000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수: 행사가 끝난 뒤 도착해 청구하지 않음" },
+  { clientId: "C027", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, was: 50000, days: 0, time: "14:20", reason: "[예시] 고객센터 접수: 배송지를 옮겨 적다 틀려 청구하지 않음" },
+  { clientId: "C020", monthsAgo: 1, product: "3단화환(기본형)", amount: 0, memo: "[예시] 따로 정한 거래 조건에 따라 0원 처리" },
 ];
 const SEED_EDITS = [
-  { clientId: "C011", monthsAgo: 1, match: (o) => o.product === "4단화환(표준형)", to: { product: "3단화환(기본형)", amount: 50000 }, days: 0, time: "14:20", reason: "[예시] 고객센터 접수 — 4단이 아니라 3단으로 배송됨" },
+  { clientId: "C011", monthsAgo: 1, match: (o) => o.product === "4단화환(표준형)", to: { product: "3단화환(기본형)", amount: 50000 }, days: 0, time: "14:20", reason: "[예시] 고객센터 접수: 4단이 아니라 3단으로 배송됨" },
   { clientId: "C001", monthsAgo: 1, match: (o) => o.product === "3단화환(고급형)", to: { product: "근조바구니", amount: 50000 }, days: 0, time: "14:20", reason: "" },
-  { clientId: "C001", monthsAgo: 1, match: (o) => Number(o.amount) >= 80000, to: { amount: 0 }, days: 0, time: "15:40", reason: "[예시] 고객센터 접수 — 리본 문구 오기로 재배송, 첫 건은 0원 처리" },
+  { clientId: "C001", monthsAgo: 1, match: (o) => Number(o.amount) >= 80000, to: { amount: 0 }, days: 0, time: "15:40", reason: "[예시] 고객센터 접수: 리본 문구 오기로 재배송, 첫 건은 0원 처리" },
   { clientId: "C002", monthsAgo: 2, match: (o) => o.product === "4단화환(표준형)", to: { product: "3단화환(기본형)", amount: 50000 }, days: 5, time: "14:20", reason: "[예시] 협의 금액 반영 누락" },
 ];
 /** (거래처, 절대 년·월) 하나를 **주문 1건짜리 달**로(배송완료 · 그 달 9일 13:30). zeroMonth 의 일반화 — 가입일(9월 2~6일)

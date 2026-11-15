@@ -111,7 +111,7 @@ function deleteKindOf(client, withOrders) {
   if (!hasOrders && !rejected) return { kind: "delete" };
   return {
     kind: "locked",
-    reason: `${hasOrders ? "주문·정산 기록이" : "반려한 가입 신청서가"} 있어 바로 지울 수 없습니다 — 탈퇴 처리한 뒤 목록에서 감출 수 있습니다`,
+    reason: `${hasOrders ? "주문·정산 기록이" : "반려한 가입 신청서가"} 있어 바로 지울 수 없습니다. 탈퇴 처리한 뒤 목록에서 감출 수 있습니다`,
   };
 }
 const ordersClientIds = () => new Set(b2bList().map((o) => o.clientId));
@@ -132,7 +132,7 @@ const deleteCopy = (client, kind) => (kind === "hide"
       hintOff: "확인에 체크해야 목록에서 감춰집니다",
       hintOn: "목록에서 감출 수 있습니다",
       /* 탈퇴한 거래처는 주문이 없어도 감춘다(아이디·사업자 정보 보관 — deleteKindOf ⚠️) — 그래서 무엇이 남는지 계정부터 말한다 */
-      desc: html`거래처 목록에서만 빠집니다. 계정(아이디)·사업자 정보와 지난 주문·정산 기록은 보관 기간 동안 그대로 남고(아이디는 다시 쓸 수 없습니다), 정산회계의 지난 달 숫자도 바뀌지 않습니다.`,
+      desc: html`거래처 목록에서만 빠집니다. 계정(아이디)·사업자 정보와 지난 주문·정산 기록은 보관 기간 동안 그대로 남고(아이디는 다시 쓸 수 없습니다), 정산회계의 지난 달 숫자도 변경되지 않습니다.`,
     }
   : {
       eyebrow: client.accountId || client.companyName,
@@ -156,10 +156,10 @@ function invoiceHelpText(invoiceDay) {
     + `마감까지 동의가 없으면 그 시각에 자동 동의됩니다. 계산서 작성일자는 `
     + (day <= 10 ? "귀속월 말일" : `동의한 날(자동 동의면 ${dl}일)`)
     + `, 정산기한은 발급일이 속한 달의 말일입니다. `
-    + `발급일을 바꾸면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다. `
+    + `발급일을 변경하면 ${periodLabel(from)} 귀속분(${periodLabel(shiftPeriod(from, 1))} 발급)부터 적용되고, 이미 발급된 달은 그대로 유지됩니다. `
     + `발급일은 동의 기간이 ${MIN_CONSENT_DAYS}일 이상 남는 ${invoiceDayRangeLabel()} 중에서 고릅니다. `
     /* 발급일은 거래처가 고르는 값이다(가입 4단계 · 포털 회사정보 수정) — 직원은 요청을 받았을 때만 바꾼다(약관 v0.3 T28 · 2026-11-11). */
-    + `거래처가 요청한 때에만 바꾸세요.`;
+    + `거래처가 요청한 때에만 변경하세요.`;
 }
 
 const PILL = { "활성": "pill--success", "승인대기": "pill--warn", "반려": "pill--gray", [WITHDRAWN]: "pill--danger" };
@@ -623,7 +623,7 @@ export function mount(root, { nav }) {
     const billPhoneWhy = () => {
       const lead = contactPhoneOdd(bill.phone) ? "정산담당자 연락처에 다른 글자가 섞였습니다"
         : contactPhoneLong(bill.phone) ? "정산담당자 연락처 숫자가 너무 많습니다" : "정산담당자 연락처를 끝까지 입력하세요";
-      return `${lead} — ${contactPhoneNeed(bill.phone)}`;
+      return `${lead}(${contactPhoneNeed(bill.phone)})`;
     };
     /* 접속 아이디는 유일해야 한다(2026-09-25 — 로그인이 아이디 하나로 거래처를 가린다 · 명세 5.2 UNIQUE).
        신규만 본다 — 등록한 뒤에는 아이디를 바꿀 수 없다(레일에서 읽기 전용). */
@@ -631,7 +631,7 @@ export function mount(root, { nav }) {
     /* 계산서 이메일 형식(약관 v0.3 T27 · 2026-11-11) — 비어 있으면 missing 이 '비어 있음' 으로 세고, 글자가 있는데 틀리면 여기서 따로
        말한다(포털 회사정보 수정과 같은 문장 · 수정 저장과 신규 등록이 같다). */
     const emailBad = () => !!String(form.email ?? "").trim() && !EMAIL_RE.test(String(form.email).trim());
-    const EMAIL_WHY = "이메일 형식을 확인해 주세요 — 예) billing@company.com";
+    const EMAIL_WHY = "이메일 형식을 확인해 주세요(예: billing@company.com)";
     const dirty = () => Object.keys(touched).length;
     /* 이력 점 색 — 무슨 종류의 변경이었는지 색으로 먼저 읽힌다(주문 HIST_DOT 과 같은 취지).
        한 색으로 고정하면 목록이 길어질수록 "무엇이 중요한 줄인가"가 사라진다. */
@@ -803,7 +803,7 @@ export function mount(root, { nav }) {
                 <span class="cli-hist__dot cli-hist__dot--${h.tone || "info"}"></span>
                 <span class="cli-hist__lbl" title="${h.label}">${h.label}</span>
                 <span class="cli-hist__at">${h.at}</span></div>`)
-            : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 창을 닫으면 사라집니다 — 영속 이력은 아직 없습니다.</p>`}
+            : html`<p class="cli-hist__empty">이 창에서 한 변경이 여기에 쌓입니다. 이 목록은 창을 닫으면 사라집니다(따로 보관하지 않습니다).</p>`}
         </div>`;
     };
 
@@ -837,7 +837,7 @@ export function mount(root, { nav }) {
       const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}${mailBad ? ` · ${EMAIL_WHY}` : ""}`
         : bad ? billPhoneWhy()
         : mailBad ? EMAIL_WHY
-        : taken ? `접속 아이디 '${String(form.accountId).trim()}' 는 이미 쓰고 있습니다`
+        : taken ? `접속 아이디(${String(form.accountId).trim()})는 이미 사용 중입니다`
         : savedAt && !dirty() ? `저장됨 · ${savedAt}`
         : dirty() ? `수정한 항목 ${dirty()}개` : "변경 없음";
       const blocked = m.length || bad || mailBad || taken;
@@ -895,7 +895,7 @@ export function mount(root, { nav }) {
             <span>동의 마감 <b>${fmtKoShortTime(n.deadline)}</b></span>` : ""}
           ${contact}`;
         foot = w.held.length
-          ? `${monthsShort(w.held)}은 약관 동의 전에 마감이 지나 자동 동의되지 않았습니다 — 거래처가 약관에 동의한 뒤 거래명세서에서 직접 동의해야 계산서가 나갑니다. `
+          ? `${monthsShort(w.held)}은 약관 동의 전에 마감이 지나 자동 동의되지 않았습니다. 거래처가 약관에 동의한 뒤 거래명세서에서 직접 동의해야 계산서가 발급됩니다. `
             + (n ? "다음 명세서도 마감까지 약관 동의가 없으면 자동 동의되지 않습니다. " : "")
             + pwTail
           /* 동의를 기다리는 달이 하나도 없는 경우 — 거래가 0원 주문뿐이라 발행과 함께 닫혔다(가입 혜택 '1회 무료').
@@ -953,7 +953,7 @@ export function mount(root, { nav }) {
                 <textarea data-cf="clientNote" rows="8" placeholder="예) 상품금액 75,000원으로 기재, 무조건 특대상품 발송">${form.clientNote ?? ""}</textarea>
                 ${/* 거래 조건은 개별 약정이라 정하거나 바꾸면 알린다(약관 v0.3 T34 · V10-19 — 계산서 이메일로 · 보낸 날은 영업 메모에 · 2026-11-11) */ ""}
                 <p class="cli-note__help">메모가 아니라 이 거래처에만 적용되는 상품·금액·절차 규칙입니다. 한 줄에 한 규칙.
-                  정하거나 바꾸면 정산·회계 담당자에게 이메일로 알려 주세요.</p>
+                  정하거나 변경하면 정산·회계 담당자에게 이메일로 알려 주세요.</p>
               </div>
             </div>
             ${cliCard("회사 정보", "계산서 발행 기준", CARD_COMPANY, form)}
@@ -1079,7 +1079,7 @@ export function mount(root, { nav }) {
         ? `이미 등록된 사업자번호입니다 · ${d[0].companyName}(${d.map((x) => x.department || "계정 구분 없음").join(", ")})`
         : "";
       const hd = qs(panel, "[data-hint='department']");
-      if (hd) hd.textContent = d.length ? "같은 사업자번호가 있어 계정 구분이 필요합니다 — 목록에서 이 값으로 갈라집니다." : "";
+      if (hd) hd.textContent = d.length ? "같은 사업자번호가 있어 계정 구분이 필요합니다. 목록에서 이 값으로 나뉩니다." : "";
       const dep = qs(panel, "[data-cf='department']");
       if (dep) dep.classList.toggle("is-warn", d.length > 0 && !String(form.department ?? "").trim());
       const ce = qs(panel, "[data-cf='ceoName']");
@@ -1242,7 +1242,7 @@ export function mount(root, { nav }) {
           const idx = editIndex(form.id);
           /* 확정하는 순간 한 번 더 잰다 — 창을 연 사이 갈래가 바뀌었으면(지울 수 있던 거래처에 주문이 생김) 하지 않고 이유를 말한다. */
           const again = delKind();
-          if (again.kind !== dk.kind) { toast(again.reason || "거래처 상태가 바뀌었습니다 · 다시 확인해 주세요", "warn"); return; }
+          if (again.kind !== dk.kind) { toast(again.reason || "거래처 상태가 변경되었습니다 · 다시 확인해 주세요", "warn"); return; }
           removeOrHide(rec, dk.kind);
           closeModal();
           refreshList();
@@ -1289,7 +1289,7 @@ export function mount(root, { nav }) {
         refocus("[data-attach-pick]"); // 첨부 칸을 다시 그려 '파일 선택/변경' 버튼이 새로 생겼다
         push(`사업자등록증 첨부 · ${att.name}`, "info");
         renderRail();
-        toast(`${att.name} 을 첨부했습니다 · 저장해야 적용됩니다`);
+        toast(`사업자등록증(${att.name})을 첨부했습니다 · 저장해야 적용됩니다`);
       } catch (err) {
         console.error("[clients] attach failed", err);
         toast("파일을 읽지 못했습니다", "warn");
@@ -1304,7 +1304,7 @@ export function mount(root, { nav }) {
       if (missing().length) { toast("필수 항목을 채워야 저장됩니다", "warn"); return; }
       if (billPhoneBad()) { toast(billPhoneWhy(), "warn"); return; }
       if (emailBad()) { toast(EMAIL_WHY, "warn"); return; }
-      if (idTaken()) { toast("이미 쓰고 있는 접속 아이디입니다", "warn"); return; }
+      if (idTaken()) { toast("이미 사용 중인 접속 아이디입니다", "warn"); return; }
       /* 이메일은 앞뒤 공백을 덜어 저장한다(포털 회사정보 수정과 같다 — 계산서가 가는 주소다). 칸도 같은 값으로 맞춘다. */
       form.email = String(form.email ?? "").trim();
       const emIn = qs(panel, "[data-cf='email']");
@@ -1371,7 +1371,7 @@ export function mount(root, { nav }) {
       title: "단가를 조정하지 않았습니다",
       width: 460,
       body: html`<p class="dlg-desc">이 거래처에는 맞춤 단가가 없습니다. 이대로 승인하면 <b>모든 상품을 정가로</b> 거래하고,
-        가입 완료 알림이 바로 나갑니다.</p>`,
+        가입 완료 알림이 바로 발송됩니다.</p>`,
       hint: "계약 단가가 있으면 먼저 단가를 조정하세요",
       actions: html`
         <button class="hm-btn hm-btn--secondary" data-action="to-pricing">단가 조정하기</button>
@@ -1404,7 +1404,7 @@ export function mount(root, { nav }) {
           지난 주문 · 거래명세서 · 계산서 · 입금 기록은 그대로 남습니다.
           다시 이용하려면 다른 아이디로 새로 가입해야 합니다${/* 조사는 '아이디' 에 붙인다 — 아이디 글자에 붙이면 받침에 따라
             틀린 말이 된다('nurisol는' · 'hanbit는'). 괄호 뒤 조사는 괄호 앞 낱말('아이디는')로 읽힌다. */ ""}${client.accountId
-            ? html` — 쓰던 접속 아이디(<b>${client.accountId}</b>)는 다시 쓸 수 없습니다` : ""}.</p>
+            ? html`. 쓰던 접속 아이디(<b>${client.accountId}</b>)는 다시 쓸 수 없습니다` : ""}.</p>
         <button class="dlg-check" data-action="ack" aria-pressed="false">
           <span class="dlg-check__box" aria-hidden="true"></span>
           <span>되돌릴 수 없음을 확인했습니다</span>
@@ -1441,7 +1441,7 @@ export function mount(root, { nav }) {
   function openReject(client, onDone) {
     if (!onDone) closeModal();
     const HINT_OFF = "사유를 적어야 거부할 수 있습니다";
-    const HINT_ON = "거부하면 상태가 '반려'로 바뀌고 신청자에게 알림톡이 갑니다";
+    const HINT_ON = "거부하면 상태가 '반려'로 변경되고 신청자에게 알림톡이 발송됩니다";
     const d = openDialog({
       eyebrow: client.companyName,
       title: "가입을 거부할까요?",
@@ -1494,7 +1494,7 @@ export function mount(root, { nav }) {
         const idx = editIndex(client.id);
         const cur = findClient(client.id) || client;
         const again = deleteKindOf(cur);
-        if (again.kind !== dk.kind) { refreshList(); focusRowBtn(client.id, "del-locked", "del", "edit"); toast(again.reason || "거래처 상태가 바뀌었습니다 · 다시 확인해 주세요", "warn"); return; }
+        if (again.kind !== dk.kind) { refreshList(); focusRowBtn(client.id, "del-locked", "del", "edit"); toast(again.reason || "거래처 상태가 변경되었습니다 · 다시 확인해 주세요", "warn"); return; }
         removeOrHide(cur, dk.kind);
         refreshList();
         focusAfterDelete(idx);

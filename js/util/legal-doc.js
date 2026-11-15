@@ -141,17 +141,17 @@ export function legalNotice(kind, now = new Date()) {
   const day = fmtShortDate(eff.effective, now);
   /* 약관이 바뀌면 다시 동의해야 로그인한다(게이트) · 처리방침만이면 따로 동의하지 않는다(알리는 글) */
   const consent = t
-    ? `${fmtShortDate(t.effective, now)}부터는 바뀐 약관에 동의해야 로그인할 수 있습니다. 동의하기 전에는 거래명세서를 고객센터(${CS_PHONE})로 확인할 수 있습니다.`
-    : `바뀐 처리방침은 따로 동의하지 않아도 ${day}부터 적용됩니다.`;
+    ? `${fmtShortDate(t.effective, now)}부터는 변경된 약관에 동의해야 로그인할 수 있습니다. 동의하기 전에는 거래명세서를 고객센터(${CS_PHONE})로 확인할 수 있습니다.`
+    : `변경된 처리방침은 따로 동의하지 않아도 ${day}부터 적용됩니다.`;
   const links = [];
   const own = kind === "privacy" ? p : t;
   const other = kind === "privacy" ? t : p;
   const otherKind = kind === "privacy" ? "terms" : "privacy";
-  if (own) links.push({ label: `바뀐 ${SHORT[kind]} 보기`, to: "next", kind }, { label: `지금 ${SHORT[kind]} 보기`, to: "current", kind, cur: true });
-  if (other) links.push({ label: `바뀐 ${SHORT[otherKind]} 보기`, to: "next", kind: otherKind });
+  if (own) links.push({ label: `변경된 ${SHORT[kind]} 보기`, to: "next", kind }, { label: `지금 ${SHORT[kind]} 보기`, to: "current", kind, cur: true });
+  if (other) links.push({ label: `변경된 ${SHORT[otherKind]} 보기`, to: "next", kind: otherKind });
   if (!own) links.push({ label: `지금 ${SHORT[kind]} 보기`, to: "current", kind, cur: true });
   return {
-    title: both ? "이용약관과 개인정보 처리방침이 바뀝니다" : t ? "이용약관이 바뀝니다" : "개인정보 처리방침이 바뀝니다",
+    title: both ? "이용약관과 개인정보 처리방침이 변경됩니다" : t ? "이용약관이 변경됩니다" : "개인정보 처리방침이 변경됩니다",
     when: `${fmtLongDate(eff.effective)}부터 적용 · ${eff.left}일 남음`,
     items,
     consent,

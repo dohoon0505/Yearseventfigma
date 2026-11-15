@@ -68,8 +68,8 @@ export function openContactForm({ clientId = null, row = null, eyebrow = "담당
        ('+82' 등)가 섞인 값은 칸이 정형하지 않고 그대로 두므로 그 사실을 먼저 말한다. */
     const lead = contactPhoneOdd(form.phone) ? "연락처에 다른 글자가 섞였습니다"
       : contactPhoneLong(form.phone) ? "연락처 숫자가 너무 많습니다" : "연락처를 끝까지 입력하세요";
-    if (n.length === 1 && partial) return `${lead} — ${contactPhoneNeed(form.phone)}`;
-    return `필수 항목이 남았습니다 — ${n.map((k) => (k === "연락처" && partial ? `연락처(${contactPhoneNeed(form.phone)})` : k)).join(" · ")}`;
+    if (n.length === 1 && partial) return `${lead}(${contactPhoneNeed(form.phone)})`;
+    return `필수 항목이 남았습니다: ${n.map((k) => (k === "연락처" && partial ? `연락처(${contactPhoneNeed(form.phone)})` : k)).join(" · ")}`;
   };
 
   /* '지정됨' 표지의 tabindex=-1 은 '지정' 을 누른 직후 초점이 머무를 자리다(아래 setbill — 탭 순서에는 끼지 않는다). */

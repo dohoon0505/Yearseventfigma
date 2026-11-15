@@ -714,7 +714,7 @@ export function mount(root, { nav }) {
     const cur = flow.indexOf(editing.status);
     const to = flow.indexOf(next);
     if (to < 0 || to === cur) return;
-    if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 쓰세요", "warn"); return; }
+    if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 사용하세요", "warn"); return; }
     if (next === "배송완료" && !canComplete()) {
       toast("현장사진과 인수자를 먼저 입력하세요", "warn"); return;
     }
@@ -725,7 +725,7 @@ export function mount(root, { nav }) {
     if (stored) editing.history = stored.history;
     refreshList();
     renderHd(); renderSum(); renderHist(); // 요약 머리가 배송완료면 '배송 완료' 라고 말한다(order-screen summaryBodyV2)
-    toast(next === "배송완료" ? "배송완료로 전환 · 고객 알림톡이 발송됩니다" : `${next}(으)로 변경했습니다`);
+    toast(next === "배송완료" ? "배송완료로 전환 · 고객 알림톡이 발송됩니다" : `${next}로 변경했습니다`);
     focusAfterStep(panelOf()); // 재렌더로 사라진 버튼의 포커스 복구 — 새 '지금' 단계는 disabled 라 다음 단계로(order-screen)
   }
 

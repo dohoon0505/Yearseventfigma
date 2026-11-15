@@ -38,9 +38,9 @@ export const sdlgMonthRow = (m) => {
 /** '바뀌는 정산 금액' 구역 — 확인 창·삭제 확인 창이 같이 쓴다. */
 export const sdlgMonths = ({ months, what }) => html`
   <section>
-    ${dlgRule({ t: "바뀌는 정산 금액", cap: "거래처가 보는 금액" })}
+    ${dlgRule({ t: "변경되는 정산 금액", cap: "거래처가 보는 금액" })}
     <div class="sdlg-ms">${months.map(sdlgMonthRow)}</div>
-    ${what ? html`<p class="sdlg-what"><b>바뀌는 것 · </b>${what}</p>` : ""}
+    ${what ? html`<p class="sdlg-what"><b>변경 내용 · </b>${what}</p>` : ""}
   </section>`;
 /** 회색(기본)·빨강 안내 면 — 공용 `.dlg-note`(제목 줄 + 본문). */
 export const sdlgNote = ({ title, body, tone }) => html`
@@ -76,7 +76,6 @@ export function openSettleConfirm(o) {
   let failed = false;
   const d = openDialog({
     eyebrow: o.eyebrow,
-    eyebrowNum: true,
     title: o.title,
     width: 560,
     panelClass: "modal-panel--sdlg6",
@@ -85,9 +84,9 @@ export function openSettleConfirm(o) {
       <div data-slot="alert" hidden></div>
       ${sdlgMonths({ months: o.months, what: o.what })}
       <section data-slot="reason">
-        ${dlgRule({ t: html`사유 <span class="sdlg-opt">(선택)</span>`, cap: "정산 금액 변경 기록에 남습니다 · 거래처에는 안 보임" })}
+        ${dlgRule({ t: html`사유 <span class="sdlg-opt">(선택)</span>`, cap: "정산 금액 변경 기록에 남습니다 · 거래처에는 보이지 않습니다" })}
         <textarea class="sdlg-reason" id="${reasonId}" rows="2" maxlength="${REASON_MAX}" aria-label="사유 (선택)"
-          placeholder="예) 10월 6일 고객센터 접수 — 전화로 줄인 주문이 청구에 그대로 들어 있음"></textarea>
+          placeholder="예) 10월 6일 고객센터 접수: 전화로 줄인 주문이 청구에 그대로 들어 있음"></textarea>
       </section>
       <div class="sdlg-notes" data-slot="notes">${(o.notes || []).map(sdlgNote)}</div>`,
     hint: o.hint,
@@ -114,7 +113,7 @@ export function openSettleConfirm(o) {
     if (ns) ns.hidden = true;
     okBtn.disabled = true;
     if (cancelBtn) { cancelBtn.textContent = "닫기"; cancelBtn.focus(); }
-    d.setHint(err.hint || "창을 닫으면 주문금액 칸이 잠긴 모습으로 바뀝니다", true);
+    d.setHint(err.hint || "창을 닫으면 주문금액 칸이 잠깁니다", true);
   }
   on(p, "click", "[data-action='ok']", () => {
     if (okBtn.disabled) return;

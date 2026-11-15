@@ -161,7 +161,7 @@ function agreeStage(client, s, now) {
       const meta = `${word.split(" · ")[0]} · 마감 뒤 직접 동의 가능`;
       return {
         kind: "live", label: "동의대기", tone: "amber", meta, amb: true,
-        tip: `${word} · 마감 뒤 직접 동의 가능 — 마감 ${dl} 지남 · 오래 동의하지 않으면 운영이 연락합니다 · 수정 마감이 지나 금액은 고칠 수 없습니다`,
+        tip: `${word} · 마감 뒤 직접 동의 가능(마감 ${dl} 지남) · 오래 동의하지 않으면 운영이 연락합니다 · 수정 마감이 지나 금액은 고칠 수 없습니다`,
       };
     }
     /* 약관 동의 전 거래처의 마감 전 달 — 마감이 와도 자동 동의되지 않는다는 것을 미리 말한다. 고칠 수 있으면 수정 마감을,
@@ -170,7 +170,7 @@ function agreeStage(client, s, now) {
       return {
         kind: "live", label: "동의대기", tone: "orange", amb: true,
         meta: s.editable ? `약관 동의 전 · 수정 마감 ${fmtMdHm(s.editLockAt)}` : `${HOLD_LABEL.TERMS_NOT_AGREED} · 마감 ${fmtMdHm(s.deadline)}`,
-        tip: `${HOLD_LABEL.TERMS_NOT_AGREED} — 마감 ${dl} · 약관에 동의하기 전에는 마감에 자동 동의되지 않습니다 · ${s.editable ? `수정 마감 ${lk}까지 주문을 고칠 수 있습니다` : `수정 마감 ${lk} 지남 · 금액 고정`}`,
+        tip: `${HOLD_LABEL.TERMS_NOT_AGREED}(마감 ${dl}) · 약관에 동의하기 전에는 마감에 자동 동의되지 않습니다 · ${s.editable ? `수정 마감 ${lk}까지 주문을 고칠 수 있습니다` : `수정 마감 ${lk} 지남 · 금액 고정`}`,
       };
     }
     /* 고칠 수 있음(동의 전 · 수정 마감 전) — 빨강은 수정 마감 24시간 전부터 */
@@ -193,7 +193,7 @@ function agreeStage(client, s, now) {
     return {
       kind: "live", label: "동의대기", tone: "orange", hot: soon,
       meta: soon ? `수정 마감 지남 · 동의 마감까지 ${span(left)}` : `수정 마감 지남 · 동의 마감 ${fmtMdHm(s.deadline)}`,
-      tip: `수정 마감 지남 · 금액 고정 — 수정 마감 ${lk}${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
+      tip: `수정 마감 지남 · 금액 고정(수정 마감 ${lk})${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
     };
   }
   if (s.mode) {
@@ -303,7 +303,7 @@ function editRowOf(client, s, now) {
     if (s.editable) {
       /* '안내를 보낸다' 는 말은 진행 기록 · 발급 처리 창과 같은 판정으로 — 알림 수신자가 없으면 '나간다' 고 말하지 않는다. */
       const notice = s.noRecipient ? "알림 수신자가 없어 마감 하루 전 안내는 나가지 않습니다." : "수정 마감 시각에 마감 하루 전 안내가 최종 금액으로 나갑니다.";
-      return { name: `고칠 수 있음 · 수정 마감 ${lk}`, why: `동의 전 · 수정 마감 전입니다. 주문을 고치면 청구금액과 거래처가 보는 명세서가 바로 바뀝니다. ${notice}`, can: true };
+      return { name: `고칠 수 있음 · 수정 마감 ${lk}`, why: `동의 전 · 수정 마감 전입니다. 주문을 고치면 청구금액과 거래처가 보는 명세서가 바로 변경됩니다. ${notice}`, can: true };
     }
     return { name: "수정 마감 지남 · 금액 고정", why: s.lockReason, can: false };
   }
@@ -319,7 +319,7 @@ function availOf(s) {
   else if (zeroClosed(s)) issue = [false, "0원 달은 계산서가 없습니다"];
   else if (s.status === "AGREED") issue = [true, `${fmtMdHm(s.agreedAt)} ${modeWord(s.mode)} 동의 · 계산서가 아직 발급되지 않았습니다`];
   else if (s.einvoice) issue = [false, `발급완료 · 승인번호 ${s.einvoice.no}${s.einvoice.mode !== "auto" ? ` · ${EINVOICE_MODE_WORD[s.einvoice.mode] || ""}` : ""}`];
-  else if (s.status === "SCHEDULED") issue = [false, `명세서 발행 전입니다 — ${fmtKoShortTime(s.issueAt)}에 발급됩니다`];
+  else if (s.status === "SCHEDULED") issue = [false, `명세서 발행 전입니다. ${fmtKoShortTime(s.issueAt)}에 발급됩니다`];
   else issue = [false, "동의 전에는 계산서를 발급할 수 없습니다"];
   if (s.status === "NONE") pay = [false, "청구할 금액이 없는 달입니다"];
   else if (s.zeroEdited) pay = [false, "0원 달은 입금 없이 입금완료 처리됩니다"];
@@ -706,7 +706,7 @@ export function mount(root, { nav }) {
         </div>
         <div class="settle-td settle-td--amt" title="${amtTip}">
           <span class="settle-amt">${won(s.amount)}</span>
-          ${s.changed ? html`<span class="settle-chip settle-chip--chg" aria-hidden="true">바뀜</span><span class="sr-only"> · ${chg}</span>` : ""}
+          ${s.changed ? html`<span class="settle-chip settle-chip--chg" aria-hidden="true">변경</span><span class="sr-only"> · ${chg}</span>` : ""}
         </div>
         ${st.merged
           ? (st.merged.none
@@ -725,7 +725,7 @@ export function mount(root, { nav }) {
           ${hasDoc(s)
             ? html`<button type="button" class="settle-icbtn" data-action="copylink" data-cid="${c.id}" aria-label="${nm} ${M}월 명세서 공개 링크 복사" title="공개 링크 복사 · 열 때의 지금 금액을 보여 줍니다">${icon("link", { size: 15 })}</button>
                    <button type="button" class="settle-icbtn" data-action="download" data-cid="${c.id}" aria-label="${nm} ${M}월 명세서 PDF 다운로드" title="PDF 다운로드">${icon("download", { size: 15 })}</button>`
-            : html`<span class="settle-docsoff" title="${s.status === "NONE" ? "거래가 없는 달은 명세서가 없습니다" : `명세서 발행 전입니다 — ${fmtKoShortTime(s.issueAt)}에 발급됩니다`}">${s.status === "NONE" ? "거래 없음" : "발행 전"}</span>`}
+            : html`<span class="settle-docsoff" title="${s.status === "NONE" ? "거래가 없는 달은 명세서가 없습니다" : `명세서 발행 전입니다. ${fmtKoShortTime(s.issueAt)}에 발급됩니다`}">${s.status === "NONE" ? "거래 없음" : "발행 전"}</span>`}
         </div>
       </div>
       <div class="settle-exp" id="sx-${c.id}" data-slot="exp" ${open ? "" : "hidden"}>${open ? expBody(r, now) : ""}</div>
@@ -775,10 +775,10 @@ export function mount(root, { nav }) {
         ? html`
           <section class="settle-card settle-chg" aria-label="정산 금액 변경 기록">
             <div class="settle-card__hd"><b>정산 금액 변경 기록</b>${s.changed ? html`<span class="settle-chg__line">${amountChangeLine(s)}</span>` : ""}</div>
-            <div class="settle-chg__tbl" role="table" aria-label="정산 금액 변경 기록 · 언제 · 누가 · 어느 주문 · 바뀌기 전 → 뒤 · 사유">
+            <div class="settle-chg__tbl" role="table" aria-label="정산 금액 변경 기록 · 언제 · 누가 · 어느 주문 · 변경 전 → 후 · 사유">
               <div class="settle-chg__row settle-chg__row--hd" role="row">
                 <span role="columnheader">언제</span><span role="columnheader">누가</span><span role="columnheader">어느 주문</span>
-                <span role="columnheader">바뀌기 전 → 뒤</span><span role="columnheader">사유</span>
+                <span role="columnheader">변경 전 → 후</span><span role="columnheader">사유</span>
               </div>
               ${lines.map((l) => html`
                 <div class="settle-chg__row" role="row">
@@ -862,7 +862,7 @@ export function mount(root, { nav }) {
       html`
         <div class="page-admin page-settle">
           <div class="admin-inner">
-            ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계", desc: "귀속월(배송일의 달)마다 명세서 동의 · 계산서 · 입금을 처리합니다" })}
+            ${pageTitle({ imgSrc: "./assets/nav-accounting.png", title: "거래처 정산회계", desc: "귀속월(배송완료 기준)마다 명세서 동의 · 계산서 · 입금을 처리합니다" })}
             <div class="bf-card">
               <div class="bf-row bf-row--tabs">
                 <div class="bf-tabs" data-slot="tabs">

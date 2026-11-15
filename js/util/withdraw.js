@@ -37,7 +37,7 @@ export { WITHDRAWN, isWithdrawn };
 /** 탈퇴한 날 "YYYY-MM-DD" — withdrawnAt 이 없으면 ""(옛 기록 · 시드) */
 export const withdrawnDay = (client) => String((client && client.withdrawnAt) || "").slice(0, 10);
 /** 탈퇴한 계정의 상태 칸이 잠긴 이유 — 거래처 정보 창(상태 pill 의 title · 화면낭독기 설명 · 누르면 토스트). */
-export const WITHDRAWN_LOCK = "탈퇴한 계정은 되돌릴 수 없습니다 — 다시 쓰려면 새로 가입합니다";
+export const WITHDRAWN_LOCK = "탈퇴한 계정은 되돌릴 수 없습니다. 다시 이용하려면 새로 가입해야 합니다";
 /** 탈퇴를 막을 때 앞말 — 뒤에 `reason`(어느 달이 왜) 이 붙는다. */
 export const WITHDRAW_BLOCK_LEAD = "끝나지 않은 정산이 있어 탈퇴할 수 없습니다";
 /** 그 뒤 할 일 한 마디 — 약관 v0.3 T29(2026-11-11 — 탈퇴 요청은 바로 받아 기록하고 직원이 챙긴다) · 기록 자리는 거래처 정보 창
@@ -45,11 +45,11 @@ export const WITHDRAW_BLOCK_LEAD = "끝나지 않은 정산이 있어 탈퇴할 
  *  '…처리하세요 · 9월분 입금 전' 처럼 이유가 할 일 뒤에 매달렸다(검토 2026-11-11). */
 export const WITHDRAW_BLOCK_TAIL = "요청은 영업 메모에 적어 두고 정산이 끝나는 날 처리하세요";
 /** 탈퇴한 거래처의 주문을 정산에 닿게 고치려 할 때의 이유(정본) — 주문 상세의 저장 줄(빨강) · 배송일시 안내 title · 확인 창 안 빨간 상자. */
-export const WITHDRAWN_ORDER_LOCK = "탈퇴한 거래처의 주문은 금액 · 상품을 바꾸거나 다른 달로 옮길 수 없습니다 — 지난 기록은 그대로 남깁니다";
+export const WITHDRAWN_ORDER_LOCK = "탈퇴한 거래처의 주문은 금액 · 상품을 변경하거나 다른 달로 옮길 수 없습니다. 지난 기록은 그대로 남깁니다";
 /** 같은 이유의 짧은 말 — 배송일시 줄 안내 자리(좁다). */
 export const WITHDRAWN_ORDER_SHORT = "탈퇴한 거래처 · 다른 달로 못 옮김";
 /** 막힌 동작 토스트 · ⋯ 메뉴 잠긴 '주문서 삭제' 아래 이유 — `what` = '지울' · '취소할'. */
-export const withdrawnOrderMsg = (what) => `탈퇴한 거래처의 주문이라 ${what} 수 없습니다 — 지난 기록은 그대로 남깁니다`;
+export const withdrawnOrderMsg = (what) => `탈퇴한 거래처의 주문이라 ${what} 수 없습니다. 지난 기록은 그대로 남깁니다`;
 /** 배송 전 주문 — 정산이 아직 시작되지 않은 주문 */
 const OPEN_ORDER = new Set(["접수대기", "주문접수"]);
 
@@ -87,8 +87,8 @@ function monthsToScan(clientId) {
 /**
  * 이 거래처를 지금 탈퇴 처리할 수 없는 이유 — 막을 것이 없으면 null(이미 탈퇴한 거래처도 null — 호출부가 isWithdrawn 을 먼저 본다).
  * @returns {null | {
- *   reason: string,   // "9월분 입금 전 · 10월 주문 12건 정산 전 — 11월 1일 명세서 · 배송 전 주문 3건"
- *   text: string,     // WITHDRAW_BLOCK_LEAD + " · " + reason + " — " + WITHDRAW_BLOCK_TAIL — 토스트 · title · 화면낭독기 설명에 그대로 쓴다
+ *   reason: string,   // "9월분 입금 전 · 10월 주문 12건 정산 전(11월 1일 명세서) · 배송 전 주문 3건"
+ *   text: string,     // WITHDRAW_BLOCK_LEAD + " · " + reason + ". " + WITHDRAW_BLOCK_TAIL — 토스트 · title · 화면낭독기 설명에 그대로 쓴다
  *   months: { ym: string, status: string, word: string }[],   // 막는 달(오름차순) — word 는 SCHEDULED 면 "정산 전"
  *   open: number,     // 배송 전 주문(접수대기·주문접수) 건수
  * }}
@@ -128,14 +128,14 @@ export function withdrawBlockOf(client, now = new Date()) {
     const first = scheduled[0].s.issueAt;
     parts.push({
       at: scheduled[0].ym,
-      text: `${each.join(" · ")} 정산 전 — ${fmtKoShortY(first, now)} 명세서${scheduled.length > 1 ? "부터" : ""}`,
+      text: `${each.join(" · ")} 정산 전(${fmtKoShortY(first, now)} 명세서${scheduled.length > 1 ? "부터" : ""})`,
     });
   }
   parts.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   const list = parts.map((p) => p.text);
   if (open) list.push(`배송 전 주문 ${open}건`);
   const reason = list.join(" · ");
-  return { reason, text: `${WITHDRAW_BLOCK_LEAD} · ${reason} — ${WITHDRAW_BLOCK_TAIL}`, months, open };
+  return { reason, text: `${WITHDRAW_BLOCK_LEAD} · ${reason}. ${WITHDRAW_BLOCK_TAIL}`, months, open };
 }
 
 /**

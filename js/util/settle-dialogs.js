@@ -152,7 +152,6 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
 
   const d = openDialog({
     eyebrow: `${headOf(client, ym)} · ${won(s0.amount)}`,
-    eyebrowNum: true,
     title: "계산서 발급 처리",
     width: 560,
     panelClass: "modal-panel--sdlg",
@@ -164,7 +163,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
         ${dlgRule({ t: "처리 방식", cap: "둘 중 하나를 고릅니다" })}
         <div class="dlg-grid2 sdlg-modes" role="radiogroup" aria-label="처리 방식">
           ${dlgPick({ v: "retry", name: "다시 시도", sub: "바로빌에 다시 요청합니다", sel: true })}
-          ${dlgPick({ v: "manual", name: "직접 입력", sub: "콘솔에서 낸 계산서를 기록" })}
+          ${dlgPick({ v: "manual", name: "직접 입력", sub: "콘솔에서 발급한 계산서를 기록" })}
         </div>
       </section>
       <div class="dlg-busy" role="status" data-slot="busy" hidden>
@@ -301,12 +300,12 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
     const notes = [];
     const mv = manual ? manualView(now) : null;
     if (manual) {
-      if (mv.mismatch) notes.push(noteBox("amber", `동의일(${fmtKoShort(s0.agreedAt)})과 발급일(${fmtKoShort(mv.dt)})이 다릅니다`, "이 거래처는 작성일과 발급일이 같은 날이어야 합니다. 손 발급은 동의 당일에 처리하는 것이 원칙입니다."));
+      if (mv.mismatch) notes.push(noteBox("amber", `동의일(${fmtKoShort(s0.agreedAt)})과 발급일(${fmtKoShort(mv.dt)})이 다릅니다`, "이 거래처는 작성일과 발급일이 같은 날이어야 합니다. 수기 발급은 동의 당일에 처리하는 것이 원칙입니다."));
     }
     /* 1~10 그룹이 발급월 10일을 넘겨 발급되면 지연발급(명세 3.4 ⚠ · 세무사 답 대기) — 다시 시도는 지금, 직접 입력은 적은 시각 기준 */
     const issueAt = manual ? (mv.dt && !mv.future ? mv.dt : now) : now;
     if (lateAt && !done && issueAt.getTime() >= lateAt.getTime()) {
-      notes.push(noteBox("amber", "발급월 10일을 넘겨 발급되면 지연발급이 됩니다", "발급 전에 세무 확인이 필요합니다 · 세무사 답변에 따라 문구가 바뀔 수 있습니다."));
+      notes.push(noteBox("amber", "발급월 10일을 넘겨 발급되면 지연발급이 됩니다", "발급 전에 세무 확인이 필요합니다 · 세무사 답변에 따라 문구가 변경될 수 있습니다."));
     }
     if (!done && !st.err) {
       /* 지금 발급(기록)하면 정산기한 다음 날 10:00 이 지난 뒤다 — 발급 순간 기한 초과이고 T6 과 T8 이 함께 간다(명세 3.4 · Q36 잠정).
@@ -354,7 +353,7 @@ export function openIssueDialog({ client, ym, onDone, toast, onClose } = {}) {
       okBtn.disabled = true;
       d.setHint("바로빌 응답을 기다리고 있습니다", false);
     } else if (done) {
-      d.setHint("발급완료로 바뀌었습니다", false);
+      d.setHint("발급완료로 변경되었습니다", false);
     } else {
       setHTML(okBtn, html`다시 시도`);
       okBtn.disabled = !!st.err;
@@ -564,7 +563,7 @@ export function openPaymentDialog({ client, ym, onDone, toast, onClose } = {}) {
       const s = settlementOf(client, ym, new Date());
       const who = actorLabel(s.paidBy);
       st.err = s.status === "PAID" && s.paidAt
-        ? { title: "이미 입금 확인된 달입니다", body: [`${fmtKoShortTime(s.paidAt)}에 ${who ? `${who} 님이 확인했습니다` : "확인됐습니다"}. 표의 이 줄도 입금완료로 바꿔 두었습니다.`] }
+        ? { title: "이미 입금 확인된 달입니다", body: [`${fmtKoShortTime(s.paidAt)}에 ${who ? `${who} 님이 확인했습니다` : "확인됐습니다"}. 표의 이 줄도 입금완료로 변경했습니다.`] }
         : { title: "지금은 입금을 확인할 수 없는 달입니다", body: ["표에서 이 달의 상태를 다시 확인하세요."] };
       sync();
       onDone && onDone({ type: "pay" });

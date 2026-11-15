@@ -530,7 +530,7 @@ export function unbilledWhy(mark, now = new Date()) {
   const head = mark.why === "none" ? `${m}은 명세서 발행이 지난 달이라`
     : mark.why === "zero" ? `${m} 정산이 0원으로 닫혀`
     : `${m} 정산이 잠겨`;
-  return `${head} 이 주문 금액은 넣지 않았습니다 — 바로빌에서 ${hasInvoice(mark.why) ? "수정계산서로" : "따로"} 처리하세요`;
+  return `${head} 이 주문 금액은 넣지 않았습니다. 바로빌에서 ${hasInvoice(mark.why) ? "수정계산서로" : "따로"} 처리하세요`;
 }
 
 /* ── 배송 전 주문을 잠긴 달에서 · 잠긴 달로 옮길 때의 경고 (2026-10-23 운영자 결정 E1 · F1) ─────────────────────────────────
@@ -555,7 +555,7 @@ const fromClosed = (cm) => !cm.from || cm.from === "closed";
 export function closedMoveWarn(cm, now = new Date()) {
   const tail = closedMoveTail(cm, now);
   if (!fromClosed(cm)) return tail;
-  return `${ymWord(cm.ym, now)}은 ${cm.word} — 실제 배송일일 때만 옮기세요 · ${tail}`;
+  return `${ymWord(cm.ym, now)}은 ${cm.word}이라 실제 배송일일 때만 옮기세요 · ${tail}`;
 }
 /** 처리 이력의 짧은 사실 — E1 '9월(동의를 마친 달)에서 옮김' / F1 '9월(동의를 마친 달)로 옮김' /
  *  둘 다(잠긴 달 → 잠긴 달) '9월(동의를 마친 달)에서 8월(동의를 마친 달)로 옮김' — 한 줄이다. */

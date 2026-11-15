@@ -38,7 +38,7 @@ export const INVOICE_NOTE = {
 /** 문서의 **동의 전 표기**(S-02 시안 · 명세 R14 '동의 전 문서') — 머리 오른쪽 태그와 모든 장 왼쪽 아래 줄에 출력 시각과 함께
  *  찍는다(invoice-doc.js). 찍는 달은 settlementOf().docStamp(명세서가 나갔고 · 동의 전이고 · 수정 마감 전 — 사용자 답 1).
  *  포털 미리보기·PDF·EXCEL·관리자 PDF·공개 링크가 이 한 벌을 쓴다(util/invoice-data `invoiceDocData` 의 stamp.text). */
-export const DOC_STAMP = "동의 전 — 금액이 바뀔 수 있습니다";
+export const DOC_STAMP = "동의 전: 금액이 변경될 수 있습니다";
 
 const wonOf = (n) => Number(n).toLocaleString("ko-KR") + "원";
 /** 시드 명세서의 **거래 내역·합계는 INVOICE_DB 에서 파생한다.**

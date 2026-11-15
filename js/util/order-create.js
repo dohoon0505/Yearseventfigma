@@ -78,7 +78,7 @@ export function openOrderCreate(spec) {
         title/cap 은 이제 각 `.ordnew-pane` 의 접근명이다(스텝 목록에는 aria 가
         아예 없었으므로 스크린리더 기준으로는 오히려 나아진다). */
   const stepLabel = (s, i) =>
-    `${i + 1}단계 / ${steps.length} · ${s.title}${s.cap ? ` — ${s.cap}` : ""}`;
+    `${i + 1}단계 / ${steps.length} · ${s.title}${s.cap ? `: ${s.cap}` : ""}`;
 
   /* ── 푸터: 색이 상태를 말한다 ──
      스텝이 status() 를 주면(B2B — 시안 O-01) 주 버튼이 왼쪽 글을 설명으로 잇는다(`aria-describedby`) — 잠긴 버튼에 초점이 가면
@@ -92,7 +92,7 @@ export function openOrderCreate(spec) {
       ? html`<span class="ord-ft__stat${st.tone ? ` is-${st.tone}` : ""}${st.head ? " has-head" : ""}" id="ordnew-ftstat" data-slot="ftstat">${st.head
         ? html`<b class="ord-ft__head">${st.head}</b>` : ""}<span class="ord-ft__txt">${st.text}</span></span>`
       : html`<span class="ord-ft__stat ${m.length ? "is-dirty" : b ? "is-block" : "is-saved"}" data-slot="ftstat">${m.length
-        ? `필수 ${m.length}건 — ${m.join(" · ")}`
+        ? `필수 ${m.length}건: ${m.join(" · ")}`
         : b || (steps[step].hint ? steps[step].hint() : "")}</span>`;
     return html`
       ${stat}

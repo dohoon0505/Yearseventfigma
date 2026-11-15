@@ -617,15 +617,15 @@ export function mount(root, { nav }) {
                  이 카드는 '지난 달 귀속' 이지만 이 칩만 최근 6개월이라, 어디로 가는지 이름(aria-label · title)이 말한다. */ ""}
             ${a.overdue
               ? html`<button type="button" class="dsh-pill dsh-pill--danger" data-settle-go="action:${a.overdueYm}"
-                  aria-label="기한 초과 ${a.overdue} — 최근 6개월 · ${periodLabel(a.overdueYm)} 귀속 조치 필요 열기"
+                  aria-label="기한 초과 ${a.overdue}건(최근 6개월) · ${periodLabel(a.overdueYm)} 귀속 조치 필요 열기"
                   title="최근 6개월 중 기한 초과 ${a.overdue}건 · 가장 오래된 ${periodLabel(a.overdueYm)} 귀속부터 엽니다">기한 초과 ${a.overdue}</button>`
               : ""}
             ${/* 금액 바뀜 · 0원 — 누를 수 없는 표시(span). 어느 거래처인지는 title 이 말한다(정산회계에서 그 달을 펼쳐 본다). */ ""}
             ${a.changed.length
-              ? html`<span class="dsh-pill dsh-pill--orange" title="${periodLabel(a.lastYm)} 귀속 · 명세서 발급 때 금액과 지금 금액이 다른 곳 — ${a.changed.join(", ")}${a.edited0.length ? ` · 발급 뒤 고쳐서 0원이 된 곳(${a.edited0.join(", ")})은 '0원' 에서 셉니다` : ""}">금액 바뀜 ${a.changed.length}</span>`
+              ? html`<span class="dsh-pill dsh-pill--orange" title="${periodLabel(a.lastYm)} 귀속 · 명세서 발급 때 금액과 지금 금액이 다른 곳: ${a.changed.join(", ")}${a.edited0.length ? ` · 발급 뒤 고쳐서 0원이 된 곳(${a.edited0.join(", ")})은 '0원' 에서 셉니다` : ""}">금액 변경 ${a.changed.length}</span>`
               : ""}
             ${a.zero.length
-              ? html`<span class="dsh-pill dsh-pill--gray" title="${periodLabel(a.lastYm)} 귀속 · 발급 뒤 고쳐서 0원이 되어 계산서가 없는 곳 — ${a.zero.join(", ")}">0원 ${a.zero.length}</span>`
+              ? html`<span class="dsh-pill dsh-pill--gray" title="${periodLabel(a.lastYm)} 귀속 · 발급 뒤 고쳐서 0원이 되어 계산서가 없는 곳: ${a.zero.join(", ")}">0원 ${a.zero.length}</span>`
               : ""}
           </div>`
         : ""}

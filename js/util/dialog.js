@@ -35,7 +35,6 @@ let dlgSeq = 0;
  *
  * @param {object}  o
  * @param {string}  o.eyebrow      헤더 소제목(주문번호·거래처명·구역 이름)
- * @param {boolean} o.eyebrowNum   에어브로가 번호면 true(tabular-nums)
  * @param {string}  o.title        22px 타이틀 — 질문형("주문을 취소할까요?")을 권장
  * @param {number}  o.width        패널 폭 px (기본 440)
  * @param {*}       o.body         본문 Html (보통 `.dlg-body` 를 셸이 씌운다)
@@ -54,7 +53,7 @@ export function openDialog(o = {}) {
     <div class="dlg-hd">
       <div class="dlg-hd__l">
         ${o.eyebrow
-          ? html`<p class="dlg-hd__eyebrow ${o.eyebrowNum ? "is-num" : ""}">${safe(o.eyebrow)}</p>`
+          ? html`<p class="dlg-hd__eyebrow">${safe(o.eyebrow)}</p>`
           : ""}
         <h4 class="dlg-hd__t" id="${titleId}">${safe(o.title)}</h4>
       </div>
@@ -131,14 +130,14 @@ export const dlgRow = ({ k, req, v, top, hidden, slot, htmlFor } = {}) => {
  * ⚠️ 선택 표시 클래스는 `is-sel` 이다. 고를 때 **행을 다시 그리지 말고**
  *    `is-sel`/`aria-checked` 만 토글할 것 — 재렌더는 직접 입력 칸의 커서를 날린다.
  */
-export const dlgPick = ({ v, name, sub, subNum, badge, sel, orphan, sm } = {}) => html`
+export const dlgPick = ({ v, name, sub, badge, sel, orphan, sm } = {}) => html`
   <button type="button" class="dlg-pick ${sm ? "dlg-pick--sm" : ""} ${orphan ? "dlg-pick--orphan" : ""} ${sel ? "is-sel" : ""}"
           role="radio" aria-checked="${sel ? "true" : "false"}" data-pickrow="${v}">
     <span class="dlg-tick" aria-hidden="true"></span>
     ${sub || badge
       ? html`<span class="dlg-pick__main">
           <b class="dlg-pick__name">${safe(name)}</b>
-          ${sub ? html`<span class="dlg-pick__sub ${subNum ? "is-num" : ""}">${safe(sub)}</span>` : ""}
+          ${sub ? html`<span class="dlg-pick__sub">${safe(sub)}</span>` : ""}
         </span>`
       : html`<b class="dlg-pick__name" style="flex:1;min-width:0">${safe(name)}</b>`}
     ${badge ? html`<span class="dlg-pick__badge">${safe(badge)}</span>` : ""}
@@ -173,10 +172,9 @@ export function openDeleteConfirm({ orderNo, eyebrow, title, desc, note, okLabel
   const HINT_OFF = hintOff ?? "확인에 체크해야 삭제됩니다";
   const HINT_ON = hintOn ?? "삭제를 진행할 수 있습니다";
   const d = openDialog({
-    /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호(tabular-nums),
-       거래처면 호출부가 넘긴 식별자(접속 아이디·회사명)라 숫자 정렬을 끈다. */
+    /* 에어브로는 **무엇을 지우는지**다 — 주문이면 주문번호,
+       거래처면 호출부가 넘긴 식별자(접속 아이디·회사명). */
     eyebrow: eyebrow ?? orderNo,
-    eyebrowNum: eyebrow == null,
     title: title ?? "주문서를 삭제할까요?",
     width: width || 440,
     onClose,

@@ -233,7 +233,7 @@ export function mount(root, { nav }) {
       for (let i = 0; i < 10; i++) pw += CH[Math.floor(Math.random() * CH.length)];
       form.password = pw;
       const out = qs(panel, "[data-pwout]");
-      if (out) out.textContent = `임시비밀번호 ${pw} — 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
+      if (out) out.textContent = `임시비밀번호(${pw})를 발급했습니다. 저장해야 적용됩니다. 이 창을 닫으면 다시 볼 수 없습니다.`;
       toast("임시비밀번호를 발급했습니다");
     });
     const syncFoot = () => {

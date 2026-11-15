@@ -135,7 +135,7 @@ function invStage(s, now) {
       return {
         kind: "live", label: "계산서 없음", tone: "gray",
         meta: `고쳐서 0원 · ${fmtMdHm(s.deadline)} 마감에 닫힘`,
-        title: "발급 뒤 내역이 고쳐져 0원이 되었습니다. 동의 없이 마감에 계산서 없이 닫힙니다",
+        title: "발급 뒤 내역이 수정되어 0원이 되었습니다. 동의 없이 마감에 계산서 없이 닫힙니다",
       };
     }
     /* 마감이 지났는데 자동 동의하지 않은 달 — 마감을 찍으면 '곧 자동 동의된다' 로 읽힌다. 이유를 쓰고 지금 받는다. */
@@ -153,14 +153,14 @@ function invStage(s, now) {
     if (chg) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", hot, chg: true, meta: chg,
-        title: `발급 뒤 내역이 고쳐졌습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
+        title: `발급 뒤 내역이 수정되었습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
       };
     }
     /* 수정 마감 전(①) — 아직 금액이 바뀔 수 있다. 판정은 settlementOf 의 editable(명세 6.6 — 날짜로 짐작하지 않는다). */
     return {
       kind: "live", label: "동의 필요", tone: "orange", hot,
       meta: s.editable
-        ? `마감 ${fmtMdHm(s.deadline)} · 수정 마감 ${fmtMdHm(s.editLockAt)}까지 금액 바뀔 수 있음`
+        ? `마감 ${fmtMdHm(s.deadline)} · 수정 마감 ${fmtMdHm(s.editLockAt)}까지 금액 변경 가능`
         : `마감 ${fmtMdHm(s.deadline)}`,
       title: "마감까지 동의가 없으면 그 시각에 자동 동의됩니다",
     };
@@ -251,7 +251,7 @@ const COLUMNS = [
       const tip = chg || "지금 금액";
       const said = r.$st.cur && r.$st.cur.chg;
       return html`<span class="st-amtw" title="${tip}"><span class="st-amt">${won(r.amount)}</span>${chg
-        ? html`<span class="settle-chip settle-chip--chg" aria-hidden="true">바뀜</span>${said ? "" : html`<span class="sr-only"> · ${chg}</span>`}`
+        ? html`<span class="settle-chip settle-chip--chg" aria-hidden="true">변경</span>${said ? "" : html`<span class="sr-only"> · ${chg}</span>`}`
         : ""}</span>`;
     },
   },
@@ -326,7 +326,7 @@ export function mount(root, { nav }) {
     const steps = [
       ["명세서 발급", `매월 ${day}일 ${hm(ISSUE_HOUR)}`],
       ["내역 확인 · 동의", two(`수정 마감 ${editLockDayOf(day)}일 ${hm(ISSUE_HOUR)}`, `동의 마감 ${dl}일 ${hm(DEADLINE_HOUR)}`)],
-      ["계산서(면세) 발급", two("동의하면 바로", `작성일자 ${early ? "배송한 달 말일" : "동의한 날"}`)],
+      ["계산서(면세) 발급", two("동의하면 바로", `작성일자 ${early ? "배송완료 기준 달의 말일" : "동의한 날"}`)],
       ["입금 · 정산 완료", "기한 발급월 말일"],
     ];
 
@@ -338,7 +338,7 @@ export function mount(root, { nav }) {
             ${pageHead({
               imgSrc: "./assets/nav-accounting.png",
               title: "정산회계 조회",
-              desc: "매월 청구서와 정산 상태를 확인하고, 명세서·계산서에 찍힐 회사정보를 관리합니다.",
+              desc: "매월 청구서와 정산 상태를 확인하고, 명세서·계산서에 표기될 회사정보를 관리합니다.",
               rule: true,
               action: html`<button type="button" class="st-edit" data-action="edit">회사정보 수정</button>`,
             })}
@@ -355,7 +355,7 @@ export function mount(root, { nav }) {
               ${info("사업장주소", client.address || "미등록", { empty: !client.address, cls: "st-co__addr" })}
               <div class="st-co__chips">
                 <span class="st-chip">매월 <b>${day}일</b> 명세서 발급</span>
-                ${pend ? html`<span class="st-chip st-chip--note">이번 달은 ${fmtKoShortTime(pend.at)} · 바꾸기 전 날짜</span>` : ""}
+                ${pend ? html`<span class="st-chip st-chip--note">이번 달은 ${fmtKoShortTime(pend.at)} · 변경 전 날짜</span>` : ""}
               </div>
             </section>
 
@@ -370,8 +370,8 @@ export function mount(root, { nav }) {
               <p class="st-steps__note">
                 ${/* 2차 시안 문안 — 정산 달 = 배송한 달(2026-10-15 결정 · 취소 수수료는 취소한 달 — 규칙이 바뀌면 이 문장도
                      같이 고친다) · 수정 마감 = 동의 마감 전날 10:00(editLockAt). */ ""}
-                정산 달은 배송한 달입니다(예약 주문은 배송한 달에, 취소 수수료는 취소한 달에 듭니다).
-                동의 전에는 수정 마감(동의 마감 전날 ${hm(ISSUE_HOUR)})까지 금액이 바뀔 수 있고,
+                정산 달은 배송완료 기준입니다(예약 주문은 배송완료된 달에, 취소 수수료는 취소한 달에 듭니다).
+                동의 전에는 수정 마감(동의 마감 전날 ${hm(ISSUE_HOUR)})까지 금액이 변경될 수 있고,
                 마감까지 동의가 없으면 그 시각에 자동 동의됩니다.
                 ${/* 마감에 자동 동의되지 않는 달은 약관 동의 전에 마감이 지난 달 하나다(2026-10-23 운영자 결정 D1 — '보류'(고지 미도달)는
                      없어졌다 · 낱말은 거래명세서 동의 카드 HOLD_TITLE '약관 동의 전에 마감이 지났습니다' 와 같은 말). */ ""}
@@ -379,11 +379,11 @@ export function mount(root, { nav }) {
                 정산기한 다음 날 ${hm(ISSUE_HOUR)}부터는 기한 초과로 표시됩니다.
                 ${/* '시안 + 기존'(운영자 결정 4) — 시안 문안으로 바뀌며 빠졌던 기존 문장(2차 시안에서도 빠졌다). 발급일을 어디서
                      바꾸고 언제부터 적용되는지 말하는 곳이 이 화면에 있어야 한다(1번 카드의 '매월 N일' 이 앞으로의 값이라서). */ ""}
-                발급일은 회사정보 수정에서 바꿀 수 있고, 바꾸면 다음 달 발급분부터 적용됩니다.
+                발급일은 회사정보 수정에서 변경할 수 있고, 변경하면 다음 달 발급분부터 적용됩니다.
                 ${/* 카카오톡 채널을 앞에, 고객센터 번호를 함께(2026-10-23 운영자 결정 D5 — 채널 이름은 contact.js CS_KAKAO 한 곳이고
                      그 낱말 뒤에는 조사를 붙이지 않는다 · '이의' 라는 낱말은 쓰지 않는다). 연락처 두 덩어리만 .st-nw 로 묶는다.
                      채널 낱말은 채널 1:1 채팅을 새 창으로 여는 링크다(CS_KAKAO_URL · 2026-10-28 — 마우스를 올리면 밑줄 · '명세서 보기' 와 같은 수법). */ ""}
-                <span class="st-steps__cs">내역이 다르면 <a class="st-nw" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" title="카카오톡 채널 채팅 열기 · 새 창">${CS_KAKAO}</a> 또는 <span class="st-nw">고객센터 ${CS_PHONE}에</span> 알려 주세요 — 수정 마감 전이면 바로 고쳐 드립니다</span>
+                <span class="st-steps__cs">내역이 다르면 <a class="st-nw" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" title="카카오톡 채널 채팅 열기 · 새 창">${CS_KAKAO}</a> 또는 <span class="st-nw">고객센터 ${CS_PHONE}에</span> 알려 주세요. 수정 마감 전이면 바로 수정해 드립니다.</span>
               </p>
             </div>
 
@@ -391,7 +391,7 @@ export function mount(root, { nav }) {
               <div class="st-tbl__hd">
                 <div>
                   <h2 id="st-tbl-t">정산 내역 <span class="st-count">최근 6개월</span></h2>
-                  <p>명세서 보기를 누르면 그 달의 거래명세서가 열립니다. 동의는 거기서 합니다.</p>
+                  <p>명세서 보기를 누르면 그 달의 거래명세서가 열립니다. 발급 동의는 그 화면에서 합니다.</p>
                 </div>
                 <span class="st-todo ${todo ? "" : "is-zero"}">처리할 달 <b>${todo}건</b></span>
               </div>
@@ -436,8 +436,8 @@ export function mount(root, { nav }) {
     /* 푸터 힌트 — 막혔으면 **왜** 막혔는지 이름을 대서 말한다(다이얼로그 규격). */
     const footer = () => {
       const m = missing();
-      if (m.length) return { block: true, text: `필수 항목이 남았습니다 — ${m.join(" · ")}` };
-      if (emailBad()) return { block: true, text: "이메일 형식을 확인해 주세요 — 예) billing@company.com" };
+      if (m.length) return { block: true, text: `필수 항목이 남았습니다: ${m.join(" · ")}` };
+      if (emailBad()) return { block: true, text: "이메일 형식을 확인해 주세요(예: billing@company.com)" };
       const n = changed();
       return { block: false, text: n ? `수정한 항목 ${n}개 · 관리자 화면에도 함께 반영됩니다` : "관리자 화면에도 함께 반영됩니다" };
     };
@@ -447,13 +447,13 @@ export function mount(root, { nav }) {
       const now = new Date();
       const d = form.invoiceDay;
       const pend = pendingOldIssue(client, now);
-      const keep = pend ? ` 이번 달 명세서는 바꾸기 전 날짜(${fmtKoShortTime(pend.at)})에 나갑니다.` : "";
+      const keep = pend ? ` 이번 달 명세서는 변경 전 날짜(${fmtKoShortTime(pend.at)})에 발급됩니다.` : "";
       if (d === orig.invoiceDay)
         return `매월 ${d}일 ${hm(ISSUE_HOUR)}에 전월 이용분 명세서가 발급되고, 동의 마감은 ${deadlineDayOf(d)}일 ${hm(DEADLINE_HOUR)}입니다.${keep}`;
       const from = invoiceDayEffectiveFrom(now);
       const early = deadlineDayOf(d) === 10;
       /* 첫 적용 발급은 다음 달이라 12월에 바꾸면 다음 해다 — 해가 다르면 연도를 붙인다(fmtKoShortTimeY). */
-      return `${periodLabel(from)} 이용분부터 적용 — ${fmtKoShortTimeY(issueDate(from, d), now)} 발급 · 동의 마감 `
+      return `${periodLabel(from)} 이용분부터 적용: ${fmtKoShortTimeY(issueDate(from, d), now)} 발급 · 동의 마감 `
         + `${fmtKoShortTimeY(agreeDeadline(from, d), now)} · 작성일자 ${early ? "이용한 달의 말일" : "동의한 날"}.${keep}`;
     };
     const dayChip = () => html`매월 <b>${form.invoiceDay}일</b> 발급`;
@@ -498,7 +498,6 @@ export function mount(root, { nav }) {
     const st0 = footer();
     dlg = openDialog({
       eyebrow: client.bizNumber || "회사정보",
-      eyebrowNum: true,
       title: `${name} 회사정보`,
       width: 640,
       bodyClass: "dlg-body--sections",
@@ -507,7 +506,7 @@ export function mount(root, { nav }) {
       headExtra: html`<span class="dlg-hd__count" data-slot="daychip">${dayChip()}</span>`,
       body: html`
         <section>
-          ${dlgRule({ t: "사업자 정보", cap: "거래명세서·계산서의 공급받는자로 찍힙니다" })}
+          ${dlgRule({ t: "사업자 정보", cap: "거래명세서·계산서의 공급받는자로 표기됩니다" })}
           <div class="dlg-rows">
             <div class="setco-pair">
               ${dlgRow({ k: "회사명", req: true, htmlFor: "setco-companyName", v: input("companyName", { ph: "예) 주식회사 올해" }) })}
@@ -617,7 +616,7 @@ export function mount(root, { nav }) {
     /* 정산 담당은 담당자 저장공간이 정본이다(정산담당 1명 불변식이 거기 있다). 화면을 옮기면 라우터가 이 창을
        닫으므로, 저장하지 않은 수정이 있으면 떠나지 않는다(관리자 거래처 창 → 단가 화면과 같은 규칙). */
     on(panel, "click", "[data-action='go-billing']", () => {
-      if (changed()) { toast("저장하지 않은 수정이 있습니다 — 저장하거나 취소한 뒤 이동해 주세요", "warn"); return; }
+      if (changed()) { toast("저장하지 않은 수정이 있습니다. 저장하거나 취소한 뒤 이동해 주세요", "warn"); return; }
       setFocusSection("profile", "contacts");
       nav("#/app/profile");
     });
