@@ -133,7 +133,6 @@
   letter-spacing: -0.02em;
   color: var(--c-text-strong);
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 .page-invoice .iv-year__l span { display: block; margin-top: 1px; font-size: var(--fs-12); color: var(--c-text-muted); }
 
@@ -169,7 +168,6 @@
   font-size: var(--fs-15);
   font-weight: var(--fw-normal);
   color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .page-invoice .iv-month.is-sel {
@@ -200,7 +198,6 @@
   letter-spacing: -0.03em;
   line-height: 1.1;
   color: var(--c-text-strong);
-  font-variant-numeric: tabular-nums;
 }
 /* 금액이 바뀐 달 — '발급 때 X원 → 지금 Y원 (M월 D일 수정)'(2차 시안 ② · 동의·발급 뒤에도 남는다). 13px 굵게라
    --c-orange-ink-strong(흰 면 5:1 이상). */
@@ -210,7 +207,6 @@
   font-weight: var(--fw-semibold);
   line-height: 1.45;
   color: var(--c-orange-ink-strong);
-  font-variant-numeric: tabular-nums;
   text-wrap: pretty;
 }
 
@@ -250,12 +246,11 @@
   font-weight: var(--fw-semibold);
   color: var(--c-text-strong);
   text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 /* 동의 마감 24시간 전부터 — 시안 #b3261e. 13px 이라 --c-danger-ink(5.9:1). */
 .page-invoice .iv-fact dd.is-warn { color: var(--c-danger-ink); }
 .page-invoice .iv-help { margin-top: 10px; font-size: var(--fs-13); color: var(--c-text-4); }
-.page-invoice .iv-help b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.page-invoice .iv-help b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 /* 연락처 덩어리는 꺾지 않는다 — '고객센터 1668-1840에' 의 조사가 다음 줄로 떨어지지 않게(2026-10-23 · 포털 정산회계 .st-nw 와 같은 수법) */
 .page-invoice .iv-help__nw { white-space: nowrap; }
 /* 카카오톡 채널 링크(2026-10-28) — 모양은 굵은 연락처 낱말 그대로, 마우스를 올리면 밑줄(포털 정산회계 .st-doclink 와 같은 수법) */
@@ -400,7 +395,6 @@
 .modal-panel--dlg .iv-recap > div + div { margin-top: 7px; }
 .modal-panel--dlg .iv-recap span { font-size: var(--fs-14); color: var(--c-text-3); }
 .modal-panel--dlg .iv-recap b { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); text-align: right; }
-.modal-panel--dlg .iv-recap .num { font-variant-numeric: tabular-nums; }
 .modal-panel--dlg .iv-recap__total { padding-top: 9px; border-top: 1px solid var(--c-border); }
 .modal-panel--dlg .iv-recap__total b { font-size: 19px; letter-spacing: -0.015em; color: var(--c-orange-ink); }
 /* 갈래 안내 상자 — 자동 동의 / 자동 동의되지 않은 명세서(보류 달) */
@@ -419,7 +413,7 @@
 /* 모서리 12px 는 시안 값 그대로(--r-xl 10px · --r-2xl 18px 사이라 토큰이 없다 — 색이 아니라 토큰 규칙 밖). */
 .modal-panel--dlg .iv-agerr { padding: 14px var(--sp-5); border-radius: 12px; background: var(--c-danger-bg); }
 .modal-panel--dlg .iv-agerr__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.45; color: var(--c-danger-ink); }
-.modal-panel--dlg .iv-agerr__p { margin-top: var(--sp-2); font-size: var(--fs-14); line-height: 1.55; color: var(--c-danger-ink-strong); font-variant-numeric: tabular-nums; }
+.modal-panel--dlg .iv-agerr__p { margin-top: var(--sp-2); font-size: var(--fs-14); line-height: 1.55; color: var(--c-danger-ink-strong); }
 .modal-panel--dlg .iv-recap.is-err { border-color: var(--c-danger-border); }
 /* 다시 체크하기 전까지 체크 칸을 붉은 면으로(시안 — 체크하면 보통 면으로 돌아간다). */
 .modal-panel--dlg .iv-agdlg .dlg-check.is-err:not(.is-on) { background: var(--c-danger-bg); }

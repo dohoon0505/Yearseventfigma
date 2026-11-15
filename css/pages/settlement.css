@@ -88,7 +88,6 @@
 .page-settlement .st-co__biz {
   font-size: var(--fs-13);
   color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
 }
 .page-settlement .st-co__name {
   font-size: 19px;
@@ -262,7 +261,6 @@
 .page-settlement .st-todo b {
   font-weight: var(--fw-semibold);
   color: var(--c-orange-ink-strong);
-  font-variant-numeric: tabular-nums;
 }
 .page-settlement .st-todo.is-zero b {
   color: var(--c-text-strong);
@@ -320,21 +318,18 @@
 .page-settlement .st-docno {
   font-size: var(--fs-12);
   color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .page-settlement .st-docno:hover { color: var(--c-orange-ink-strong); text-decoration: underline; }
 .page-settlement .st-num {
   font-size: var(--fs-14);
   color: var(--c-text-2);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .page-settlement .st-amt {
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   color: var(--c-text-strong);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .page-settlement .st-amt.is-none {
@@ -359,7 +354,6 @@
   white-space: nowrap;
   font-size: var(--fs-13);
   color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
 }
 .page-settlement .st-note.is-hot {
   font-weight: var(--fw-semibold);
@@ -499,7 +493,6 @@
   flex: 0 0 auto;
   font-size: var(--fs-13);
   color: var(--c-text-4);
-  font-variant-numeric: tabular-nums;
 }
 .modal-panel--setco .dlg-val {
   padding-left: 10px; /* 옆 입력칸(.ord-in 10px 안쪽 여백)과 글자 시작을 맞춘다 */
@@ -534,7 +527,7 @@
 .settle-mstep__b:disabled { color: var(--c-text-dim); cursor: not-allowed; }
 .settle-mstep__t {
   padding: 0 4px; font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
-  white-space: nowrap; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ── 표 카드 ── */
@@ -548,7 +541,7 @@
   padding: 13px 20px; border-bottom: 1px solid var(--c-fill-1);
   font-size: var(--fs-14); color: var(--c-text-4);
 }
-.settle-sumline b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.settle-sumline b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .settle-sumline b.is-unpaid { color: var(--c-orange-ink-strong); }
 .settle-sumline__note { margin-left: auto; font-size: var(--fs-13); }
 
@@ -583,7 +576,7 @@
 /* 7자리 금액도 꺾이지 않는다(예전 110px 칸에서 '1,000,000원' 이 두 줄이었다). 2차 시안: '바뀜' 칩이 금액 오른쪽에 붙는다 */
 .settle-td--amt {
   justify-content: flex-end; padding: 0 14px 0 6px;
-  font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14); font-weight: var(--fw-semibold); color: var(--c-text-strong);
 }
 .settle-amt { flex: 0 0 auto; }
 /* 고쳐서 0원인 달 · 거래 없는 달(0원 주문만 있는 달 포함)은 세 상태 칸을 한 칸으로 */
@@ -593,7 +586,7 @@
    지난 달) · 기한 초과 · 발급 전에 머묾 / 호박 = 약관 동의 전 · 자동 동의 보류('… · 마감 뒤 직접 동의 가능') */
 .settle-td--detail {
   display: block; overflow: hidden; text-overflow: ellipsis;
-  font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; line-height: 48px;
+  font-size: var(--fs-13); color: var(--c-text-4); line-height: 48px;
 }
 .settle-td--detail.is-hot { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
 .settle-td--detail.is-amb { color: var(--c-amber-ink); font-weight: var(--fw-semibold); }
@@ -663,7 +656,7 @@
   font-size: var(--fs-11); font-weight: var(--fw-bold);
 }
 /* 주문번호·취소일이 이 줄의 핵심이라 말줄임하지 않고 꺾는다(1280 에서 품목 카드가 좁아 'B2B-…' 로 잘렸다 — 실측) */
-.settle-it__nt { min-width: 0; font-variant-numeric: tabular-nums; line-height: 1.4; }
+.settle-it__nt { min-width: 0; line-height: 1.4; }
 .settle-it__nt > span { white-space: nowrap; } /* 꺾는 자리는 ' · ' 뿐 — 주문번호 'B2B-0045' 가 하이픈에서 갈리지 않게 */
 .settle-it--fee .settle-it__n { white-space: normal; }
 /* 머리 캡션 'N건 · 수수료 N건 · 고치면 바로 다시 계산' — 좁은 카드(1280)에서 넘치지 않게 꺾어 오른쪽에 붙인다 */
@@ -671,12 +664,12 @@
 /* '이 거래처 · M월 주문 고치기/보기 ›' + 캡션('배송일이 M월인 주문') */
 .settle-it__go { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 12px; }
 .settle-it__gocap { font-size: var(--fs-12); color: var(--c-text-4); white-space: nowrap; }
-.settle-it__q { color: var(--c-text-4); font-variant-numeric: tabular-nums; }
-.settle-it__a { text-align: right; font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.settle-it__q { color: var(--c-text-4); }
+.settle-it__a { text-align: right; font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .settle-it--rest .settle-it__n { color: var(--c-text-4); }
 .settle-itsum {
   display: flex; justify-content: space-between; padding-top: 9px;
-  font-size: var(--fs-14); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14); color: var(--c-text-strong);
 }
 .settle-itsum b { font-weight: var(--fw-semibold); }
 /* 처리 — 정산·회계 담당자 한 줄 + 동작마다 [이름 · 할 수 있는지/못 하는 이유 · 버튼] */
@@ -713,7 +706,7 @@
   border-bottom: 1px solid var(--c-fill-1); font-size: var(--fs-13); line-height: 1.45;
 }
 .settle-log:last-child { border-bottom: 0; }
-.settle-log__t { color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+.settle-log__t { color: var(--c-text-4); }
 .settle-log__w { min-width: 0; }
 .settle-log__w b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .settle-log__w span { display: block; color: var(--c-text-4); }
@@ -735,7 +728,7 @@
 .settle-chg { margin-top: 14px; }
 .settle-card__hd .settle-chg__line {
   min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-orange-ink-strong);
-  font-variant-numeric: tabular-nums; white-space: normal; text-align: right;
+  white-space: normal; text-align: right;
 }
 .settle-chg__row {
   display: grid; grid-template-columns: 104px 116px 100px 196px minmax(0, 1fr); gap: 12px; align-items: baseline;
@@ -743,9 +736,8 @@
 }
 .settle-chg__row--hd { padding: 7px 0 5px; border-top: 0; font-size: var(--fs-12); font-weight: var(--fw-semibold); color: var(--c-text-4); }
 .settle-chg__row > * { min-width: 0; overflow-wrap: anywhere; }
-.settle-chg__t, .settle-chg__no { font-variant-numeric: tabular-nums; }
 .settle-chg__t { color: var(--c-text-2); }
-.settle-chg__d { font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.settle-chg__d { font-weight: var(--fw-semibold); }
 .settle-chg__r { color: var(--c-text-2); word-break: keep-all; }
 .settle-chg__r.is-none { color: var(--c-text-4); }
 

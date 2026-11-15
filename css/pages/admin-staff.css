@@ -6,9 +6,9 @@
    ============================================================ */
 
 /* ── 목록 셀 타이포 ─────────────────────────────────────── */
-.staff-no { color: var(--c-text-muted); font-variant-numeric: tabular-nums; font-size: var(--fs-13); }
+.staff-no { color: var(--c-text-muted); font-size: var(--fs-13); }
 .staff-name { font-weight: var(--fw-bold); color: var(--c-text-strong); }
-.staff-phone { font-variant-numeric: tabular-nums; color: var(--c-text-3); }
+.staff-phone { color: var(--c-text-3); }
 .staff-dept--empty { color: var(--c-text-faint); }
 
 /* ── 계정·권한 (구 시스템 '사용자 리스트' 흡수) ───────────── */

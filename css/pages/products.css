@@ -134,7 +134,6 @@
 .page-products .prod-savecount b {
   color: var(--c-text-strong);
   font-weight: var(--fw-semibold);
-  font-variant-numeric: tabular-nums;
 }
 .page-products .prod-savebtn {
   height: 40px;
@@ -281,7 +280,6 @@
   font-size: var(--fs-15);
   font-weight: var(--fw-semibold);
   color: var(--c-text-strong);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── 상세 패널 ───────────────────────────────────────────
@@ -379,7 +377,6 @@
   font-weight: var(--fw-semibold);
   letter-spacing: -0.025em;
   color: var(--c-text-strong);
-  font-variant-numeric: tabular-nums;
 }
 .page-products .prod-card__desc {
   margin-top: var(--sp-5);

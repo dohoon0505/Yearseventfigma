@@ -627,7 +627,7 @@
   transition: background 0.15s, color 0.15s;
 }
 .tbl-users:hover { background: var(--c-blue-soft); }
-.tbl-users__n { font-size: var(--fs-11); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.tbl-users__n { font-size: var(--fs-11); font-weight: var(--fw-semibold); }
 .tbl-users.is-empty { color: var(--c-text-dim); }
 .tbl-users.is-empty:hover { background: var(--c-surface-hover); color: var(--c-text-3); }
 
@@ -1003,7 +1003,6 @@
 
 /* ── 목록 셀 ────────────────────────────────────────────── */
 .ord-dim { color: var(--c-text-muted); }
-.ord-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .ord-dt2 .ord-mono, .ord-dim .ord-mono { color: var(--c-text-3); font-size: var(--fs-13); }
 /* 접수/배송 일시 — 한 컬럼에 2줄 스택(라벨 + 전체 날짜시각) */
 .ord-dt2 { display: flex; flex-direction: column; gap: 4px; }
@@ -1015,7 +1014,7 @@
 }
 .ord-dt2__lbl--dv { color: var(--c-orange-ink); background: var(--c-orange-soft); } /* 배송 강조 */
 .ord-dt2 .ord-mono { font-size: 12.5px; }
-.ord-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.ord-amt { font-weight: var(--fw-bold); color: var(--c-text-strong); }
 /* 사진·알림 존재여부 플래그 (아이콘 온/오프) */
 .ord-flag { display: inline-flex; color: var(--c-text-faint); }
 .ord-flag--photo.on { color: var(--c-blue); }
@@ -1084,7 +1083,7 @@
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: transparent; border: 1px solid transparent; border-radius: var(--r-lg);
   font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong);
-  font-variant-numeric: tabular-nums; text-align: left;
+  text-align: left;
   transition: background 0.15s, border-color 0.15s;
 }
 .ord-dtp__trigger:hover { background: var(--c-fill-1); }
@@ -1129,7 +1128,7 @@
 .ord-dtp .cal-dow.sat { color: var(--c-text-4); }
 .ord-dtp .cal-day {
   height: 40px; border-radius: var(--r-xl); display: grid; place-items: center;
-  font-size: var(--fs-14); color: var(--c-text-2); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14); color: var(--c-text-2);
   transition: background 0.1s;
 }
 .ord-dtp .cal-day.sun { color: var(--c-danger-ink); }
@@ -1157,7 +1156,7 @@
   padding-bottom: 9px; margin-bottom: 12px; border-bottom: 1.5px solid var(--c-text-strong);
 }
 .ord-dtp__tlbl { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
-.ord-dtp__tcap { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
+.ord-dtp__tcap { font-size: var(--fs-13); color: var(--c-text-4); }
 .ord-dtp__row { display: flex; align-items: center; gap: 8px; }
 .ord-dtp__row .dd { position: relative; flex: 1; min-width: 0; }
 .ord-dtp__colon { flex: 0 0 auto; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-muted); }
@@ -1166,7 +1165,6 @@
   width: 100%; height: 38px; padding: 0 30px 0 12px; text-align: left;
   font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   background: var(--c-surface); border: 1px solid var(--c-border-input); border-radius: var(--r-lg);
-  font-variant-numeric: tabular-nums;
 }
 .modal-panel--ord .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
 .modal-panel--ordnew .ord-dtp .dd-trigger:hover { background: var(--c-surface-2); }
@@ -1191,7 +1189,7 @@
 }
 .ord-dtp__fval {
   min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-normal);
-  color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: var(--c-text-4); white-space: nowrap;
 }
 .ord-dtp__acts { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 /* 취소는 '연 시점의 값으로 되돌리기' 다 — 피커는 고를 때마다 write-through 하므로
@@ -1216,7 +1214,7 @@
    `.ord-hd` 를 앞에 붙여 (0,2,0) 으로 올린다. */
 .ord-hd .ord-hd__no {
   font-size: var(--fs-28); font-weight: var(--fw-semibold); color: var(--c-text-strong);
-  letter-spacing: -0.015em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  letter-spacing: -0.015em; white-space: nowrap;
 }
 .ord-hd__pill {
   display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px;
@@ -1414,8 +1412,7 @@
   outline: none; background: var(--c-surface);
   border-color: var(--c-indigo); box-shadow: var(--ring-field);
 }
-.ord-in--num { font-variant-numeric: tabular-nums; }
-.ord-in--won { color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+.ord-in--won { color: var(--c-orange-ink); }
 /* 거부된 금액 원문(order-fields.js parseWon) — 값은 저장되지 않았다는 신호. 포커스가 빠지면 커밋값으로 돌아간다 */
 .ord-in.is-bad, .ord-in.is-bad:focus { border-color: var(--c-danger); box-shadow: var(--ring-error); }
 textarea.ord-in {
@@ -1460,7 +1457,7 @@ textarea.ord-in {
 .ord-sum__lbl { font-size: var(--fs-14); color: var(--c-text-4); }
 .ord-sum__big {
   margin-top: 2px; font-size: var(--fs-22); font-weight: var(--fw-semibold);
-  color: var(--c-text-strong); font-variant-numeric: tabular-nums; line-height: 1.3;
+  color: var(--c-text-strong); line-height: 1.3;
 }
 .ord-sum__big.is-soon { color: var(--c-warn-soft-ink); }
 .ord-sum__big.is-past { color: var(--c-danger-ink); }
@@ -1524,7 +1521,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 /* 시각 — 첫 줄 오른쪽(float). 줄이 길어져도 시각이 한 세로줄에 선다. 최신 줄의 굵은 글씨를 물려받지 않는다. */
 .ord-hist__at {
   float: right; margin-left: 10px; font-size: var(--fs-12); font-weight: var(--fw-normal);
-  color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: var(--c-text-4); white-space: nowrap;
 }
 .ord-hist__line { margin-left: -14px; }
 .ord-hist__head { padding-left: 14px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
@@ -1657,7 +1654,6 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.modal-panel--ord .ord-val--num { font-variant-numeric: tabular-nums; }
 .modal-panel--ord .ord-val--lock { color: var(--c-text-2); }
 .modal-panel--ord .ord-val.is-empty { color: var(--c-text-4); font-weight: var(--fw-normal); }
 .ord-prodcell { min-width: 0; }
@@ -1666,13 +1662,13 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .ord-amtf { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .modal-panel--ord .ord-amtf__in {
   flex: 0 0 150px; width: 150px; padding: 0 10px; text-align: right;
-  font-size: var(--fs-17); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-17); color: var(--c-text-strong);
 }
 .ord-amtf__lock {
   flex: 0 0 150px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   height: 34px; padding: 0 10px; border-radius: var(--r-lg);
   background: var(--c-fill-1); border: 1px solid var(--c-border); color: var(--c-text-2);
-  font-size: var(--fs-17); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold);
 }
 .ord-amtf__lock .icon { flex: 0 0 auto; color: var(--c-text-4); }
 .ord-amtf__lock:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: -2px; }
@@ -1716,7 +1712,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
    새 모양이 아니다 · 자동 결정). 이 수정으로 금액이 바뀌면 줄이 호박 면, 금액이 진주황. 줄 자체(.ord-sum__v)의 규칙은 아래
    '요약' 구역의 한 벌이다 — 같은 선택자를 둘로 나눠 두면 뒤쪽의 `gap` 이 앞쪽의 `row-gap` 을 조용히 덮는다(실제로 그랬다). */
 .ord-sum__amtw { white-space: nowrap; } /* 금액 + '›' 는 함께 줄바꿈한다 */
-.ord-sum__amt { font-weight: var(--fw-bold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ord-sum__amt { font-weight: var(--fw-bold); color: var(--c-text-strong); white-space: nowrap; }
 .modal-panel--ord .ord-sum__row--settle.is-changed { background: var(--c-warn-soft-bg); }
 .modal-panel--ord .ord-sum__row--settle.is-changed:hover { background: var(--c-warn-soft-bg); filter: brightness(0.98); }
 .modal-panel--ord .ord-sum__row--settle.is-changed .ord-sum__amt { color: var(--c-orange-ink-strong); }
@@ -1741,8 +1737,8 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .sdlg-m__l { min-width: 0; }
 .sdlg-m__t { display: block; font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
-.sdlg-m__sub { display: block; margin-top: 1px; font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; }
-.sdlg-m__v { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sdlg-m__sub { display: block; margin-top: 1px; font-size: var(--fs-13); color: var(--c-text-4); }
+.sdlg-m__v { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; }
 .sdlg-m__before { font-size: var(--fs-15); color: var(--c-text-4); }
 .sdlg-m__arrow { color: var(--c-text-muted); }
 .sdlg-m__after { font-size: 19px; font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--c-text-strong); }
@@ -1850,7 +1846,6 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 }
 .dlg-hd__l { min-width: 0; }
 .dlg-hd__eyebrow { font-size: var(--fs-13); color: var(--c-text-4); }
-.dlg-hd__eyebrow.is-num { font-variant-numeric: tabular-nums; }
 .dlg-hd__t {
   margin-top: 2px; font-size: var(--fs-22); font-weight: var(--fw-semibold);
   color: var(--c-text-strong); letter-spacing: -0.015em; line-height: 1.35;
@@ -1862,7 +1857,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   border-radius: var(--r-pill); background: var(--c-surface-2);
   font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap;
 }
-.dlg-hd__count b { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.dlg-hd__count b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .dlg-x {
   width: 34px; height: 34px; flex: 0 0 34px; border-radius: var(--r-pill);
   display: grid; place-items: center; background: var(--c-surface-2); color: var(--c-text-3);
@@ -1905,7 +1900,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .dlg-row__unit { flex: 0 0 auto; font-size: var(--fs-14); color: var(--c-text-4); }
 /* 읽기 전용 값(주문 접수 확인의 요약) — 입력칸이 아니라는 게 보이게 테두리·hover 없이 값만 굵게 */
 .dlg-val { font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
-.dlg-val--won { color: var(--c-orange-ink); font-variant-numeric: tabular-nums; }
+.dlg-val--won { color: var(--c-orange-ink); }
 /* 목록 아래 보조 동작 한 줄(포털 보내는분의 '새 명의 등록') — openRowPicker 의 `after` */
 .dlg-after { margin-top: 14px; display: flex; justify-content: flex-end; }
 /* 값이 핵심인 칸만 굵게(이름·연락처·금액). 부서처럼 보조적인 값까지 600 이면
@@ -1976,7 +1971,6 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .dlg-pick__sub { display: block; font-size: var(--fs-13); color: var(--c-text-4); }
-.dlg-pick__sub.is-num { font-variant-numeric: tabular-nums; }
 /* 직원 디렉터리에서 사라진 기존 담당자 — 조용히 재배정되지 않게 맨 위에 남긴다 */
 .dlg-pick--orphan .dlg-pick__sub { color: var(--c-danger-ink); }
 .dlg-pick__badge {
@@ -2119,7 +2113,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .dpk-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .dpk-cell {
   height: 36px; border-radius: var(--r-lg);
-  font-size: var(--fs-14); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14); color: var(--c-text-strong);
   transition: background 0.1s;
 }
 .dpk-cell:hover { background: var(--c-surface-2); }
@@ -2281,7 +2275,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .rail-card__k { font-size: var(--fs-14); color: var(--c-rail-ink); }
 .rail-card__v {
   margin-top: 2px; font-size: var(--fs-21); font-weight: var(--fw-semibold);
-  color: var(--c-surface); font-variant-numeric: tabular-nums; word-break: break-all;
+  color: var(--c-surface); word-break: break-all;
 }
 .rail-card__btn {
   width: 100%; margin-top: 13px; height: 38px; border-radius: var(--r-pill);
@@ -2299,7 +2293,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .rail-card__sub { font-style: normal; font-size: var(--fs-14); color: var(--c-rail-ink); }
 .rail-card__v2 {
   margin-top: 5px; font-size: var(--fs-17); font-weight: var(--fw-semibold);
-  color: var(--c-surface); font-variant-numeric: tabular-nums;
+  color: var(--c-surface);
 }
 .rail-card__v--empty { color: var(--c-rail-ink); font-weight: var(--fw-medium); }
 /* 보조 동작 — 채워진 버튼이 카드마다 둘이면 무엇이 주된 행동인지 흐려진다 */
@@ -2357,7 +2351,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cli-hist__row.is-latest .cli-hist__lbl { font-weight: var(--fw-semibold); }
-.cli-hist__at { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-rail-ink); font-variant-numeric: tabular-nums; }
+.cli-hist__at { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-rail-ink); }
 .cli-hist__empty { font-size: var(--fs-12); line-height: 1.6; color: var(--c-rail-ink); }
 
 /* ── 거래 조건 카드 — 머리가 어둡다. 메모가 아니라 지켜야 하는 조건임을 톤으로 알린다 ──
@@ -2427,7 +2421,7 @@ button.ord-sum__row:hover { background: var(--c-surface-2); }
 .cli-tb__lead b { font-weight: var(--fw-bold); }
 .cli-tb__facts {
   display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px;
-  font-size: var(--fs-14); color: var(--c-text-strong); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14); color: var(--c-text-strong);
 }
 .cli-tb__facts b { font-weight: var(--fw-semibold); }
 .cli-tb__facts .cli-tb__dday { font-weight: var(--fw-bold); color: var(--c-danger-ink); }
@@ -2796,7 +2790,7 @@ label.ordnew-clisrch { cursor: text; }
   font-size: var(--fs-15); font-weight: var(--fw-semibold); color: var(--c-text-strong);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ordnew-cli__sub { font-size: var(--fs-13); color: var(--c-text-3); white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.ordnew-cli__sub { font-size: var(--fs-13); color: var(--c-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ordnew-cli__badge {
   flex: 0 0 auto; display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
   background: var(--c-surface-2); color: var(--c-text-3); font-size: var(--fs-12);
@@ -2813,7 +2807,7 @@ label.ordnew-clisrch { cursor: text; }
 .ordnew-clirow__k { flex: 0 0 66px; font-size: var(--fs-14); color: var(--c-text-3); }
 .ordnew-clirow__nm { flex: 0 1 auto; min-width: 0; font-size: var(--fs-17); font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--c-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ordnew-clirow__sub {
-  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-3); font-variant-numeric: tabular-nums;
+  flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--c-text-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ordnew-clirow__btn {
@@ -2851,7 +2845,7 @@ label.ordnew-clisrch { cursor: text; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ordnew-req__ph {
-  flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-3); font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; font-size: var(--fs-13); color: var(--c-text-3);
 }
 /* 연락처가 없는(또는 맞지 않는) 담당자 — 번호 자리가 빨간 '연락처 없음' · 그 줄을 고르면 줄 전체가 막힌 모양(시안 a5). */
 .ordnew-req__row.is-nophone .ordnew-req__ph { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
@@ -2961,7 +2955,7 @@ label.ordnew-clisrch { cursor: text; }
 }
 
 /* ── 2단계 ── */
-/* 주문금액 — [칸] 원. '원' 은 칸 밖이다(상세 창 S-06 과 같은 수법 — 칸에는 숫자만). 오른쪽 맞춤 · 숫자 폭 고르게.
+/* 주문금액 — [칸] 원. '원' 은 칸 밖이다(상세 창 S-06 과 같은 수법 — 칸에는 숫자만). 오른쪽 맞춤.
    상품·배송지 변경으로 직원 금액을 덮었으면 호박 면(`is-over`), 자동 금액과 다르면 호박 테두리(`is-manual`), 받을 수 없는 글자는
    빨강(`is-bad` — 공용 `.ord-in.is-bad` 테두리 + 빨간 면). 초점이 오면 평소 초점 모양이 이긴다. */
 .ordnew-amt { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -2990,7 +2984,7 @@ label.ordnew-clisrch { cursor: text; }
 /* 거래처 대표 연락처 — 읽기 전용 값 + 회색 꼬리표 */
 .ordnew-rep { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 0 8px; }
 .ordnew-rep b {
-  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-2); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .ordnew-rep span { flex: 0 0 auto; font-size: var(--fs-12); color: var(--c-text-3); white-space: nowrap; }
@@ -3006,7 +3000,7 @@ label.ordnew-clisrch { cursor: text; }
 .ordnew--b2b .ord-fdd .dd-opt.sel:hover { background: var(--c-surface-2); color: var(--c-text-strong); font-weight: var(--fw-semibold); }
 .ordnew--b2b .ord-fdd .dd-opt__l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ordnew--b2b .ord-fdd .dd-opt__l.is-none { color: var(--c-text-3); white-space: normal; }
-.ordnew--b2b .ord-fdd .dd-opt__r { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--c-text-muted); }
+.ordnew--b2b .ord-fdd .dd-opt__r { flex: 0 0 auto; color: var(--c-text-muted); }
 .ordnew--b2b .ord-fdd .dd-opt__r.is-con { color: var(--c-blue); }
 .ordnew--b2b .ord-fdd .dd-opt__r.is-amber { color: var(--c-amber-ink); }
 /* '발주정보' 카드 머리 오른쪽 — 정산 달 안내(배송일시의 달). 명세서가 나간 달이면 호박, 등록할 수 없는 달이면 빨강(시안 O-01). */
@@ -3063,7 +3057,7 @@ label.ordnew-clisrch { cursor: text; }
 .ordnew-rcli__k { font-size: var(--fs-12); color: var(--c-rail-muted); }
 .ordnew-rcli__nm { font-size: 19px; font-weight: var(--fw-semibold); letter-spacing: -0.015em; line-height: 1.35; color: var(--c-surface); word-break: keep-all; }
 .ordnew-rcli__nm.is-empty { color: var(--c-rail-muted); }
-.ordnew-rcli__meta { font-size: var(--fs-13); line-height: 1.5; color: var(--c-rail-ink); font-variant-numeric: tabular-nums; }
+.ordnew-rcli__meta { font-size: var(--fs-13); line-height: 1.5; color: var(--c-rail-ink); }
 /* 토막 묶음 — ' · ' 자리에서만 꺾는다(모양 없음 · 포털 정산회계 `.st-nw` 와 같은 수법 · 이식 검증 2의 5). */
 .ordnew-nw { white-space: nowrap; }
 /* 거래 조건 — 있을 때만(시안 O-01). 머리는 다크 면 경고 톤(--c-toast-warn), 본문은 흰 글자. 자체 스크롤은 두지 않는다(레일이 받는다). */
@@ -3090,7 +3084,7 @@ label.ordnew-clisrch { cursor: text; }
   font-size: 10px; line-height: 15px; font-style: normal; color: var(--c-rail-ink);
 }
 .ordnew-ntr__nm { min-width: 0; font-size: var(--fs-13); font-weight: var(--fw-medium); color: var(--c-surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ordnew-ntr__ph { font-size: var(--fs-12); color: var(--c-rail-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ordnew-ntr__ph { font-size: var(--fs-12); color: var(--c-rail-ink); white-space: nowrap; }
 .ordnew-ntr.is-dim .ordnew-ntr__nm { color: var(--c-rail-muted); }
 /* 끈 줄의 번호는 이름보다 한 단계 더 흐리다(시안 #8a8a8e — 이식 검증 1의 10). */
 .ordnew-ntr.is-dim .ordnew-ntr__ph { color: var(--c-text-muted); }
@@ -3140,7 +3134,7 @@ label.ordnew-clisrch { cursor: text; }
   flex: 0 0 auto; padding: 1px 7px; border-radius: var(--r-pill); background: var(--c-fill-1);
   font-size: var(--fs-11); font-style: normal; color: var(--c-text-3);
 }
-.ntl-row__sub { display: block; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.ntl-row__sub { display: block; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-3); }
 .ntl-row__sub.is-amber, .ntl-ex__msg.is-amber { color: var(--c-amber-ink); }
 .ntl-row__sub.is-red, .ntl-ex__msg.is-red { color: var(--c-danger-ink); }
 .ntl-row__sw { display: flex; align-items: center; gap: 8px; }
@@ -3163,7 +3157,6 @@ label.ordnew-clisrch { cursor: text; }
 }
 .ntl-del:hover { background: var(--c-danger-bg); color: var(--c-danger-ink); }
 .ntl-none { padding: 14px 0 2px; font-size: var(--fs-14); color: var(--c-text-3); }
-.ntl-num { font-variant-numeric: tabular-nums; }
 .ntl-addrow { display: flex; align-items: center; gap: 12px; padding-top: 12px; }
 .ntl-add {
   flex: 0 0 auto; height: 36px; padding: 0 15px; border-radius: var(--r-pill);
@@ -3272,7 +3265,7 @@ label.ordnew-clisrch { cursor: text; }
 .dlg-kv__k { font-size: var(--fs-13); color: var(--c-text-4); }
 .dlg-kv__v {
   margin-top: 2px; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.4;
-  color: var(--c-text-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+  color: var(--c-text-strong); overflow-wrap: anywhere;
 }
 .dlg-kv__v.is-warn { color: var(--c-danger-ink); }
 /* 서버 응답 상자 — 오류(role=alert)는 거부 사유를, 성공(role=status)은 결과(승인번호 등)를 말한다 */
@@ -3286,7 +3279,7 @@ label.ordnew-clisrch { cursor: text; }
 .dlg-box--err .dlg-box__b { color: var(--c-danger-ink-strong); }
 .dlg-box--ok { background: var(--c-success-bg); }
 .dlg-box--ok .dlg-box__t { color: var(--c-success-ink); }
-.dlg-box--ok .dlg-box__b { color: var(--c-text-2); font-variant-numeric: tabular-nums; }
+.dlg-box--ok .dlg-box__b { color: var(--c-text-2); }
 /* 안내 면(.dlg-note)의 제목 줄 + 색 — 회색(기본)·호박(주의)·빨강(기한 초과) */
 .dlg-note__t { display: block; font-size: var(--fs-14); line-height: 1.45; }
 .dlg-note__b { margin-top: 3px; font-size: var(--fs-14); line-height: 1.55; color: var(--c-text-2); }
@@ -3450,7 +3443,7 @@ label.ordnew-clisrch { cursor: text; }
   font-size: var(--fs-18); font-weight: var(--fw-semibold); letter-spacing: -0.01em; line-height: 1.5; color: var(--c-text-strong);
   border-radius: 4px;
 }
-.lgd-art__no { font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.lgd-art__no { flex: 0 0 auto; }
 .lgd-art.is-deleted .lgd-art__h { color: var(--c-text-faint); }
 /* 조 제목 · 부칙 머리 · 머리말은 차례·요약이 옮겨 주는 초점 자리다(조작 컨트롤이 아니다) — 키보드로 옮겨 왔을 때만 링(시안 offset 4px). */
 .lgd-art__h:focus, .lgd-bu__h:focus, .lgd-pre:focus { outline: none; }
@@ -3567,7 +3560,7 @@ label.ordnew-clisrch { cursor: text; }
 /* 요약 · 동의서 글 */
 .tdlg-sum__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .tdlg-sum__hd b { font-size: var(--fs-17); font-weight: var(--fw-semibold); color: var(--c-text-strong); }
-.tdlg-sum__hd span { font-size: var(--fs-13); color: var(--c-text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tdlg-sum__hd span { font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap; }
 .tdlg-note {
   margin: 10px 0 0; padding: 10px 14px; background: var(--c-surface-2); border-radius: var(--r-xl);
   font-size: 13.5px; line-height: 1.6; color: var(--c-text-2); word-break: keep-all;
@@ -3589,7 +3582,7 @@ label.ordnew-clisrch { cursor: text; }
 .tdlg-con__list > li {
   display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 0 6px; padding: 12px 0; border-bottom: 1px solid var(--c-fill-1);
 }
-.tdlg-con__no { font-size: var(--fs-14); font-weight: var(--fw-bold); line-height: 1.5; color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.tdlg-con__no { font-size: var(--fs-14); font-weight: var(--fw-bold); line-height: 1.5; color: var(--c-text-strong); }
 .tdlg-con__t { margin: 0; font-size: var(--fs-15); font-weight: var(--fw-semibold); line-height: 1.5; color: var(--c-text-strong); }
 .tdlg-con__ln { margin: 3px 0 0; padding-left: 1em; text-indent: -1em; font-size: var(--fs-14); line-height: 1.6; color: var(--c-text-body); word-break: keep-all; }
 /* 전문 탭의 '조 바로 가기' — 글 칸 맨 위에 붙어 있어(sticky) 어디를 읽든 고를 수 있다(시안의 '전문을 읽는 중 — 제28조' 프레임). 굴리면 지금 조를 따라간다. */

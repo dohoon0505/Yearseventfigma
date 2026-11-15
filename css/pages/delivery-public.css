@@ -6,8 +6,7 @@
    ============================================================ */
 
 /* Latin/숫자 전용 모노 (한글은 항상 본문 산세로) */
-.mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
-.tnum { font-variant-numeric: tabular-nums; }
+.mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
 
 /* ── Page shell ── */
 .dc { min-height: 100%; width: 100%; background: var(--c-bg); display: flex; flex-direction: column; align-items: center; }
@@ -70,7 +69,7 @@
 .seal { position: absolute; right: 18px; top: 16px; width: 64px; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transform: rotate(-7deg); }
 .seal__ring { position: absolute; inset: 0; border: 1.5px solid var(--c-orange-ink); border-radius: 50%; opacity: 0.16; }
 .seal__top { font-size: 9px; font-weight: var(--fw-bold); color: var(--c-text-faint); }
-.seal__date { margin-top: 1px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9px; color: var(--c-text-faint); font-variant-numeric: tabular-nums; }
+.seal__date { margin-top: 1px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9px; color: var(--c-text-faint); }
 
 /* ── Lightbox (사진 탭 → contain 보기) ── */
 .lightbox { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(17, 17, 24, 0.92); cursor: zoom-out; }

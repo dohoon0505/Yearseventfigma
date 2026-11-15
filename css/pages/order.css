@@ -10,7 +10,6 @@
    ============================================================ */
 .page-order { max-width: 840px; padding: 28px 32px 90px; }
 .page-order .page-title { margin-bottom: 18px; }
-.page-order .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
 /* ── 주문 시트 ── */
 .page-order .sheet { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 12px; box-shadow: 0 1px 6px rgba(17, 17, 24, 0.04); padding: 30px 36px 44px; }
@@ -218,7 +217,6 @@
    ⚠️ 옛 이름 `.modal-panel--ordconfirm` 은 공용 규격으로 합쳐진 이름이다(CLAUDE.md) — 되살리지 않고 새 이름을 쓴다. */
 .modal-panel--ordsubmit .ordsub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 32px; align-items: start; }
 .modal-panel--ordsubmit .ordsub__col { min-width: 0; }
-.modal-panel--ordsubmit .dlg-val { font-variant-numeric: tabular-nums; } /* 날짜·시각·번지 숫자 폭을 고르게(시안 — 금액만이 아니다) */
 /* 오른쪽 룰의 '이용약관 전문'(새 창) — 동의 창의 '개인정보 처리방침' 링크와 같은 모양 */
 .modal-panel--ordsubmit .ordsub-terms {
   display: inline-flex; align-items: center; gap: 3px; border-radius: 3px;
@@ -242,7 +240,6 @@
   display: inline-flex; align-items: center; gap: 2px; border-radius: 3px;
   font-weight: var(--fw-semibold); color: var(--c-text-strong); text-decoration: underline; text-underline-offset: 2px;
 }
-.modal-panel--ordsubmit .ordsub-num { font-variant-numeric: tabular-nums; }
 /* 체크 문구는 낱말 가운데서 꺾지 않는다('안 / 내를' — 시안 그림은 꺾였다 · 줄 수는 같다) · 줄 높이는 시안 1.5 */
 .modal-panel--ordsubmit .dlg-check { line-height: 1.5; word-break: keep-all; }
 /* 상자 안 ✓ 는 줄 높이 1(시안 — 11px). 위 1.5 를 물려받으면 16.5px 줄의 가운데에 서서 ✓ 가 1px 위로 떴다(검증 1 · 배율 3 실측).

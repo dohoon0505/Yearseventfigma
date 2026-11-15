@@ -144,7 +144,7 @@
   display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--c-divider-cool);
   font-size: var(--fs-14); color: var(--c-text);
 }
-.lg-foot__ver b { font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.lg-foot__ver b { font-weight: var(--fw-semibold); }
 .lg-foot__range { color: var(--c-text-4); }
 .lg-foot__go { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-blue); }
 .lg-foot__ver:hover .lg-foot__go { text-decoration: underline; text-underline-offset: 2px; }

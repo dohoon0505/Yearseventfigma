@@ -144,7 +144,7 @@
 .prc-cli__dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--c-warn-soft-ink); }
 .prc-cli__cnt {
   flex: 0 0 auto; min-width: 20px; text-align: right;
-  font-size: var(--fs-12); color: var(--c-text-faint); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12); color: var(--c-text-faint);
 }
 .prc-cli__cnt.is-on { color: var(--c-blue); font-weight: var(--fw-semibold); }
 .prc-cli.is-on .prc-cli__cnt { color: inherit; }
@@ -232,7 +232,6 @@
 }
 .prc-row__base {
   text-align: right; font-size: var(--fs-13); color: var(--c-text-muted);
-  font-variant-numeric: tabular-nums;
 }
 .prc-in { display: flex; align-items: center; gap: 6px; }
 .prc-in input {
@@ -240,7 +239,6 @@
   border: 1px solid var(--c-border-field); border-radius: var(--r-md);
   background: var(--c-surface); text-align: right;
   font-size: var(--fs-13); color: var(--c-text); outline: none;
-  font-variant-numeric: tabular-nums;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .prc-in input:focus { border-color: var(--c-indigo); box-shadow: var(--ring-field); }
@@ -274,9 +272,9 @@
   padding: 5px 0; font-size: var(--fs-13); color: var(--c-text-2);
 }
 .prc-pend__nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prc-pend__from { color: var(--c-text-muted); text-decoration: line-through; font-variant-numeric: tabular-nums; }
+.prc-pend__from { color: var(--c-text-muted); text-decoration: line-through; }
 .prc-pend__ar { color: var(--c-text-faint); flex: 0 0 auto; }
-.prc-pend__to { font-weight: var(--fw-semibold); color: var(--c-text-strong); font-variant-numeric: tabular-nums; }
+.prc-pend__to { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .prc-pend__ft { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .prc-save {
   display: inline-flex; align-items: center; gap: 6px;
@@ -300,8 +298,7 @@
    css/pages/settlement.css 아래쪽 '관리자 정산회계' 블록으로 옮겼다(예전 요약 카드 3장·가운데 정렬 규칙은 걷어냈다). */
 
 /* ══ ② 대시보드 카드 (.adash / .acard / .kpi) ═════════════════
-   카드 = 헤더 존(구분선) + 본문. 색상은 tokens.css 토큰만. 숫자는 .num. */
-.page-admin .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+   카드 = 헤더 존(구분선) + 본문. 색상은 tokens.css 토큰만. */
 .adash { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
 .adash .row-main { display: grid; grid-template-columns: 1.05fr 1.3fr; gap: 14px; }
 .adash .row-sub { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 14px; }
@@ -425,7 +422,7 @@
 /* 일정 한 줄 — 칸이 좁으면(1280: 회사명 칸 ≈ 220px) 띄어쓰기에서 접힌다. nowrap 이면 옆 칸으로 넘친다. */
 .cli-tsched {
   min-width: 0; font-size: var(--fs-13); line-height: 1.45; color: var(--c-text-4);
-  font-variant-numeric: tabular-nums; word-break: keep-all;
+  word-break: keep-all;
 }
 .cli-tsched.is-hot { color: var(--c-danger-ink); font-weight: var(--fw-semibold); }
 /* 날짜·시각 한 덩어리('10-28 13:00') — 하이픈 뒤에서도 줄이 접혀 '10- / 28 13:00' 으로 갈렸다(1280 실측). 덩어리 앞뒤 띄어쓰기에서만 접는다. */
@@ -434,7 +431,7 @@
 .cli-grpnote { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--c-amber-ink); }
 /* '약관 동의 전만 보기' 칩 — 탭 줄 오른쪽(공용 .bf-chip). 상태 탭을 늘리지 않는다(시안). */
 .cli-termsslot { margin-left: auto; padding-left: 16px; display: flex; align-items: center; }
-.cli-termsonly__n { font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.cli-termsonly__n { font-weight: var(--fw-bold); }
 .cli-termsonly:focus-visible { outline: 2px solid var(--c-indigo); outline-offset: 2px; }
 /* 거래처 목록의 나머지 키보드 초점 — 상태 탭 · '신규 거래처 등록' · 사업자번호 묶음 줄. 전역 링(1.11:1)뿐이었다(2026-10-19 실측).
    스코프 `.page-clients` 는 이 화면 루트에만 있다(admin-clients.js) — `.page-admin` 은 주문·대쉬보드·단가 화면도 쓰므로

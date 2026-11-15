@@ -30,14 +30,14 @@
 .dsh-kpi__l { font-size: 12.5px; color: var(--c-text-muted); font-weight: var(--fw-medium); }
 .dsh-kpi__v {
   font-size: 24px; font-weight: var(--fw-bold); color: var(--c-text-strong);
-  letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 6px; line-height: 1.25;
+  letter-spacing: -0.02em; margin-top: 6px; line-height: 1.25;
 }
 .dsh-kpi__v.is-danger { color: var(--c-danger-ink); }
 .dsh-kpi__tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 
 .dsh-tag {
   font-size: 11.5px; font-weight: var(--fw-bold); padding: 2.5px 9px;
-  border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap;
+  border-radius: 999px; white-space: nowrap;
 }
 .dsh-tag--brand { background: var(--c-orange-soft); color: var(--c-orange-ink); }
 .dsh-tag--blue { background: var(--c-blue-soft); color: var(--c-blue); }
@@ -104,15 +104,15 @@
 .dsh-clock--hot { background: var(--c-orange-soft); color: var(--c-orange-ink); }
 .dsh-clock--over { background: var(--c-danger-bg); color: var(--c-danger-ink); }
 .dsh-clock--warm { background: var(--c-orange-soft); color: var(--c-orange-ink); }
-.dsh-clock__l { font-size: var(--fs-14); font-weight: var(--fw-bold); white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; line-height: 1.3; }
-.dsh-clock__e { font-size: 10.5px; opacity: 0.75; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.dsh-clock__l { font-size: var(--fs-14); font-weight: var(--fw-bold); white-space: nowrap; letter-spacing: -0.01em; line-height: 1.3; }
+.dsh-clock__e { font-size: 10.5px; opacity: 0.75; white-space: nowrap; line-height: 1.3; }
 
 .dsh-q__main { flex: 1; min-width: 0; }
 .dsh-q__place { font-size: 14.5px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.01em; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-q__sub { font-size: 12.5px; color: var(--c-text-5); line-height: 1.45; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsh-q__prod { flex: 0 0 132px; min-width: 0; text-align: right; }
 .dsh-q__p { font-size: 13.5px; font-weight: var(--fw-semibold); color: var(--c-text); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsh-q__a { font-size: 12.5px; color: var(--c-text-5); line-height: 1.45; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.dsh-q__a { font-size: 12.5px; color: var(--c-text-5); line-height: 1.45; margin-top: 2px; }
 .dsh-q__dv { flex: 0 0 1px; width: 1px; height: 30px; background: var(--c-fill-1); }
 .dsh-q__cta {
   flex: 0 0 92px; height: 34px; border-radius: var(--r-md);
@@ -129,12 +129,12 @@
 .dsh-bars--tight { gap: 4px; height: 130px; margin-top: 16px; }
 .dsh-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; height: 100%; }
 .dsh-bars--tight .dsh-bar { gap: 5px; }
-.dsh-bar__v { font-size: 11px; font-weight: var(--fw-semibold); color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.dsh-bar__v { font-size: 11px; font-weight: var(--fw-semibold); color: var(--c-text-muted); }
 .dsh-bar__v.is-on { color: var(--c-orange-ink); font-weight: var(--fw-bold); }
 .dsh-bar__r { width: 100%; max-width: 56px; border-radius: 7px 7px 3px 3px; background: var(--c-fill-3); }
 .dsh-bars--tight .dsh-bar__r { border-radius: 4px 4px 2px 2px; }
 .dsh-bar__r.is-on { background: var(--c-orange); }
-.dsh-bar__l { font-size: 11px; color: var(--c-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dsh-bar__l { font-size: 11px; color: var(--c-text-muted); white-space: nowrap; }
 .dsh-bar__l.is-on { color: var(--c-orange-ink); font-weight: var(--fw-bold); }
 
 /* ── 가입 승인 대기 ──────────────────────────────────────── */
@@ -154,7 +154,7 @@
 .dsh-pill {
   display: inline-flex; align-items: center; flex-shrink: 0;
   height: 24px; padding: 0 10px; border-radius: var(--r-pill);
-  font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap; font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12); font-weight: var(--fw-bold); white-space: nowrap;
 }
 .dsh-pill--warn { background: var(--c-warn-soft-bg); color: var(--c-amber-ink); }
 .dsh-pill--danger { background: var(--c-danger-bg); color: var(--c-danger-ink); }
@@ -192,13 +192,13 @@ button.dsh-pill:focus-visible { outline: 2px solid var(--c-indigo); outline-offs
 .dsh-tw__m--open { --tw-bar: var(--c-orange); }
 .dsh-tw__m--before { --tw-bar: var(--c-warn); }
 /* 좁은 열(1280 — 407px)에서 '발급 예정 (D-3)' · 0원 안내가 꺾인다 — 낱말 가운데서 끊지 않게 keep-all. */
-.dsh-tw__line { margin: 0; font-size: var(--fs-13); line-height: 1.5; color: var(--c-text-2); font-variant-numeric: tabular-nums; word-break: keep-all; }
+.dsh-tw__line { margin: 0; font-size: var(--fs-13); line-height: 1.5; color: var(--c-text-2); word-break: keep-all; }
 .dsh-tw__line--2 { margin-top: 1px; }
 .dsh-tw__line--late { color: var(--c-danger-ink); }
 .dsh-tw__tag { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .dsh-tw__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
 /* 연락 줄 — 보조 글자는 --c-text-4(13px 에서 5.7:1). --c-text-muted 는 AA 미달. */
-.dsh-tw__ct { min-width: 0; font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.dsh-tw__ct { min-width: 0; font-size: var(--fs-13); color: var(--c-text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsh-tw__ct b { font-weight: var(--fw-semibold); color: var(--c-text-strong); }
 .dsh-tw__open {
   flex-shrink: 0; height: 30px; padding: 0 12px; border-radius: var(--r-pill);
@@ -226,27 +226,27 @@ button.dsh-pill:focus-visible { outline: 2px solid var(--c-indigo); outline-offs
 .dsh-donut svg { width: 100%; height: 100%; display: block; }
 .dsh-donut__c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; pointer-events: none; }
 .dsh-donut__cap { font-size: 10px; color: var(--c-text-muted); white-space: nowrap; }
-.dsh-donut__t { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.dsh-donut__o { font-size: 10px; color: var(--c-text-5); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dsh-donut__t { font-size: 15px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.02em; white-space: nowrap; }
+.dsh-donut__o { font-size: 10px; color: var(--c-text-5); white-space: nowrap; }
 
 .dsh-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
 .dsh-lg { min-width: 0; }
 .dsh-lg__h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .dsh-lg__n { font-size: 12.5px; font-weight: var(--fw-semibold); color: var(--c-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dsh-lg__p { font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-text-strong); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dsh-lg__p { font-size: 12.5px; font-weight: var(--fw-bold); color: var(--c-text-strong); white-space: nowrap; }
 .dsh-lg__track { height: 6px; border-radius: 3px; background: var(--c-surface-2); overflow: hidden; }
 .dsh-lg__bar { display: block; height: 100%; border-radius: 3px; }
 
 .dsh-legend2 { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--c-fill-1); }
 .dsh-lg2 { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--c-text-3); white-space: nowrap; }
-.dsh-lg2 b { color: var(--c-text-strong); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.dsh-lg2 b { color: var(--c-text-strong); font-weight: var(--fw-bold); }
 .dsh-lg2__d { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; }
 
 /* ── 거래처 계약 통계 ────────────────────────────────────── */
 .dsh-cstat { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.dsh-cstat__v { font-size: 24px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.dsh-cstat__v { font-size: 24px; font-weight: var(--fw-bold); color: var(--c-text-strong); letter-spacing: -0.02em; }
 .dsh-cstat__s { font-size: 12.5px; color: var(--c-text-5); }
-.dsh-cstat__c { font-size: 11.5px; color: var(--c-text-ghost); margin-left: auto; font-variant-numeric: tabular-nums; }
+.dsh-cstat__c { font-size: 11.5px; color: var(--c-text-ghost); margin-left: auto; }
 .dsh-cfoot {
   display: flex; justify-content: space-between; gap: 10px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--c-fill-1);

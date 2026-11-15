@@ -67,7 +67,6 @@
 .page-profile .pf-count {
   color: var(--c-text-muted);
   font-weight: var(--fw-normal);
-  font-variant-numeric: tabular-nums;
 }
 .page-profile .pf-card__hdl p {
   margin-top: var(--sp-2);
@@ -131,15 +130,11 @@
 }
 .page-profile .pf-no {
   color: var(--c-text-muted);
-  font-variant-numeric: tabular-nums;
 }
 .page-profile .pf-strong {
   font-size: var(--fs-15);
   font-weight: var(--fw-semibold);
   color: var(--c-text-strong);
-}
-.page-profile .pf-num {
-  font-variant-numeric: tabular-nums;
 }
 .page-profile .pf-ink {
   color: var(--c-text-strong);
