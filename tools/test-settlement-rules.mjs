@@ -15,7 +15,7 @@ import {
   editLockDayOf, noticeState,
 } from "../js/data/settlement-rules.js";
 import * as RULES from "../js/data/settlement-rules.js";
-import { TERMS_DOC, TERMS_VERSION, TERMS_SUMMARY, SETTLEMENT_ARTICLE_TITLE } from "../js/data/terms.js";
+import { TERMS_DOC, TERMS_VERSION, TERMS_SUMMARY, TERMS_PAST, SETTLEMENT_ARTICLE_TITLE } from "../js/data/terms.js";
 import { PRIVACY_POLICY_DOC } from "../js/data/privacy-policy.js";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -335,7 +335,7 @@ eq("약관 ②: 마감 시각", clause2.includes(`13:00`) && DEADLINE_HOUR === 1
 eq("약관 ⑤: 무리 범위가 ②와 같다", (clause[4] || "").includes(`${early[0]}일~${early[early.length - 1]}일`) && (clause[4] || "").includes(`${late[0]}일~${late[late.length - 1]}일`), true);
 eq("약관 ⑥: '수정할 수 없다' 가 남아 있지 않다", /취소·수정할 수 없/.test(clause[5] || ""), false);
 /* 2026-10-23 운영자 결정 D4 — ①에 미발급 단서 · ②④에서 '이의' 절차를 빼고 오류 알림·고친 금액. ③⑤⑥항은 그대로 */
-eq("약관 전문: 판을 올렸다(게시한 날 — 2026-11-12 사용자 결정 · 모든 거래처가 다음 로그인 때 다시 동의)", TERMS_VERSION, "2026-11-12");
+eq("약관 전문: 판을 올렸다(게시한 날 — 2026-11-15 본문 글 손질 · 모든 거래처가 다음 로그인 때 다시 동의)", TERMS_VERSION, "2026-11-15");
 eq("약관 D4: 항 수·번호는 그대로(6항 — '④항(자동 동의)' 로 부른다)", settleArt ? settleArt.paras.map((p) => p.n).join("") : "", "①②③④⑤⑥");
 eq("약관 D4 ①: 거래 없는 달·0원 거래만 있는 달은 발급하지 않는다(결정 B 와 같은 말)",
   (clause[0] || "").endsWith("다만 전월에 거래가 없거나 금액이 0원인 거래만 있는 경우에는 거래명세서를 발급하지 않는다."), true);
@@ -392,15 +392,16 @@ eq("약관·처리방침: 실제 회사 값 없음 — 회사 정보는 자리�
 
 /* ── 개인정보 수집·이용 동의서(2026-10-23 운영자 결정 D6 — 약관과 따로 · 문안은 운영자 확정 낱말 그대로) ──
    2026-11-11 판(V8 — 새 동의서 문안 확정 · B3 협력 화원 · B4 동의서에 없던 정보 · P2 주문을 낸 사람 이름 5년 · P4 보관 기간). 기대 문장은
-   처리방침 v0.3 제2조 ① · 제4조 ① · 제7조 ② · 제10조 ① 과 명세 8.5 인용문 그대로다(' / ' = 줄 나눔). 4번·6번은 예전 판 그대로. */
+   처리방침 v0.3 제2조 ① · 제4조 ① · 제7조 ② · 제10조 ① 과 명세 8.5 인용문 그대로다(' / ' = 줄 나눔). 4번·6번은 예전 판 그대로.
+   2026-11-15 판(본문 글 손질 — 화면 글 규칙 · 뜻 같음): 비밀번호 '알아볼 수 없게 바꿔 저장' → '변환해 저장' 한 낱말. */
 const pv = (t) => (PRIVACY.items.find((x) => x.t === t) || { lines: [] }).lines;
-eq("개인정보 V8: 버전을 올렸다(모든 거래처가 다음 로그인 때 다시 동의)", PRIVACY_VERSION, "2026-11-11");
+eq("개인정보: 판을 올렸다(2026-11-15 본문 글 손질 · 모든 거래처가 다음 로그인 때 다시 동의)", PRIVACY_VERSION, "2026-11-15");
 eq("개인정보 D6: 제목", PRIVACY.title, "개인정보 수집·이용 동의");
 eq("개인정보 D6: 여섯 항목 · 순서", PRIVACY.items.map((x) => x.t).join("|"), "모으는 항목|쓰는 목적|보관 기간|동의하지 않을 권리|맡기는 업체|다른 사람의 정보");
 eq("개인정보 D6: 줄마다 글자가 있다", PRIVACY.items.every((x) => x.lines.length > 0 && x.lines.every((l) => typeof l === "string" && l.trim() === l && l.length > 0)), true);
 eq("개인정보 V8/B4: 모으는 항목 — 계정 · 사업자 정보 · 발송인 프로필 · 주문 내용 · 배송 확인 · 처리 기록까지 일곱 줄",
   pv("모으는 항목").join(" / "),
-  "가입: 접속 아이디, 비밀번호(알아볼 수 없게 바꿔 저장), 정산·회계 담당자 성함·부서·직위·연락처, 대표자명, 계산서 받을 이메일 / 사업자 정보: 회사명, 사업자등록번호, 사업장 주소, 계정 구분, 사업자등록증 사본 / 담당자 저장공간: 담당자 성함·연락처·부서 / 발송인 프로필: 성함, 직위, 고정문구, 배송완료 알림 받을 번호 / 주문: 받는 분·보내는 분·주문 요청자·배송완료 알림 추가 수신자의 이름·연락처, 주문을 낸 사람 이름, 배송지, 리본 문구, 요청사항 / 배송 확인: 인수자 이름, 현장 사진 / 서비스를 쓰는 동안 생기는 기록: 로그인·처리 기록과 IP 주소, 알림 발송 기록");
+  "가입: 접속 아이디, 비밀번호(알아볼 수 없게 변환해 저장), 정산·회계 담당자 성함·부서·직위·연락처, 대표자명, 계산서 받을 이메일 / 사업자 정보: 회사명, 사업자등록번호, 사업장 주소, 계정 구분, 사업자등록증 사본 / 담당자 저장공간: 담당자 성함·연락처·부서 / 발송인 프로필: 성함, 직위, 고정문구, 배송완료 알림 받을 번호 / 주문: 받는 분·보내는 분·주문 요청자·배송완료 알림 추가 수신자의 이름·연락처, 주문을 낸 사람 이름, 배송지, 리본 문구, 요청사항 / 배송 확인: 인수자 이름, 현장 사진 / 서비스를 쓰는 동안 생기는 기록: 로그인·처리 기록과 IP 주소, 알림 발송 기록");
 eq("개인정보 V8/B3/B4: 쓰는 목적 — 가입 심사 · 협력 화원 · 배송 확인 · 보안과 처리 기록을 더한 여섯 줄",
   pv("쓰는 목적").join(" / "),
   "가입 심사와 계정 관리 / 주문 접수와 배송(협력 화원에 제작·배송을 맡기는 일 포함) / 배송 확인(현장 사진·인수자) / 주문·배송·정산 알림(알림톡·문자) / 거래명세서·계산서 발급, 문의 응대 / 보안과 처리 기록");
@@ -410,6 +411,53 @@ eq("개인정보 D7/P2/P4: 보관 기간 — 주문 기록(주문을 낸 사람 
 eq("개인정보 V8/B3: 맡기는 업체 — 바로빌 · 알리고 · 협력 화원", pv("맡기는 업체").join(" / "), "계산서 발급 대행: 바로빌 / 알림톡·문자 발송 대행: 알리고 / 상품 제작과 배송: 배송 지역별 협력 화원(꽃집)");
 eq("개인정보 D6: 동의하지 않을 권리(예전 판 그대로)", pv("동의하지 않을 권리").join(" / "), "동의하지 않을 수 있지만, 그러면 가입과 주문을 할 수 없습니다.");
 eq("개인정보 D6: 다른 사람의 정보(예전 판 그대로)", pv("다른 사람의 정보").join(" / "), "받는 분·추가 수신자처럼 다른 사람의 이름·연락처를 적을 때는, 그 사람에게 배송 알림이 간다는 사실을 미리 알려 주세요.");
+
+/* ── 법률 글의 화면 글 규칙(2026-11-15 사용자 지시 '약관 본문도 같은 규칙으로' — CLAUDE.md '화면 글 규칙') ──
+   화면에 보이는 글(약관 전문 · 처리방침 전문 · 개인정보 동의서 · 동의 창 요약)에 문장을 잇는 '—' 가 없고 '배송한 달' · '바뀌다' 꼴이 없다.
+   예외: 대괄호 표지('[서버 계획 — 출시 때 확인]' · '[회사 정보 — 게시본에서 채움: 상호]' 등 — 게시 전에 지우거나 채우는 내부 표지이고
+   legal-doc.js 가 회사 정보 표지 글자를 그대로 찾는다)는 걷어 내고 본다. 처리방침 제5조 ② 표의 칸 구분 '—' 는 build-legal 이 세 칸으로
+   나눠 글에 남지 않으므로 표 칸 글자도 그대로 본다. 지난 판(TERMS_PAST — 2026-11-12 판)은 그때 글을 얼린 사본이라 보지 않는다.
+   알림톡 템플릿 본문(명세 9.4)은 이 규칙 밖이다. */
+const legalTexts = (doc) => [
+  ...(doc.chapters || []).map((c) => c.title),
+  ...(doc.preface || []),
+  ...doc.articles.flatMap((a) => [a.title, ...a.paras.flatMap((p) => [
+    p.text, ...p.items.map((it) => it.text), ...(p.table ? [...p.table.head, ...p.table.rows.flat()] : []),
+  ])]),
+  ...doc.buchik,
+];
+const shownLegal = [
+  ...legalTexts(TERMS_DOC),
+  ...legalTexts(PRIVACY_POLICY_DOC),
+  PRIVACY.title, ...PRIVACY.items.flatMap((x) => [x.t, ...x.lines]),
+  ...TERMS_SUMMARY.flatMap((s) => [s.title, s.text, s.ref]),
+];
+const unmark = (t) => { let s = t, prev; do { prev = s; s = s.replace(/\[[^[\]]*\]/g, ""); } while (s !== prev); return s; };
+const EM_DASH = /[—―]/;
+const offenders = (test) => shownLegal.filter(test).map((t) => t.slice(0, 48)).join(" | ");
+eq("화면 글 규칙: 법률 글에 문장을 잇는 '—' 가 없다(대괄호 표지는 걷고 본다)", offenders((t) => EM_DASH.test(unmark(t))), "");
+eq("화면 글 규칙: 표지를 걷는 검사가 맞다(검사 자체 확인)",
+  [unmark("[서버 계획 — 출시 때 확인] 글"), unmark("[운영자가 정할 것: 업체 이름](국내 업체)"), unmark("[서버 계획 — 출시 때 확인: [가] 나]")].join("|"), " 글|(국내 업체)|");
+eq("화면 글 규칙: 표지 밖의 '—' 는 잡는다(검사 자체 확인)", EM_DASH.test(unmark("[서버 계획] 가 — 나")), true);
+eq("화면 글 규칙: '배송한 달' 이 없다(→ '배송완료 기준 달')", offenders((t) => t.includes("배송한 달")), "");
+eq("화면 글 규칙: '바뀌다' 꼴이 없다(→ '변경되다')", offenders((t) => /바뀌|바뀐|바뀔|바뀝|바뀜/.test(t)), "");
+eq("화면 글 규칙: 표 칸 구분은 세 칸으로 옮겨져 글에 없다(처리방침 제5조 ② — 검사가 칸 글자를 본다)",
+  (() => { const p = ppArt(5).paras.find((x) => x.n === "②"); return p && p.table ? [...p.table.head, ...p.table.rows.flat()].some((c) => EM_DASH.test(c)) : null; })(), false);
+eq("화면 글 규칙: 정의된 낱말 '배송완료 기준 달' 이 제2조 9호와 제27조 ① 에 같은 꼴로 있다",
+  [2, 27].map((no) => JSON.stringify(TERMS_DOC.articles.find((a) => a.no === no)).includes("'배송완료 기준 달'")).join(","), "true,true");
+
+/* ── 약관 지난 판(2026-11-15 — 본문 글 손질로 판이 오르며 2026-11-12 판을 js/data/terms-past.js 에 얼렸다) ──
+   거래처의 동의 기록(termsVersion)이 가리키는 글을 읽는 화면 '이전 판' 에서 그대로 볼 수 있어야 한다. */
+const ymdNext = (iso) => { const [y, m, d] = iso.split("-").map(Number); const t = new Date(y, m - 1, d + 1); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+const past0 = TERMS_PAST[0] || { doc: { articles: [], chapters: [], buchik: [] } };
+eq("약관 지난 판: 2026-11-12 판 하나 · 2026-11-12 ~ 2026-11-14 적용", TERMS_PAST.map((p) => `${p.ver}:${p.from}~${p.to}`).join(","), "2026-11-12:2026-11-12~2026-11-14");
+eq("약관 지난 판: 본문이 비어 있지 않다(조 40 · 장 7 · 부칙 2 · 시행일)",
+  `${past0.doc.articles.length}·${past0.doc.chapters.length}·${past0.doc.buchik.length}·${past0.doc.effective}`, "40·7·2·2026-10-31");
+eq("약관 지난 판: 지금 판의 전날까지 적용(빈 날이 없다)", ymdNext(past0.to || "2000-01-01"), TERMS_VERSION);
+eq("약관 지난 판: 지금 본문이 아니라 그때 글을 얼린 사본이다(손질 전 '배송한 달')",
+  past0.doc !== TERMS_DOC && JSON.stringify(past0.doc).includes("배송한 달") && !JSON.stringify(TERMS_DOC).includes("배송한 달"), true);
+eq("약관 지난 판: 2026-11-15 손질은 정산 조항(제28조)을 건드리지 않았다(두 판의 제28조가 같다)",
+  JSON.stringify(past0.doc.articles.find((a) => a.title === SETTLEMENT_ARTICLE_TITLE)) === JSON.stringify(settleArt), true);
 
 console.log(`settlement-rules: ${pass} passed, ${fail} failed`);
 if (fail) { bad.forEach((b) => console.log("  x " + b)); process.exit(1); }
