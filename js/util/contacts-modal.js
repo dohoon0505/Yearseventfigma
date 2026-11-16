@@ -127,7 +127,7 @@ export function openContactsModal(o) {
       <div class="ctc-foot">
         <button type="button" class="ctc-add" data-action="add">${icon("user-plus", { size: 15 })} 담당자 추가</button>
         <span class="ctc-note">거래처 포털의 '담당자 저장공간'과 <b>같은 명단</b>이라
-          여기서 고치면 거래처 화면에도 그대로 보입니다. 알림톡 수신이 켜진 담당자는
+          여기서 수정하면 거래처 화면에도 그대로 보입니다. 알림톡 수신이 켜진 담당자는
           모든 주문의 배송완료 알림 대상이 됩니다.</span>
       </div>`,
     hint: HINT_OK,
@@ -195,7 +195,7 @@ export function openContactsModal(o) {
         const a = document.activeElement;
         if (add && (!a || a === document.body || !a.isConnected)) add.focus();
         const rec = rows().find((x) => x.id === c.id);
-        toast(`${c.name} 담당자를 등록했습니다${rec && rec.isBilling ? " · 정산·회계 담당자입니다" : ""}`, "ok");
+        toast(`${c.name} 담당자를 등록했습니다${rec && rec.isBilling ? ". 정산·회계 담당자입니다." : ""}`, "ok");
       },
     });
   });
@@ -225,9 +225,9 @@ export function openContactsModal(o) {
    *  `was`(들어올 때의 값)가 맞는 값일 때만 '원래 값으로 돌아갑니다' 라고 말한다(위 머리 주석 — 옛 줄). */
   const badText = (k, v, id, was) => {
     const back = fieldOk(k, was);
-    if (k === "name") return `이름은 비울 수 없습니다. ${back ? "칸을 떠나면 원래 값으로 돌아갑니다" : "이름을 적어야 저장됩니다"}`;
+    if (k === "name") return `이름은 비울 수 없습니다. ${back ? "칸을 떠나면 원래 값으로 돌아갑니다" : "이름을 입력해야 저장됩니다"}`;
     const bill = !!(recOf(id) || {}).isBilling;
-    const tail = back ? "칸을 떠나면 원래 값으로 돌아갑니다" : "맞는 번호를 적어야 저장됩니다";
+    const tail = back ? "칸을 떠나면 원래 값으로 돌아갑니다" : "맞는 번호를 입력해야 저장됩니다";
     if (!String(v).trim()) {
       return bill
         ? `정산 알림이 갈 곳이 없어지므로 정산 담당 연락처는 비울 수 없습니다. ${tail}`
@@ -244,11 +244,11 @@ export function openContactsModal(o) {
     if (fieldOk(k, was)) {
       if (k === "name") return `이름은 비울 수 없어 원래 값(${String(was).trim()})으로 되돌렸습니다`;
       const why = !String(v).trim() ? "는 비울 수 없어" : contactPhoneOdd(v) ? "에 다른 글자가 섞여"
-        : contactPhoneLong(v) ? " 숫자가 너무 많아" : "를 끝까지 적지 않아";
+        : contactPhoneLong(v) ? " 숫자가 너무 많아" : "를 끝까지 입력하지 않아";
       return `${who(name)} 연락처${why} 원래 값(${was})으로 되돌렸습니다`;
     }
-    if (k === "name") return "이름이 비어 있어 저장하지 않았습니다. 이름을 적어야 저장됩니다";
-    return `${who(name)} 연락처는 저장하지 않았습니다. 맞는 번호(${contactPhoneNeed(v)})를 적어야 저장됩니다`;
+    if (k === "name") return "이름이 비어 있어 저장하지 않았습니다. 이름을 입력해야 저장됩니다";
+    return `${who(name)} 연락처는 저장하지 않았습니다. 맞는 번호(${contactPhoneNeed(v)})를 입력해야 저장됩니다`;
   };
   /* 푸터 힌트를 칸의 설명으로 잇는다 — 화면낭독기가 칸에서 이유를 읽는다(힌트 자리 자체는 live 가 아니다). */
   const hintEl = qs(m.panel, "[data-slot='dlghint']");
@@ -360,7 +360,7 @@ export function openContactsModal(o) {
     const cand = recOf(t.dataset.mcBill);
     if (cand && !contactPhoneOk(cand.phone)) {
       toast(String(cand.phone || "").trim()
-        ? `${who(cand.name)}의 연락처가 맞지 않아(${contactPhoneNeed(cand.phone)}) 정산담당으로 지정할 수 없습니다. 연락처 칸을 먼저 고치세요`
+        ? `${who(cand.name)}의 연락처가 맞지 않아(${contactPhoneNeed(cand.phone)}) 정산담당으로 지정할 수 없습니다. 연락처 칸을 먼저 수정하세요`
         : `${who(cand.name)}의 연락처가 없어 정산담당으로 지정할 수 없습니다. 연락처 칸을 먼저 채우세요`, "warn");
       return;
     }

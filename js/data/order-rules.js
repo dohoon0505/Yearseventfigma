@@ -28,7 +28,7 @@ export function cancelFeeError(amount, fee) {
   const max = Math.max(0, Number(amount) || 0);
   const n = Number(fee ?? 0);
   if (Number.isSafeInteger(n) && n >= 0 && n <= max) return null;
-  return { code: CANCEL_FEE_INVALID, field: "fee", max, message: `취소 수수료는 0원부터 주문금액(${wonText(max)})까지 적을 수 있습니다` };
+  return { code: CANCEL_FEE_INVALID, field: "fee", max, message: `취소 수수료는 0원부터 주문금액(${wonText(max)})까지 입력할 수 있습니다` };
 }
 
 /** 저장하려는 레코드 `next` 가 불변식을 깨는가(취소한 주문의 금액을 수수료보다 작게 고침 등) — 깨면 이유, 아니면 null.

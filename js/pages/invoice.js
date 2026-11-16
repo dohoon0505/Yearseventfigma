@@ -253,7 +253,7 @@ export function mount(root) {
      말한다(시안은 '자동이면 …' 이지만 1차 자동 결정을 지킨다).
      ⚠️ html`` 은 Date 를 String(date) 로 찍는다 — 반드시 포맷해서 넣는다. */
   function writtenOf(s, now) {
-    if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 배송완료 기준 달의 말일`;
+    if (s.group === "early") return `${fmtKoShortY(periodEnd(s.period), now)} · 이용한 달의 말일`;
     if (s.agreedAt) return `${fmtKoShortY(s.agreedAt, now)} · 동의한 날`;
     if (s.autoAgreeHold) return `동의한 날 · 오늘 동의하면 ${fmtKoShortY(now)}`;
     return `동의한 날 · 자동이면 ${fmtKoShortY(s.deadline, now)}`;
@@ -621,7 +621,7 @@ export function mount(root) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1500);
-      toast(d.stamp ? `EXCEL을 내려받습니다 · 2행에 '${d.stamp.text} · 출력 시각'이 표기됩니다` : "EXCEL 파일을 내려받았습니다");
+      toast(d.stamp ? `EXCEL을 내려받습니다. 2행에 '${d.stamp.text} · 출력 시각'이 표기됩니다` : "EXCEL 파일을 내려받았습니다");
     } catch (err) {
       console.error("EXCEL 생성 오류:", err);
       toast("EXCEL 생성 중 오류가 발생했습니다", "warn");
@@ -735,7 +735,7 @@ export function mount(root) {
       /* 저장 공간 부족 — 동의가 기록되지 않았다(store 가 되돌렸다). 동의한 척하지 않고 창·체크를 그대로 둔다
          (발급 처리·입금 확인 창과 같은 규칙 — 다시 누르면 된다). */
       if (res && res.error === "STORAGE_FULL") {
-        toast("저장하지 못했습니다 · 브라우저 저장 공간이 부족합니다", "warn");
+        toast("저장하지 못했습니다. 브라우저 저장 공간이 부족합니다", "warn");
         return;
       }
       if (res && res.error === "SETTLEMENT_AMOUNT_CHANGED") {
@@ -837,7 +837,7 @@ export function mount(root) {
         if (!el) throw new Error("invoice doc not rendered");
         /* 팝업이 막히면 printInvoiceDoc 이 경고창을 띄우고 false — '내려받습니다' 토스트를 함께 띄우면 거짓이 된다. */
         if (printInvoiceDoc(el, `거래명세서_${state.year}_${state.month}`) === false) return;
-        toast(d.stamp ? `PDF를 내려받습니다 · '${d.stamp.text} · ${d.stamp.printedAt} 출력'이 표기됩니다` : "PDF 다운로드를 시작했습니다");
+        toast(d.stamp ? `PDF를 내려받습니다. '${d.stamp.text} · ${d.stamp.printedAt} 출력'이 표기됩니다` : "PDF 다운로드를 시작했습니다");
       } catch (err) { console.error("PDF 생성 오류:", err); toast("PDF 생성 중 오류가 발생했습니다", "warn"); }
       return;
     }
@@ -849,7 +849,7 @@ export function mount(root) {
       const token = issueLink({ clientId: c.id, bizNumber: c.bizNumber, ym: ym() });
       const url = publicInvoiceUrl(token);
       /* 토큰 자체가 열람 권한(capability URL)이라 본인확인이 없다 — 복사한 그 자리에서 알린다. */
-      const msg = `열람링크를 복사했습니다 · 링크만으로 접속이 가능해요${settle().docStamp ? " · 열 때의 지금 금액과 동의 전 표기를 보여 줍니다" : ""}`;
+      const msg = `열람링크를 복사했습니다. 링크만으로 접속이 가능합니다${settle().docStamp ? ". 열 때의 지금 금액과 동의 전 표기를 보여 줍니다" : ""}`;
       const ok = () => toast(msg);
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(ok).catch(() => window.prompt("거래명세서 열람링크 (복사하세요)", url));
       else window.prompt("거래명세서 열람링크 (복사하세요)", url);

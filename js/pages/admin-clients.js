@@ -818,7 +818,7 @@ export function mount(root, { nav }) {
         ${/* 탈퇴한 계정은 발급 버튼을 두지 않고 그 이유만 적는다 — 로그인할 수 없는 계정이다. 아이디는 다시 가입할 때도 쓸 수 없다
              (store.accountIdTaken 이 탈퇴한 계정도 '쓰는 중' 으로 친다 · 2026-10-22 결정 A). */ ""}
         ${isEdit && isWithdrawn(storedRec())
-          ? html`<p class="rail-card__out">탈퇴한 계정이라 로그인할 수 없습니다 · 이 아이디는 새로 가입할 때도 쓸 수 없습니다.</p>`
+          ? html`<p class="rail-card__out">탈퇴한 계정이라 로그인할 수 없습니다. 이 아이디는 새로 가입할 때도 쓸 수 없습니다.</p>`
           : html`<button type="button" class="rail-card__btn" data-action="reset-pw">임시비밀번호 발급</button>
             ${/* 안내문은 **발급 후에만**(시안). 평소에도 띄워 두면 카드가 늘 3줄이라
                  정작 비밀번호가 찍혔을 때 눈에 들어오지 않는다. */ ""}
@@ -834,7 +834,7 @@ export function mount(root, { nav }) {
       const bad = billPhoneBad();
       const mailBad = emailBad();
       const taken = idTaken();
-      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}${mailBad ? ` · ${EMAIL_WHY}` : ""}`
+      const stat = m.length ? `필수 ${m.length}개 비어 있음 · ${m.join(" · ")}${bad ? ` · ${billPhoneWhy()}` : ""}${mailBad ? `${bad ? ". " : " · "}${EMAIL_WHY}` : ""}`
         : bad ? billPhoneWhy()
         : mailBad ? EMAIL_WHY
         : taken ? `접속 아이디(${String(form.accountId).trim()})는 이미 사용 중입니다`
@@ -933,7 +933,7 @@ export function mount(root, { nav }) {
         <div class="cli-banner cli-banner--rej"><span class="cli-banner__msg"><b>거부 사유</b> · ${form.rejectReason}</span></div>` : ""}
       ${/* 등록 직후 → 약관 동의 전 순(S-04 시안). 가입 심사 배너가 먼저다 — 그 거래처의 지금 할 일이 승인이다. */ ""}
       ${isEdit && justCreated ? html`
-        <div class="cli-banner cli-banner--new" role="status"><span class="cli-banner__msg"><b>방금 등록했습니다</b> · 아이디 <b>${form.accountId}</b>와
+        <div class="cli-banner cli-banner--new" role="status"><span class="cli-banner__msg"><b>방금 등록했습니다.</b> 아이디 <b>${form.accountId}</b>와
           임시비밀번호를 거래처 담당자에게 전달하세요. 첫 로그인 때 이용약관에 동의합니다.</span></div>` : ""}
       ${isEdit ? termsBanner() : ""}`;
 
@@ -1146,7 +1146,7 @@ export function mount(root, { nav }) {
           writeStatus(WITHDRAWN, storedRec().rejectReason || "", { withdrawnAt: at });
           push(`탈퇴 처리 · ${at.slice(0, 10)}`, "danger");
           afterStatus();
-          toast(`${storedRec().companyName} 거래처를 탈퇴 처리했습니다 · 이제 로그인할 수 없습니다`, "warn");
+          toast(`${storedRec().companyName} 거래처를 탈퇴 처리했습니다. 이제 로그인할 수 없습니다.`, "warn");
         },
         /* 돌아가기·✕·ESC — 창이 연 칸(탈퇴)으로 초점을 돌려준다. 그 칸이 그사이 다시 그려졌으면(확정·막힘) 위에서 정한 자리 그대로다. */
         onClose: () => refocus(WD_SEL),
@@ -1171,7 +1171,7 @@ export function mount(root, { nav }) {
     /* 저장하지 않은 편집을 두고 단가 화면으로 가면 편집이 사라진다(라우터가 모달을 닫는다) — 막고 이유를 말한다. */
     const canLeave = () => {
       if (!dirty()) return true;
-      toast("저장하지 않은 변경이 있습니다 · 먼저 저장해 주세요", "warn");
+      toast("저장하지 않은 변경이 있습니다. 먼저 저장해 주세요.", "warn");
       return false;
     };
     on(panel, "click", "[data-action='to-pricing']", () => { if (canLeave()) goPricing(form.id); });
@@ -1179,7 +1179,7 @@ export function mount(root, { nav }) {
       writeStatus("활성", "");
       push("가입 승인 · 활성 전환", "ok");
       afterStatus();
-      toast(`${storedRec().companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`);
+      toast(`${storedRec().companyName} 거래처를 승인했습니다. 환영 알림이 발송되었습니다.`);
     }, canLeave));
     on(panel, "click", "[data-action='reject']", () => openReject(storedRec(), (reason) => {
       writeStatus("반려", reason);
@@ -1216,7 +1216,7 @@ export function mount(root, { nav }) {
       renderHd(); renderRail(); renderBanner(); renderFt();
       const back = where === "hd" ? qs(panel, "[data-action='menu']") : qs(panel, `[data-slot='${where}'] [data-action='reset-pw']`);
       if (back) back.focus();
-      toast(isEdit ? `임시비밀번호를 발급했습니다 · ${pwUntil()}까지 유효합니다` : "임시비밀번호를 발급했습니다 · 등록하면 적용됩니다");
+      toast(isEdit ? `임시비밀번호를 발급했습니다. ${pwUntil()}까지 유효합니다.` : "임시비밀번호를 발급했습니다. 등록하면 적용됩니다.");
     });
     /* 담당자 관리 — 원장 **위에 스택**으로 연다. 화면을 옮기지 않으므로 작성 중인
        원장 편집이 살아 있다. ⚠️ 핸들을 `activeModal` 에 담지 말 것(→ contacts-modal.js). */
@@ -1242,7 +1242,7 @@ export function mount(root, { nav }) {
           const idx = editIndex(form.id);
           /* 확정하는 순간 한 번 더 잰다 — 창을 연 사이 갈래가 바뀌었으면(지울 수 있던 거래처에 주문이 생김) 하지 않고 이유를 말한다. */
           const again = delKind();
-          if (again.kind !== dk.kind) { toast(again.reason || "거래처 상태가 변경되었습니다 · 다시 확인해 주세요", "warn"); return; }
+          if (again.kind !== dk.kind) { toast(again.reason || "거래처 상태가 변경되었습니다. 다시 확인해 주세요.", "warn"); return; }
           removeOrHide(rec, dk.kind);
           closeModal();
           refreshList();
@@ -1289,7 +1289,7 @@ export function mount(root, { nav }) {
         refocus("[data-attach-pick]"); // 첨부 칸을 다시 그려 '파일 선택/변경' 버튼이 새로 생겼다
         push(`사업자등록증 첨부 · ${att.name}`, "info");
         renderRail();
-        toast(`사업자등록증(${att.name})을 첨부했습니다 · 저장해야 적용됩니다`);
+        toast(`사업자등록증(${att.name})을 첨부했습니다. 저장해야 적용됩니다.`);
       } catch (err) {
         console.error("[clients] attach failed", err);
         toast("파일을 읽지 못했습니다", "warn");
@@ -1346,7 +1346,7 @@ export function mount(root, { nav }) {
       store.updateClient({ ...client, status: "활성", rejectReason: undefined });
       refreshList();
       focusRowBtn(client.id, "edit"); // 승인하면 그 줄의 승인·거부 버튼이 사라진다 — 같은 줄의 연필로
-      toast(`${client.companyName} 거래처를 승인했습니다 · 환영 알림이 발송되었습니다`, "ok");
+      toast(`${client.companyName} 거래처를 승인했습니다. 환영 알림이 발송되었습니다.`, "ok");
     });
   }
 
@@ -1440,7 +1440,7 @@ export function mount(root, { nav }) {
      사유가 **어디로 가는지**를 캡션이 말한다: 알림톡 T10(명세 9.4)과 로그인 화면(util/client.js portalBlock). */
   function openReject(client, onDone) {
     if (!onDone) closeModal();
-    const HINT_OFF = "사유를 적어야 거부할 수 있습니다";
+    const HINT_OFF = "사유를 입력해야 거부할 수 있습니다";
     const HINT_ON = "거부하면 상태가 '반려'로 변경되고 신청자에게 알림톡이 발송됩니다";
     const d = openDialog({
       eyebrow: client.companyName,
@@ -1475,7 +1475,7 @@ export function mount(root, { nav }) {
       d.close();
       if (onDone) onDone(reason);
       else { store.updateClient({ ...client, status: "반려", rejectReason: reason }); closeModal(); refreshList(); focusRowBtn(client.id, "edit"); }
-      toast(`${client.companyName} 가입을 거부했습니다 · 사유가 통보되었습니다`, "warn");
+      toast(`${client.companyName} 가입을 거부했습니다. 사유가 통보되었습니다.`, "warn");
     });
     ta.focus();
   }
@@ -1494,7 +1494,7 @@ export function mount(root, { nav }) {
         const idx = editIndex(client.id);
         const cur = findClient(client.id) || client;
         const again = deleteKindOf(cur);
-        if (again.kind !== dk.kind) { refreshList(); focusRowBtn(client.id, "del-locked", "del", "edit"); toast(again.reason || "거래처 상태가 변경되었습니다 · 다시 확인해 주세요", "warn"); return; }
+        if (again.kind !== dk.kind) { refreshList(); focusRowBtn(client.id, "del-locked", "del", "edit"); toast(again.reason || "거래처 상태가 변경되었습니다. 다시 확인해 주세요.", "warn"); return; }
         removeOrHide(cur, dk.kind);
         refreshList();
         focusAfterDelete(idx);
@@ -1506,7 +1506,7 @@ export function mount(root, { nav }) {
   function removeOrHide(client, kind) {
     if (kind === "hide") {
       store.hideClient(client.id);
-      toast(`${client.companyName} 거래처를 목록에서 감췄습니다 · 지난 주문·정산 기록은 그대로 남습니다`, "warn");
+      toast(`${client.companyName} 거래처를 목록에서 감췄습니다. 지난 주문·정산 기록은 그대로 남습니다.`, "warn");
     } else {
       store.removeClient(client.id);
       toast(`${client.companyName} 거래처를 삭제했습니다`, "warn");

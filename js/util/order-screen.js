@@ -320,7 +320,7 @@ export function makeImageBox({ get, toast }) {
           브라우저가 그리지 못하는 형식은 화면에도 안 보이니 받아 둘 이유도 없다. */
     attachmentOf(file).then((a) => {
       if (a.dataUrl) { apply(a.dataUrl); return; }
-      toast("이 형식의 사진은 올릴 수 없습니다 · JPG·PNG 로 다시 올려 주세요", "warn");
+      toast("이 형식의 사진은 올릴 수 없습니다. JPG·PNG 로 다시 올려 주세요", "warn");
     });
   };
 

@@ -564,9 +564,9 @@ sessionStorage.setItem("yeop.session.v1", "admin");
      2026-10-23 검증: 예전엔 같은 모양을 시험 안에서 지어 갈래 순서·앞말이 틀려도 통과했다). */
   eq("⑪ E1 배송일시 줄 경고 · 저장 줄(orderSaveLineOf — 글자 · title) · 처리 이력 한 줄",
     cm3 && [S.closedMoveWarn(cm3, NOW), S.orderSaveLineOf(mv3a, 1, "", NOW), S.closedMoveLine(cm3, NOW)],
-    ["9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요 · 배송완료하면 10월 정산에 듭니다",
-      { text: "수정한 항목 1개 · 실제 배송일일 때만 · 9월(동의를 마친 달)에서 옮김 · 배송완료하면 10월 정산에 듭니다",
-        tip: "9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요 · 배송완료하면 10월 정산에 듭니다", ask: false },
+    ["9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요. 배송완료하면 10월 정산에 포함됩니다",
+      { text: "수정한 항목 1개 · 실제 배송일일 때만 · 9월(동의를 마친 달)에서 옮김 · 배송완료하면 10월 정산에 포함됩니다",
+        tip: "9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요. 배송완료하면 10월 정산에 포함됩니다", ask: false },
       "배송일시 변경 · 09-28 13:00 → 10-20 10:00 · 9월(동의를 마친 달)에서 옮김"]);
   eq("⑪ E1 같은 달 안의 날짜·시각 변경 — 경고 없음", S.settlementImpactOf(o3, { ...o3, deliverAt: "2026-09-30T18:00" }, NOW).closedMove, null);
   /* 새 배송일시가 비었거나 날짜 모양이 아니면 던지지 않고 경고도 없다(E1 이전과 같은 빈 결과 — settlementOf 는 "YYYY-MM" 만 받는다 ·
@@ -588,28 +588,28 @@ sessionStorage.setItem("yeop.session.v1", "admin");
   const o8 = mk("n-e1-aug", "C011", "2026-08-27T14:00");
   const s8 = so("C011", PREV);
   const mv8 = S.settlementImpactOf(o8, { ...o8, deliverAt: "2026-09-27T14:00" }, NOW);
-  eq("⑪ E1 잠긴 8월(C011)의 배송 전 주문을 열린 발급 달(9월)로 — 막지 않음 · to open · '배송완료하면 9월 명세서에 듭니다'",
+  eq("⑪ E1 잠긴 8월(C011)의 배송 전 주문을 열린 발급 달(9월)로 — 막지 않음 · to open · '배송완료하면 9월 명세서에 포함됩니다'",
     [s8.issued && !s8.editable, mv8.lock, mv8.closedMove && mv8.closedMove.to, mv8.closedMove && S.closedMoveTail(mv8.closedMove, NOW), mv8.confirm.length],
-    [true, null, "open", "배송완료하면 9월 명세서에 듭니다", 0]);
+    [true, null, "open", "배송완료하면 9월 명세서에 포함됩니다", 0]);
   const mv8b = S.settlementImpactOf(o8, done({ ...o8, deliverAt: "2026-09-27T14:00" }), NOW);
   eq("⑪ E1 옮기며 배송완료(열린 발급 달) — 기존 확인 창 흐름(9월 · complete) · 표지 없음",
     [mv8b.lock, mv8b.unbill, mv8b.cause, mv8b.confirm.map((m) => m.ym), !!mv8b.closedMove], [null, null, "complete", [LAST], true]);
-  /* 저장 줄(화면과 같은 orderSaveLineOf) — 새 달이 고칠 수 있는 발급 달이면 '배송완료하면 9월 명세서에 듭니다' · 옮기며 배송완료면 확인 창 갈래(앞에 E1
+  /* 저장 줄(화면과 같은 orderSaveLineOf) — 새 달이 고칠 수 있는 발급 달이면 '배송완료하면 9월 명세서에 포함됩니다' · 옮기며 배송완료면 확인 창 갈래(앞에 E1
      한 마디 · 바뀌는 달 한 줄은 화면 monthsLine 이 넘긴다 — 여기서는 자리표시 'M') · 경고가 없는 저장은 '수정한 항목 N개' 만 */
   const w8c = S.closedMonthWord(s8);
   eq("⑪ E1 저장 줄(orderSaveLineOf) — 고칠 수 있는 발급 달로 · 옮기며 배송완료(확인 창 · 앞말 · title) · 경고 없는 저장",
     [w8c, S.orderSaveLineOf(mv8, 1, "", NOW), S.orderSaveLineOf(mv8b, 2, "M", NOW), S.orderSaveLineOf(mv1, 1, "", NOW)],
     ["동의를 마친 달",
-      { text: "수정한 항목 1개 · 실제 배송일일 때만 · 8월(동의를 마친 달)에서 옮김 · 배송완료하면 9월 명세서에 듭니다",
-        tip: "8월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요 · 배송완료하면 9월 명세서에 듭니다", ask: false },
+      { text: "수정한 항목 1개 · 실제 배송일일 때만 · 8월(동의를 마친 달)에서 옮김 · 배송완료하면 9월 명세서에 포함됩니다",
+        tip: "8월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요. 배송완료하면 9월 명세서에 포함됩니다", ask: false },
       { text: "저장 전에 확인합니다 · 실제 배송일일 때만 · 8월(동의를 마친 달)에서 옮김 · M",
-        tip: "8월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요 · 배송완료하면 9월 명세서에 듭니다", ask: true },
+        tip: "8월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요. 배송완료하면 9월 명세서에 포함됩니다", ask: true },
       { text: "수정한 항목 1개", tip: "", ask: false }]);
   /* 새 달이 잠긴 달(closed) — C001 9월(동의된 달)에서 8월(동의된 달)로 */
   const mv3c = S.settlementImpactOf(o3, { ...o3, deliverAt: "2026-08-28T13:00" }, NOW);
   eq("⑪ E1 잠긴 달에서 잠긴 달로 — 막지 않음 · to closed · 배송완료 때 정산에 넣지 않는다는 말",
     [mv3c.lock, mv3c.closedMove && mv3c.closedMove.to, mv3c.closedMove && S.closedMoveWarn(mv3c.closedMove, NOW)],
-    [null, "closed", `9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요 · 8월은 ${S.closedMonthWord(so("C001", PREV))}이라 배송완료해도 정산에 넣지 않습니다`]);
+    [null, "closed", `9월은 동의를 마친 달이라 실제 배송일일 때만 옮기세요. 8월은 ${S.closedMonthWord(so("C001", PREV))}이라 배송완료해도 정산에 넣지 않습니다`]);
   const mv3d = S.settlementImpactOf(o3, done({ ...o3, deliverAt: "2026-08-28T13:00" }), NOW);
   eq("⑪ E1 옮기며 배송완료(잠긴 달로) — 새 달 규칙: 8월로 표지 갈래(unbill)", [mv3d.unbill && mv3d.unbill.ym, mv3d.lock && mv3d.lock.isOld], [PREV, false]);
   /* 옮겨 저장 → 이력 한 줄이 같은 쓰기에 남는다(화면 commitSave 와 같은 길) → 옮긴 달에서 배송완료하면 새 달 규칙(D3) */
@@ -673,7 +673,7 @@ sessionStorage.setItem("yeop.session.v1", "admin");
   const mv6 = S.settlementImpactOf(o6, { ...o6, deliverAt: "2026-10-20T10:00" }, NOW);
   eq("⑪ E1 발행이 지난 거래 없는 달의 배송 전 주문을 다른 달로 — 막지 않음 · 그 달 낱말로 경고 · 이력 줄",
     [mv6.lock, mv6.closedMove && mv6.closedMove.word, mv6.closedMove && S.closedMoveWarn(mv6.closedMove, NOW), mv6.closedMove && S.closedMoveLine(mv6.closedMove, NOW)],
-    [null, RULES.ISSUED_EMPTY_SHORT, "9월은 명세서 발행이 지난 달이라 실제 배송일일 때만 옮기세요 · 배송완료하면 10월 정산에 듭니다",
+    [null, RULES.ISSUED_EMPTY_SHORT, "9월은 명세서 발행이 지난 달이라 실제 배송일일 때만 옮기세요. 배송완료하면 10월 정산에 포함됩니다",
       "배송일시 변경 · 09-25 10:00 → 10-20 10:00 · 9월(명세서 발행이 지난 달)에서 옮김"]);
   const m6 = mark(o6, im6);
   B2B.b2bUpsert(m6);
@@ -789,7 +789,7 @@ sessionStorage.setItem("yeop.session.v1", "admin");
   const saveC = S.orderSaveLineOf(mvC, 1, "", NOW).text; // 화면(syncDirty)과 같은 함수 — 손으로 다시 짓지 않는다
   eq("⑪ F1 잠긴 달 → 잠긴 달 — 한 값(from closed · to closed) · 경고 한 문장 · 이력 한 줄 · 저장 줄에 새 달 사정은 한 번",
     cmC && [cmC.from, cmC.to, cmC.word, cmC.toWord, S.closedMoveWarn(cmC, NOW), S.closedMoveLine(cmC, NOW), saveC, saveC.split("8월").length - 1],
-    ["closed", "closed", w9, w8, `9월은 ${w9}이라 실제 배송일일 때만 옮기세요 · 8월은 ${w8}이라 배송완료해도 정산에 넣지 않습니다`,
+    ["closed", "closed", w9, w8, `9월은 ${w9}이라 실제 배송일일 때만 옮기세요. 8월은 ${w8}이라 배송완료해도 정산에 넣지 않습니다`,
       `배송일시 변경 · 09-28 13:00 → 08-28 13:00 · 9월(${w9})에서 8월(${w8})로 옮김`,
       `수정한 항목 1개 · 실제 배송일일 때만 · 9월(${w9})에서 옮김 · 8월은 ${w8}이라 배송완료해도 정산에 넣지 않습니다`, 1]);
   /* 잠긴 달 → 잠긴 달 + 같은 저장이 배송완료로(사진·인수자가 찬 주문접수) — 화면 판정(judge)대로 표지를 달고 다시 판정한 값에 unbill 을 싣는다.
@@ -802,7 +802,7 @@ sessionStorage.setItem("yeop.session.v1", "admin");
     [mvC2.unbill && mvC2.unbill.ym, reC2 && reC2.lock, reC2 && !!reC2.closedMove, lnC2 && lnC2.text.split("8월").length - 1, lnC2],
     [PREV, null, true, 1,
       { text: `수정한 항목 1개 · 실제 배송일일 때만 · 9월(${w9})에서 옮김 · 저장하면 배송완료 · 8월 정산에는 넣지 않습니다`,
-        tip: `9월은 ${w9}이라 실제 배송일일 때만 옮기세요 · 8월은 ${w8}이라 배송완료해도 정산에 넣지 않습니다 · ${RULES.LOCK_REASON.agreed}`, ask: false }]);
+        tip: `9월은 ${w9}이라 실제 배송일일 때만 옮기세요. 8월은 ${w8}이라 배송완료해도 정산에 넣지 않습니다. ${RULES.LOCK_REASON.agreed}`, ask: false }]);
   /* 해가 다르면 연도(E1 과 같은 규칙) */
   eq("⑪ F1 해가 바뀐 뒤의 이력 줄 — 연도를 붙인다",
     cmA && S.closedMoveLine(cmA, D(2027, 1, 5, 10)), "배송일시 변경 · 2026-10-05 14:00 → 2026-09-30 14:00 · 2026년 9월(동의를 마친 달)로 옮김");
@@ -1045,7 +1045,7 @@ const nw = (s) => [s.notice.t3.why, s.notice.t4 && s.notice.t4.why];
 {
   const B2C = await import(R + "data/b2c-mock.js");
   const over = B2C.cancelFeeError(50000, 50001);
-  eq("⑧ 수수료 상한 초과 — 코드·상한·문구", [over.code, over.max, over.message], ["CANCEL_FEE_INVALID", 50000, "취소 수수료는 0원부터 주문금액(50,000원)까지 적을 수 있습니다"]);
+  eq("⑧ 수수료 상한 초과 — 코드·상한·문구", [over.code, over.max, over.message], ["CANCEL_FEE_INVALID", 50000, "취소 수수료는 0원부터 주문금액(50,000원)까지 입력할 수 있습니다"]);
   eq("⑧ 상한=금액·0원·빈값 받음", [B2C.cancelFeeError(50000, 50000), B2C.cancelFeeError(50000, 0), B2C.cancelFeeError(50000, "")], [null, null, null]);
   eq("⑧ 음수·소수·NaN 거부 · 0원 주문은 0원만", [!!B2C.cancelFeeError(5e4, -1), !!B2C.cancelFeeError(5e4, 1.5), !!B2C.cancelFeeError(5e4, "abc"), !!B2C.cancelFeeError(0, 1)], [true, true, true, true]);
   const ops = JSON.stringify(store.orderOps());

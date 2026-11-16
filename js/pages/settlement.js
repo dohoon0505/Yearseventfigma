@@ -61,7 +61,7 @@ const EARLY = INVOICE_DAYS.filter((d) => deadlineDayOf(d) === 10);
 const LATE = INVOICE_DAYS.filter((d) => deadlineDayOf(d) !== 10);
 const span = (ds) => `${ds[0]}~${ds[ds.length - 1]}일`;
 const DAY_GROUPS = [
-  { label: `${span(EARLY)} · 작성일자 이용한 달 말일`, days: EARLY },
+  { label: `${span(EARLY)} · 작성일자 이용한 달의 말일`, days: EARLY },
   { label: `${span(LATE)} · 작성일자 동의한 날`, days: LATE },
 ];
 /* 제한 전에 저장된 값(8~10·26~28일)은 그대로 보여 주고 조용히 바꾸지 않는다 — 그 값으로 이미 발급된 달이 있다
@@ -124,7 +124,7 @@ function invStage(s, now) {
   if (zeroish(s) && s.status === "PAID") {
     return {
       kind: "done", label: "계산서 없음", tone: "gray",
-      meta: "고쳐서 0원 · 마감에 계산서 없이 닫힘", title: "동의가 필요 없습니다",
+      meta: "수정 후 0원 · 마감에 계산서 없이 닫힘", title: "동의가 필요 없습니다",
     };
   }
   if (s.status === "SCHEDULED") return { kind: "live", label: "발행 전", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발급`, title: "발급되면 내용을 확인하고 동의할 수 있습니다" };
@@ -134,7 +134,7 @@ function invStage(s, now) {
     if (s.zeroEdited) {
       return {
         kind: "live", label: "계산서 없음", tone: "gray",
-        meta: `고쳐서 0원 · ${fmtMdHm(s.deadline)} 마감에 닫힘`,
+        meta: `수정 후 0원 · ${fmtMdHm(s.deadline)} 마감에 닫힘`,
         title: "발급 뒤 내역이 수정되어 0원이 되었습니다. 동의 없이 마감에 계산서 없이 닫힙니다",
       };
     }
@@ -143,7 +143,7 @@ function invStage(s, now) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", amb: true,
         meta: HOLD_NOTE[s.autoAgreeHold] || HOLD_NOTE.TERMS_NOT_AGREED,
-        title: `${HOLD_WHY[s.autoAgreeHold] || HOLD_WHY.TERMS_NOT_AGREED} · 마감이 지났어도 동의할 수 있습니다`,
+        title: `${HOLD_WHY[s.autoAgreeHold] || HOLD_WHY.TERMS_NOT_AGREED}. 마감이 지났어도 동의할 수 있습니다`,
       };
     }
     const hot = s.deadline.getTime() - now.getTime() <= DAY;
@@ -153,7 +153,7 @@ function invStage(s, now) {
     if (chg) {
       return {
         kind: "live", label: "동의 필요", tone: "orange", hot, chg: true, meta: chg,
-        title: `발급 뒤 내역이 수정되었습니다 · 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
+        title: `발급 뒤 내역이 수정되었습니다. 마감 ${fmtMdHm(s.deadline)}까지 동의가 없으면 자동 동의됩니다`,
       };
     }
     /* 수정 마감 전(①) — 아직 금액이 바뀔 수 있다. 판정은 settlementOf 의 editable(명세 6.6 — 날짜로 짐작하지 않는다). */
@@ -326,7 +326,7 @@ export function mount(root, { nav }) {
     const steps = [
       ["명세서 발급", `매월 ${day}일 ${hm(ISSUE_HOUR)}`],
       ["내역 확인 · 동의", two(`수정 마감 ${editLockDayOf(day)}일 ${hm(ISSUE_HOUR)}`, `동의 마감 ${dl}일 ${hm(DEADLINE_HOUR)}`)],
-      ["계산서(면세) 발급", two("동의하면 바로", `작성일자 ${early ? "배송완료 기준 달의 말일" : "동의한 날"}`)],
+      ["계산서(면세) 발급", two("동의하면 바로", `작성일자 ${early ? "이용한 달의 말일" : "동의한 날"}`)],
       ["입금 · 정산 완료", "기한 발급월 말일"],
     ];
 
@@ -370,7 +370,7 @@ export function mount(root, { nav }) {
               <p class="st-steps__note">
                 ${/* 2차 시안 문안 — 정산 달 = 배송한 달(2026-10-15 결정 · 취소 수수료는 취소한 달 — 규칙이 바뀌면 이 문장도
                      같이 고친다) · 수정 마감 = 동의 마감 전날 10:00(editLockAt). */ ""}
-                정산 달은 배송완료 기준입니다(예약 주문은 배송완료된 달에, 취소 수수료는 취소한 달에 듭니다).
+                정산 달은 배송완료 기준입니다(예약 주문은 배송완료된 달에, 취소 수수료는 취소한 달에 포함됩니다).
                 동의 전에는 수정 마감(동의 마감 전날 ${hm(ISSUE_HOUR)})까지 금액이 변경될 수 있고,
                 마감까지 동의가 없으면 그 시각에 자동 동의됩니다.
                 ${/* 마감에 자동 동의되지 않는 달은 약관 동의 전에 마감이 지난 달 하나다(2026-10-23 운영자 결정 D1 — '보류'(고지 미도달)는
@@ -492,7 +492,7 @@ export function mount(root, { nav }) {
             : html`<span class="dlg-val setco-none">지정된 담당자 없음</span>`}
           <button type="button" class="dlg-minibtn" data-action="go-billing">${bill ? "변경" : "지정하기"}</button>
         </div>
-        <p class="dlg-hintline">명세서·계산서·입금 기한 알림톡을 받는 사람입니다 · 프로필 저장공간에서 지정합니다</p>
+        <p class="dlg-hintline">명세서·계산서·입금 기한 알림톡을 받는 사람입니다. 프로필 저장공간에서 지정합니다</p>
       </div>`;
 
     const st0 = footer();
@@ -522,7 +522,7 @@ export function mount(root, { nav }) {
             ${dlgRow({ k: "사업자등록증", top: true, v: html`
               <div class="setco-stack">
                 <div class="setco-inline" data-slot="attach">${attachCell()}</div>
-                <p class="dlg-hintline">이미지 또는 PDF(10MB 이하) · 사업자번호와 대표자명이 위 입력값과 같아야 합니다 · 주민등록번호가 보이면 가리고 올려 주세요</p>
+                <p class="dlg-hintline">이미지 또는 PDF(10MB 이하) · 사업자번호와 대표자명이 위 입력값과 같아야 합니다. 주민등록번호가 보이면 가리고 올려 주세요</p>
               </div>` })}
           </div>
           <input type="file" hidden data-license-file accept="image/*,application/pdf" />
@@ -606,7 +606,7 @@ export function mount(root, { nav }) {
       /* 누른 버튼이 다시 그려지며 사라졌다 — 키보드 사용자가 제자리를 잃지 않게 새 '변경' 으로 */
       const again = qs(panel, "[data-action='pick-license']");
       if (again) again.focus();
-      toast(`${form.bizLicense.name} 을 첨부했습니다 · 저장하면 반영됩니다`);
+      toast(`${form.bizLicense.name} 을 첨부했습니다. 저장하면 반영됩니다`);
     });
     on(panel, "click", "[data-action='zoom-license']", () => {
       const a = form.bizLicense;

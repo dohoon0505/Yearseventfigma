@@ -242,7 +242,7 @@ export function openOrderCreate(spec) {
     /* 토스트가 떠 있는 동안만 유효하다 — 안내가 사라진 뒤의 ESC 는 다시 첫 번째다.
        (toast.js 의 DURATION 2600ms 에 맞춘다. 2초로 두면 문구를 읽는 사이 창이 닫혔다.) */
     setTimeout(() => { escArmed = false; }, 2600);
-    spec.toast && spec.toast("작성 중인 내용이 있습니다 · 한 번 더 누르면 닫힙니다", "warn");
+    spec.toast && spec.toast("작성 중인 내용이 있습니다. 한 번 더 누르면 닫힙니다", "warn");
     return false;
   }
 

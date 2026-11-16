@@ -84,9 +84,9 @@ export function openSettleConfirm(o) {
       <div data-slot="alert" hidden></div>
       ${sdlgMonths({ months: o.months, what: o.what })}
       <section data-slot="reason">
-        ${dlgRule({ t: html`사유 <span class="sdlg-opt">(선택)</span>`, cap: "정산 금액 변경 기록에 남습니다 · 거래처에는 보이지 않습니다" })}
+        ${dlgRule({ t: html`사유 <span class="sdlg-opt">(선택)</span>`, cap: "정산 금액 변경 기록에 남습니다. 거래처에는 보이지 않습니다" })}
         <textarea class="sdlg-reason" id="${reasonId}" rows="2" maxlength="${REASON_MAX}" aria-label="사유 (선택)"
-          placeholder="예) 10월 6일 고객센터 접수: 전화로 줄인 주문이 청구에 그대로 들어 있음"></textarea>
+          placeholder="예) 10월 6일 고객센터 접수: 전화로 줄인 주문이 청구에 그대로 포함되어 있음"></textarea>
       </section>
       <div class="sdlg-notes" data-slot="notes">${(o.notes || []).map(sdlgNote)}</div>`,
     hint: o.hint,

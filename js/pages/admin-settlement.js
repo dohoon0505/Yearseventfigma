@@ -119,7 +119,7 @@ function deltaBadge(delta, suffix = "원") {
    ⚠️ 1280 에서는 '기한 · 비고' 칸이 말줄임된다 — 그 칸의 title(dtip || tip)은 **보이는 낱말부터** 다시 말한다. */
 const NONE = { kind: "none" };
 /* 자동 동의되지 않은 달(약관 동의 전) 줄의 설명(⑫ — 펼침 처리 카드 · 마우스 올림이 같은 말을 한다) */
-const HOLD_WHY = "마감이 지났지만 거래처가 직접 동의할 수 있습니다. 오래 동의하지 않으면 운영이 연락합니다. 수정 마감이 지나 금액은 고칠 수 없습니다.";
+const HOLD_WHY = "마감이 지났지만 거래처가 직접 동의할 수 있습니다. 오래 동의하지 않으면 운영팀이 연락합니다. 수정 마감이 지나 금액은 변경할 수 없습니다.";
 /* ── 정산 안내(T3 명세서 발급 안내 · T4 마감 하루 전 안내)를 '보냈다 / 못 보냈다 / 닿지 않았다' 고 말하는 판정 ──
    진행 기록 · '기한 · 비고' 마우스 올림 · 펼침 '고칠 수 있음' 줄이 **같은 판정**을 쓴다(settlementOf().notice · 2026-10-19).
    · 0원 주문만 있는 달은 내역서가 없어(NONE — 2026-10-22 결정 B) 진행 기록 자체가 없다. 고쳐서 0원이 된 달은 발급 때 금액이 있어 T3 이
@@ -146,8 +146,8 @@ function noticeTip(s, now) {
 function agreeStage(client, s, now) {
   if (s.status === "SCHEDULED") {
     return {
-      kind: "live", label: "발급예정", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발행 · 주문 자유롭게 고침`,
-      tip: `${fmtKoShortTime(s.issueAt)}에 명세서가 발행됩니다 · 발행 전이라 이 달 주문을 자유롭게 고칩니다`,
+      kind: "live", label: "발급예정", tone: "gray", meta: `${fmtMdHm(s.issueAt)} 발행 · 주문 자유롭게 수정`,
+      tip: `${fmtKoShortTime(s.issueAt)}에 명세서가 발행됩니다. 발행 전이라 이 달 주문을 자유롭게 수정합니다`,
     };
   }
   if (s.status === "AWAITING_AGREEMENT") {
@@ -161,7 +161,7 @@ function agreeStage(client, s, now) {
       const meta = `${word.split(" · ")[0]} · 마감 뒤 직접 동의 가능`;
       return {
         kind: "live", label: "동의대기", tone: "amber", meta, amb: true,
-        tip: `${word} · 마감 뒤 직접 동의 가능(마감 ${dl} 지남) · 오래 동의하지 않으면 운영이 연락합니다 · 수정 마감이 지나 금액은 고칠 수 없습니다`,
+        tip: `${word} · 마감 뒤 직접 동의 가능(마감 ${dl} 지남). 오래 동의하지 않으면 운영팀이 연락합니다. 수정 마감이 지나 금액은 변경할 수 없습니다`,
       };
     }
     /* 약관 동의 전 거래처의 마감 전 달 — 마감이 와도 자동 동의되지 않는다는 것을 미리 말한다. 고칠 수 있으면 수정 마감을,
@@ -170,7 +170,7 @@ function agreeStage(client, s, now) {
       return {
         kind: "live", label: "동의대기", tone: "orange", amb: true,
         meta: s.editable ? `약관 동의 전 · 수정 마감 ${fmtMdHm(s.editLockAt)}` : `${HOLD_LABEL.TERMS_NOT_AGREED} · 마감 ${fmtMdHm(s.deadline)}`,
-        tip: `${HOLD_LABEL.TERMS_NOT_AGREED}(마감 ${dl}) · 약관에 동의하기 전에는 마감에 자동 동의되지 않습니다 · ${s.editable ? `수정 마감 ${lk}까지 주문을 고칠 수 있습니다` : `수정 마감 ${lk} 지남 · 금액 고정`}`,
+        tip: `${HOLD_LABEL.TERMS_NOT_AGREED}(마감 ${dl}) · 약관에 동의하기 전에는 마감에 자동 동의되지 않습니다. ${s.editable ? `수정 가능 · 수정 마감 ${lk}` : `수정 마감 ${lk} 지남 · 금액 고정`}`,
       };
     }
     /* 고칠 수 있음(동의 전 · 수정 마감 전) — 빨강은 수정 마감 24시간 전부터 */
@@ -179,8 +179,8 @@ function agreeStage(client, s, now) {
       const soon = left <= DAY;
       return {
         kind: "live", label: "동의대기", tone: "orange", hot: soon,
-        meta: soon ? `고칠 수 있음 · 수정 마감까지 ${span(left)}` : `고칠 수 있음 · 수정 마감 ${fmtMdHm(s.editLockAt)}`,
-        tip: `고칠 수 있음 · 수정 마감 ${lk}까지 주문을 고칠 수 있습니다 · 동의 마감 ${dl}`,
+        meta: soon ? `수정 가능 · 수정 마감까지 ${span(left)}` : `수정 가능 · 수정 마감 ${fmtMdHm(s.editLockAt)}`,
+        tip: `수정 가능 · 수정 마감 ${lk} · 동의 마감 ${dl}`,
       };
     }
     /* 수정 마감 지남(금액 고정) — 빨강은 동의 마감 24시간 전부터 */
@@ -193,7 +193,7 @@ function agreeStage(client, s, now) {
     return {
       kind: "live", label: "동의대기", tone: "orange", hot: soon,
       meta: soon ? `수정 마감 지남 · 동의 마감까지 ${span(left)}` : `수정 마감 지남 · 동의 마감 ${fmtMdHm(s.deadline)}`,
-      tip: `수정 마감 지남 · 금액 고정(수정 마감 ${lk})${nt ? ` · ${nt}` : ""} · 마감 ${dl}에 자동 동의됩니다`,
+      tip: `수정 마감 지남 · 금액 고정(수정 마감 ${lk}) · ${nt ? `${nt}. ` : ""}마감 ${dl}에 자동 동의됩니다`,
     };
   }
   if (s.mode) {
@@ -245,7 +245,7 @@ function stagesOf(client, s, now) {
   /* 거래가 없거나 0원 주문만 있는 달(NONE — 내역서를 내지 않는다) */
   if (s.status === "NONE") return { merged: { none: true, text: "거래 없음 · 명세서 없음" }, cur: null };
   if (zeroClosed(s)) {
-    const meta = "고쳐서 0원 · 계산서 없이 닫힘";
+    const meta = "수정 후 0원 · 계산서 없이 닫힘";
     const z = { kind: "done", label: "0원 · 계산서 없음", tone: "gray", meta, tip: "동의 · 계산서 · 입금 없이 입금완료 처리된 달입니다. 실제 입금은 없습니다", dtip: `${meta} · 실제 입금은 없습니다` };
     return { merged: z, cur: z };
   }
@@ -255,7 +255,7 @@ function stagesOf(client, s, now) {
     const meta = s.editable
       ? `${fmtMdHm(s.deadline)} 마감에 계산서 없이 닫힘 · 수정 마감 ${fmtMdHm(s.editLockAt)}`
       : `${fmtMdHm(s.deadline)} 마감에 계산서 없이 닫힘`;
-    const z = { kind: "live", label: "0원 · 계산서 없음", tone: "gray", meta, tip: "발급 뒤 고쳐서 0원이 된 달입니다. 동의 · 계산서 · 입금 없이 닫힙니다", dtip: `${meta} · 발급 뒤 고쳐서 0원이 된 달입니다` };
+    const z = { kind: "live", label: "0원 · 계산서 없음", tone: "gray", meta, tip: "발급 뒤 수정해 0원이 된 달입니다. 동의 · 계산서 · 입금 없이 닫힙니다", dtip: `${meta} · 발급 뒤 수정해 0원이 된 달입니다` };
     return { merged: z, cur: z };
   }
   const cells = [agreeStage(client, s, now), invStage(s, now), payStage(s, now)];
@@ -270,17 +270,17 @@ function actOf(client, s) {
   if (s.status === "AGREED") return { btn: "issue", label: "발급 처리", full: "계산서 발급 처리" };
   if (s.status === "ISSUED" || s.status === "OVERDUE") return { btn: "pay", label: "입금 확인", full: "입금 확인" };
   if (s.status === "NONE") return { text: "처리 없음", tip: "거래가 없는 달은 명세서 · 계산서 · 입금이 없습니다" };
-  if (zeroClosed(s)) return { text: "처리 없음", tip: "고쳐서 0원이 된 달은 동의 · 계산서 · 입금 처리가 없습니다" };
-  if (s.status === "SCHEDULED") return { text: "발행 전", tip: `${fmtKoShortTime(s.issueAt)} 발행 · 주문은 자유롭게 고칩니다` };
+  if (zeroClosed(s)) return { text: "처리 없음", tip: "수정 후 0원이 된 달은 동의 · 계산서 · 입금 처리가 없습니다" };
+  if (s.status === "SCHEDULED") return { text: "발행 전", tip: `${fmtKoShortTime(s.issueAt)} 발행 · 주문은 자유롭게 수정합니다` };
   if (s.status === "PAID") return { text: "처리 완료", tip: "" };
-  if (s.autoAgreeHold) return { text: "거래처 연락", tip: "마감 뒤에도 거래처가 직접 동의할 수 있습니다 · 오래 동의하지 않으면 운영이 연락합니다" };
+  if (s.autoAgreeHold) return { text: "거래처 연락", tip: "마감 뒤에도 거래처가 직접 동의할 수 있습니다. 오래 동의하지 않으면 운영팀이 연락합니다" };
   /* 동의대기 · 수정 마감 전(고쳐서 0원인 달 포함) — 배송일이 그 달인 주문을 걸러 주문관리로 연다 */
-  if (s.editable) return { btn: "orders", label: "주문 고치기", full: "주문 고치기" };
+  if (s.editable) return { btn: "orders", label: "주문 수정", full: "주문 수정" };
   if (s.zeroEdited) return { text: "마감에 닫힘", tip: s.lockReason };
   return {
-    text: "동의 기다림",
+    text: "거래처 동의 대기",
     tip: termsPending(client)
-      ? `${s.lockReason} · 약관 동의 전이라 마감에 자동 동의되지 않습니다`
+      ? `${s.lockReason}. 약관 동의 전이라 마감에 자동 동의되지 않습니다`
       : `${s.lockReason} · ${fmtKoShortTime(s.deadline)}에 자동 동의`,
   };
 }
@@ -291,19 +291,19 @@ function editRowOf(client, s, now) {
   if (s.status === "NONE") return null;
   if (zeroClosed(s)) return { name: "0원 · 계산서 없이 닫힌 달", why: LOCK_REASON.zero, can: false };
   if (s.status === "SCHEDULED") {
-    return { name: "발급 전 · 자유롭게 고침", why: `명세서 발행(${fmtKoShortTime(s.issueAt)}) 전입니다. 이 달 주문을 자유롭게 고치고, 발행 때의 값이 청구금액이 됩니다.`, can: true };
+    return { name: "발급 전 · 자유롭게 수정", why: `명세서 발행(${fmtKoShortTime(s.issueAt)}) 전입니다. 이 달 주문을 자유롭게 수정하고, 발행 때의 값이 청구금액이 됩니다.`, can: true };
   }
   if (s.status === "AWAITING_AGREEMENT") {
     const lk = fmtKoShortTime(s.editLockAt);
     if (s.zeroEdited) {
       return s.editable
-        ? { name: `0원 · 수정 마감 ${lk}까지 고칠 수 있음`, why: `지금 금액이 0원입니다. 그대로면 ${fmtKoShortTime(s.deadline)} 마감에 계산서 없이 닫힙니다. 수정 마감 전이라 주문을 고치면 금액이 다시 생길 수 있습니다.`, can: true }
+        ? { name: `0원 · 수정 가능 · 수정 마감 ${lk}`, why: `지금 금액이 0원입니다. 그대로면 ${fmtKoShortTime(s.deadline)} 마감에 계산서 없이 닫힙니다. 수정 마감 전에 주문을 변경하면 금액이 다시 생길 수 있습니다.`, can: true }
         : { name: "0원 · 마감에 계산서 없이 닫힘", why: s.lockReason, can: false };
     }
     if (s.editable) {
       /* '안내를 보낸다' 는 말은 진행 기록 · 발급 처리 창과 같은 판정으로 — 알림 수신자가 없으면 '나간다' 고 말하지 않는다. */
-      const notice = s.noRecipient ? "알림 수신자가 없어 마감 하루 전 안내는 나가지 않습니다." : "수정 마감 시각에 마감 하루 전 안내가 최종 금액으로 나갑니다.";
-      return { name: `고칠 수 있음 · 수정 마감 ${lk}`, why: `동의 전 · 수정 마감 전입니다. 주문을 고치면 청구금액과 거래처가 보는 명세서가 바로 변경됩니다. ${notice}`, can: true };
+      const notice = s.noRecipient ? "알림 수신자가 없어 마감 하루 전 안내는 발송되지 않습니다." : "수정 마감 시각에 마감 하루 전 안내가 최종 금액으로 발송됩니다.";
+      return { name: `수정 가능 · 수정 마감 ${lk}`, why: `동의 전 · 수정 마감 전입니다. 주문을 수정하면 청구금액과 거래처가 보는 명세서가 바로 변경됩니다. ${notice}`, can: true };
     }
     return { name: "수정 마감 지남 · 금액 고정", why: s.lockReason, can: false };
   }
@@ -377,7 +377,7 @@ function logOf(client, s, ct, now, lines) {
     const rec = m === "manual" && s.einvoice.recordedAt && fmtMdHm(s.einvoice.recordedAt) !== fmtMdHm(s.einvoice.at)
       ? ` · ${fmtMdHm(s.einvoice.recordedAt)} 기록` : "";
     const howBy = `${how}${rec}${by ? ` · ${by}` : ""}`;
-    L.push([s.einvoice.at, "계산서 발급", reach ? `${howBy} · 발급 안내 보냄` : `${howBy} · ${NOT_SENT}`]);
+    L.push([s.einvoice.at, "계산서 발급", reach ? `${howBy} · 발급 안내 발송` : `${howBy} · ${NOT_SENT}`]);
   }
   /* 기한 초과가 **된** 시각(overdueFrom = max(정산기한 다음 날 10:00, 계산서가 시스템에 생긴 시각 — 직접 입력은 기록한 시각)).
      계산서가 정산기한 뒤에 나온 달은 발급 순간 기한 초과라 이 줄이 '계산서 발급' 줄 뒤에 선다(예전엔 기한 초과 11-01 10:00 이 계산서
@@ -387,7 +387,7 @@ function logOf(client, s, ct, now, lines) {
   if (s.einvoice && ovf && now.getTime() >= ovf.getTime() && (s.status === "OVERDUE" || (s.paidAt && s.paidAt.getTime() >= ovf.getTime()))) {
     const late = overdueLateOf(s);
     const lateWord = late === "record" ? "정산기한 뒤에 기록" : "정산기한 뒤에 발급";
-    L.push([ovf, "기한 초과", !reach ? NOT_SENT : late ? `${lateWord} · 입금 기한 지남 안내를 발급 안내와 함께 보냄` : "입금 기한 지남 안내 보냄"]);
+    L.push([ovf, "기한 초과", !reach ? NOT_SENT : late ? `${lateWord} · 입금 기한 지남 안내를 발급 안내와 함께 발송` : "입금 기한 지남 안내 발송"]);
   }
   if (s.paidAt) L.push([s.paidAt, "입금 확인", actorLabel(s.paidBy)]);
   if (zeroClosed(s)) L.push([s.zeroCloseAt || s.deadline, "마감 · 0원이라 계산서 없이 닫힘", "자동"]);
@@ -508,10 +508,10 @@ export function mount(root, { nav }) {
   function insightCard(r) {
     const mm = monthOf(state.ym);
     let headline;
-    if (r.deltaTotal == null) headline = html`<b>${mm}월</b> 총 이용금액은 <b class="num">${won(r.total)}</b>이에요`;
-    else if (r.deltaTotal === 0) headline = html`총 이용금액이 지난달과 <b class="num">같아요</b> (${won(r.total)})`;
-    else if (r.deltaTotal > 0) headline = html`총 이용금액이 지난달보다<br /><span class="up num">${won(r.deltaTotal)}</span> 늘었어요`;
-    else headline = html`총 이용금액이 지난달보다<br /><span class="down num">${won(Math.abs(r.deltaTotal))}</span> 줄었어요`;
+    if (r.deltaTotal == null) headline = html`<b>${mm}월</b> 총 이용금액은 <b class="num">${won(r.total)}</b>입니다`;
+    else if (r.deltaTotal === 0) headline = html`총 이용금액이 지난달과 <b class="num">같습니다</b> (${won(r.total)})`;
+    else if (r.deltaTotal > 0) headline = html`총 이용금액이 지난달보다<br /><span class="up num">${won(r.deltaTotal)}</span> 늘었습니다`;
+    else headline = html`총 이용금액이 지난달보다<br /><span class="down num">${won(Math.abs(r.deltaTotal))}</span> 줄었습니다`;
     const max = Math.max(...r.trend.map((t) => t.total), 1);
     return html`
       <div class="acard">
@@ -764,12 +764,12 @@ export function mount(root, { nav }) {
     const doRow = (name, [can, why], action, btnLabel) => html`
       <div class="settle-do ${can ? "" : "is-off"}">
         <div class="settle-do__l"><b class="settle-do__n">${name}</b><p class="settle-do__w">${why}</p></div>
-        ${can ? html`<button type="button" class="settle-dobtn" data-action="${action}" data-cid="${c.id}" aria-label="${rowName(r)} ${M}월 ${action === "orders" ? "주문 고치기" : name}">${btnLabel}</button>` : ""}
+        ${can ? html`<button type="button" class="settle-dobtn" data-action="${action}" data-cid="${c.id}" aria-label="${rowName(r)} ${M}월 ${action === "orders" ? "주문 수정" : name}">${btnLabel}</button>` : ""}
       </div>`;
     /* 0원 주문만 있는 달(NONE — 2026-10-22 결정 B)은 품목은 보이되 청구가 없다 — '합계 = 청구금액' 이라고 말하지 않는다.
        주문이 한 건도 없는 NONE 달은 그 줄의 낱말 그대로 '거래 없음 · 명세서 없음'(0원 주문이 있다고 말하면 틀린다 — 검증 2026-10-22). */
     const noneCap = s.count ? "0원 주문만 있어 명세서 없음" : "거래 없음 · 명세서 없음";
-    const itemsCap = `${s.count.toLocaleString("ko-KR")}건${s.feeCount ? ` · 수수료 ${s.feeCount}건` : ""} · ${s.status === "NONE" ? noneCap : editNow ? "고치면 바로 다시 계산" : "합계 = 청구금액"}`;
+    const itemsCap = `${s.count.toLocaleString("ko-KR")}건${s.feeCount ? ` · 수수료 ${s.feeCount}건` : ""} · ${s.status === "NONE" ? noneCap : editNow ? "수정하면 바로 다시 계산" : "합계 = 청구금액"}`;
     return html`
       ${lines.length
         ? html`
@@ -802,7 +802,7 @@ export function mount(root, { nav }) {
                    <div class="settle-itsum"><b>합계</b><b>${won(s.amount)}</b></div>`
             : html`<p class="settle-noit">이 달의 이용 내역이 없습니다.</p>`}
           <div class="settle-it__go">
-            <button type="button" class="settle-pill ${editNow ? "settle-pill--strong" : ""}" data-action="orders" data-cid="${c.id}">이 거래처 · ${M}월 주문 ${editNow ? "고치기" : "보기"} ›</button>
+            <button type="button" class="settle-pill ${editNow ? "settle-pill--strong" : ""}" data-action="orders" data-cid="${c.id}">이 거래처 · ${M}월 주문 ${editNow ? "수정" : "보기"} ›</button>
             <span class="settle-it__gocap">배송일이 ${M}월인 주문</span>
           </div>
         </section>
@@ -812,7 +812,7 @@ export function mount(root, { nav }) {
           ${s.autoAgreeHold
             ? html`<div class="settle-hold"><b class="settle-hold__t">${HOLD_LABEL[s.autoAgreeHold]}</b><p class="settle-do__w">${HOLD_WHY}</p></div>`
             : ""}
-          ${ed ? doRow(ed.name, [ed.can, ed.why], "orders", "주문 고치기") : ""}
+          ${ed ? doRow(ed.name, [ed.can, ed.why], "orders", "주문 수정") : ""}
           ${doRow("계산서 발급 처리", av.issue, "issue", "발급 처리")}
           ${doRow("입금 확인", av.pay, "pay", "입금 확인")}
         </section>
@@ -1095,7 +1095,7 @@ export function mount(root, { nav }) {
        예전엔 복사한 순간의 본문을 실어 같은 토큰의 문서를 덮어썼다(포털이 보낸 링크의 내용이 바뀌던 결함 — 이제 그럴 본문이 없다). */
     const token = issueLink({ clientId: r.client.id, bizNumber: r.client.bizNumber, ym: state.ym });
     const url = publicInvoiceUrl(token);
-    const done = () => toast(`${rowName(r)} ${monthOf(state.ym)}월 명세서 공개 링크를 복사했습니다 · 열 때의 지금 금액을 보여 줍니다`);
+    const done = () => toast(`${rowName(r)} ${monthOf(state.ym)}월 명세서 공개 링크를 복사했습니다. 열 때의 지금 금액을 보여 줍니다`);
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => window.prompt("공개 링크", url));
     else window.prompt("공개 링크", url);
   }));

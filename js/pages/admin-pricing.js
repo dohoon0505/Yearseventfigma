@@ -329,7 +329,7 @@ export function mount(root, { nav }) {
       syncPend();
     } else if (a === "to-approve") {
       /* 저장 안 한 단가를 두고 떠나면 편집이 사라진다(drafts 는 이 화면 안에만 산다) — 막고 이유를 말한다. */
-      if (isDirty(state.clientId)) { toast("저장하지 않은 단가가 있습니다 · 먼저 저장해 주세요", "warn"); return; }
+      if (isDirty(state.clientId)) { toast("저장하지 않은 단가가 있습니다. 먼저 저장해 주세요.", "warn"); return; }
       setFocusClient("clients", state.clientId);
       nav("#/admin");
     } else if (a === "toggle") {
@@ -347,7 +347,7 @@ export function mount(root, { nav }) {
       syncCounts();
       syncPend();
       const n = changedKeys(state.clientId).length;
-      toast(`${nameOf(state.clientId)} 맞춤 단가 ${n}건을 정가로 되돌렸습니다 · 저장해야 반영됩니다`, "warn");
+      toast(`${nameOf(state.clientId)} 맞춤 단가 ${n}건을 정가로 되돌렸습니다. 저장해야 반영됩니다.`, "warn");
     } else if (a === "revert") {
       delete state.drafts[state.clientId];
       put("acc", accBody());

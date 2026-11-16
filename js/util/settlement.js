@@ -546,7 +546,7 @@ export function unbilledWhy(mark, now = new Date()) {
 export function closedMoveTail(cm, now = new Date()) {
   const n = ymWord(cm.toYm, now);
   if (cm.to === "closed") return `${n}은 ${cm.toWord}이라 배송완료해도 정산에 넣지 않습니다`;
-  return `배송완료하면 ${n} ${cm.to === "open" ? "명세서" : "정산"}에 듭니다`;
+  return `배송완료하면 ${n} ${cm.to === "open" ? "명세서" : "정산"}에 포함됩니다`;
 }
 /* 옛 달이 잠긴 달·거래 없는 달인가(E1) — 아니면 새 달만 그런 달이다(F1). 옛 값(from 칸이 없던 closedMove)은 E1 이다. */
 const fromClosed = (cm) => !cm.from || cm.from === "closed";
@@ -555,7 +555,7 @@ const fromClosed = (cm) => !cm.from || cm.from === "closed";
 export function closedMoveWarn(cm, now = new Date()) {
   const tail = closedMoveTail(cm, now);
   if (!fromClosed(cm)) return tail;
-  return `${ymWord(cm.ym, now)}은 ${cm.word}이라 실제 배송일일 때만 옮기세요 · ${tail}`;
+  return `${ymWord(cm.ym, now)}은 ${cm.word}이라 실제 배송일일 때만 옮기세요. ${tail}`;
 }
 /** 처리 이력의 짧은 사실 — E1 '9월(동의를 마친 달)에서 옮김' / F1 '9월(동의를 마친 달)로 옮김' /
  *  둘 다(잠긴 달 → 잠긴 달) '9월(동의를 마친 달)에서 8월(동의를 마친 달)로 옮김' — 한 줄이다. */
@@ -597,7 +597,7 @@ export function orderSaveLineOf(imp, n, monthsLine = "", now = new Date()) {
   if (imp && !imp.lock && imp.unbill) {
     return {
       text: `수정한 항목 ${n}개 · ${cmFrom}저장하면 배송완료 · ${Number(String(imp.unbill.ym).slice(5, 7))}월 정산에는 넣지 않습니다`,
-      tip: cmNote ? `${closedMoveWarn(cm, now)} · ${imp.unbill.reason}` : imp.unbill.reason, ask: false,
+      tip: cmNote ? `${closedMoveWarn(cm, now)}. ${imp.unbill.reason}` : imp.unbill.reason, ask: false,
     };
   }
   if (imp && !imp.lock && imp.confirm.length) {

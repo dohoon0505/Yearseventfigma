@@ -154,10 +154,10 @@ export function openCancelModal({ orderNo, amount, settle = false, onConfirm, on
       d.setHint("취소 사유를 먼저 고르세요", true);
     } else if (isEtc() && !form.etc.trim()) {
       goBtn.disabled = true;
-      d.setHint("'기타' 사유를 적어야 취소할 수 있습니다", true);
+      d.setHint("'기타' 사유를 입력해야 취소할 수 있습니다", true);
     } else if (form.feeBad) {
       goBtn.disabled = true;
-      d.setHint("수수료는 숫자와 쉼표로만 적어 주세요", true);
+      d.setHint("수수료는 숫자와 쉼표로만 입력해 주세요", true);
       feeWhy = true;
     } else if (overCap()) {
       goBtn.disabled = true;

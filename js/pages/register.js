@@ -413,7 +413,7 @@ export function mount(root, { nav }) {
        10~12자리 · 010 번호는 정확히 11자리 · 숫자·하이픈·공백 밖의 글자 거부 · 결정 ⓔ)으로 관리자 신규 등록의 정산 담당 칸·담당자
        등록 창과 같다. 예전엔 비어 있지 않기만 하면 'abc' 도, 그다음엔 숫자 10자리 이상이면 13자리(0101234567890)도 넘어갔다. */
     if (!next.contact && state.step === 2 && !contactPhoneOk(state.form.contact))
-      next.contact = `올바른 연락처를 입력해주세요 (${contactPhoneNeed(state.form.contact)})`;
+      next.contact = `올바른 연락처를 입력해 주세요(${contactPhoneNeed(state.form.contact)})`;
     /* 접속 아이디는 유일해야 한다 — 로그인이 아이디 하나로 거래처를 가린다(2026-09-25 · 명세 5.2 UNIQUE).
        예전엔 검사가 없어 이관 계정과 같은 아이디로 가입하면 그 계정은 영영 로그인할 수 없었다. */
     if (!next.userId && state.step === 1 && store.accountIdTaken(state.form.userId))

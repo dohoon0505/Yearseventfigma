@@ -109,7 +109,7 @@ function markup() {
         <!-- STEP 1 · 경조사 및 상품 -->
         <section class="panel on" data-panel="1">
           <h2 class="q">어떤 경조사가 있으신가요?</h2>
-          <p class="q-sub">경조사를 선택하면 알맞은 주문 방법을 안내해 드려요.</p>
+          <p class="q-sub">경조사를 선택하면 알맞은 주문 방법을 안내해 드립니다.</p>
           <div class="sec-gap" style="margin-top:24px;">
             <div class="sec-label" style="justify-content:space-between;">경조사 구분 <small>상황에 따른 상품선택</small></div>
             <div class="occ-stack">
@@ -126,7 +126,7 @@ function markup() {
           <div class="reveal" data-reveal="url">
             <div class="urlbox">
               <div class="ub-title"><span data-ub-title>부고장 링크가 있다면 붙여넣어주세요!</span> <span class="obadge">간편</span></div>
-              <p class="ub-desc">링크 하나로 배송지 정보까지 자동으로 입력돼요.</p>
+              <p class="ub-desc">링크 하나로 배송지 정보까지 자동으로 입력됩니다.</p>
               <div class="url-row">
                 <input type="text" data-url-input placeholder="https:// 부고장 링크 붙여넣기" />
                 <button data-url-btn>불러오기</button>
@@ -193,7 +193,7 @@ function markup() {
                     <button type="button" class="cal-nav cal-next" aria-label="다음 달">›</button>
                   </div>
                   <div class="cal-grid"></div>
-                  <p class="cal-note">오늘부터 최대 30일까지 예약할 수 있어요</p>
+                  <p class="cal-note">오늘부터 최대 30일까지 예약할 수 있습니다</p>
                 </div>
               </div>
               <div class="dd" data-dd-hour>
@@ -206,7 +206,7 @@ function markup() {
               </div>
             </div>
             <div class="imm-note" data-imm-note></div>
-            <p class="dt-info" data-dt-info>배송 시간은 <b>09:00 ~ 18:30</b> 사이에서 지정할 수 있어요</p>
+            <p class="dt-info" data-dt-info>배송 시간은 <b>09:00 ~ 18:30</b> 사이에서 지정할 수 있습니다</p>
           </div>
           <div class="cta-row">
             <button class="btn-back" data-goto="1">이전</button>
@@ -217,7 +217,7 @@ function markup() {
         <!-- STEP 3 · 리본문구 -->
         <section class="panel" data-panel="3">
           <h2 class="q">리본에 어떤 마음을 담을까요?</h2>
-          <p class="q-sub">왼쪽 리본에는 문구가, 오른쪽 리본에는 보내는분이 새겨져요.</p>
+          <p class="q-sub">왼쪽 리본에는 문구가, 오른쪽 리본에는 보내는분이 새겨집니다.</p>
           <div class="sec-gap">
             <div class="sec-label">리본 문구</div>
             <div class="rib-field">
@@ -228,7 +228,7 @@ function markup() {
               <button class="pick-btn" data-ribbon-pick type="button">${raw(PICK_SVG)}간편선택</button>
             </div>
             <!-- V16 · 2026-11-11: 리본 문구는 배송이 출발한 뒤에도 바꿀 수 있고 비용은 협의 — '청구될'이 아니라 '생길 수 있어요(금액은 협의)'. 아래 cta-hint 도 같은 말. -->
-            <p class="warn-line"><b>배송 시작 후 문구변경 시 비용이 생길 수 있어요(금액은 협의).</b> 한 번 더 확인해 주세요.</p>
+            <p class="warn-line"><b>배송 시작 후 문구변경 시 비용이 생길 수 있습니다(금액은 협의).</b> 한 번 더 확인해 주세요.</p>
           </div>
           <div class="sec-gap">
             <div class="sec-label">보내는분</div>
@@ -239,7 +239,7 @@ function markup() {
               </div>
               <button class="pick-btn" data-sender-pick type="button">${raw(PICK_SVG)}간편선택</button>
             </div>
-            <p class="rib-hint">저장된 프로필에서 불러오거나, 직접 입력할 수 있어요.</p>
+            <p class="rib-hint">저장된 프로필에서 불러오거나, 직접 입력할 수 있습니다.</p>
           </div>
           <div class="cta-row">
             <button class="btn-back" data-goto="2">이전</button>
@@ -250,12 +250,12 @@ function markup() {
         <!-- STEP 4 · 작성내용 확인 -->
         <section class="panel" data-panel="4">
           <h2 class="q">작성하신 내용을 확인해 주세요</h2>
-          <p class="q-sub">잘못된 부분이 있다면 각 항목에서 바로 고칠 수 있어요.</p>
+          <p class="q-sub">잘못된 부분이 있다면 각 항목에서 바로 수정할 수 있습니다.</p>
           <div class="confirm-list" data-cf-list></div>
           <div class="cf-amount" data-cf-pay></div>
           <div class="opt-box">
             <div class="opt-row">
-              <div class="ol">주문 담당자<small>주문 처리 상황을 안내받을 담당자예요</small></div>
+              <div class="ol">주문 담당자<small>주문 처리 상황을 안내받을 담당자입니다</small></div>
               <div class="dd dd--mgr" data-dd-mgr>
                 <button type="button" class="dd-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
                 <div class="dd-panel" role="listbox"></div>
@@ -267,30 +267,30 @@ function markup() {
                  동적 행은 data-nte-* 접두사: 고정 행의 [data-nt] 핸들러와 겹치지 않게. -->
             <div class="nt-extra">
               <div class="nt-head">
-                <div class="ol">배송완료 알림<small>배송이 끝나면 문자로 알려드려요</small></div>
+                <div class="ol">배송완료 알림<small>배송이 끝나면 문자로 알려 드립니다</small></div>
                 <span class="nt-count" data-nt-count></span>
               </div>
               <div class="nt-rows" data-nt-rows></div>
               <button type="button" class="nt-add" data-nte-add>
                 <span class="nt-add__plus">+</span> 수신자 추가 <b data-nte-cnt>(0/${NT_MAX})</b>
               </button>
-              <p class="nt-max" data-nte-max hidden>추가 수신자는 최대 ${NT_MAX}명까지 등록할 수 있어요.</p>
+              <p class="nt-max" data-nte-max hidden>추가 수신자는 최대 ${NT_MAX}명까지 등록할 수 있습니다.</p>
             </div>
           </div>
           <div class="cta-row">
             <button class="btn-back" data-goto="3">이전</button>
             <button class="btn-next" data-submit>주문 접수하기</button>
           </div>
-          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 생길 수 있어요(금액은 협의) · 문의 ${CS_PHONE}</p>
+          <p class="cta-hint">배송 시작 후 문구변경 시 비용이 생길 수 있습니다(금액은 협의) · 문의 ${CS_PHONE}</p>
         </section>
 
         <!-- 완료 -->
         <section class="panel panel-done" data-panel="done">
           <div class="done-ic">${raw(DONE_SVG)}</div>
-          <h2>주문이 접수되었어요</h2>
+          <h2>주문이 접수되었습니다</h2>
           <!-- V22 · 2026-11-11: '배송 시작' 알림은 없다 — 주문은 회사가 확인할 때(주문접수) 맺어지고 그때 T1 주문 접수 알림이 간다.
                4단계 '배송이 끝나면 문자로 알려드려요'는 그대로 둔다(M67). -->
-          <p class="d-sub">회사가 주문을 확인하면 주문 접수 알림을 보내 드려요.<br />진행 상황은 실시간 주문내역에서 확인할 수 있어요.</p>
+          <p class="d-sub">회사가 주문을 확인하면 주문 접수 알림을 보내 드립니다.<br />진행 상황은 실시간 주문내역에서 확인할 수 있습니다.</p>
           <div class="done-box" data-done-box></div>
           <div class="done-redirect" data-redirect>
             <p class="done-redirect__label"><b class="num" data-redirect-n>5</b>초 후 <b>실시간 주문내역</b>으로 이동합니다</p>
@@ -439,12 +439,12 @@ export function mount(root, { nav }) {
         /* 상품 미선택 시 표준 3단화환 기본 선택(데모) */
         if (!state.product) { state.product = occProducts(occ)[0] || null; renderProducts(); }
         msg.className = "url-msg ok";
-        msg.textContent = (occ === "obit" ? "부고장" : "청첩장") + "을 확인했어요. 정보를 자동으로 입력했어요.";
+        msg.textContent = (occ === "obit" ? "부고장" : "청첩장") + "을 확인했습니다. 정보를 자동으로 입력했습니다.";
         if (occ === "obit") {
           /* 부고: 즉시배송 세팅 → 바로 리본문구(STEP 3) 이동 */
           setDeliv("imm");
           refreshCtas();
-          showToast("부고장 정보를 성공적으로 불러왔어요");
+          showToast("부고장 정보를 성공적으로 불러왔습니다");
           go(3);
         } else {
           /* 청첩: 예식 시간으로 배송일시 세팅 → 측근 선택 위해 배송지(STEP 2) 이동 */
@@ -453,14 +453,14 @@ export function mount(root, { nav }) {
           setDeliv("sched");
           dpDate.renderTrigger(); ddHour.renderTrigger(); ddMin.renderTrigger();
           refreshCtas();
-          showToast("청첩장 정보를 성공적으로 불러왔어요");
+          showToast("청첩장 정보를 성공적으로 불러왔습니다");
           go(2);
         }
         return;
       }
     }
     msg.className = "url-msg err";
-    msg.textContent = `확인할 수 없는 링크예요. (데모: ${AUTOFILL_HINT})`;
+    msg.textContent = `확인할 수 없는 링크입니다. (데모: ${AUTOFILL_HINT})`;
   }
 
   /* ── STEP 2 · 배송지 · 일시 ── */
@@ -599,7 +599,7 @@ export function mount(root, { nav }) {
       panelClass: "modal-panel--pick",
       bodyClass: "dlg-body--sections",
       body: html`
-        <p class="dlg-desc">고르면 입력란에 채워지고, 그 뒤 자유롭게 고칠 수 있어요.</p>
+        <p class="dlg-desc">고르면 입력란에 채워지고, 그 뒤 자유롭게 수정할 수 있습니다.</p>
         ${RIBBON_GROUPS.map((g) => html`
           <section class="pick-group">
             ${dlgRule({ t: g.group })}
@@ -669,7 +669,7 @@ export function mount(root, { nav }) {
      체크는 창을 열 때마다 꺼진 채로 시작하고, 켜기 전에는 '주문 접수하기' 가 잠기고 푸터가 빨간 글씨로 이유를 말한다(공용 다이얼로그 규격 '푸터 힌트').
      ⚠️ 확인한 사실(시각)을 주문에 남기지 않는다 — 운영자가 아직 정하지 않았다(시안 '운영자 확인' · 명세 3.2). 정하면 createOrder 의 레코드에 더한다.
      ⚠️ 거래 조건(물리는 방법·기한 · 불만·분쟁 처리)은 창에 다시 적지 않고 '이용약관 전문'(읽는 화면 #/legal/terms · 새 창)으로 보낸다 — 시안. */
-  const SUBMIT_HINT_OFF = "안내를 확인하고 체크해야 접수할 수 있어요";
+  const SUBMIT_HINT_OFF = "안내를 확인하고 체크해야 접수할 수 있습니다";
   const SUBMIT_HINT_ON = "리본 문구와 보내는분을 한 번 더 확인하세요";
   let submitModal = null;
   let submitSeq = 0; /* 푸터 이유 문장 id — 체크의 aria-describedby 가 가리킨다 */
@@ -705,7 +705,7 @@ export function mount(root, { nav }) {
       bodyClass: "ordsub",
       body: html`
         <section class="ordsub__col">
-          ${dlgRule({ t: "접수 내용", cap: "접수한 뒤에는 포털에서 직접 고칠 수 없어요" })}
+          ${dlgRule({ t: "접수 내용", cap: "접수한 뒤에는 포털에서 직접 수정할 수 없습니다" })}
           <div class="dlg-rows">
             ${dlgRow({ k: "주문 금액", v: val(won(appliedOf(state.product) + deliveryFeeFor(state.addr).fee), "dlg-val--won") })}
             ${dlgRow({ k: "배송", v: val(dateLabel()) })}
@@ -721,16 +721,16 @@ export function mount(root, { nav }) {
           ${dlgRule({ t: "주문 전에 확인해 주세요", cap: html`<a class="ordsub-terms" href="#/legal/terms" target="_blank" rel="opener" aria-label="이용약관 전문 (새 창)">이용약관 전문${ext(11)}</a>` })}
           <div class="ordsub-info">
             <div class="ordsub-grp">
-              <p class="ordsub-grp__t">접수한 뒤에는 주문을 물릴 수 없어요</p>
-              <p class="ordsub-grp__p">주문을 받은 뒤 만드는 상품이라 시간이 지나면 다시 팔 수 없어요. 그래서 전자상거래법에 따라 주문을 물리는 것(청약철회)이 제한돼요.</p>
-              <p class="ordsub-grp__p ordsub-grp__p--but"><b>다만</b> 받은 상품이 안내나 주문 내용과 다르면 물릴 수 있어요(받은 날부터 3개월, 그 사실을 안 날부터 30일 안).</p>
+              <p class="ordsub-grp__t">접수한 뒤에는 주문을 물릴 수 없습니다</p>
+              <p class="ordsub-grp__p">주문을 받은 뒤 만드는 상품이라 시간이 지나면 다시 팔 수 없습니다. 그래서 전자상거래법에 따라 주문을 물리는 것(청약철회)이 제한됩니다.</p>
+              <p class="ordsub-grp__p ordsub-grp__p--but"><b>다만</b> 받은 상품이 안내나 주문 내용과 다르면 물릴 수 있습니다(받은 날부터 3개월, 그 사실을 안 날부터 30일 안).</p>
             </div>
-            <p class="ordsub-line"><b>고치거나 취소하려면</b> 배송이 출발하기 전에 카카오톡 채널 <a class="ordsub-kakao" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" aria-label="${`카카오톡 채널 ${CS_KAKAO_NAME} 1:1 채팅 (새 창)`}">${CS_KAKAO_NAME}${ext(10)}</a> 또는 고객센터 <b class="ordsub-num">${CS_PHONE}</b>에 알려 주세요. 리본 문구는 출발한 뒤에도 바꿀 수 있어요(비용은 협의).</p>
-            <p class="ordsub-line ordsub-line--last"><b>취소 수수료</b>는 제작·배송이 진행된 정도에 따라 0원부터 주문 금액까지예요. 상품 품절이나 업체 사정으로 취소하면 받지 않아요. 배송을 마친 주문은 취소할 수 없어요.</p>
+            <p class="ordsub-line"><b>수정하거나 취소하려면</b> 배송이 출발하기 전에 카카오톡 채널 <a class="ordsub-kakao" href="${CS_KAKAO_URL}" target="_blank" rel="noopener" aria-label="${`카카오톡 채널 ${CS_KAKAO_NAME} 1:1 채팅 (새 창)`}">${CS_KAKAO_NAME}${ext(10)}</a> 또는 고객센터 <b class="ordsub-num">${CS_PHONE}</b>에 알려 주세요. 리본 문구는 출발한 뒤에도 변경할 수 있습니다(비용은 협의).</p>
+            <p class="ordsub-line ordsub-line--last"><b>취소 수수료</b>는 제작·배송이 진행된 정도에 따라 0원부터 주문 금액까지입니다. 상품 품절이나 업체 사정으로 취소하면 받지 않습니다. 배송을 마친 주문은 취소할 수 없습니다.</p>
           </div>
           <button type="button" class="dlg-check" role="checkbox" aria-checked="false" data-action="ack-submit">
             <span class="dlg-check__box" aria-hidden="true"></span>
-            <span>주문 제작 상품이라 접수한 뒤에는 물릴 수 없다는 것과 취소 수수료 안내를 확인했어요</span>
+            <span>주문 제작 상품이라 접수한 뒤에는 물릴 수 없다는 것과 취소 수수료 안내를 확인했습니다</span>
           </button>
         </section>`,
       hint: SUBMIT_HINT_OFF,
@@ -803,11 +803,11 @@ export function mount(root, { nav }) {
       tone = "deliv-fee-note--block";
     } else {
       if (r.allowOnly.length) lines.push(r.notice);
-      if (r.fee > 0) lines.push(`${r.region} 지역은 추가 배송비 +${won(r.fee)}이 적용돼요.`);
+      if (r.fee > 0) lines.push(`${r.region} 지역은 추가 배송비 +${won(r.fee)}이 적용됩니다.`);
       /* 이미 고른 상품이 허용 목록 밖이면 그 사실을 분명히 알린다 — 상품은 1단계에서
          골랐고 주소는 2단계라 순서상 뒤늦게 드러난다. */
       if (r.allowOnly.length && state.product && !matchesProduct(r.allowOnly, state.product.product)) {
-        lines.push(`선택하신 ${state.product.product}은(는) 이 배송지에 반입할 수 없어요. 상품을 다시 골라 주세요.`);
+        lines.push(`선택하신 ${state.product.product}은(는) 이 배송지에 반입할 수 없습니다. 상품을 다시 골라 주세요.`);
         tone = "deliv-fee-note--block";
       }
     }
@@ -1009,7 +1009,7 @@ export function mount(root, { nav }) {
     if (blk) { go(2); showToast(blk.reason); return; }
     const c = managerOf();
     const rec = createOrder(c);
-    if (!rec) { showToast("주문을 접수하지 못했습니다 · 브라우저 저장 공간이 부족합니다"); return; }
+    if (!rec) { showToast("주문을 접수하지 못했습니다. 브라우저 저장 공간이 부족합니다."); return; }
     setHTML($("[data-done-box]"), html`
       <div class="cf-row"><span class="cl">주문번호</span><span class="cv num">${rec.orderNo}</span></div>
       <div class="cf-row"><span class="cl">상품</span><span class="cv">${state.product.product}</span></div>

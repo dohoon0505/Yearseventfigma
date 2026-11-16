@@ -166,7 +166,7 @@ export function mount(root) {
                 slot: "ptable",
                 title: "발송인 프로필",
                 count: html`<span data-slot="pcount">${profiles().length}</span>`,
-                desc: "화환 리본에 표기되는 발신인입니다. 고정문구를 적어두면 주문할 때마다 다시 쓰지 않아도 됩니다.",
+                desc: "화환 리본에 표기되는 발신인입니다. 고정문구를 입력해 두면 주문할 때마다 다시 입력하지 않아도 됩니다.",
                 addAction: "new-profile",
                 addLabel: "프로필 등록",
                 table: profileTable(),
@@ -310,7 +310,7 @@ export function mount(root) {
     if (!isProfile && row.isBilling) {
       dlg = openDialog({
         eyebrow: meta,
-        title: `${row.name} 담당자는 삭제할 수 없어요`,
+        title: `${row.name} 담당자는 삭제할 수 없습니다`,
         width: 520,
         body: html`<p class="dlg-desc">정산 · 회계 담당자는 항상 한 명이 지정되어 있어야 합니다.
           거래명세서 발급과 입금요청 알림톡을 받을 사람이 사라지기 때문입니다.</p>`,
@@ -375,7 +375,7 @@ export function mount(root) {
          없음'). 지금 등록·수정 창은 그런 번호를 받지 않으므로 예전에 저장된 줄만 해당한다. 초점은 누른 '지정' 그대로다(다시 그리지 않는다). */
       if (c && !contactPhoneOk(c.phone)) {
         toast(trim(c.phone)
-          ? `${who(c.name)}님은 연락처가 맞지 않아(${contactPhoneNeed(c.phone)}) 정산 · 회계 담당으로 지정할 수 없습니다. 수정에서 연락처를 먼저 고치세요`
+          ? `${who(c.name)}님은 연락처가 맞지 않아(${contactPhoneNeed(c.phone)}) 정산 · 회계 담당으로 지정할 수 없습니다. 수정에서 맞는 연락처를 먼저 입력하세요`
           : `${who(c.name)}님은 연락처가 없어 정산 · 회계 담당으로 지정할 수 없습니다. 수정에서 연락처를 먼저 입력하세요`, "warn");
         return;
       }

@@ -664,7 +664,7 @@ export function mount(root, { nav }) {
     const merged = { ...editing, amount: Number(editing.amount) || 0 };
     /* 취소한 주문의 금액 < 수수료(서버 400 대역) — 푸터가 이미 막지만 누르는 순간 한 번 더 본다(b2cUpsert 도 같은 판정으로 막는다). */
     const feeLow = orderFeeError(merged, findOrder(merged.id));
-    if (feeLow) { syncDirty(); toast(`저장하지 못했습니다 · ${feeLow.message}`, "warn"); focusAfterSave(panelOf()); return; }
+    if (feeLow) { syncDirty(); toast(`저장하지 못했습니다. ${feeLow.message}`, "warn"); focusAfterSave(panelOf()); return; }
     let autoDone = false;
     /* 자동 배송완료 — 주문접수 + 사진 + 인수자 */
     if (merged.status === "주문접수" && merged.image && String(merged.receiver || "").trim()) {
@@ -714,7 +714,7 @@ export function mount(root, { nav }) {
     const cur = flow.indexOf(editing.status);
     const to = flow.indexOf(next);
     if (to < 0 || to === cur) return;
-    if (to < cur) { toast("상태는 되돌릴 수 없습니다 · 잘못 눌렀다면 주문취소를 사용하세요", "warn"); return; }
+    if (to < cur) { toast("상태는 되돌릴 수 없습니다. 잘못 눌렀다면 주문취소를 사용하세요", "warn"); return; }
     if (next === "배송완료" && !canComplete()) {
       toast("현장사진과 인수자를 먼저 입력하세요", "warn"); return;
     }
@@ -786,7 +786,7 @@ export function mount(root, { nav }) {
           /* 수수료 상한(명세 6.4 `400 CANCEL_FEE_INVALID` — 0원부터 이 주문 금액까지 · B2B 와 같은 규칙). 창이 이미 막지만 쓰기 전에 한 번 더 —
              기준은 곧 저장될 작업본 금액(창에 보인 금액)이다. */
           const feeErr = cancelFeeError(rec.amount, fee);
-          if (feeErr) { toast(`취소하지 못했습니다 · ${feeErr.message}`, "warn"); return; }
+          if (feeErr) { toast(`취소하지 못했습니다. ${feeErr.message}`, "warn"); return; }
           /* 작성 중인 수정은 상태를 바꾸지 않은 채 먼저 저장하고, 취소는 b2cCancel 이 사유·수수료·이력을 한 번에 남긴다(B2B 와 같은 순서).
              ⚠️ 예전엔 상태를 '취소' 로 바꾼 작업본을 b2cUpsert 한 뒤 b2cSetStatus 를 불러 '값이 그대로' 로 건너뛰어 **취소 이력이 한 줄도
              남지 않았다**(2026-10-19 실측 — B2B 가 먼저 고친 함정). */
